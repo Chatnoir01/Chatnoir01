@@ -1,0 +1,83 @@
+{
+  "bbox": [
+    148500.0,
+    170500.0,
+    149000.0,
+    171000.0
+  ],
+  "cell_id": "bxl-e148500-n170500-s500",
+  "collisions": {
+    "status": "not_validated"
+  },
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-maturity-v1",
+  "geometry": {
+    "authoritative_geometry_ready": true,
+    "layer_feature_counts": {
+      "buildings": 1110,
+      "street_axes": 180,
+      "street_surfaces": 598,
+      "train_network": 12,
+      "tram_network": 12
+    },
+    "layers": [
+      "buildings",
+      "street_surfaces",
+      "street_axes",
+      "tram_network",
+      "train_network"
+    ],
+    "source_digest": "0645d03062f79ec08d2ba87714754633fc48f1a5eadf3a35e0df2ae4244d4302",
+    "source_manifest": "data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/manifest.json"
+  },
+  "maturity": {
+    "gates": {
+      "collisions": false,
+      "heights": false,
+      "performance": false,
+      "photo_match": false,
+      "runtime_geometry": false,
+      "streaming": false,
+      "terrain": false
+    },
+    "state": "data_ready"
+  },
+  "provenance": {
+    "authoritative_source_manifest": "data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/manifest.json",
+    "authoritative_source_manifest_sha256": "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f",
+    "license": "CC0-1.0",
+    "municipality_coverage_ratio": 1.0,
+    "municipality_id": "https://databrussels.be/id/municipality/5000074",
+    "municipality_niscode": "21004",
+    "primary": "UrbIS WFS / Paradigm",
+    "source_records_present": true,
+    "source_semantic_sha256": "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3"
+  },
+  "terrain": {
+    "status": "not_registered",
+    "source": "no authoritative terrain evidence registered for this canonical cell"
+  },
+  "heights": {
+    "status": "not_registered",
+    "reason": "no authoritative height evidence is registered for this canonical cell"
+  },
+  "transport": {
+    "rail_geometry_present": true,
+    "service_simulation_validated": false,
+    "tram_geometry_present": true
+  },
+  "photo_match": {
+    "required": false,
+    "status": "not_validated",
+    "open_major_mismatches": 0
+  },
+  "performance": {
+    "status": "not_measured_as_streamed_cell",
+    "budget_pass": false
+  },
+  "uncertainties": [
+    "terrain evidence is not registered for this canonical cell",
+    "height evidence is not registered for this canonical cell",
+    "runtime geometry, streaming, collisions, photo-match and performance remain unvalidated"
+  ]
+}

@@ -1,0 +1,70 @@
+name: Grand Bruxelles Road Readiness One-Shot Persistence
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-road-readiness-one-shot-persist.yml'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+
+permissions:
+  contents: read
+
+jobs:
+  persist-exact-artifact-equivalent:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: persistence candidate does not contain live main" >&2
+            exit 1
+          }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Regenerate and verify exact readiness candidate
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/brussels_road_destination_readiness_catalog.json"
+          python grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py \
+            --repo-root grand-bruxelles-game \
+            --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
+            --cell-index grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
+            --crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
+            --output "$OUT"
+          echo "1e2b65d49de3cb3b81ed91e8532ffa2e5703a9b5892fc3235d65f36efec6c1ed  $OUT" | sha256sum -c -
+          python - "$OUT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.loads(Path(sys.argv[1]).read_text())
+          assert d['status']=='SOURCE_BACKED_REGISTERED_NOT_RENDERED'
+          assert d['destination_count']==11
+          assert d['mapped_cell_count']==2
+          assert d['registered_cell_index_semantic_sha256']=='2b34adfdda1adb2eb34aca7c89ca90e73a11633394b6fe3c3e30b2318cc00fac'
+          assert d['road_cell_crosswalk_semantic_sha256']=='e070145a19c1698cd92c3d3224d2d8e185d7faf128466ec502afa742f0ecbd88'
+          assert d['semantic_sha256']=='82ba769c606262eefcace412493b2171497070291fff8796c49a251c0ea2ef7a'
+          assert all(v is False for v in d['authorization'].values())
+          for row in d['destinations']:
+              assert row['readiness']=='REGISTERED_NOT_RENDERED'
+              for key in ['render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized']:
+                  assert row[key] is False, (row['destination_id'],key)
+          print('ROAD_READINESS_ONE_SHOT_CANDIDATE_VERIFIED')
+          PY
+      - name: Require persisted readiness lock already exact
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/brussels_road_destination_readiness_catalog.json"
+          LOCK=grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
+          cmp "$OUT" "$LOCK"
+          echo "ROAD_READINESS_ALREADY_LOCKED_EXACT"

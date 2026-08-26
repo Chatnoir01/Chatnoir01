@@ -8,6 +8,7 @@ UPSTREAM_REVIEW = ROOT / "data/provenance/grand_place_cell_registration.review.j
 REGISTRATION = ROOT / "data/provenance/grand_place_canonical_registration.review.json"
 INDEX = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
 HISTORICAL_CELL = ROOT / "data/cell_manifests/bxl-e148000-n170000-s500.json"
+CORRECTED_CELL = ROOT / "data/cell_manifests/bxl-e148500-n170500-s500.json"
 FRAME_EVIDENCE = ROOT / "data/qa/city_machine/road_registered_cell_overlap_measurement_v2.json"
 
 OFFICIAL_WGS84 = {"lon": 4.352461951836625, "lat": 50.8467468297299}
@@ -57,29 +58,20 @@ def main() -> None:
     assert not contains(HISTORICAL_BBOX, OFFICIAL_LAMBERT72)
     assert contains(EXPECTED_GRAND_PLACE_BBOX, OFFICIAL_LAMBERT72)
 
-    # A newly merged City Machine frame measurement places two Grand-Place-adjacent
-    # named roads in the historical cell, while its own Lambert72 road footprint does
-    # not contain the official Grand-Place anchor. Preserve it as evidence-only, but
-    # never let that runtime-frame result establish authoritative spatial identity.
     assert frame["schema"] == "grand-bruxelles-road-registered-cell-overlap-measurement-v2"
     assert frame["semantic_sha256"] == FRAME_SEMANTIC_SHA
     assert [row["osm_id"] for row in frame["overlaps"]] == FRAME_ROAD_IDS
     for row in frame["overlaps"]:
-        assert row["cells"] == [
-            {
-                "cell_id": HISTORICAL_CELL_ID,
-                "point_hits": row["cells"][0]["point_hits"],
-                "segment_hits": row["cells"][0]["segment_hits"],
-            }
-        ]
+        assert row["cells"] == [{
+            "cell_id": HISTORICAL_CELL_ID,
+            "point_hits": row["cells"][0]["point_hits"],
+            "segment_hits": row["cells"][0]["segment_hits"],
+        }]
     assert not contains(frame["road_lambert72_bbox"], OFFICIAL_LAMBERT72)
     for key in [
-        "road_cell_mapping_authorized",
-        "runtime_mount_authorized",
-        "rendered_geometry_authorized",
-        "collision_authorized",
-        "safe_spawn_authorized",
-        "jouable_promotion_authorized",
+        "road_cell_mapping_authorized", "runtime_mount_authorized",
+        "rendered_geometry_authorized", "collision_authorized",
+        "safe_spawn_authorized", "jouable_promotion_authorized",
     ]:
         assert frame[key] is False, key
 
@@ -97,8 +89,32 @@ def main() -> None:
     assert historical["bbox"] == HISTORICAL_BBOX
     rows = {row["cell_id"]: row for row in index["entries"]}
     assert HISTORICAL_CELL_ID in rows, "valid generic evidence cell must not be deleted"
-    assert EXPECTED_GRAND_PLACE_CELL_ID not in rows, "correct Grand-Place source cell has not been acquired/registered yet"
 
+    # Lifecycle-aware successor handling: the historical HOLD remains immutable evidence,
+    # but once the corrected cell is legitimately registered it must be validated rather
+    # than treated as an impossible state.
+    if EXPECTED_GRAND_PLACE_CELL_ID in rows:
+        corrected = load(CORRECTED_CELL)
+        entry = rows[EXPECTED_GRAND_PLACE_CELL_ID]
+        assert corrected["cell_id"] == EXPECTED_GRAND_PLACE_CELL_ID
+        assert corrected["bbox"] == EXPECTED_GRAND_PLACE_BBOX
+        assert corrected["crs"] == "EPSG:31370"
+        assert corrected["maturity"]["state"] == "data_ready"
+        assert all(value is False for value in corrected["maturity"]["gates"].values())
+        assert entry["evidence_only"] is True
+        for key in [
+            "runtime_mount_authorized", "rendered_geometry_authorized",
+            "collision_authorized", "safe_spawn_authorized",
+            "jouable_promotion_authorized",
+        ]:
+            assert entry[key] is False, key
+        successor = "registered_evidence_only"
+    else:
+        assert not CORRECTED_CELL.exists(), "corrected cell manifest must not exist before registration"
+        successor = "not_registered"
+
+    # Historical reviews intentionally describe the pre-successor HOLD and therefore
+    # remain immutable even after a corrected evidence-only successor is registered.
     assert upstream["status"] == "SPATIAL_IDENTITY_MISMATCH_HOLD"
     assert upstream["target"]["cell_id"] == HISTORICAL_CELL_ID
     assert upstream["target"]["treat_as_grand_place"] is False
@@ -106,12 +122,8 @@ def main() -> None:
     assert upstream["expected_grand_place_target"]["authoritative_source_manifest_present"] is False
     assert upstream["expected_grand_place_target"]["canonical_manifest_present"] is False
     for key in [
-        "registration_authorized",
-        "road_cell_mapping_authorized",
-        "runtime_mount_authorized",
-        "rendered_geometry_authorized",
-        "collision_authorized",
-        "safe_spawn_authorized",
+        "registration_authorized", "road_cell_mapping_authorized", "runtime_mount_authorized",
+        "rendered_geometry_authorized", "collision_authorized", "safe_spawn_authorized",
         "jouable_promotion_authorized",
     ]:
         assert upstream[key] is False, key
@@ -129,7 +141,7 @@ def main() -> None:
     print(
         "GRAND_PLACE_SPATIAL_IDENTITY_HOLD_OK: "
         f"observed={HISTORICAL_CELL_ID} expected={EXPECTED_GRAND_PLACE_CELL_ID} "
-        f"anchor={OFFICIAL_LAMBERT72} frame_conflict={FRAME_SEMANTIC_SHA}"
+        f"anchor={OFFICIAL_LAMBERT72} frame_conflict={FRAME_SEMANTIC_SHA} successor={successor}"
     )
 
 

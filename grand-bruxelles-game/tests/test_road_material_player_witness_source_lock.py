@@ -13,6 +13,7 @@ CONTRACT = ROOT / "data/qa/corridor_road_source_chain.contract.json"
 REQUIRED_TARGETS = {
     359177328: "Maurice Lemonnier",
     408211693: "Fonsny",
+    411724192: "Auguste Orts",
 }
 
 

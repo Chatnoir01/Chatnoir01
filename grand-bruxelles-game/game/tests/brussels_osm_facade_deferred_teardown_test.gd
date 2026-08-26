@@ -65,6 +65,18 @@ func _wait_ready(runtime: Node, frames: int = 8) -> bool:
             return not bool(runtime.call("failed"))
     return false
 
+func _cleanup_runtime(runtime: Node) -> void:
+    if runtime != null and is_instance_valid(runtime):
+        if runtime.get_parent() != null:
+            runtime.get_parent().remove_child(runtime)
+        runtime.queue_free()
+
+func _cleanup_viewport(viewport: SubViewport) -> void:
+    if viewport != null and is_instance_valid(viewport):
+        if viewport.get_parent() != null:
+            viewport.get_parent().remove_child(viewport)
+        viewport.queue_free()
+
 func _run() -> void:
     _remove_canonical("BrusselsOsmFacadeArticulationRuntime")
     _remove_canonical("BrusselsOsmFacadeSurfaceRuntime")
@@ -92,7 +104,7 @@ func _run() -> void:
     surface_probe.queue_free()
 
     # Phase 2: Articulation must clean both SceneTree.node_added and its
-    # facade_surface_ready connection to the base Surface runtime.
+    # facade_surface_ready connection to the base Surface runtime on teardown.
     var mount := _build_probe_mount(false)
     var surface := SURFACE_SCRIPT.new() as Node
     surface.name = "BrusselsOsmFacadeSurfaceRuntime"
@@ -126,11 +138,40 @@ func _run() -> void:
         return
 
     articulation.queue_free()
-    root.remove_child(surface)
-    surface.queue_free()
-    var viewport := mount["viewport"] as SubViewport
-    root.remove_child(viewport)
-    viewport.queue_free()
+    _cleanup_runtime(surface)
+    _cleanup_viewport(mount["viewport"] as SubViewport)
+    await process_frame
 
-    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true post_teardown_ready=false")
+    # Phase 3: a terminal successful bind must also release the cross-runtime
+    # facade_surface_ready subscription. Otherwise a ready Articulation owner
+    # would keep an unnecessary live dependency on Surface until teardown.
+    var success_mount := _build_probe_mount(true)
+    var success_surface := SURFACE_SCRIPT.new() as Node
+    success_surface.name = "BrusselsOsmFacadeSurfaceRuntime"
+    root.add_child(success_surface)
+    if not await _wait_ready(success_surface, 12):
+        _fail("surface did not reach terminal success for signal-cleanup probe")
+        return
+
+    var success_articulation := ARTICULATION_SCRIPT.new() as Node
+    success_articulation.name = "BrusselsOsmFacadeArticulationRuntime"
+    root.add_child(success_articulation)
+    if not await _wait_ready(success_articulation, 12):
+        _fail("articulation did not reach terminal success for signal-cleanup probe")
+        return
+    if success_surface.facade_surface_ready.is_connected(success_articulation._on_base_surface_ready):
+        _fail("articulation retained facade_surface_ready after terminal success")
+        return
+    if tree.node_added.is_connected(success_articulation._on_node_added):
+        _fail("articulation retained SceneTree.node_added after terminal success")
+        return
+    if not bool(success_articulation.call("geometry_unchanged")):
+        _fail("terminal signal cleanup changed facade geometry")
+        return
+
+    _cleanup_runtime(success_articulation)
+    _cleanup_runtime(success_surface)
+    _cleanup_viewport(success_mount["viewport"] as SubViewport)
+
+    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true post_teardown_ready=false geometry_changed=false")
     quit(0)

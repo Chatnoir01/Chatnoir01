@@ -23,28 +23,39 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Require exact live-main ancestry and locked contract
+      - name: Require exact live-main ancestry and immutable acquisition floor
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           CANDIDATE_SHA="$(git rev-parse HEAD)"
+          ACQUISITION_BASE_SHA="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json').read_text())
+          print(c['production_base_sha'])
+          PY
+          )"
+          git merge-base --is-ancestor "$ACQUISITION_BASE_SHA" "$LIVE_MAIN_SHA"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA"
           echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
-          python - "$LIVE_MAIN_SHA" <<'PY'
-          import json, sys
+          python - <<'PY'
+          import json
           from pathlib import Path
           c=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
-          assert c["production_base_sha"] == sys.argv[1], (c["production_base_sha"], sys.argv[1])
           assert c["schema"] == "grand-bruxelles-osm-road-extension-acquisition-v2"
           assert c["status"] == "LOCKED_SOURCE_ONLY_ARTIFACT"
+          assert c["continuity"] == {
+              "production_base_semantics": "immutable_acquisition_floor",
+              "live_main_rule": "acquisition_floor <= live_main <= candidate_head",
+          }
           assert c["target"]["crs"] == "EPSG:31370"
           assert c["source"]["license"] == "ODbL-1.0"
           assert c["locked_evidence"]["artifact_id"] == 9617302727
           assert c["locked_evidence"]["workflow_run_id"] == 32997864824
           assert all(v is False for v in c["authorization"].values())
-          print("OSM_ROAD_EXTENSION_LOCK_CONTRACT_OK", sys.argv[1], c["locked_evidence"]["semantic_sha256"])
+          print("OSM_ROAD_EXTENSION_LOCK_CONTRACT_OK", c["production_base_sha"], c["locked_evidence"]["semantic_sha256"])
           PY
 
       - name: Verify locked predecessor source
@@ -118,6 +129,7 @@ jobs:
           m=json.loads((Path(os.environ["RUNNER_TEMP"])/"reproduced.measurement.json").read_text())
           e=c["locked_evidence"]
           assert m["semantic_sha256"] == e["semantic_sha256"] == "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf"
+          assert m["production_base_sha"] == c["production_base_sha"]
           assert m["source"]["raw_sha256"] == e["raw_sha256"]
           assert m["source"]["raw_bytes"] == e["raw_bytes"]
           assert m["source"]["endpoint"] == e["endpoint_used"]

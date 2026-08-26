@@ -49,7 +49,7 @@ jobs:
           assert c["status"] == "LOCKED_SOURCE_ONLY_ARTIFACT"
           continuity = c["continuity"]
           assert continuity["policy"] == "artifact-lock-independent-of-original-git-ancestry"
-          assert continuity["original_acquisition_base_sha"] == "37cb3ce2d745ff4db17330636f6d712e028523c6"
+          assert continuity["original_acquisition_base_sha"] == "2b41e365cc7e5f89b6dc26e75ec3d296ef0a7a99"
           assert continuity["locked_artifact_id"] == c["locked_evidence"]["artifact_id"] == 9617302727
           assert continuity["locked_artifact_sha256"] == c["locked_evidence"]["artifact_zip_sha256"] == "8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3"
           assert continuity["locked_semantic_sha256"] == c["locked_evidence"]["semantic_sha256"] == "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf"
@@ -131,7 +131,7 @@ jobs:
           m=json.loads((Path(os.environ["RUNNER_TEMP"])/"reproduced.measurement.json").read_text())
           e=c["locked_evidence"]
           assert m["semantic_sha256"] == e["semantic_sha256"] == "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf"
-          assert m["production_base_sha"] == c["continuity"]["original_acquisition_base_sha"] == "37cb3ce2d745ff4db17330636f6d712e028523c6"
+          assert m["production_base_sha"] == c["continuity"]["original_acquisition_base_sha"] == "2b41e365cc7e5f89b6dc26e75ec3d296ef0a7a99"
           assert m["source"]["raw_sha256"] == e["raw_sha256"]
           assert m["source"]["raw_bytes"] == e["raw_bytes"]
           assert m["source"]["endpoint"] == e["endpoint_used"]

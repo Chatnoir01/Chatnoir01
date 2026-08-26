@@ -1,0 +1,40 @@
+{
+  "schema": "grand-bruxelles-osm-road-extension-acquisition-v1",
+  "campaign_id": "osm-road-extension-e148500-n170500",
+  "production_base_sha": "26810e71b4f31d9452f7d8645786669519f04f6f",
+  "target": {
+    "cell_id": "bxl-e148500-n170500-s500",
+    "grid_cell_id": "E148500_N170500",
+    "crs": "EPSG:31370",
+    "bbox": [148500.0, 170500.0, 149000.0, 171000.0],
+    "purpose": "extend locked OSM road coverage to the corrected Grand-Place registered cell"
+  },
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "license": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors",
+    "query_policy": "highway ways intersecting the target Lambert72 cell after exact EPSG:31370 to EPSG:4326 bbox conversion; include referenced nodes",
+    "overpass_timeout_seconds": 60
+  },
+  "predecessor": {
+    "source_path": "data/osm/vertical_slice_01.game.json",
+    "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "road_count": 140,
+    "road_point_count": 754,
+    "coverage_semantic_sha256": "8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b",
+    "gap_evidence_semantic_sha256": "65536c521ff9897b74046bc1ac5aa653d4dce08ea3a66d60a610b913481508a3"
+  },
+  "authorization": {
+    "source_refresh_authorized": false,
+    "source_merge_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_directory_scan_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "status": "MEASUREMENT_PENDING"
+}

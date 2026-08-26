@@ -1,0 +1,154 @@
+name: Grand Bruxelles OSM Road Extension E148500 N170500
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json"
+      - "grand-bruxelles-game/data/provenance/osm_road_extension_e148500_n170500.measurement.json"
+      - "grand-bruxelles-game/tools/qa/acquire_osm_road_extension_candidate.py"
+      - "grand-bruxelles-game/tests/test_osm_road_extension_acquisition.py"
+      - ".github/workflows/grand-bruxelles-osm-road-extension-e148500-n170500.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acquire-measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and contract base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          CANDIDATE_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          p=Path("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json")
+          c=json.loads(p.read_text())
+          assert c["production_base_sha"] == sys.argv[1], (c["production_base_sha"], sys.argv[1])
+          assert c["status"] == "MEASUREMENT_PENDING"
+          assert c["target"]["crs"] == "EPSG:31370"
+          assert c["source"]["license"] == "ODbL-1.0"
+          assert all(v is False for v in c["authorization"].values())
+          print("OSM_ROAD_EXTENSION_LIVE_MAIN_OK", sys.argv[1])
+          PY
+
+      - name: Verify locked predecessor source
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398  data/osm/vertical_slice_01.game.json" | sha256sum -c -
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install projection dependency
+        run: python -m pip install --disable-pip-version-check pyproj
+
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_osm_road_extension_acquisition.py -v
+
+      - name: Build exact Overpass query from Lambert72 target cell
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from pyproj import Transformer
+          c=json.loads(Path("data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
+          minx,miny,maxx,maxy=map(float,c["target"]["bbox"])
+          tr=Transformer.from_crs("EPSG:31370","EPSG:4326",always_xy=True)
+          corners=[tr.transform(x,y) for x,y in [(minx,miny),(minx,maxy),(maxx,miny),(maxx,maxy)]]
+          west=min(v[0] for v in corners); east=max(v[0] for v in corners)
+          south=min(v[1] for v in corners); north=max(v[1] for v in corners)
+          timeout=int(c["source"]["overpass_timeout_seconds"])
+          q=f'[out:json][timeout:{timeout}];way["highway"]({south:.8f},{west:.8f},{north:.8f},{east:.8f});out body;>;out skel qt;'
+          p=Path(os.environ["RUNNER_TEMP"])/"overpass.query.txt"
+          p.write_text(q+"\n")
+          print("OVERPASS_QUERY",q)
+          print("TARGET_WGS84_BBOX",west,south,east,north)
+          PY
+
+      - name: Acquire OSM road extension candidate
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path('data/qa/osm_road_extension_e148500_n170500.contract.json').read_text())['source']['endpoint'])
+          PY
+          )"
+          QUERY="$(cat "$RUNNER_TEMP/overpass.query.txt")"
+          curl --fail-with-body --silent --show-error --location \
+            --retry 3 --retry-delay 3 --retry-all-errors \
+            --max-time 120 \
+            --data-urlencode "data=${QUERY}" \
+            "$ENDPOINT" > "$RUNNER_TEMP/overpass.raw.json"
+          python -m json.tool "$RUNNER_TEMP/overpass.raw.json" >/dev/null
+          sha256sum "$RUNNER_TEMP/overpass.raw.json"
+          wc -c "$RUNNER_TEMP/overpass.raw.json"
+
+      - name: Measure source, CRS and target-cell intersection
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACQUIRED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          QUERY="$(cat "$RUNNER_TEMP/overpass.query.txt")"
+          python tools/qa/acquire_osm_road_extension_candidate.py \
+            --contract data/qa/osm_road_extension_e148500_n170500.contract.json \
+            --raw-overpass "$RUNNER_TEMP/overpass.raw.json" \
+            --acquired-at "$ACQUIRED_AT" \
+            --query "$QUERY" \
+            --output "$RUNNER_TEMP/osm_road_extension_e148500_n170500.measurement.json"
+          cat "$RUNNER_TEMP/osm_road_extension_e148500_n170500.measurement.json"
+
+      - name: Upload immutable acquisition evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: osm-road-extension-e148500-n170500-red-first
+          path: |
+            ${{ runner.temp }}/overpass.query.txt
+            ${{ runner.temp }}/overpass.raw.json
+            ${{ runner.temp }}/osm_road_extension_e148500_n170500.measurement.json
+          if-no-files-found: error
+
+      - name: Require persisted measurement lock
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f data/provenance/osm_road_extension_e148500_n170500.measurement.json
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          measured=json.loads((Path(os.environ["RUNNER_TEMP"])/"osm_road_extension_e148500_n170500.measurement.json").read_text())
+          locked=json.loads(Path("data/provenance/osm_road_extension_e148500_n170500.measurement.json").read_text())
+          assert locked["semantic_sha256"] == measured["semantic_sha256"]
+          assert locked["accounting"] == measured["accounting"]
+          assert locked["target"] == measured["target"]
+          assert locked["predecessor"] == measured["predecessor"]
+          assert locked["authorization"] == measured["authorization"]
+          assert all(v is False for v in locked["authorization"].values())
+          print("OSM_ROAD_EXTENSION_LOCKED_SOURCE_ONLY", locked["semantic_sha256"])
+          PY

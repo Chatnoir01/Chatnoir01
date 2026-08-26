@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import json
+import math
+from pathlib import Path
+
+from pyproj import Transformer
+
+
+def canonical_json(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def sha256_bytes(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def segment_bbox_intersects(a, b, bbox):
+    minx, miny, maxx, maxy = bbox
+    sx0, sx1 = sorted((a[0], b[0]))
+    sy0, sy1 = sorted((a[1], b[1]))
+    return not (sx1 < minx or sx0 > maxx or sy1 < miny or sy0 > maxy)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--contract", required=True)
+    ap.add_argument("--raw-overpass", required=True)
+    ap.add_argument("--acquired-at", required=True)
+    ap.add_argument("--query", required=True)
+    ap.add_argument("--output", required=True)
+    args = ap.parse_args()
+
+    contract = json.loads(Path(args.contract).read_text())
+    assert contract["schema"] == "grand-bruxelles-osm-road-extension-acquisition-v1"
+    assert contract["target"]["crs"] == "EPSG:31370"
+    assert contract["source"]["license"] == "ODbL-1.0"
+    assert contract["status"] == "MEASUREMENT_PENDING"
+    assert all(v is False for v in contract["authorization"].values())
+
+    raw_path = Path(args.raw_overpass)
+    raw_bytes = raw_path.read_bytes()
+    raw = json.loads(raw_bytes)
+    elements = raw.get("elements")
+    assert isinstance(elements, list) and elements, "Overpass returned no elements"
+
+    nodes = {}
+    ways = []
+    for el in elements:
+        et = el.get("type")
+        if et == "node":
+            nid = int(el["id"])
+            lat = float(el["lat"])
+            lon = float(el["lon"])
+            assert -90 <= lat <= 90 and -180 <= lon <= 180
+            nodes[nid] = (lon, lat)
+        elif et == "way" and isinstance(el.get("tags"), dict) and el["tags"].get("highway"):
+            refs = [int(v) for v in el.get("nodes", [])]
+            if len(refs) >= 2:
+                ways.append({"id": int(el["id"]), "nodes": refs, "tags": dict(el["tags"])})
+
+    assert ways, "No highway ways returned"
+    referenced = {nid for way in ways for nid in way["nodes"]}
+    missing = sorted(referenced - set(nodes))
+    assert not missing, f"Missing referenced nodes: {missing[:10]}"
+
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:31370", always_xy=True)
+    bbox = [float(v) for v in contract["target"]["bbox"]]
+    intersecting = []
+    canonical_ways = []
+    point_count = 0
+    projected_points = []
+
+    for way in sorted(ways, key=lambda w: w["id"]):
+        coords_wgs84 = [nodes[nid] for nid in way["nodes"]]
+        coords_l72 = [transformer.transform(lon, lat) for lon, lat in coords_wgs84]
+        point_count += len(coords_l72)
+        projected_points.extend(coords_l72)
+        hits = sum(segment_bbox_intersects(a, b, bbox) for a, b in zip(coords_l72, coords_l72[1:]))
+        if hits:
+            intersecting.append({"osm_way_id": way["id"], "segment_bbox_hits": hits})
+        canonical_ways.append({
+            "osm_way_id": way["id"],
+            "tags": dict(sorted(way["tags"].items())),
+            "nodes": [
+                {"id": nid, "lon": nodes[nid][0], "lat": nodes[nid][1]}
+                for nid in way["nodes"]
+            ],
+        })
+
+    assert intersecting, "Acquisition does not intersect target Lambert72 cell"
+    xs = [p[0] for p in projected_points]
+    ys = [p[1] for p in projected_points]
+    lambert_bbox = [min(xs), min(ys), max(xs), max(ys)]
+
+    semantic_payload = {
+        "target": contract["target"],
+        "ways": canonical_ways,
+        "intersecting": intersecting,
+    }
+    semantic_sha = sha256_bytes(canonical_json(semantic_payload))
+
+    measurement = {
+        "schema": "grand-bruxelles-osm-road-extension-measurement-v1",
+        "campaign_id": contract["campaign_id"],
+        "production_base_sha": contract["production_base_sha"],
+        "status": "MEASURED_SOURCE_ONLY_UNMERGED",
+        "source": {
+            "provider": contract["source"]["provider"],
+            "endpoint": contract["source"]["endpoint"],
+            "license": contract["source"]["license"],
+            "attribution": contract["source"]["attribution"],
+            "acquired_at_utc": args.acquired_at,
+            "overpass_query": args.query,
+            "raw_bytes": len(raw_bytes),
+            "raw_sha256": sha256_bytes(raw_bytes),
+        },
+        "target": contract["target"],
+        "accounting": {
+            "highway_way_count": len(canonical_ways),
+            "referenced_node_count": len(referenced),
+            "way_point_count": point_count,
+            "target_intersecting_way_count": len(intersecting),
+            "target_intersecting_way_ids": [v["osm_way_id"] for v in intersecting],
+            "lambert72_bbox": lambert_bbox,
+        },
+        "predecessor": contract["predecessor"],
+        "semantic_sha256": semantic_sha,
+        "authorization": contract["authorization"],
+    }
+    assert all(v is False for v in measurement["authorization"].values())
+    Path(args.output).write_text(json.dumps(measurement, ensure_ascii=False, indent=2) + "\n")
+    print(
+        "OSM_ROAD_EXTENSION_MEASURED_SOURCE_ONLY "
+        f"ways={measurement['accounting']['highway_way_count']} "
+        f"intersecting={measurement['accounting']['target_intersecting_way_count']} "
+        f"semantic={semantic_sha}"
+    )
+
+
+if __name__ == "__main__":
+    main()

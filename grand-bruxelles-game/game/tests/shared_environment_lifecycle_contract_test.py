@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = ROOT / "data" / "qa" / "shared_environment_lifecycle_contract.json"
 PROJECT_PATH = ROOT / "project.godot"
-EXPECTED_SCHEMA = "grand-bruxelles-shared-environment-lifecycle-contract-v4"
+EXPECTED_SCHEMA = "grand-bruxelles-shared-environment-lifecycle-contract-v5"
 LEGACY_POLL_RE = re.compile(r"for\s+[^\n]+\s+in\s+range\(\s*(120|180|240)\s*\)")
 AUTOLOAD_RE = re.compile(
     r'^\s*(?P<name>[A-Za-z0-9_]+)\s*=\s*"\*res://(?P<path>game/scripts/[^"\n]+\.gd)"\s*$',
@@ -15,8 +15,8 @@ AUTOLOAD_RE = re.compile(
 )
 EXPECTED_AUTOLOADS = {
     "MidiBlueStoneSurfaceRuntime": "game/scripts/midi_blue_stone_surface_runtime.gd",
-    "MidiArchitecturalConcreteSurfaceRuntime": "game/scripts/midi_architectural_concrete_surface_runtime.gd",
-    "MidiArchitecturalGlazingSurfaceRuntime": "game/scripts/midi_architectural_glazing_surface_runtime.gd",
+    "MidiArchitecturalConcreteSurfaceRuntime": "game/scripts/midi_architectural_concrete_runtime.gd",
+    "MidiArchitecturalGlazingSurfaceRuntime": "game/scripts/midi_architectural_glazing_runtime.gd",
     "MidiFauquenbergBrickSurfaceRuntime": "game/scripts/midi_fauquenberg_brick_surface_runtime.gd",
     "AnneessensMidiSidewalkRuntime": "game/scripts/anneessens_midi_sidewalk_runtime.gd",
     "AnneessensOsmFurnitureRuntime": "game/scripts/anneessens_osm_furniture_runtime.gd",
@@ -35,6 +35,14 @@ EXPECTED_DEFERRED_BIND_GUARDS = {
     "game/scripts/anneessens_midi_sidewalk_runtime.gd": ("_try_bind",),
     "game/scripts/anneessens_osm_furniture_runtime.gd": ("_try_bind",),
     "game/scripts/ixelles_midi_sidewalk_runtime.gd": ("_bind_existing_target", "_apply_candidate"),
+    "game/scripts/brussels_bollard_runtime.gd": ("_schedule_scene_bind", "_recover_existing_scene"),
+    "game/scripts/brussels_street_lamp_runtime.gd": ("_schedule_scene_bind", "_recover_existing_scene"),
+    "game/scripts/brussels_corridor_tree_runtime.gd": ("_start_scene_watch",),
+}
+EXPECTED_OWNED_ROOTS = {
+    "game/scripts/brussels_bollard_runtime.gd": "BrusselsSourceBackedBollards",
+    "game/scripts/brussels_street_lamp_runtime.gd": "BrusselsSourceBackedStreetLamps",
+    "game/scripts/brussels_corridor_tree_runtime.gd": "BrusselsCorridorTrees",
 }
 GLOBAL_TREE_SCAN_TOKENS = (
     "get_tree().root",
@@ -80,6 +88,21 @@ def assert_no_per_frame_global_tree_scan(source: str, rel_path: str) -> None:
                 )
 
 
+def assert_exit_disconnect(source: str, rel_path: str) -> None:
+    exit_body = top_level_function_body(source, "_exit_tree")
+    if not exit_body:
+        fail(f"teardown callback missing _exit_tree: {rel_path}")
+    if "disconnect(" in exit_body:
+        return
+    for helper_name in ("_stop_watching", "_disconnect_scene_watch"):
+        if f"{helper_name}()" not in exit_body:
+            continue
+        helper_body = top_level_function_body(source, helper_name)
+        if helper_body and "disconnect(" in helper_body:
+            return
+    fail(f"deferred-bind watcher cleanup missing from _exit_tree: {rel_path}")
+
+
 def assert_deferred_bind_teardown_guard(source: str, rel_path: str, function_names: tuple[str, ...]) -> None:
     if "call_deferred(" not in source:
         fail(f"deferred-bind teardown contract marked on runtime without deferred work: {rel_path}")
@@ -88,12 +111,7 @@ def assert_deferred_bind_teardown_guard(source: str, rel_path: str, function_nam
     exit_body = top_level_function_body(source, "_exit_tree")
     if not exit_body or "_tearing_down = true" not in exit_body:
         fail(f"deferred-bind teardown sentinel not set from _exit_tree: {rel_path}")
-    if "disconnect(" not in exit_body:
-        if "_stop_watching()" not in exit_body:
-            fail(f"deferred-bind watcher cleanup missing from _exit_tree: {rel_path}")
-        delegated_cleanup = top_level_function_body(source, "_stop_watching")
-        if not delegated_cleanup or "disconnect(" not in delegated_cleanup:
-            fail(f"delegated deferred-bind watcher cleanup is not verified: {rel_path}")
+    assert_exit_disconnect(source, rel_path)
     for function_name in function_names:
         body = top_level_function_body(source, function_name)
         if not body:
@@ -103,6 +121,17 @@ def assert_deferred_bind_teardown_guard(source: str, rel_path: str, function_nam
                 f"deferred target can run after teardown/off-tree: {rel_path} "
                 f"function={function_name}"
             )
+
+
+def assert_owned_root_teardown(source: str, rel_path: str, root_name: str) -> None:
+    if f'"{root_name}"' not in source:
+        fail(f"owned root identity missing from runtime: {rel_path} root={root_name}")
+    exit_body = top_level_function_body(source, "_exit_tree")
+    if "_release_owned_root()" not in exit_body:
+        fail(f"runtime-owned root cleanup not called from _exit_tree: {rel_path}")
+    cleanup_body = top_level_function_body(source, "_release_owned_root")
+    if not cleanup_body or "remove_child(" not in cleanup_body or "queue_free()" not in cleanup_body:
+        fail(f"runtime-owned root cleanup is not detach-then-free: {rel_path}")
 
 
 def main() -> None:
@@ -128,6 +157,8 @@ def main() -> None:
         fail("per-frame global SceneTree discovery rail missing")
     if contract.get("deferred_bind_teardown_guard_required") is not True:
         fail("deferred-bind teardown lifecycle rail missing")
+    if contract.get("runtime_owned_root_teardown_cleanup_required") is not True:
+        fail("runtime-owned root teardown lifecycle rail missing")
 
     project_source = PROJECT_PATH.read_text(encoding="utf-8")
     project_pairs = [(m.group("name"), m.group("path")) for m in AUTOLOAD_RE.finditer(project_source)]
@@ -155,6 +186,7 @@ def main() -> None:
     seen_paths: set[str] = set()
     seen_names: set[str] = set()
     seen_deferred_bind_guards: set[str] = set()
+    seen_owned_roots: set[str] = set()
     for entry in runtimes:
         if not isinstance(entry, dict):
             fail("malformed lifecycle runtime entry")
@@ -202,17 +234,32 @@ def main() -> None:
         elif expected_guard_functions is not None:
             fail(f"known deferred-bind runtime lost teardown requirement: {rel_path}")
 
+        requires_owned_root_cleanup = entry.get("runtime_owned_root_teardown_cleanup_required", False)
+        expected_root_name = EXPECTED_OWNED_ROOTS.get(rel_path)
+        if requires_owned_root_cleanup is True:
+            if expected_root_name is None:
+                fail(f"unexpected runtime-owned root teardown runtime registered: {rel_path}")
+            if entry.get("owned_root_name") != expected_root_name:
+                fail(f"runtime-owned root identity drifted: {rel_path}")
+            assert_owned_root_teardown(source, rel_path, expected_root_name)
+            seen_owned_roots.add(rel_path)
+        elif expected_root_name is not None:
+            fail(f"known runtime-owned root lost teardown requirement: {rel_path}")
+
     if seen_names != set(EXPECTED_AUTOLOADS):
         fail("lifecycle registry autoload alias set drifted")
     if seen_paths != set(EXPECTED_AUTOLOADS.values()):
         fail("lifecycle registry runtime path set drifted")
     if seen_deferred_bind_guards != set(EXPECTED_DEFERRED_BIND_GUARDS):
         fail("deferred-bind teardown runtime set drifted")
+    if seen_owned_roots != set(EXPECTED_OWNED_ROOTS):
+        fail("runtime-owned root teardown set drifted")
 
     print(
         "SHARED_ENVIRONMENT_LIFECYCLE_CONTRACT_OK: "
         f"runtimes={len(runtimes)} autoload_identity=locked "
         f"deferred_bind_guards={len(seen_deferred_bind_guards)} "
+        f"owned_root_teardown={len(seen_owned_roots)} "
         "per_frame_global_tree_scan=0 legacy_polling=0 "
         "policy=dormant_event_driven_nested_mount_safe"
     )

@@ -10,12 +10,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
 
 env:
   SNAPSHOT: grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json
   TOOL: grand-bruxelles-game/tools/citygen/classify_city_open_data_midi_overlap.py
-  SOURCE_URL: https://opendata.brussels.be/api/explore/v2.1/catalog/exports/json?limit=-1&offset=0&timezone=UTC
+  LOCKED_RUN_ID: "32925659247"
+  LOCKED_ARTIFACT_ID: "9591407871"
+  LOCKED_ARTIFACT_ZIP_SHA256: d1dd360d7e7a23f37441dd47dbcc812d0cd100140f632d551eb079256501a74a
+  LOCKED_MEASUREMENT_SHA256: a3494451c836fa81a01a50b22d160a55ceadadd95dbc80d6fbdd0338fb7e167d
+  LOCKED_MEASUREMENT_SIZE: "112264"
 
 jobs:
   midi-city-open-data-overlap:
@@ -53,7 +58,9 @@ jobs:
       - name: Run deterministic classifier regressions
         run: python3 grand-bruxelles-game/tests/test_city_open_data_midi_overlap.py
 
-      - name: Validate frozen snapshot offline or acquire RED-first evidence
+      - name: Validate frozen snapshot or restore reviewed RED-first artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -66,41 +73,74 @@ jobs:
             python3 "$TOOL" validate --snapshot "$SNAPSHOT"
             exit 0
           fi
-          echo "RED_FIRST acquisition required"
-          mkdir -p "$RUNNER_TEMP/midi-city-open-data"
-          curl --fail --show-error --silent --location \
-            --retry 3 --retry-delay 2 \
-            "$SOURCE_URL" \
-            --output "$RUNNER_TEMP/midi-city-open-data/catalog.json"
-          retrieved_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          live_main="$(git rev-parse origin/main)"
-          python3 "$TOOL" acquire \
-            --catalog "$RUNNER_TEMP/midi-city-open-data/catalog.json" \
-            --output "$RUNNER_TEMP/midi-city-open-data/measurement.json" \
-            --retrieved-at "$retrieved_at" \
-            --production-base-sha "$live_main"
-          cp "$RUNNER_TEMP/midi-city-open-data/measurement.json" "$RUNNER_TEMP/midi-city-open-data/midi_city_open_data_zone_overlap.snapshot.json"
 
-      - name: Upload RED-first immutable acquisition evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: midi-city-open-data-zone-overlap-acquisition
-          path: ${{ runner.temp }}/midi-city-open-data/
-          if-no-files-found: ignore
-          retention-days: 30
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git fetch --no-tags origin "refs/heads/$branch:refs/remotes/origin/$branch"
+          remote_head="$(git rev-parse "origin/$branch")"
+          test "$remote_head" = "$(git rev-parse HEAD)"
 
-      - name: Require reviewed frozen snapshot
+          work="$RUNNER_TEMP/midi-city-open-data-locked"
+          zip="$RUNNER_TEMP/midi-city-open-data-${LOCKED_ARTIFACT_ID}.zip"
+          rm -rf "$work" "$zip"
+          mkdir -p "$work"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOCKED_ARTIFACT_ID}/zip" > "$zip"
+          echo "${LOCKED_ARTIFACT_ZIP_SHA256}  $zip" | sha256sum -c -
+          unzip -q "$zip" -d "$work"
+          echo "${LOCKED_MEASUREMENT_SHA256}  $work/measurement.json" | sha256sum -c -
+          test "$(stat -c '%s' "$work/measurement.json")" = "$LOCKED_MEASUREMENT_SIZE"
+
+          python3 - "$work/measurement.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          d=json.loads(p.read_text(encoding="utf-8"))
+          assert d["status"] == "FROZEN_METADATA_OVERLAP_EVIDENCE_ONLY"
+          assert d["catalog_total_datasets"] == 207
+          assert d["geospatial_candidate_count"] == 142
+          assert d["overlap_proven_count"] == 124
+          assert d["unresolved_count"] == 18
+          assert d["snapshot_semantic_sha256"] == "4afc8d3ae5406a63aa33853c910e22283581d057b603e6c713166c94118b53d7"
+          assert d["provenance"]["catalog_export_sha256"] == "7c7639799475e47d0ccd03b3a0d465959b250b9a27089c88dc292e683a2082c3"
+          d["provenance"]["first_acquisition_artifact"] = {
+              "workflow_run_id": 32925659247,
+              "artifact_id": 9591407871,
+              "artifact_zip_sha256": "d1dd360d7e7a23f37441dd47dbcc812d0cd100140f632d551eb079256501a74a",
+              "measurement_sha256": "a3494451c836fa81a01a50b22d160a55ceadadd95dbc80d6fbdd0338fb7e167d",
+              "measurement_size_bytes": 112264,
+          }
+          p.write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+          PY
+          python3 "$TOOL" validate --snapshot "$work/measurement.json"
+
+          current_sha="$(gh api --method GET "/repos/${GITHUB_REPOSITORY}/contents/${SNAPSHOT}" -f ref="$branch" --jq .sha)"
+          content="$(base64 -w0 "$work/measurement.json")"
+          jq -n \
+            --arg message "qa(midi): lock City Open Data overlap measurement" \
+            --arg content "$content" \
+            --arg sha "$current_sha" \
+            --arg branch "$branch" \
+            '{message:$message,content:$content,sha:$sha,branch:$branch}' \
+            | gh api --method PUT "/repos/${GITHUB_REPOSITORY}/contents/${SNAPSHOT}" --input - >/dev/null
+          echo "MIDI_CITY_OPEN_DATA_LOCK_PUSHED artifact=${LOCKED_ARTIFACT_ID} semantic=4afc8d3ae5406a63aa33853c910e22283581d057b603e6c713166c94118b53d7"
+          exit 1
+
+      - name: Require frozen evidence only
         shell: bash
         run: |
           set -euo pipefail
-          status="$(python3 - <<'PY'
+          python3 "$TOOL" validate --snapshot "$SNAPSHOT"
+          python3 - <<'PY'
           import json
-          print(json.load(open("grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json"))["status"])
+          d=json.load(open("grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json"))
+          assert d["status"] == "FROZEN_METADATA_OVERLAP_EVIDENCE_ONLY"
+          assert d["catalog_total_datasets"] == 207
+          assert d["geospatial_candidate_count"] == 142
+          assert d["overlap_proven_count"] == 124
+          assert d["unresolved_count"] == 18
+          assert d["snapshot_semantic_sha256"] == "4afc8d3ae5406a63aa33853c910e22283581d057b603e6c713166c94118b53d7"
+          assert all(value is False for value in d["authorization"].values())
+          print("MIDI_CITY_OPEN_DATA_FROZEN_OK catalog=207 geospatial=142 overlap=124 unresolved=18 rails=closed")
           PY
-          )"
-          if [ "$status" != "FROZEN_METADATA_OVERLAP_EVIDENCE_ONLY" ]; then
-            echo "RED: acquisition artifact created; persist the reviewed exact measurement before this gate can turn green." >&2
-            exit 1
-          fi
-          echo "MIDI_CITY_OPEN_DATA_FROZEN_OK"

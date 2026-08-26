@@ -1,0 +1,58 @@
+{
+  "authorization": {
+    "canonical_manifest_write": false,
+    "collision": false,
+    "jouable_promotion": false,
+    "registered_index_mutation": false,
+    "rendered_geometry": false,
+    "road_to_cell_mapping": false,
+    "runtime_mount": false,
+    "safe_spawn": false
+  },
+  "candidate_manifest": {
+    "all_maturity_gates_false": true,
+    "artifact_filename": "bxl-e148500-n170500-s500.candidate.json",
+    "format": "grand-bruxelles-cell-maturity-v1",
+    "maturity_state": "data_ready",
+    "sha256": "5061098084cb9a72e4e453d3cb5c7d69d5c0f223f010d264f2d1c9afb78712fb"
+  },
+  "municipality_evidence": {
+    "assignment_policy": "single_official_municipality_proven_full_cell_coverage",
+    "coverage_ratio": 1.0,
+    "municipality_id": "https://databrussels.be/id/municipality/5000074",
+    "niscode": "21004",
+    "semantic_sha256": "31b049a8687f65f7b24458357a7b10b010b22190a627697fad5d1090d04dc979"
+  },
+  "next_action": "lock this measured candidate in a separate review file; do not write the canonical manifest or mutate the registered-cell index in this lot",
+  "production_base_sha": "3148f8bf8a4bedc560e7c8407ef6355287693364",
+  "registered_cell_index": {
+    "path": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "registered_cell_count": 3,
+    "semantic_sha256": "488a88cd5c2cb8dae86dd6c79ed276f31a33a2ae12654cccd5653469211fdcd7",
+    "target_registered": false
+  },
+  "schema": "grand-bruxelles-grand-place-correct-canonical-manifest-candidate-review-v1",
+  "semantic_sha256": "a60183dd5fd9ccf1513d358ea5c4fc60cfc5695600ea873795db109f3cdfc099",
+  "source_evidence": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "license": "CC0-1.0",
+    "lock_path": "data/provenance/grand_place_correct_urbis_source_cell.measurement.json",
+    "source_digest": "0645d03062f79ec08d2ba87714754633fc48f1a5eadf3a35e0df2ae4244d4302",
+    "source_manifest_path": "data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/manifest.json",
+    "source_manifest_sha256": "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f",
+    "source_semantic_sha256": "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3"
+  },
+  "status": "CANDIDATE_MEASURED_UNREGISTERED",
+  "target": {
+    "bbox": [
+      148500.0,
+      170500.0,
+      149000.0,
+      171000.0
+    ],
+    "canonical_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+    "canonical_manifest_present": false,
+    "cell_id": "bxl-e148500-n170500-s500",
+    "crs": "EPSG:31370"
+  }
+}

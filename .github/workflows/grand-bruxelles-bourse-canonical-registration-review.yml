@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
       - "grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json"
+      - "grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500/**"
       - "grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json"
       - "grand-bruxelles-game/tools/qa/review_bourse_canonical_cell_registration.py"
@@ -28,7 +29,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Require exact live-main ancestry and contract base
+      - name: Require exact live-main ancestry and resolve lifecycle phase
+        id: lifecycle
         shell: bash
         run: |
           set -euo pipefail
@@ -36,32 +38,35 @@ jobs:
           LIVE_MAIN="$(git rev-parse origin/main)"
           HEAD="$(git rev-parse HEAD)"
           git merge-base --is-ancestor "$LIVE_MAIN" "$HEAD"
-          python - "$LIVE_MAIN" <<'PY'
+          python - "$LIVE_MAIN" "$GITHUB_OUTPUT" <<'PY'
           import json, sys
           from pathlib import Path
-          contract = json.loads(Path("grand-bruxelles-game/data/qa/bourse_canonical_registration_review.contract.json").read_text())
-          live = sys.argv[1]
-          if contract["production_base_sha"] != live:
-              raise SystemExit(f"contract base drift: {contract['production_base_sha']} != {live}")
-          print(f"BOURSE_REGISTRATION_REVIEW_LIVE_MAIN_OK: {live}")
+          live=sys.argv[1]
+          output=Path(sys.argv[2])
+          target='bxl-e147500-n170000-s500'
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/bourse_canonical_registration_review.contract.json').read_text())
+          index=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          entries=[row for row in index.get('entries', []) if row.get('cell_id') == target]
+          if entries:
+              assert len(entries) == 1, entries
+              phase='registered'
+              print(f"BOURSE_REGISTRATION_REVIEW_SUCCESSOR_PHASE live_main={live} historical_contract_base={contract['production_base_sha']}")
+          else:
+              if contract['production_base_sha'] != live:
+                  raise SystemExit(f"contract base drift: {contract['production_base_sha']} != {live}")
+              phase='pre_registration'
+              print(f"BOURSE_REGISTRATION_REVIEW_LIVE_MAIN_OK: {live}")
+          with output.open('a') as fh:
+              fh.write(f'phase={phase}\n')
           PY
           echo "LIVE_MAIN=$LIVE_MAIN" >> "$GITHUB_ENV"
 
-      - name: Resolve registration lifecycle phase
-        run: |
-          set -euo pipefail
-          if [ -f grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json ]; then
-            echo "REGISTRATION_REVIEW_PHASE=registered" >> "$GITHUB_ENV"
-          else
-            echo "REGISTRATION_REVIEW_PHASE=pre_registration" >> "$GITHUB_ENV"
-          fi
-
       - name: Run fail-closed pre-registration regressions
-        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         run: python grand-bruxelles-game/tools/qa/test_bourse_canonical_cell_registration_review.py
 
       - name: Generate pre-registration review from persisted evidence only
-        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         shell: bash
         run: |
           set -euo pipefail
@@ -71,7 +76,7 @@ jobs:
             --output "$RUNNER_TEMP/bourse_canonical_registration_review.json"
 
       - name: Require pre-registration review contract and closed rails
-        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         run: |
           python - <<'PY'
           import json, os
@@ -103,18 +108,19 @@ jobs:
           PY
 
       - name: Validate registered evidence-only successor
-        if: env.REGISTRATION_REVIEW_PHASE == 'registered'
+        if: steps.lifecycle.outputs.phase == 'registered'
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/bourse-registration-review"
           cp grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json \
             "$RUNNER_TEMP/bourse-registration-review/bourse_canonical_registration.review.json"
           python - <<'PY'
-          import hashlib, json, os
+          import hashlib, json
           from pathlib import Path
 
           root = Path('grand-bruxelles-game')
-          manifest_path = root / 'data/cell_manifests/bxl-e147500-n170000-s500.json'
+          target='bxl-e147500-n170000-s500'
+          manifest_path = root / f'data/cell_manifests/{target}.json'
           review_path = root / 'data/provenance/bourse_canonical_registration.review.json'
           index_path = root / 'data/provenance/brussels_registered_cell_manifest_index.json'
           crosswalk_path = root / 'data/provenance/brussels_driveway_registered_cell_crosswalk.json'
@@ -130,18 +136,28 @@ jobs:
 
           assert review['schema'] == 'grand-bruxelles-bourse-canonical-registration-review-v1'
           assert review['status'] == 'REGISTRATION_CANDIDATE_EVIDENCE_ONLY'
-          assert review['production_base_sha'] == os.environ['LIVE_MAIN']
           assert review['destination_readiness'] == 'REGISTERED_NOT_RENDERED'
-          assert review['target']['cell_id'] == 'bxl-e147500-n170000-s500'
+          assert review['target']['cell_id'] == target
           assert review['target']['canonical_manifest_sha256'] == hashlib.sha256(manifest_bytes).hexdigest()
           assert manifest['maturity']['state'] == 'data_ready'
           assert manifest['maturity']['gates'] and all(value is False for value in manifest['maturity']['gates'].values())
           assert [row['niscode'] for row in manifest['provenance']['municipality_intersections']] == ['21001', '21004']
-          assert index['registered_cell_count'] == 3
-          assert crosswalk['registered_manifest_count'] == 3
-          assert crosswalk['matched_registered_manifest_count'] == 3
-          assert crosswalk['unmatched_registered_manifest_count'] == 0
-          matches = [row for row in crosswalk['matches'] if row['registered_cell_id'] == 'bxl-e147500-n170000-s500']
+
+          entries=[row for row in index['entries'] if row['cell_id'] == target]
+          assert len(entries) == 1
+          entry=entries[0]
+          assert entry['manifest_sha256'] == hashlib.sha256(manifest_bytes).hexdigest()
+          assert entry['evidence_only'] is True
+          for key in ('runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'):
+              assert entry[key] is False, key
+          assert index['registered_cell_count'] == len(index['entries'])
+          assert index['registered_cell_count'] >= 3
+          for key in ('runtime_directory_scan_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'):
+              assert index[key] is False, key
+
+          assert crosswalk['registered_manifest_count'] == index['registered_cell_count']
+          assert crosswalk['matched_registered_manifest_count'] + crosswalk['unmatched_registered_manifest_count'] == crosswalk['registered_manifest_count']
+          matches = [row for row in crosswalk['matches'] if row['registered_cell_id'] == target]
           assert len(matches) == 1
           assert matches[0]['driveway_feature_count'] == 197
           assert matches[0]['driveway_municipalities'] == ['Anderlecht', 'Bruxelles']
@@ -152,11 +168,11 @@ jobs:
               'collision_authorized', 'safe_spawn_authorized', 'jouable_promotion_authorized',
           ):
               assert review[key] is False, key
-          print('BOURSE_CANONICAL_REGISTRATION_REVIEW_REGISTERED_EVIDENCE_ONLY_OK')
+          print(f"BOURSE_CANONICAL_REGISTRATION_REVIEW_REGISTERED_EVIDENCE_ONLY_OK registered={index['registered_cell_count']} rails_closed=true")
           PY
 
       - name: Upload review evidence
-        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         uses: actions/upload-artifact@v4
         with:
           name: bourse-canonical-registration-review
@@ -164,7 +180,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload registered successor evidence
-        if: env.REGISTRATION_REVIEW_PHASE == 'registered'
+        if: steps.lifecycle.outputs.phase == 'registered'
         uses: actions/upload-artifact@v4
         with:
           name: bourse-canonical-registration-review

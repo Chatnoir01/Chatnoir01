@@ -60,7 +60,7 @@ jobs:
           cmp "$RUNNER_TEMP/index.json" grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json
           python grand-bruxelles-game/tools/qa/build_driveway_registered_cell_crosswalk.py --driveway-catalog "$RUNNER_TEMP/driveway/brussels_driveway_regional_cells.json" --cell-manifests grand-bruxelles-game/data/cell_manifests --production-base-sha "$LIVE_MAIN_SHA" --out "$RUNNER_TEMP/crosswalk.json"
           cmp "$RUNNER_TEMP/crosswalk.json" grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json
-      - name: Require closed rails and exact accounting
+      - name: Require closed rails and current registered accounting
         run: |
           python - <<'PY'
           import json,os
@@ -68,14 +68,16 @@ jobs:
           r=json.loads(Path('grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json').read_text())
           i=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json').read_text())
           c=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json').read_text())
-          assert r['production_base_sha']==os.environ['LIVE_MAIN_SHA']
           assert r['status']=='REGISTRATION_CANDIDATE_EVIDENCE_ONLY' and r['destination_readiness']=='REGISTERED_NOT_RENDERED'
-          assert i['registered_cell_count']==3 and i['semantic_sha256']=='488a88cd5c2cb8dae86dd6c79ed276f31a33a2ae12654cccd5653469211fdcd7'
-          assert c['semantic_sha256']=='01287676fde53b92e5ae736f61e9733c1d26a52fe405dadeda9b8648037e2e1a'
+          assert i['production_base_sha']==os.environ['LIVE_MAIN_SHA']
+          assert c['production_base_sha']==os.environ['LIVE_MAIN_SHA']
+          assert i['registered_cell_count']==4 and i['semantic_sha256']=='2b34adfdda1adb2eb34aca7c89ca90e73a11633394b6fe3c3e30b2318cc00fac'
+          assert c['registered_manifest_count']==4 and c['matched_registered_manifest_count']==4 and c['unmatched_registered_manifest_count']==0
+          assert c['semantic_sha256']=='03d595f6eb178fe499d021d912266cd99a6873498bd575ff3785913d2f1916ae'
           b=[m for m in c['matches'] if m['driveway_cell_id']=='E147500_N170000']; assert len(b)==1 and b[0]['driveway_feature_count']==197 and b[0]['driveway_municipalities']==['Anderlecht','Bruxelles']
-          assert sum(m['driveway_feature_count'] for m in c['matches'])==536
+          assert sum(m['driveway_feature_count'] for m in c['matches'])==607
           for d in (r,i,c):
             for k,v in d.items():
               if k.endswith('_authorized') or k=='parking_evidence_runtime_approved': assert v is False, (k,v)
-          print('BOURSE_CANONICAL_REGISTRATION_EVIDENCE_ONLY_LOCKED_EXACT')
+          print('BOURSE_CANONICAL_REGISTRATION_EVIDENCE_ONLY_CURRENT_SUCCESSOR_OK registered=4 driveway=607 rails_closed=true')
           PY

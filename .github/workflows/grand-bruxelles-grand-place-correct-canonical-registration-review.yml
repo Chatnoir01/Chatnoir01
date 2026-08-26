@@ -11,6 +11,7 @@ on:
       - "grand-bruxelles-game/data/provenance/grand_place_correct_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/provenance/grand_place_correct_source_cell_municipality.measurement.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e148500-n170500-s500.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/**"
   workflow_dispatch:
 
@@ -27,30 +28,77 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Require exact live-main ancestry and review-only rails
+      - name: Require exact live-main ancestry and resolve lifecycle phase
+        id: lifecycle
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
-          import json, sys
+          python3 - "$LIVE_MAIN_SHA" "$GITHUB_OUTPUT" <<'PY'
+          import hashlib, json, sys
           from pathlib import Path
+
           live=sys.argv[1]
-          p=Path("grand-bruxelles-game/data/qa/grand_place_correct_canonical_registration_review.contract.json")
-          d=json.loads(p.read_text())
-          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
-          assert d["status"] == "REVIEW_PENDING"
-          assert d["target"]["cell_id"] == "bxl-e148500-n170500-s500"
-          for key, value in d["authorization"].items():
+          output=Path(sys.argv[2])
+          target="bxl-e148500-n170500-s500"
+          contract_path=Path("grand-bruxelles-game/data/qa/grand_place_correct_canonical_registration_review.contract.json")
+          lock_path=Path("grand-bruxelles-game/data/provenance/grand_place_correct_canonical_registration.review.json")
+          index_path=Path("grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json")
+          manifest_path=Path(f"grand-bruxelles-game/data/cell_manifests/{target}.json")
+
+          contract=json.loads(contract_path.read_text())
+          assert contract["status"] == "REVIEW_PENDING"
+          assert contract["target"]["cell_id"] == target
+          for key, value in contract["authorization"].items():
               assert value is False, key
-          print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_BASE_OK live_main={live} rails_closed=true")
+
+          index=json.loads(index_path.read_text())
+          entries=[e for e in index.get("entries", []) if e.get("cell_id") == target]
+          registered=bool(entries)
+          if registered:
+              assert len(entries) == 1, entries
+              assert manifest_path.is_file(), manifest_path
+              entry=entries[0]
+              manifest_sha=hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+              assert entry["manifest_path"] == f"data/cell_manifests/{target}.json"
+              assert entry["manifest_sha256"] == manifest_sha, (entry["manifest_sha256"], manifest_sha)
+              assert entry["evidence_only"] is True
+              assert entry["maturity_state"] == "data_ready"
+              for key in ["runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+                  assert entry[key] is False, key
+              assert index["runtime_directory_scan_authorized"] is False
+              assert index["runtime_mount_authorized"] is False
+              assert index["rendered_geometry_authorized"] is False
+              assert index["collision_authorized"] is False
+              assert index["safe_spawn_authorized"] is False
+              assert index["jouable_promotion_authorized"] is False
+              assert lock_path.is_file(), lock_path
+              lock=json.loads(lock_path.read_text())
+              assert lock["status"] == "READY_FOR_CANONICAL_MANIFEST_REVIEW"
+              assert lock["registered_cell_index"]["target_present"] is False
+              assert lock["municipality_evidence"]["niscode"] == "21004"
+              assert lock["municipality_evidence"]["coverage_ratio"] == 1.0
+              assert lock["semantic_sha256"] == "efa1be723b4899d80d30e59f253f13d1f2870cc8737a00310c38422706297031"
+              for key in ["registration_authorized","road_cell_mapping_authorized","runtime_directory_scan_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+                  assert lock[key] is False, key
+              phase="registered_successor"
+              print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_SUCCESSOR_OK live_main={live} historical_base={contract['production_base_sha']} manifest_sha={manifest_sha} rails_closed=true")
+          else:
+              assert contract["production_base_sha"] == live, (contract["production_base_sha"], live)
+              phase="pre_registration"
+              print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_BASE_OK live_main={live} rails_closed=true")
+
+          with output.open("a") as fh:
+              fh.write(f"phase={phase}\n")
           PY
 
-      - name: Run fail-closed regressions
+      - name: Run fail-closed pre-registration regressions
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         run: python3 grand-bruxelles-game/tests/test_grand_place_correct_canonical_registration_review.py
 
-      - name: Build deterministic review artifact
+      - name: Build deterministic pre-registration review artifact
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         run: |
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           python3 grand-bruxelles-game/tools/qa/review_grand_place_correct_canonical_registration.py \
@@ -71,7 +119,8 @@ jobs:
           print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_ARTIFACT_OK semantic={d['semantic_sha256']} status={d['status']} rails_closed=true")
           PY
 
-      - name: Require exact persisted semantic review lock
+      - name: Require exact persisted pre-registration semantic review lock
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         run: |
           set -euo pipefail
           GENERATED="$RUNNER_TEMP/grand_place_correct_canonical_registration.review.json"
@@ -85,19 +134,34 @@ jobs:
           assert locked == generated, "persisted canonical-review lock drifted from deterministic review"
           assert locked["semantic_sha256"] == "efa1be723b4899d80d30e59f253f13d1f2870cc8737a00310c38422706297031"
           assert locked["status"] == "READY_FOR_CANONICAL_MANIFEST_REVIEW"
-          assert locked["registration_authorized"] is False
-          assert locked["road_cell_mapping_authorized"] is False
-          assert locked["runtime_mount_authorized"] is False
-          assert locked["rendered_geometry_authorized"] is False
-          assert locked["collision_authorized"] is False
-          assert locked["safe_spawn_authorized"] is False
-          assert locked["jouable_promotion_authorized"] is False
+          for key in ["registration_authorized","road_cell_mapping_authorized","runtime_directory_scan_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+              assert locked[key] is False, key
           print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_LOCK_OK semantic={locked['semantic_sha256']} rails_closed=true")
           PY
 
-      - name: Upload review evidence
+      - name: Stage registered successor evidence
+        if: steps.lifecycle.outputs.phase == 'registered_successor'
+        run: |
+          mkdir -p "$RUNNER_TEMP/grand-place-correct-registration-successor"
+          cp grand-bruxelles-game/data/provenance/grand_place_correct_canonical_registration.review.json \
+            "$RUNNER_TEMP/grand-place-correct-registration-successor/historical-review.json"
+          cp grand-bruxelles-game/data/cell_manifests/bxl-e148500-n170500-s500.json \
+            "$RUNNER_TEMP/grand-place-correct-registration-successor/canonical-manifest.json"
+          cp grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
+            "$RUNNER_TEMP/grand-place-correct-registration-successor/registered-cell-index.json"
+
+      - name: Upload pre-registration review evidence
+        if: steps.lifecycle.outputs.phase == 'pre_registration'
         uses: actions/upload-artifact@v4
         with:
           name: grand-place-correct-canonical-registration-review
           path: ${{ runner.temp }}/grand_place_correct_canonical_registration.review.json
+          if-no-files-found: error
+
+      - name: Upload registered successor evidence
+        if: steps.lifecycle.outputs.phase == 'registered_successor'
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-correct-canonical-registration-review-successor
+          path: ${{ runner.temp }}/grand-place-correct-registration-successor
           if-no-files-found: error

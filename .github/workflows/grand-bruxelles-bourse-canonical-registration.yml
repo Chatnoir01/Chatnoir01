@@ -71,7 +71,11 @@ jobs:
           assert r['status']=='REGISTRATION_CANDIDATE_EVIDENCE_ONLY' and r['destination_readiness']=='REGISTERED_NOT_RENDERED'
           assert i['production_base_sha']==os.environ['LIVE_MAIN_SHA']
           assert c['production_base_sha']==os.environ['LIVE_MAIN_SHA']
-          assert i['registered_cell_count']==len(i['cells']) and i['registered_cell_count'] >= 4
+          entries=i.get('entries')
+          assert isinstance(entries,list) and entries, type(entries)
+          assert i['registered_cell_count']==len(entries) and i['registered_cell_count'] >= 4
+          ids=[entry['cell_id'] for entry in entries]
+          assert ids==sorted(ids) and len(ids)==len(set(ids))
           assert c['registered_manifest_count']==i['registered_cell_count']
           assert c['matched_registered_manifest_count']==c['registered_manifest_count']
           assert c['unmatched_registered_manifest_count']==0

@@ -6,6 +6,7 @@ const EXPECTED_MAX_PALETTE := 6
 
 var _buildings: Array[CSGPolygon3D] = []
 var _baseline_materials: Dictionary = {}
+var _owned_materials: Dictionary = {}
 var _candidate_materials: Dictionary = {}
 var _original_transforms: Dictionary = {}
 var _original_polygons: Dictionary = {}
@@ -28,6 +29,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
     _tearing_down = true
     _bind_scheduled = false
+    _release_material_ownership()
     _disconnect_mount_listener()
     _disconnect_base_runtime()
 
@@ -114,6 +116,30 @@ func _disconnect_mount_listener() -> void:
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
 
+func _release_material_ownership() -> void:
+    for building: CSGPolygon3D in _buildings:
+        if not is_instance_valid(building):
+            continue
+        var instance_id := building.get_instance_id()
+        var baseline := _baseline_materials.get(instance_id) as Material
+        var owned := _owned_materials.get(instance_id) as Material
+        # Restore only while the building still carries the exact material this
+        # runtime installed. A later owner is never overwritten during teardown.
+        if owned != null and building.material == owned and baseline != null:
+            building.material = baseline
+        if str(building.get_meta("facade_articulation_family", "")) == MATERIAL_FACTORY.MATERIAL_FAMILY:
+            building.remove_meta("facade_articulation_family")
+            building.remove_meta("facade_articulation_geometry_changed")
+            building.remove_meta("facade_articulation_source")
+            building.remove_meta("facade_articulation_license")
+    _buildings.clear()
+    _baseline_materials.clear()
+    _owned_materials.clear()
+    _candidate_materials.clear()
+    _original_transforms.clear()
+    _original_polygons.clear()
+    _original_depths.clear()
+
 func _fail(message: String) -> void:
     if _tearing_down:
         return
@@ -154,6 +180,7 @@ func _try_apply() -> void:
         var instance_id := building.get_instance_id()
         _buildings.append(building)
         _baseline_materials[instance_id] = building.material
+        _owned_materials[instance_id] = candidate
         _original_transforms[instance_id] = building.global_transform
         _original_polygons[instance_id] = building.polygon.duplicate()
         _original_depths[instance_id] = building.depth
@@ -176,8 +203,10 @@ func _set_material_state(enabled: bool) -> void:
     for building: CSGPolygon3D in _buildings:
         if not is_instance_valid(building):
             continue
-        var baseline := _baseline_materials.get(building.get_instance_id()) as Material
-        building.material = _candidate_for(baseline) if enabled else baseline
+        var instance_id := building.get_instance_id()
+        var baseline := _baseline_materials.get(instance_id) as Material
+        var owned := _owned_materials.get(instance_id) as Material
+        building.material = owned if enabled else baseline
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled

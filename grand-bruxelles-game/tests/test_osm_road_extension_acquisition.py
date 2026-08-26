@@ -35,6 +35,8 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         self.assertEqual(contract["status"], "LOCKED_SOURCE_ONLY_ARTIFACT")
         self.assertEqual(contract["target"]["crs"], "EPSG:31370")
         self.assertEqual(contract["source"]["license"], "ODbL-1.0")
+        self.assertEqual(contract["continuity"]["production_base_semantics"], "immutable_acquisition_floor")
+        self.assertEqual(contract["continuity"]["live_main_rule"], "acquisition_floor <= live_main <= candidate_head")
         self.assertTrue(contract["authorization"])
         self.assertTrue(all(value is False for value in contract["authorization"].values()))
 
@@ -64,6 +66,12 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         self.assertNotIn("Acquire OSM road extension candidate with bounded endpoint failover", workflow)
         self.assertNotIn("--data-urlencode", workflow)
         self.assertNotIn("overpass.kumi.systems/api/interpreter\" >", workflow)
+
+    def test_locked_phase_uses_immutable_acquisition_floor_not_mutable_live_sha(self):
+        workflow = Path("../.github/workflows/grand-bruxelles-osm-road-extension-e148500-n170500.yml").read_text()
+        self.assertIn('git merge-base --is-ancestor "$ACQUISITION_BASE_SHA" "$LIVE_MAIN_SHA"', workflow)
+        self.assertIn('git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA"', workflow)
+        self.assertNotIn('c["production_base_sha"] == sys.argv[1]', workflow)
 
 
 if __name__ == "__main__":

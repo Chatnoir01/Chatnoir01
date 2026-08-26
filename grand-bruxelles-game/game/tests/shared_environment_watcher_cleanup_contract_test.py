@@ -24,13 +24,15 @@ def main() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("node_added_watcher_cleanup_required") is not True:
         fail("shared Environment node_added watcher cleanup contract missing")
+    if contract.get("watcher_retention_semantics_explicit") is not True:
+        fail("shared Environment watcher retention semantics are not explicit")
 
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list) or not runtimes:
         fail("shared Environment lifecycle runtime registry missing")
 
     verified = 0
-    late_child_verified = 0
+    teardown_verified = 0
     for entry in runtimes:
         if not isinstance(entry, dict):
             fail("malformed shared Environment lifecycle runtime entry")
@@ -50,13 +52,15 @@ def main() -> None:
         if "node_added.disconnect(" not in source:
             fail(f"node_added watcher disconnect missing: {rel_path}")
 
-        if entry.get("late_child_bind") is True:
+        if entry.get("teardown_cleanup_required") is True:
+            if entry.get("late_child_bind") is not True:
+                fail(f"teardown watcher must be a late-child runtime: {rel_path}")
             exit_body = function_body(source, "_exit_tree")
             if not exit_body:
-                fail(f"late-child runtime lacks teardown cleanup function: {rel_path}")
+                fail(f"runtime-lifetime watcher lacks teardown cleanup function: {rel_path}")
             if "node_added.is_connected(" not in exit_body or "node_added.disconnect(" not in exit_body:
-                fail(f"late-child watcher teardown is not guarded inside _exit_tree: {rel_path}")
-            late_child_verified += 1
+                fail(f"runtime-lifetime watcher teardown is not guarded inside _exit_tree: {rel_path}")
+            teardown_verified += 1
 
         verified += 1
 
@@ -65,12 +69,12 @@ def main() -> None:
             "shared Environment watcher cleanup coverage mismatch: "
             f"verified={verified} registered={contract.get('registered_runtime_count')}"
         )
-    if late_child_verified < 1:
-        fail("shared Environment watcher cleanup contract has no late-child runtime coverage")
+    if teardown_verified != 3:
+        fail(f"expected exactly three runtime-lifetime watcher teardowns, got {teardown_verified}")
 
     print(
         "SHARED_ENVIRONMENT_WATCHER_CLEANUP_OK: "
-        f"runtimes={verified} late_child_teardown={late_child_verified} connect=guarded disconnect=exit_tree"
+        f"runtimes={verified} runtime_lifetime_teardown={teardown_verified} connect=guarded disconnect=explicit"
     )
 
 

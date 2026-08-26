@@ -66,8 +66,8 @@ class TestCorridorRoadSourceChain(unittest.TestCase):
         (root / "data/qa/player_witness.json").write_text(json.dumps(witness), encoding="utf-8")
         contract = root / "contract.json"
         contract.write_text(json.dumps({
-            "schema": "grand-bruxelles-corridor-road-source-chain-contract-v3",
-            "production_base_sha": "fixture",
+            "schema": audit.CONTRACT_SCHEMA,
+            "integration_floor_sha": "1" * 40,
             "runtime_index": "data/runtime/index.json",
             "source_document": "data/osm/source.json",
             "source_sha256": digest,
@@ -94,11 +94,30 @@ class TestCorridorRoadSourceChain(unittest.TestCase):
         result = audit.validate(root, contract)
         self.assertFalse(result["playability_claimed"])
         self.assertTrue(result["source_sha_locked"])
+        self.assertEqual("1" * 40, result["integration_floor_sha"])
         self.assertEqual(audit.EXPECTED_ZONES, {item["zone"] for item in result["representatives"]})
         self.assertEqual(4, len(result["representatives"]))
         self.assertEqual(2, result["accepted_player_witness"]["osm_id"])
         self.assertTrue(result["accepted_player_witness"]["qa_witness_accepted"])
         self.assertFalse(result["accepted_player_witness"]["destination_advertisable"])
+
+    def test_red_if_legacy_production_base_returns(self):
+        tempdir, root, contract = self.fixture()
+        self.addCleanup(tempdir.cleanup)
+        payload = json.loads(contract.read_text(encoding="utf-8"))
+        payload["production_base_sha"] = "2" * 40
+        contract.write_text(json.dumps(payload), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "legacy production_base_sha is forbidden"):
+            audit.validate(root, contract)
+
+    def test_red_if_integration_floor_is_not_exact_git_sha(self):
+        tempdir, root, contract = self.fixture()
+        self.addCleanup(tempdir.cleanup)
+        payload = json.loads(contract.read_text(encoding="utf-8"))
+        payload["integration_floor_sha"] = "fixture"
+        contract.write_text(json.dumps(payload), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "integration_floor_sha"):
+            audit.validate(root, contract)
 
     def test_red_if_witness_advertises_destination(self):
         tempdir, root, contract = self.fixture()

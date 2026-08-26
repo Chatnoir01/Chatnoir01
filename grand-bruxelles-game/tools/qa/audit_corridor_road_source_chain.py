@@ -17,6 +17,7 @@ PLAYABILITY_KEYS = (
 EXPECTED_ZONES = {"midi", "anneessens", "bourse", "grand_place"}
 NON_DEGENERATE_EPSILON = 1.0e-6
 WITNESS_SCHEMA = "grand-bruxelles-automatic-road-player-visual-gate-v1"
+CONTRACT_SCHEMA = "grand-bruxelles-corridor-road-source-chain-contract-v4"
 QA_ONLY_AUTHORIZATION = (
     "playability_claimed",
     "destination_advertisable",
@@ -52,6 +53,15 @@ def _safe_repo_path(repo_root: Path, value: object, label: str) -> Path:
     if root != candidate and root not in candidate.parents:
         fail(f"{label} path escapes repository: {value!r}")
     return candidate
+
+
+def _validate_integration_floor(contract: dict) -> str:
+    value = contract.get("integration_floor_sha")
+    if not isinstance(value, str) or len(value) != 40 or any(ch not in "0123456789abcdef" for ch in value):
+        fail("integration_floor_sha must be a lowercase 40-character git SHA")
+    if "production_base_sha" in contract:
+        fail("legacy production_base_sha is forbidden in v4; use immutable integration_floor_sha")
+    return value
 
 
 def _validate_accepted_player_witness(repo_root: Path, contract: dict, locked_source_sha: str, representative_by_zone: dict) -> dict:
@@ -121,8 +131,9 @@ def _validate_accepted_player_witness(repo_root: Path, contract: dict, locked_so
 
 def validate(repo_root: Path, contract_path: Path) -> dict:
     contract = load_json(contract_path)
-    if contract.get("schema") != "grand-bruxelles-corridor-road-source-chain-contract-v3":
+    if contract.get("schema") != CONTRACT_SCHEMA:
         fail("unexpected contract schema")
+    integration_floor_sha = _validate_integration_floor(contract)
     locked_source_sha = contract.get("source_sha256")
     if not isinstance(locked_source_sha, str) or len(locked_source_sha) != 64:
         fail("contract must pin a 64-character source_sha256")
@@ -207,7 +218,7 @@ def validate(repo_root: Path, contract_path: Path) -> dict:
         fail(f"expected 4 corridor representatives, got {len(results)}")
     representative_by_zone = {item["zone"]: item for item in results}
     accepted_player_witness = _validate_accepted_player_witness(repo_root, contract, locked_source_sha, representative_by_zone)
-    output = {"schema": "grand-bruxelles-corridor-road-source-chain-result-v3", "production_base_sha": contract["production_base_sha"], "source_sha256": actual_sha, "source_sha_locked": True, "representatives": results, "accepted_player_witness": accepted_player_witness, "playability_claimed": False}
+    output = {"schema": "grand-bruxelles-corridor-road-source-chain-result-v4", "integration_floor_sha": integration_floor_sha, "source_sha256": actual_sha, "source_sha_locked": True, "representatives": results, "accepted_player_witness": accepted_player_witness, "playability_claimed": False}
     print("CORRIDOR_ROAD_SOURCE_CHAIN_OK " + " ".join(f"{item['zone']}=road-{item['osm_id']}" for item in results) + f" witness={accepted_player_witness['zone']}:road-{accepted_player_witness['osm_id']} source_sha256={actual_sha}")
     return output
 

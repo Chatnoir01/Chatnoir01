@@ -14,14 +14,24 @@ var _ready_complete := false
 var _identity_failure := false
 var _awaiting_station := false
 var _bind_in_progress := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     _awaiting_station = true
     get_tree().node_added.connect(_on_node_added)
     call_deferred("_bind_existing_station")
 
+func _exit_tree() -> void:
+    _tearing_down = true
+    _awaiting_station = false
+    _bind_in_progress = false
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+
 func _bind_existing_station() -> void:
-    if _ready_complete or _identity_failure or _bind_in_progress:
+    if _ready_complete or _identity_failure or _bind_in_progress or _tearing_down or not is_inside_tree():
         return
     var station := get_tree().root.find_child("BruxellesMidiStation", true, false)
     if station != null:
@@ -29,14 +39,14 @@ func _bind_existing_station() -> void:
         _apply_when_subtree_ready(station)
 
 func _on_node_added(node: Node) -> void:
-    if _ready_complete or _identity_failure or _bind_in_progress or node.name != "BruxellesMidiStation":
+    if _ready_complete or _identity_failure or _bind_in_progress or _tearing_down or node.name != "BruxellesMidiStation":
         return
     _bind_in_progress = true
     _apply_when_subtree_ready(node)
 
 func _apply_when_subtree_ready(station: Node) -> void:
     for _frame: int in range(SUBTREE_READY_FRAMES):
-        if not is_instance_valid(station):
+        if _tearing_down or not is_inside_tree() or not is_instance_valid(station):
             _bind_in_progress = false
             return
         _targets.clear()
@@ -44,13 +54,22 @@ func _apply_when_subtree_ready(station: Node) -> void:
         if _targets.size() == EXPECTED_SURFACES:
             bind_station(station)
             return
-        await get_tree().process_frame
+        var tree: SceneTree = get_tree()
+        if tree == null:
+            _bind_in_progress = false
+            return
+        await tree.process_frame
+        if _tearing_down or not is_inside_tree():
+            _bind_in_progress = false
+            return
     push_error("Midi Fauquenberg runtime: expected %d target surfaces, got %d after bounded station subtree population" % [EXPECTED_SURFACES, _targets.size()])
     _identity_failure = true
     _ready_complete = true
     _finish_waiting()
 
 func bind_station(station: Node) -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     _targets.clear()
     _original_materials.clear()
     _identity_failure = false
@@ -84,8 +103,9 @@ func bind_station(station: Node) -> void:
 func _finish_waiting() -> void:
     _awaiting_station = false
     _bind_in_progress = false
-    if get_tree().node_added.is_connected(_on_node_added):
-        get_tree().node_added.disconnect(_on_node_added)
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):

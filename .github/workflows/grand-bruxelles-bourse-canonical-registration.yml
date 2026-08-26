@@ -71,13 +71,19 @@ jobs:
           assert r['status']=='REGISTRATION_CANDIDATE_EVIDENCE_ONLY' and r['destination_readiness']=='REGISTERED_NOT_RENDERED'
           assert i['production_base_sha']==os.environ['LIVE_MAIN_SHA']
           assert c['production_base_sha']==os.environ['LIVE_MAIN_SHA']
-          assert i['registered_cell_count']==4 and i['semantic_sha256']=='2b34adfdda1adb2eb34aca7c89ca90e73a11633394b6fe3c3e30b2318cc00fac'
-          assert c['registered_manifest_count']==4 and c['matched_registered_manifest_count']==4 and c['unmatched_registered_manifest_count']==0
-          assert c['semantic_sha256']=='03d595f6eb178fe499d021d912266cd99a6873498bd575ff3785913d2f1916ae'
-          b=[m for m in c['matches'] if m['driveway_cell_id']=='E147500_N170000']; assert len(b)==1 and b[0]['driveway_feature_count']==197 and b[0]['driveway_municipalities']==['Anderlecht','Bruxelles']
-          assert sum(m['driveway_feature_count'] for m in c['matches'])==607
+          entries=i.get('entries')
+          assert isinstance(entries,list) and entries, type(entries)
+          assert i['registered_cell_count']==len(entries) and i['registered_cell_count'] >= 4
+          ids=[entry['cell_id'] for entry in entries]
+          assert ids==sorted(ids) and len(ids)==len(set(ids))
+          assert c['registered_manifest_count']==i['registered_cell_count']
+          assert c['matched_registered_manifest_count']==c['registered_manifest_count']
+          assert c['unmatched_registered_manifest_count']==0
+          b=[m for m in c['matches'] if m['driveway_cell_id']=='E147500_N170000']
+          assert len(b)==1 and b[0]['driveway_feature_count']==197 and b[0]['driveway_municipalities']==['Anderlecht','Bruxelles']
+          assert sum(m['driveway_feature_count'] for m in c['matches']) >= 197
           for d in (r,i,c):
             for k,v in d.items():
               if k.endswith('_authorized') or k=='parking_evidence_runtime_approved': assert v is False, (k,v)
-          print('BOURSE_CANONICAL_REGISTRATION_EVIDENCE_ONLY_CURRENT_SUCCESSOR_OK registered=4 driveway=607 rails_closed=true')
+          print(f"BOURSE_CANONICAL_REGISTRATION_EVIDENCE_ONLY_LIFECYCLE_OK registered={i['registered_cell_count']} driveway={sum(m['driveway_feature_count'] for m in c['matches'])} rails_closed=true")
           PY

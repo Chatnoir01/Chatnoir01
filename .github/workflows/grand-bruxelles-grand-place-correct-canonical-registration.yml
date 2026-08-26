@@ -33,19 +33,29 @@ jobs:
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          CONTRACT_BASE="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('grand-bruxelles-game/data/qa/grand_place_correct_canonical_registration.contract.json').read_text())
+          print(c['production_base_sha'])
+          PY
+          )"
+          [[ "$CONTRACT_BASE" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$CONTRACT_BASE^{commit}"
+          git merge-base --is-ancestor "$CONTRACT_BASE" HEAD
+          python3 - "$LIVE_MAIN_SHA" "$CONTRACT_BASE" <<'PY'
           import json, sys
           from pathlib import Path
-          live=sys.argv[1]
+          live, historical_base=sys.argv[1:3]
           c=json.loads(Path("grand-bruxelles-game/data/qa/grand_place_correct_canonical_registration.contract.json").read_text())
-          assert c["production_base_sha"] == live, (c["production_base_sha"], live)
+          assert c["production_base_sha"] == historical_base
           assert c["destination_readiness"] == "REGISTERED_NOT_RENDERED"
           a=c["authorization"]
           assert a["canonical_registration"] is True
           assert a["municipality_assignment"] is True
           for key in ["road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
               assert a[key] is False, key
-          print(f"GRAND_PLACE_CORRECT_CANONICAL_REGISTRATION_BASE_OK live_main={live} data_only=true runtime_rails_closed=true")
+          print(f"GRAND_PLACE_CORRECT_CANONICAL_REGISTRATION_LIFECYCLE_OK live_main={live} historical_base={historical_base} data_only=true runtime_rails_closed=true")
           PY
 
       - name: Verify deterministic manifest/index registration

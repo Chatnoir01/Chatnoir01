@@ -1,16 +1,80 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import hashlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 ROOT = Path(__file__).parents[1]
 SCRIPT = ROOT / "tools/qa/build_anneessens_canonical_manifest_candidate.py"
 spec = importlib.util.spec_from_file_location("anneessens_candidate", SCRIPT)
 assert spec and spec.loader
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+
+TARGET = "bxl-e147500-n169500-s500"
+CANONICAL = ROOT / f"data/cell_manifests/{TARGET}.json"
+LOCK = ROOT / "data/provenance/anneessens_canonical_manifest_candidate.review.json"
+INDEX = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
+
+# Successor phase: once the separate registration lot writes the canonical
+# manifest, the candidate builder must keep refusing to run. The durable gate
+# switches from "build an unregistered candidate" to proving that the shipped
+# canonical bytes are exactly the previously accepted candidate and that the
+# registered-cell index did not open any runtime/JOUABLE rail.
+if CANONICAL.exists():
+    review = json.loads(LOCK.read_text())
+    manifest_bytes = CANONICAL.read_bytes()
+    manifest = json.loads(manifest_bytes)
+    index = json.loads(INDEX.read_text())
+
+    assert review["status"] == "CANDIDATE_MEASURED_UNREGISTERED"
+    assert review["target"]["cell_id"] == TARGET
+    assert review["candidate_manifest"]["sha256"] == hashlib.sha256(manifest_bytes).hexdigest()
+    assert review["candidate_manifest"]["sha256"] == "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a"
+    assert manifest["cell_id"] == TARGET
+    assert manifest["crs"] == "EPSG:31370"
+    assert manifest["provenance"]["municipality_assignment_policy"] == "retain_all_official_intersections_no_dominant_municipality_canonicalization"
+    assert [row["niscode"] for row in manifest["provenance"]["municipality_intersections"]] == ["21013", "21001", "21004"]
+    assert abs(sum(row["coverage_ratio"] for row in manifest["provenance"]["municipality_intersections"]) - 1.0) < 1e-12
+    assert all(value is False for value in manifest["maturity"]["gates"].values())
+    assert all(value is False for value in review["authorization"].values())
+
+    assert index["registered_cell_count"] >= 5
+    rows = [row for row in index["entries"] if row["cell_id"] == TARGET]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["manifest_path"] == f"data/cell_manifests/{TARGET}.json"
+    assert row["manifest_sha256"] == review["candidate_manifest"]["sha256"]
+    assert row["maturity_state"] == "data_ready"
+    assert row["evidence_only"] is True
+    for key in (
+        "runtime_directory_scan_authorized", "road_crosswalk_authorized",
+        "runtime_mount_authorized", "rendered_geometry_authorized",
+        "collision_authorized", "safe_spawn_authorized",
+        "jouable_promotion_authorized",
+    ):
+        assert index[key] is False, key
+    for key in (
+        "runtime_mount_authorized", "rendered_geometry_authorized",
+        "collision_authorized", "safe_spawn_authorized",
+        "jouable_promotion_authorized",
+    ):
+        assert row[key] is False, key
+
+    try:
+        mod.build(ROOT, "0" * 40)
+    except RuntimeError as exc:
+        assert "canonical Anneessens manifest already exists" in str(exc)
+    else:
+        raise AssertionError("candidate-only builder must stay fail-closed after registration")
+
+    print("ANNEESSENS_CANONICAL_MANIFEST_SUCCESSOR_REGRESSIONS_OK exact_candidate_bytes=true registered_evidence_only=true rails_closed=true")
+    sys.exit(0)
+
+# Pre-registration phase: preserve the original RED-first candidate contract.
 review, candidate, candidate_bytes = mod.build(ROOT, "0" * 40)
 assert review["status"] == "CANDIDATE_MEASURED_UNREGISTERED"
-assert review["target"]["cell_id"] == "bxl-e147500-n169500-s500"
+assert review["target"]["cell_id"] == TARGET
 assert review["registered_cell_index"]["registered_cell_count"] == 4
 assert review["registered_cell_index"]["target_registered"] is False
 assert review["source_evidence"]["lock_path"] == "data/provenance/anneessens_urbis_source_cell.measurement.json"
@@ -27,7 +91,7 @@ assert candidate["provenance"]["municipality_assignment_policy"] == "retain_all_
 assert [row["niscode"] for row in candidate["provenance"]["municipality_intersections"]] == ["21013", "21001", "21004"]
 assert all(value is False for value in candidate["maturity"]["gates"].values())
 assert all(value is False for value in review["authorization"].values())
-assert json.loads(candidate_bytes)["cell_id"] == "bxl-e147500-n169500-s500"
+assert json.loads(candidate_bytes)["cell_id"] == TARGET
 measurement, persistence = mod.validate_source_evidence(
     ROOT,
     json.loads((ROOT / "data/provenance/anneessens_canonical_registration.review.json").read_text()),

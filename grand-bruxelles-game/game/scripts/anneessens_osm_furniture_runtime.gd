@@ -14,19 +14,30 @@ var _trees: Array[StaticBody3D] = []
 var _enhanced_trees_enabled := true
 var _manual_binding := false
 var _watching_tree := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     process_mode = Node.PROCESS_MODE_ALWAYS
     _start_watching()
     call_deferred("_try_bind")
 
+func _exit_tree() -> void:
+    _tearing_down = true
+    _stop_watching()
+
 func _process(_delta: float) -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     if not is_instance_valid(_scene):
         _reset()
         _start_watching()
         return
     if not _manual_binding:
-        var current := get_tree().current_scene
+        var tree: SceneTree = get_tree()
+        if tree == null:
+            return
+        var current := tree.current_scene
         if current is Node3D and current != _scene and _is_production_scene(current as Node3D):
             _reset()
             _start_watching()
@@ -38,19 +49,23 @@ func _process(_delta: float) -> void:
         _root.visible = Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
 
 func _start_watching() -> void:
-    if _manual_binding or _watching_tree:
+    if _tearing_down or not is_inside_tree() or _manual_binding or _watching_tree:
         return
-    if not get_tree().node_added.is_connected(_on_tree_node_added):
-        get_tree().node_added.connect(_on_tree_node_added)
+    var tree: SceneTree = get_tree()
+    if tree == null:
+        return
+    if not tree.node_added.is_connected(_on_tree_node_added):
+        tree.node_added.connect(_on_tree_node_added)
     _watching_tree = true
 
 func _stop_watching() -> void:
-    if get_tree().node_added.is_connected(_on_tree_node_added):
-        get_tree().node_added.disconnect(_on_tree_node_added)
+    var tree: SceneTree = get_tree()
+    if tree != null and tree.node_added.is_connected(_on_tree_node_added):
+        tree.node_added.disconnect(_on_tree_node_added)
     _watching_tree = false
 
 func _on_tree_node_added(node: Node) -> void:
-    if _manual_binding or is_instance_valid(_scene):
+    if _tearing_down or not is_inside_tree() or _manual_binding or is_instance_valid(_scene):
         return
     var node_name := str(node.name)
     if node_name not in ["Main", "BrusselsOSM", "UrbISMidiExact", "Player"]:
@@ -74,13 +89,18 @@ func _find_nested_production_scene(node: Node) -> Node3D:
     return null
 
 func _find_production_scene() -> Node3D:
-    var current := get_tree().current_scene
+    if _tearing_down or not is_inside_tree():
+        return null
+    var tree: SceneTree = get_tree()
+    if tree == null:
+        return null
+    var current := tree.current_scene
     if current is Node3D and _is_production_scene(current as Node3D):
         return current as Node3D
-    return _find_nested_production_scene(get_tree().root)
+    return _find_nested_production_scene(tree.root)
 
 func _try_bind() -> void:
-    if _manual_binding or is_instance_valid(_scene):
+    if _tearing_down or not is_inside_tree() or _manual_binding or is_instance_valid(_scene):
         return
     var candidate := _find_production_scene()
     if candidate == null:
@@ -88,10 +108,14 @@ func _try_bind() -> void:
     _bind_scene(candidate, false)
 
 func bind_scene(scene: Node3D) -> void:
+    if _tearing_down:
+        return
     _bind_scene(scene, true)
 
 func _bind_scene(scene: Node3D, manual: bool) -> void:
-    if scene == null:
+    if _tearing_down or scene == null:
+        return
+    if not manual and not is_inside_tree():
         return
     var player := scene.get_node_or_null("Player") as Node3D
     if player == null:
@@ -116,7 +140,7 @@ func _reset() -> void:
     _manual_binding = false
 
 func _build_once() -> void:
-    if not is_instance_valid(_scene) or is_instance_valid(_root):
+    if _tearing_down or not is_instance_valid(_scene) or is_instance_valid(_root):
         return
     if not FileAccess.file_exists(DATA_PATH):
         push_warning("Anneessens OSM furniture data missing")

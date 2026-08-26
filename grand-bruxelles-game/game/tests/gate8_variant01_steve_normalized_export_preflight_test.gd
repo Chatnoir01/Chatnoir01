@@ -2,6 +2,7 @@ extends SceneTree
 
 const SOURCE_SCENE := "res://assets/steve_normalized.glb"
 const TARGET_SCENE := "res://assets/npc_gate_01.glb"
+const REPORT_PATH := "res://normalization-report.json"
 const RESULT_PATH := "res://gate8_variant01_steve_normalized_export_result.json"
 const REQUIRED_ROLES: Array[String] = ["hips","spine","chest","neck","head","left_upper_arm","left_forearm","left_hand","right_upper_arm","right_forearm","right_hand","left_upper_leg","left_lower_leg","left_foot","right_upper_leg","right_lower_leg","right_foot"]
 const SOURCE_ROLE_MAP := {"hips":"pelvis","spine":"waist","chest":"torso","neck":"neck","head":"head","left_upper_arm":"armup.L","left_forearm":"armlo.L","left_hand":"hand.L","right_upper_arm":"armup.R","right_forearm":"armlo.R","right_hand":"hand.R","left_upper_leg":"legup.L","left_lower_leg":"leglo.L","left_foot":"foot1.L","right_upper_leg":"legup.R","right_lower_leg":"leglo.R","right_foot":"foot1.R"}
@@ -14,8 +15,9 @@ func _init() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    _regression_chain_gap_detection()
     _regression_walk_detection()
+    var report:=_read_json(REPORT_PATH)
+    if report.is_empty(): failures.append("normalization_report_missing_or_invalid")
     var source_root:=await _load_scene(SOURCE_SCENE,"source")
     var target_root:=await _load_scene(TARGET_SCENE,"target")
     if source_root==null or target_root==null:
@@ -26,14 +28,26 @@ func _run() -> void:
     if target==null: failures.append("target_skeleton_missing")
     if source==null or target==null:
         _finish({}); return
+
     _validate_map(source,SOURCE_ROLE_MAP,"source")
     _validate_map(target,TARGET_ROLE_MAP,"target")
+    var protected_bones:Array = report.get("protected_bones", [])
+    var moved_controllers:Array = report.get("moved_controller_bones", [])
+    if protected_bones.size()<17: failures.append("protected_bone_manifest_too_small=%d"%protected_bones.size())
+    for bone_value in protected_bones:
+        var bone_name:=String(bone_value)
+        if source.find_bone(bone_name)<0: failures.append("protected_source_bone_missing=%s"%bone_name)
+    for controller_value in moved_controllers:
+        var controller_name:=String(controller_value)
+        if source.find_bone(controller_name)>=0: failures.append("nondeform_controller_exported=%s"%controller_name)
+    if source.get_bone_count()<protected_bones.size(): failures.append("source_bone_count=%d protected_manifest=%d"%[source.get_bone_count(),protected_bones.size()])
+    if target.get_bone_count()<53: failures.append("target_bone_count=%d expected>=53"%target.get_bone_count())
+
     var source_gaps:=_collect_chain_gaps(source,SOURCE_ROLE_MAP)
     var target_gaps:=_collect_chain_gaps(target,TARGET_ROLE_MAP)
     if not source_gaps.is_empty(): failures.append("source_topology_gaps=%s expected=[]"%JSON.stringify(source_gaps))
     if not target_gaps.is_empty(): failures.append("target_topology_gaps=%s expected=[]"%JSON.stringify(target_gaps))
-    if source.get_bone_count()<55: failures.append("source_bone_count=%d expected>=55"%source.get_bone_count())
-    if target.get_bone_count()<53: failures.append("target_bone_count=%d expected>=53"%target.get_bone_count())
+
     var source_walk:=_find_exact_loop_animation(_animation_inventory(source_root),"walk")
     if source_walk.is_empty(): failures.append("source_walk_animation_missing_after_normalized_import")
     var source_leg:=_mean_leg_length(source,SOURCE_ROLE_MAP)
@@ -41,19 +55,29 @@ func _run() -> void:
     var ratio:=target_leg/source_leg if source_leg>0.000001 else 0.0
     if source_leg<=0.000001 or target_leg<=0.000001: failures.append("invalid_leg_length")
     elif ratio<0.45 or ratio>2.20: failures.append("leg_length_ratio=%.6f outside=0.45..2.20"%ratio)
+
     var result:={
-        "format":"grand-bruxelles-gate8-variant01-steve-normalized-export-result-v1",
+        "format":"grand-bruxelles-gate8-variant01-steve-normalized-export-result-v2",
         "engine_version":Engine.get_version_info().get("string","unknown"),
         "source_bone_count":source.get_bone_count(),"target_bone_count":target.get_bone_count(),
+        "protected_bone_count":protected_bones.size(),"moved_controller_count":moved_controllers.size(),
         "source_topology_gaps":source_gaps,"target_topology_gaps":target_gaps,
         "source_walk_animation_name":source_walk,"target_to_source_leg_ratio":ratio,
-        "source_normalization_verified":source_gaps.is_empty(),
+        "source_normalization_verified":source_gaps.is_empty() and failures.is_empty(),
         "mechanical_state":"READY_FOR_NATIVE_RETARGET_PROBE" if failures.is_empty() else "BLOCKED_NORMALIZED_EXPORT_PREFLIGHT",
         "bonemap_applied":false,"retarget_applied":false,"walk_alias_selected":"","run_alias_selected":"",
         "production_authorized":false,"activation_ready":false,"adoption_ready":false,"visual_approval_claimed":false,
         "failures":failures
     }
     _write_result(result); _finish(result)
+
+func _read_json(path:String)->Dictionary:
+    if not FileAccess.file_exists(path): return {}
+    var f:=FileAccess.open(path,FileAccess.READ)
+    if f==null: return {}
+    var parsed=JSON.parse_string(f.get_as_text())
+    f.close()
+    return parsed if parsed is Dictionary else {}
 
 func _load_scene(path:String,label:String)->Node:
     if not ResourceLoader.exists(path): failures.append("%s_scene_missing=%s"%[label,path]); return null
@@ -134,10 +158,6 @@ func _find_exact_loop_animation(names:Array[String],token:String)->String:
         if not bad: return name
     return ""
 
-func _regression_chain_gap_detection()->void:
-    var synthetic:={"hips":"a","spine":"b"}
-    if synthetic["hips"]==synthetic["spine"]: failures.append("regression_chain_setup_invalid")
-
 func _regression_walk_detection()->void:
     if _find_exact_loop_animation(["Rig|walk"],"walk")!="Rig|walk": failures.append("regression_walk_namespaced")
     if not _find_exact_loop_animation(["Walk_Backward"],"walk").is_empty(): failures.append("regression_walk_backward")
@@ -149,7 +169,7 @@ func _write_result(result:Dictionary)->void:
 
 func _finish(_result:Dictionary)->void:
     if failures.is_empty():
-        print("GATE8_STEVE_NORMALIZED_PREFLIGHT_OK state=READY_FOR_NATIVE_RETARGET_PROBE gaps=0 aliases=false production_authorized=false")
+        print("GATE8_STEVE_NORMALIZED_PREFLIGHT_OK state=READY_FOR_NATIVE_RETARGET_PROBE gaps=0 protected=true controllers_absent=true production_authorized=false")
         quit(0); return
     for failure in failures: push_error("GATE8_STEVE_NORMALIZED_PREFLIGHT_FAIL %s"%failure)
     quit(1)

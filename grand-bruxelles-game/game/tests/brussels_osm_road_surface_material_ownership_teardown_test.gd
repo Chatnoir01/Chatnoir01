@@ -3,6 +3,7 @@ extends SceneTree
 const RUNTIME_ALIAS := "BrusselsOsmRoadSurfaceRuntime"
 const RUNTIME_SCRIPT := preload("res://game/scripts/brussels_osm_road_surface_runtime.gd")
 const MATERIAL_FAMILY := "brussels_osm_road_surface_v1"
+const TEST_OSM_ID := 359177328
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -10,15 +11,6 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     push_error("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_FAIL: %s" % message)
     quit(1)
-
-func _first_road(scene: Node3D) -> CSGBox3D:
-    var roads_root := scene.get_node_or_null("BrusselsOSM/GeneratedRoads") as Node3D
-    if roads_root == null:
-        return null
-    for child: Node in roads_root.get_children():
-        if child is CSGBox3D and str(child.name).begins_with("Road_"):
-            return child as CSGBox3D
-    return null
 
 func _remove_canonical_runtime() -> void:
     var canonical := root.get_node_or_null(RUNTIME_ALIAS)
@@ -28,112 +20,165 @@ func _remove_canonical_runtime() -> void:
     canonical.queue_free()
     await process_frame
 
+func _build_fixture() -> Dictionary:
+    var scene := Node3D.new()
+    scene.name = "RoadMaterialOwnershipFixture"
+
+    var osm_root := Node3D.new()
+    osm_root.name = "BrusselsOSM"
+    scene.add_child(osm_root)
+
+    var roads_root := Node3D.new()
+    roads_root.name = "GeneratedRoads"
+    osm_root.add_child(roads_root)
+
+    var road := CSGBox3D.new()
+    road.name = "Road_%d_0_0" % TEST_OSM_ID
+    road.size = Vector3(12.0, 0.15, 4.0)
+    road.position = Vector3(3.0, 0.075, -2.0)
+    var legacy_material := StandardMaterial3D.new()
+    legacy_material.set_meta("material_family", "test_legacy_road")
+    road.material = legacy_material
+    roads_root.add_child(road)
+
+    var official_parent := Node3D.new()
+    official_parent.name = "OfficialIxellesStreetSurfaces"
+    scene.add_child(official_parent)
+
+    var official := MeshInstance3D.new()
+    official.name = "StreetSurfaces_S"
+    var official_legacy := StandardMaterial3D.new()
+    official_legacy.set_meta("material_family", "test_legacy_official")
+    official.material_override = official_legacy
+    official_parent.add_child(official)
+
+    return {
+        "scene": scene,
+        "road": road,
+        "legacy_material": legacy_material,
+        "road_transform": road.transform,
+        "road_size": road.size,
+        "official": official,
+        "official_legacy": official_legacy,
+    }
+
 func _mount_case() -> Dictionary:
-    var packed := load("res://game/main.tscn") as PackedScene
-    if packed == null:
-        return {}
-    var scene := packed.instantiate() as Node3D
-    if scene == null:
-        return {}
-    var road := _first_road(scene)
-    if road == null:
-        scene.queue_free()
-        return {}
-    var legacy_material: Material = road.material
-    var original_transform := road.global_transform
-    var original_size := road.size
+    var fixture := _build_fixture()
+    var scene := fixture["scene"] as Node3D
     var runtime := RUNTIME_SCRIPT.new() as Node
     root.add_child(runtime)
     root.add_child(scene)
-    for _frame: int in range(8):
+    for _frame: int in range(4):
         await process_frame
-    return {
-        "scene": scene,
-        "runtime": runtime,
-        "road": road,
-        "legacy_material": legacy_material,
-        "original_transform": original_transform,
-        "original_size": original_size,
-    }
+    fixture["runtime"] = runtime
+    return fixture
 
 func _assert_bound(case: Dictionary) -> bool:
     var runtime := case["runtime"] as Node
     var road := case["road"] as CSGBox3D
-    if runtime == null or road == null:
-        _fail("test fixture missing runtime or road")
+    var official := case["official"] as MeshInstance3D
+    if runtime == null or road == null or official == null:
+        _fail("test fixture missing runtime, generic road, or official road surface")
         return false
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
-        _fail("road surface runtime did not bind production roads")
+        _fail("road surface runtime did not bind deterministic source-backed road fixture")
         return false
-    if int(runtime.call("applied_road_count")) <= 0:
-        _fail("road runtime reported no owned road registry before teardown")
+    if int(runtime.call("applied_road_count")) != 1:
+        _fail("generic road ownership registry mismatch before teardown")
+        return false
+    if int(runtime.call("official_applied_road_count")) != 1:
+        _fail("official road ownership registry mismatch before teardown")
         return false
     var material := road.material
     if material == null or str(material.get_meta("material_family", "")) != MATERIAL_FAMILY:
-        _fail("road did not receive shared road material before teardown")
+        _fail("generic road did not receive shared road material before teardown")
+        return false
+    if str(official.get_meta("ground_network_presentation_family", "")).is_empty():
+        _fail("official road surface did not receive owned presentation before teardown")
         return false
     return true
 
 func _assert_teardown_registry_cleared(runtime: Node) -> bool:
     if int(runtime.call("applied_road_count")) != 0:
-        _fail("road registry survived synchronous teardown")
+        _fail("generic road registry survived synchronous teardown")
         return false
     if int(runtime.call("official_applied_road_count")) != 0:
         _fail("official road registry survived synchronous teardown")
         return false
     return true
 
+func _cleanup_case(case: Dictionary) -> void:
+    var runtime := case["runtime"] as Node
+    var scene := case["scene"] as Node3D
+    if runtime != null and is_instance_valid(runtime):
+        runtime.queue_free()
+    if scene != null and is_instance_valid(scene):
+        if scene.get_parent() != null:
+            scene.get_parent().remove_child(scene)
+        scene.queue_free()
+    await process_frame
+
 func _run() -> void:
     await _remove_canonical_runtime()
 
     var restore_case := await _mount_case()
-    if restore_case.is_empty() or not _assert_bound(restore_case):
+    if not _assert_bound(restore_case):
         return
     var restore_runtime := restore_case["runtime"] as Node
-    var restore_scene := restore_case["scene"] as Node3D
     var restore_road := restore_case["road"] as CSGBox3D
-    var legacy_material := restore_case["legacy_material"] as Material
+    var restore_official := restore_case["official"] as MeshInstance3D
     root.remove_child(restore_runtime)
     if not _assert_teardown_registry_cleared(restore_runtime):
         return
-    if restore_road.material != legacy_material:
-        _fail("road runtime left its shared material behind after teardown")
+    if restore_road.material != restore_case["legacy_material"] as Material:
+        _fail("generic road runtime left its shared material behind after teardown")
         return
-    if not restore_road.global_transform.is_equal_approx(restore_case["original_transform"] as Transform3D):
-        _fail("road transform changed during material teardown")
+    if restore_official.material_override != restore_case["official_legacy"] as Material:
+        _fail("official road runtime left its presentation material behind after teardown")
         return
-    if not restore_road.size.is_equal_approx(restore_case["original_size"] as Vector3):
-        _fail("road size changed during material teardown")
+    if restore_official.has_meta("ground_network_presentation_family"):
+        _fail("official presentation ownership metadata survived teardown")
         return
-    restore_runtime.queue_free()
-    root.remove_child(restore_scene)
-    restore_scene.queue_free()
-    await process_frame
+    if not restore_road.transform.is_equal_approx(restore_case["road_transform"] as Transform3D):
+        _fail("generic road transform changed during material teardown")
+        return
+    if not restore_road.size.is_equal_approx(restore_case["road_size"] as Vector3):
+        _fail("generic road size changed during material teardown")
+        return
+    await _cleanup_case(restore_case)
 
     var preserve_case := await _mount_case()
-    if preserve_case.is_empty() or not _assert_bound(preserve_case):
+    if not _assert_bound(preserve_case):
         return
     var preserve_runtime := preserve_case["runtime"] as Node
-    var preserve_scene := preserve_case["scene"] as Node3D
     var preserve_road := preserve_case["road"] as CSGBox3D
-    var later_owner := StandardMaterial3D.new()
-    later_owner.set_meta("material_family", "test_later_owner")
-    preserve_road.material = later_owner
+    var preserve_official := preserve_case["official"] as MeshInstance3D
+    var later_road_owner := StandardMaterial3D.new()
+    later_road_owner.set_meta("material_family", "test_later_road_owner")
+    preserve_road.material = later_road_owner
+    var later_official_owner := StandardMaterial3D.new()
+    later_official_owner.set_meta("material_family", "test_later_official_owner")
+    preserve_official.material_override = later_official_owner
+    preserve_official.set_meta("ground_network_presentation_family", "test_later_official_owner")
     root.remove_child(preserve_runtime)
     if not _assert_teardown_registry_cleared(preserve_runtime):
         return
-    if preserve_road.material != later_owner:
-        _fail("road teardown overwrote a newer material owner")
+    if preserve_road.material != later_road_owner:
+        _fail("generic road teardown overwrote a newer material owner")
         return
-    if not preserve_road.global_transform.is_equal_approx(preserve_case["original_transform"] as Transform3D):
-        _fail("road transform changed while preserving newer owner")
+    if preserve_official.material_override != later_official_owner:
+        _fail("official road teardown overwrote a newer material owner")
         return
-    if not preserve_road.size.is_equal_approx(preserve_case["original_size"] as Vector3):
-        _fail("road size changed while preserving newer owner")
+    if str(preserve_official.get_meta("ground_network_presentation_family", "")) != "test_later_official_owner":
+        _fail("official road teardown removed a newer ownership marker")
         return
-    preserve_runtime.queue_free()
-    root.remove_child(preserve_scene)
-    preserve_scene.queue_free()
+    if not preserve_road.transform.is_equal_approx(preserve_case["road_transform"] as Transform3D):
+        _fail("generic road transform changed while preserving newer owner")
+        return
+    if not preserve_road.size.is_equal_approx(preserve_case["road_size"] as Vector3):
+        _fail("generic road size changed while preserving newer owner")
+        return
+    await _cleanup_case(preserve_case)
 
-    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_OK: legacy_restored=true newer_owner_preserved=true registries_cleared=true geometry_changed=false")
+    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_OK: fixture_osm_id=%d legacy_restored=true official_restored=true newer_owners_preserved=true registries_cleared=true geometry_changed=false" % TEST_OSM_ID)
     quit(0)

@@ -15,8 +15,8 @@ AUTOLOAD_RE = re.compile(
 )
 EXPECTED_AUTOLOADS = {
     "MidiBlueStoneSurfaceRuntime": "game/scripts/midi_blue_stone_surface_runtime.gd",
-    "MidiArchitecturalConcreteSurfaceRuntime": "game/scripts/midi_architectural_concrete_runtime.gd",
-    "MidiArchitecturalGlazingSurfaceRuntime": "game/scripts/midi_architectural_glazing_runtime.gd",
+    "MidiArchitecturalConcreteSurfaceRuntime": "game/scripts/midi_architectural_concrete_surface_runtime.gd",
+    "MidiArchitecturalGlazingSurfaceRuntime": "game/scripts/midi_architectural_glazing_surface_runtime.gd",
     "MidiFauquenbergBrickSurfaceRuntime": "game/scripts/midi_fauquenberg_brick_surface_runtime.gd",
     "AnneessensMidiSidewalkRuntime": "game/scripts/anneessens_midi_sidewalk_runtime.gd",
     "AnneessensOsmFurnitureRuntime": "game/scripts/anneessens_osm_furniture_runtime.gd",

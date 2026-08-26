@@ -46,13 +46,14 @@ jobs:
           c=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
           assert c["schema"] == "grand-bruxelles-osm-road-extension-acquisition-v2"
           assert c["status"] == "LOCKED_SOURCE_ONLY_ARTIFACT"
-          assert c["continuity"] == {
-              "production_base_semantics": "immutable_acquisition_floor",
-              "live_main_rule": "acquisition_floor <= live_main <= candidate_head",
-          }
+          continuity = c["continuity"]
+          assert continuity["policy"] == "artifact-lock-independent-of-original-git-ancestry"
+          assert continuity["original_acquisition_base_sha"] == "37cb3ce2d745ff4db17330636f6d712e028523c6"
+          assert continuity["locked_artifact_id"] == c["locked_evidence"]["artifact_id"] == 9617302727
+          assert continuity["locked_artifact_sha256"] == c["locked_evidence"]["artifact_zip_sha256"] == "8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3"
+          assert continuity["locked_semantic_sha256"] == c["locked_evidence"]["semantic_sha256"] == "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf"
           assert c["target"]["crs"] == "EPSG:31370"
           assert c["source"]["license"] == "ODbL-1.0"
-          assert c["locked_evidence"]["artifact_id"] == 9617302727
           assert c["locked_evidence"]["workflow_run_id"] == 32997864824
           assert all(v is False for v in c["authorization"].values())
           print("OSM_ROAD_EXTENSION_LOCK_CONTRACT_OK", c["production_base_sha"], c["locked_evidence"]["semantic_sha256"])

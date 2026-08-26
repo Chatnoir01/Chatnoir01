@@ -129,8 +129,9 @@ jobs:
           assert all(v is False for v in review['authorization'].values())
           assert manifest['cell_id']=='bxl-e148500-n170500-s500'
           assert manifest['crs']=='EPSG:31370'
-          assert manifest['provenance']['municipality']['niscode']=='21004'
-          assert manifest['provenance']['municipality']['coverage_ratio']==1.0
+          assert manifest['provenance']['municipality_niscode']=='21004'
+          assert manifest['provenance']['municipality_coverage_ratio']==1.0
+          assert manifest['provenance']['municipality_id']=='https://databrussels.be/id/municipality/5000074'
           assert all(v is False for v in manifest['maturity']['gates'].values())
           rows={row['cell_id']:row for row in index['entries']}
           row=rows['bxl-e148500-n170500-s500']

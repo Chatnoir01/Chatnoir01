@@ -23,6 +23,7 @@ EXPECTED_INTERSECTIONS = [
 
 REVIEW_PATH = Path("data/provenance/anneessens_canonical_registration.review.json")
 SOURCE_LOCK_PATH = Path("data/provenance/anneessens_urbis_source_cell.measurement.json")
+PERSISTENCE_CONTRACT_PATH = Path("data/qa/anneessens_urbis_source_cell.persistence.contract.json")
 SOURCE_MANIFEST_PATH = Path("data/urbis/remaining_brussels/cells") / CELL_ID / "manifest.json"
 REGISTERED_INDEX_PATH = Path("data/provenance/brussels_registered_cell_manifest_index.json")
 CANONICAL_PATH = Path("data/cell_manifests") / f"{CELL_ID}.json"
@@ -55,6 +56,80 @@ def validate_boundary(boundary: dict) -> list[dict]:
         raise RuntimeError("municipality boundary intersections no longer sum to 1")
     return normalized
 
+def validate_source_evidence(repo_root: Path, review: dict) -> tuple[dict, dict]:
+    """Cross-check the merged semantic measurement, persistence contract and review.
+
+    These are deliberately separate shipped schemas.  The semantic measurement
+    does not carry lifecycle status/authority fields; those belong to the
+    persistence contract and the canonical-registration review.  Treating the
+    measurement as if it were the persistence contract made the RED-first
+    candidate job fail before it could measure a candidate.
+    """
+    measurement = read_json(repo_root / SOURCE_LOCK_PATH)
+    if measurement.get("schema") != "grand-bruxelles-urbis-source-cell-semantic-measurement-v1":
+        raise RuntimeError("source semantic measurement schema drift")
+    if measurement.get("cell_id") != CELL_ID or measurement.get("crs") != CRS or measurement.get("bbox") != BBOX:
+        raise RuntimeError("source semantic measurement target drift")
+    if measurement.get("source_semantic_sha256") != SOURCE_SEMANTIC_SHA or measurement.get("manifest_source_digest") != SOURCE_DIGEST:
+        raise RuntimeError("source semantic identity drift")
+    if measurement.get("manifest_sha256") != SOURCE_MANIFEST_SHA:
+        raise RuntimeError("source semantic measurement manifest hash drift")
+    measured_counts = {name: int(row.get("features", -1)) for name, row in (measurement.get("layers") or {}).items()}
+    if measured_counts != EXPECTED_COUNTS:
+        raise RuntimeError("source semantic measurement layer accounting drift")
+    buildings = (measurement.get("layers") or {}).get("buildings") or {}
+    if buildings.get("ownership_filtered") != 52 or buildings.get("invalid_ownership_features") != 0:
+        raise RuntimeError("source semantic measurement building ownership drift")
+    for key in ("registration_authorized", "runtime_mount_authorized", "rendered_geometry_authorized", "collision_authorized", "safe_spawn_authorized", "jouable_promotion_authorized"):
+        if measurement.get(key) is not False:
+            raise RuntimeError(f"source semantic measurement rail opened: {key}")
+
+    persistence = read_json(repo_root / PERSISTENCE_CONTRACT_PATH)
+    if persistence.get("schema") != "grand-bruxelles-urbis-source-cell-persistence-contract-v1":
+        raise RuntimeError("source persistence contract schema drift")
+    if persistence.get("cell_id") != CELL_ID or persistence.get("status") != "LOCKED_EXACT_SOURCE_ONLY_PERSISTED":
+        raise RuntimeError("source cell is not locked/persisted")
+    source_contract = persistence.get("source") or {}
+    if source_contract.get("authority") != "Paradigm / Brussels-Capital Region" or source_contract.get("license") != "CC0-1.0":
+        raise RuntimeError("source authority/license drift")
+    if source_contract.get("crs") != CRS or source_contract.get("bbox") != BBOX:
+        raise RuntimeError("source persistence target drift")
+    artifact = persistence.get("locked_artifact") or {}
+    if artifact.get("source_semantic_sha256") != SOURCE_SEMANTIC_SHA:
+        raise RuntimeError("source persistence semantic identity drift")
+    expected_manifest = (persistence.get("expected_files") or {}).get("manifest.json") or {}
+    if expected_manifest.get("sha256") != SOURCE_MANIFEST_SHA:
+        raise RuntimeError("source persistence manifest hash drift")
+    accounting = persistence.get("accounting") or {}
+    persistence_counts = {
+        "buildings": int(accounting.get("buildings", -1)),
+        "street_axes": int(accounting.get("street_axes", -1)),
+        "street_surfaces": int(accounting.get("street_surfaces", -1)),
+        "train_network": int(accounting.get("train_network", -1)),
+        "tram_network": int(accounting.get("tram_network", -1)),
+    }
+    if persistence_counts != EXPECTED_COUNTS:
+        raise RuntimeError("source persistence accounting drift")
+    if accounting.get("buildings_ownership_filtered") != 52 or accounting.get("buildings_invalid_ownership") != 0:
+        raise RuntimeError("source persistence building ownership drift")
+    auth = persistence.get("authorization") or {}
+    if auth.get("source_persistence") is not True:
+        raise RuntimeError("source persistence authorization closed")
+    for key in ("source_registration", "canonical_registration", "municipality_assignment", "road_to_cell_mapping", "runtime_directory_scan", "runtime_mount", "rendered_geometry", "collision", "safe_spawn", "jouable_promotion"):
+        if auth.get(key) is not False:
+            raise RuntimeError(f"source persistence downstream rail opened: {key}")
+
+    review_source = review.get("source") or {}
+    if review_source.get("authority") != source_contract["authority"] or review_source.get("license") != source_contract["license"]:
+        raise RuntimeError("canonical review source authority/license drift")
+    if review_source.get("source_semantic_sha256") != SOURCE_SEMANTIC_SHA or review_source.get("manifest_sha256") != SOURCE_MANIFEST_SHA or review_source.get("manifest_source_digest") != SOURCE_DIGEST:
+        raise RuntimeError("canonical review source identity drift")
+    if review_source.get("layer_accounting") != EXPECTED_COUNTS:
+        raise RuntimeError("canonical review source layer accounting drift")
+    if review_source.get("building_ownership") != {"ownership_filtered": 52, "invalid_ownership_features": 0}:
+        raise RuntimeError("canonical review building ownership drift")
+    return measurement, persistence
+
 def build(repo_root: Path, production_base_sha: str) -> tuple[dict, dict, bytes]:
     if not re.fullmatch(r"[0-9a-f]{40}", production_base_sha):
         raise RuntimeError("production_base_sha must be a full lowercase SHA-1")
@@ -71,21 +146,7 @@ def build(repo_root: Path, production_base_sha: str) -> tuple[dict, dict, bytes]
         if review.get(key) is not False:
             raise RuntimeError(f"canonical review rail opened: {key}")
     intersections = validate_boundary(review.get("municipality_boundary") or {})
-    lock = read_json(repo_root / SOURCE_LOCK_PATH)
-    if lock.get("status") != "LOCKED_EXACT_SOURCE_ONLY_PERSISTED":
-        raise RuntimeError("source cell is not locked/persisted")
-    if lock.get("authority") != "Paradigm / Brussels-Capital Region" or lock.get("license") != "CC0-1.0":
-        raise RuntimeError("source authority/license drift")
-    if lock.get("source_semantic_sha256") != SOURCE_SEMANTIC_SHA or lock.get("manifest_source_digest") != SOURCE_DIGEST:
-        raise RuntimeError("source semantic identity drift")
-    if lock.get("layer_accounting") != EXPECTED_COUNTS:
-        raise RuntimeError("source layer accounting drift")
-    ownership = lock.get("building_ownership") or {}
-    if ownership.get("ownership_filtered") != 52 or ownership.get("invalid_ownership_features") != 0:
-        raise RuntimeError("building ownership accounting drift")
-    for key in ("source_registration_authorized","canonical_registration_authorized","road_cell_mapping_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"):
-        if lock.get(key) is not False:
-            raise RuntimeError(f"source lock rail opened: {key}")
+    measurement, persistence = validate_source_evidence(repo_root, review)
     source_path = repo_root / SOURCE_MANIFEST_PATH
     raw = source_path.read_bytes()
     if sha256_bytes(raw) != SOURCE_MANIFEST_SHA:
@@ -124,12 +185,13 @@ def build(repo_root: Path, production_base_sha: str) -> tuple[dict, dict, bytes]
     }
     candidate_bytes = (json.dumps(candidate, indent=2, sort_keys=True) + "\n").encode("utf-8")
     candidate_sha = sha256_bytes(candidate_bytes)
+    source_contract = persistence["source"]
     result = {
         "schema": "grand-bruxelles-anneessens-canonical-manifest-candidate-review-v1",
         "status": "CANDIDATE_MEASURED_UNREGISTERED",
         "production_base_sha": production_base_sha,
         "target": {"cell_id": CELL_ID,"crs": CRS,"bbox": BBOX,"canonical_manifest_path": CANONICAL_PATH.as_posix(),"canonical_manifest_present": False},
-        "source_evidence": {"lock_path": SOURCE_LOCK_PATH.as_posix(),"authority": lock["authority"],"license": lock["license"],"source_manifest_path": SOURCE_MANIFEST_PATH.as_posix(),"source_manifest_sha256": SOURCE_MANIFEST_SHA,"source_digest": SOURCE_DIGEST,"source_semantic_sha256": SOURCE_SEMANTIC_SHA,"layer_accounting": EXPECTED_COUNTS,"building_ownership": {"ownership_filtered": 52,"invalid_ownership_features": 0}},
+        "source_evidence": {"lock_path": SOURCE_LOCK_PATH.as_posix(),"persistence_contract_path": PERSISTENCE_CONTRACT_PATH.as_posix(),"authority": source_contract["authority"],"license": source_contract["license"],"source_manifest_path": SOURCE_MANIFEST_PATH.as_posix(),"source_manifest_sha256": SOURCE_MANIFEST_SHA,"source_digest": SOURCE_DIGEST,"source_semantic_sha256": measurement["source_semantic_sha256"],"layer_accounting": EXPECTED_COUNTS,"building_ownership": {"ownership_filtered": 52,"invalid_ownership_features": 0}},
         "municipality_boundary": {"semantic_sha256": BOUNDARY_SEMANTIC_SHA,"assignment_policy": "retain_all_official_intersections_no_dominant_municipality_canonicalization","intersections": intersections},
         "candidate_manifest": {"artifact_filename": f"{CELL_ID}.candidate.json","sha256": candidate_sha,"format": candidate["format"],"maturity_state": "data_ready","all_maturity_gates_false": True},
         "registered_cell_index": {"path": REGISTERED_INDEX_PATH.as_posix(),"registered_cell_count": 4,"target_registered": False},

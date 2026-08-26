@@ -11,6 +11,12 @@ DEFERRED_RECOVERY_FUNCTIONS = {
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": ("_schedule_sidewalk_bind", "_recover_existing_sidewalks"),
     "game/scripts/brussels_osm_rail_surface_runtime.gd": ("_schedule_rail_bind", "_recover_existing_rails"),
 }
+BOUNDED_WAIT_FUNCTIONS = {
+    "game/scripts/midi_blue_stone_surface_runtime.gd": "_apply_when_subtree_ready",
+    "game/scripts/midi_architectural_concrete_surface_runtime.gd": "_apply_when_subtree_ready",
+    "game/scripts/midi_architectural_glazing_surface_runtime.gd": "_apply_when_subtree_ready",
+    "game/scripts/midi_fauquenberg_brick_surface_runtime.gd": "_apply_when_subtree_ready",
+}
 
 
 def fail(message: str) -> None:
@@ -33,6 +39,8 @@ def main() -> None:
         fail("shared Environment watcher retention semantics are not explicit")
     if contract.get("deferred_recovery_teardown_guard_required") is not True:
         fail("shared Environment deferred recovery teardown guard contract missing")
+    if contract.get("bounded_subtree_wait_teardown_guard_required") is not True:
+        fail("shared Environment bounded subtree wait teardown guard contract missing")
 
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list) or not runtimes:
@@ -41,6 +49,7 @@ def main() -> None:
     verified = 0
     teardown_verified = 0
     deferred_guard_verified = 0
+    bounded_wait_verified = 0
     for entry in runtimes:
         if not isinstance(entry, dict):
             fail("malformed shared Environment lifecycle runtime entry")
@@ -84,6 +93,22 @@ def main() -> None:
             teardown_verified += 1
             deferred_guard_verified += 1
 
+        if entry.get("bounded_wait_teardown_guard_required") is True:
+            wait_name = BOUNDED_WAIT_FUNCTIONS.get(rel_path)
+            if wait_name is None:
+                fail(f"bounded-wait runtime missing contract mapping: {rel_path}")
+            wait_body = function_body(source, wait_name)
+            exit_body = function_body(source, "_exit_tree")
+            if not wait_body or "await" not in wait_body:
+                fail(f"bounded-wait runtime lost expected local await path: {rel_path}")
+            if not exit_body or "_tearing_down = true" not in exit_body:
+                fail(f"bounded-wait runtime lacks teardown cancellation: {rel_path}")
+            if "node_added.is_connected(" not in exit_body or "node_added.disconnect(" not in exit_body:
+                fail(f"bounded-wait runtime teardown does not disconnect watcher: {rel_path}")
+            if "_tearing_down" not in wait_body or "is_inside_tree()" not in wait_body:
+                fail(f"bounded subtree wait can continue after teardown: {rel_path}")
+            bounded_wait_verified += 1
+
         verified += 1
 
     if verified != int(contract.get("registered_runtime_count", -1)):
@@ -95,11 +120,14 @@ def main() -> None:
         fail(f"expected exactly three runtime-lifetime watcher teardowns, got {teardown_verified}")
     if deferred_guard_verified != 3:
         fail(f"expected exactly three deferred recovery teardown guards, got {deferred_guard_verified}")
+    if bounded_wait_verified != 4:
+        fail(f"expected exactly four bounded Midi wait teardown guards, got {bounded_wait_verified}")
 
     print(
         "SHARED_ENVIRONMENT_WATCHER_CLEANUP_OK: "
         f"runtimes={verified} runtime_lifetime_teardown={teardown_verified} "
-        f"deferred_recovery_guarded={deferred_guard_verified} connect=guarded disconnect=explicit"
+        f"deferred_recovery_guarded={deferred_guard_verified} bounded_wait_guarded={bounded_wait_verified} "
+        "connect=guarded disconnect=explicit"
     )
 
 

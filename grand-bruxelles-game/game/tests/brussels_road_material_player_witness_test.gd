@@ -7,6 +7,7 @@ const SOURCE_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b
 const TARGETS := {
     359177328: {"name_fragment": "Maurice Lemonnier", "slug": "lemmonnier"},
     408211693: {"name_fragment": "Fonsny", "slug": "fonsny"},
+    411724192: {"name_fragment": "Auguste Orts", "slug": "orts"},
 }
 const ARTIFACT_DIR := "res://artifacts/road_material_player_witness"
 const DIFF_THRESHOLD := 0.08

@@ -25,6 +25,10 @@ func _ready() -> void:
 func _exit_tree() -> void:
     _tearing_down = true
     _stop_watching()
+    _release_owned_root()
+    _scene = null
+    _player = null
+    _manual_binding = false
 
 func _process(_delta: float) -> void:
     if _tearing_down or not is_inside_tree():
@@ -63,6 +67,16 @@ func _stop_watching() -> void:
     if tree != null and tree.node_added.is_connected(_on_tree_node_added):
         tree.node_added.disconnect(_on_tree_node_added)
     _watching_tree = false
+
+func _release_owned_root() -> void:
+    if is_instance_valid(_root):
+        var parent := _root.get_parent()
+        if parent != null:
+            parent.remove_child(_root)
+        _root.queue_free()
+    _root = null
+    _trees.clear()
+    _tree_materials.clear()
 
 func _on_tree_node_added(node: Node) -> void:
     if _tearing_down or not is_inside_tree() or _manual_binding or is_instance_valid(_scene):
@@ -121,10 +135,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     if player == null:
         return
     if is_instance_valid(_root) and _scene != scene:
-        _root.queue_free()
-        _root = null
-        _trees.clear()
-        _tree_materials.clear()
+        _release_owned_root()
     _manual_binding = manual
     _scene = scene
     _player = player
@@ -132,11 +143,9 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _build_once()
 
 func _reset() -> void:
+    _release_owned_root()
     _scene = null
     _player = null
-    _root = null
-    _trees.clear()
-    _tree_materials.clear()
     _manual_binding = false
 
 func _build_once() -> void:

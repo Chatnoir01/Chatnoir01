@@ -19,12 +19,36 @@ var _failed := false
 var _visual_enabled := true
 var _manual_binding := false
 var _scene_bind_scheduled := false
+var _tearing_down := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
     call_deferred("_schedule_scene_bind")
+
+func _exit_tree() -> void:
+    _tearing_down = true
+    _scene_bind_scheduled = false
+    _disconnect_scene_watch()
+    _release_owned_root()
+    _scene = null
+
+func _release_owned_root() -> void:
+    if is_instance_valid(_root):
+        var parent := _root.get_parent()
+        if parent != null:
+            parent.remove_child(_root)
+        _root.queue_free()
+    _root = null
+    _pole_batch = null
+    _arm_batch = null
+    _luminaire_batch = null
+    _collision_body = null
+    _source_positions.clear()
+    _pole_transforms.clear()
+    _arm_transforms.clear()
+    _luminaire_transforms.clear()
 
 func _is_production_scene(node: Node) -> bool:
     if not node is Node3D:
@@ -33,6 +57,8 @@ func _is_production_scene(node: Node) -> bool:
     return candidate.has_node("BrusselsOSM") and candidate.has_node("UrbISMidiExact")
 
 func _discover_production_scene() -> Node3D:
+    if _tearing_down or not is_inside_tree():
+        return null
     var current := get_tree().current_scene
     if _is_production_scene(current):
         return current as Node3D
@@ -48,15 +74,19 @@ func _disconnect_scene_watch() -> void:
         get_tree().node_added.disconnect(_on_node_added)
 
 func _schedule_scene_bind() -> void:
-    if _manual_binding or _ready_complete or _failed or _scene_bind_scheduled:
+    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete or _failed or _scene_bind_scheduled:
         return
     _scene_bind_scheduled = true
     call_deferred("_recover_existing_scene")
 
 func _recover_existing_scene() -> void:
-    await get_tree().process_frame
+    if _tearing_down or not is_inside_tree():
+        _scene_bind_scheduled = false
+        return
+    var tree := get_tree()
+    await tree.process_frame
     _scene_bind_scheduled = false
-    if _manual_binding or _ready_complete or _failed:
+    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete or _failed:
         return
     var discovered := _discover_production_scene()
     if discovered == null:
@@ -65,35 +95,29 @@ func _recover_existing_scene() -> void:
     _build()
 
 func _on_node_added(node: Node) -> void:
-    if _manual_binding or _ready_complete or _failed:
+    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete or _failed:
         return
     var node_name := str(node.name)
     if node_name == "BrusselsOSM" or node_name == "UrbISMidiExact" or _is_production_scene(node):
         _schedule_scene_bind()
 
 func bind_scene(scene: Node3D) -> void:
+    if _tearing_down:
+        return
     if scene == null:
         _fail("manual scene binding received null scene")
         return
     _manual_binding = true
     _disconnect_scene_watch()
-    if is_instance_valid(_root):
-        _root.queue_free()
+    _release_owned_root()
     _scene = scene
-    _root = null
-    _pole_batch = null
-    _arm_batch = null
-    _luminaire_batch = null
-    _collision_body = null
-    _source_positions.clear()
-    _pole_transforms.clear()
-    _arm_transforms.clear()
-    _luminaire_transforms.clear()
     _failed = false
     _ready_complete = false
     _build()
 
 func _fail(message: String) -> void:
+    if _tearing_down:
+        return
     push_error("Brussels source-backed street lamp runtime: %s" % message)
     _failed = true
     _ready_complete = true
@@ -131,6 +155,8 @@ func _build_batch(name: String, mesh: Mesh, transforms: Array[Transform3D]) -> M
     return batch
 
 func _build() -> void:
+    if _tearing_down:
+        return
     if _scene == null:
         _fail("scene missing during build")
         return

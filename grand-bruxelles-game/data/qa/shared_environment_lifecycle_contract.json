@@ -1,5 +1,5 @@
 {
-  "schema": "grand-bruxelles-shared-environment-lifecycle-contract-v4",
+  "schema": "grand-bruxelles-shared-environment-lifecycle-contract-v5",
   "runtime_policy": "dormant_event_driven_nested_mount_safe",
   "legitimate_absence_is_failure": false,
   "geometry_or_material_change_authorized": false,
@@ -13,6 +13,7 @@
   "deferred_recovery_teardown_guard_required": true,
   "bounded_subtree_wait_teardown_guard_required": true,
   "deferred_bind_teardown_guard_required": true,
+  "runtime_owned_root_teardown_cleanup_required": true,
   "notes": [
     "This registry contains shared Environment runtimes already migrated to event-driven wakeup on production main.",
     "Exact-location Grand-Place/Bourse runtimes and NPC/gameplay systems are intentionally excluded.",
@@ -21,7 +22,8 @@
     "Every registered node_added watcher must have a guarded disconnect path. Runtimes marked teardown_cleanup_required retain the watcher for runtime-lifetime late-child binding and must disconnect specifically from _exit_tree().",
     "Runtime-lifetime watchers with deferred recovery must also suppress already-scheduled recovery after teardown so a disconnected signal cannot leave a stale deferred SceneTree traversal.",
     "Bounded local subtree waits must abort cleanly when their autoload leaves the SceneTree; a terminal-bind watcher may disconnect normally after success while still guarding in-flight await process_frame work during teardown.",
-    "Runtimes marked deferred_bind_teardown_guard_required queue binding work with call_deferred and must set a teardown sentinel in _exit_tree plus guard every declared deferred target against teardown/off-tree execution."
+    "Runtimes marked deferred_bind_teardown_guard_required queue binding work with call_deferred and must set a teardown sentinel in _exit_tree plus guard every declared deferred target against teardown/off-tree execution.",
+    "Runtimes that attach a generated shared-prop root directly to Main must remove that owned root synchronously from its parent during autoload teardown so scene content and collision registries cannot outlive their owner."
   ],
   "runtimes": [
     {"autoload_name": "MidiBlueStoneSurfaceRuntime", "path": "game/scripts/midi_blue_stone_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true, "bounded_wait_teardown_guard_required": true},
@@ -37,8 +39,8 @@
     {"autoload_name": "BrusselsOsmFacadeSurfaceRuntime", "path": "game/scripts/brussels_osm_facade_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
     {"autoload_name": "BrusselsOsmFacadeArticulationRuntime", "path": "game/scripts/brussels_osm_facade_articulation_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
     {"autoload_name": "BrusselsOsmRailSurfaceRuntime", "path": "game/scripts/brussels_osm_rail_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true, "teardown_cleanup_required": true},
-    {"autoload_name": "BrusselsBollardRuntime", "path": "game/scripts/brussels_bollard_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
-    {"autoload_name": "BrusselsStreetLampRuntime", "path": "game/scripts/brussels_street_lamp_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
-    {"autoload_name": "BrusselsCorridorTreeRuntime", "path": "game/scripts/brussels_corridor_tree_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false}
+    {"autoload_name": "BrusselsBollardRuntime", "path": "game/scripts/brussels_bollard_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false, "deferred_bind_teardown_guard_required": true, "deferred_guard_functions": ["_schedule_scene_bind", "_recover_existing_scene"], "runtime_owned_root_teardown_cleanup_required": true, "owned_root_name": "BrusselsSourceBackedBollards"},
+    {"autoload_name": "BrusselsStreetLampRuntime", "path": "game/scripts/brussels_street_lamp_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false, "deferred_bind_teardown_guard_required": true, "deferred_guard_functions": ["_schedule_scene_bind", "_recover_existing_scene"], "runtime_owned_root_teardown_cleanup_required": true, "owned_root_name": "BrusselsSourceBackedStreetLamps"},
+    {"autoload_name": "BrusselsCorridorTreeRuntime", "path": "game/scripts/brussels_corridor_tree_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false, "deferred_bind_teardown_guard_required": true, "deferred_guard_functions": ["_start_scene_watch"], "runtime_owned_root_teardown_cleanup_required": true, "owned_root_name": "BrusselsCorridorTrees"}
   ]
 }

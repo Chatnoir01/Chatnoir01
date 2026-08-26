@@ -49,11 +49,11 @@ jobs:
             exit 1
           fi
 
-      - name: Capture legitimate Lemonnier and Fonsny player witnesses
+      - name: Capture legitimate Lemonnier, Fonsny and Orts player witnesses
         run: |
           set -o pipefail
           mkdir -p grand-bruxelles-game/artifacts/road_material_player_witness
-          for target in 359177328 408211693; do
+          for target in 359177328 408211693 411724192; do
             GB_ROAD_WITNESS_OSM_ID="$target" \
             xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
               --path grand-bruxelles-game \
@@ -75,6 +75,7 @@ jobs:
           targets = {
               'lemmonnier': (359177328, 'Maurice Lemonnier'),
               'fonsny': (408211693, 'Fonsny'),
+              'orts': (411724192, 'Auguste Orts'),
           }
           for slug, (osm_id, name_fragment) in targets.items():
               assert osm_id in representatives, (osm_id, representatives)
@@ -121,8 +122,11 @@ jobs:
             road_material_fonsny_before.png \
             road_material_fonsny_control.png \
             road_material_fonsny_player_witness.json \
+            road_material_orts_before.png \
+            road_material_orts_control.png \
+            road_material_orts_player_witness.json \
             > evidence-sha256.txt
-          test "$(wc -l < evidence-sha256.txt)" -eq 6
+          test "$(wc -l < evidence-sha256.txt)" -eq 9
           sha256sum --check evidence-sha256.txt
 
       - name: Upload exact witness artifact

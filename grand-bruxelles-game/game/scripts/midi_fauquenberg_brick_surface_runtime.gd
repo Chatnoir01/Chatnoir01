@@ -97,7 +97,7 @@ func bind_station(station: Node) -> void:
         "Urban 9423 yellow Fauquenberg facing brick"
     )
     for target: Node in _targets:
-        _original_materials[target.get_instance_id()] = _get_material(target)
+        _original_materials[target.get_instance_id()] = (target as MeshInstance3D).material_override
     set_enhanced_material_enabled(true)
     _ready_complete = true
     _finish_waiting()

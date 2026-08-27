@@ -83,7 +83,7 @@ jobs:
           python3 - "$RUNNER_TEMP/osm-road-frame-correction-impact.json" <<'PY'
           import json, sys
           r=json.load(open(sys.argv[1]))
-          assert r["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-measurement-v2"
+          assert r["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-measurement-v1"
           assert r["status"] == "MEASURED_FRAME_CORRECTION_IMPACT_EVIDENCE_ONLY"
           a=r["accounting"]
           assert a["source_road_count"] == 140

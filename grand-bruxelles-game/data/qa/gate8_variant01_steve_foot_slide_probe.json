@@ -1,0 +1,54 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-steve-foot-slide-probe-v1",
+  "base_main_sha": "7f8a83f76a512b6fe9eeb0743332059ec441425d",
+  "predecessor": {
+    "pr": 1358,
+    "head_sha": "d021fa0a31c409e33102f5a94848a7c01bb019be",
+    "workflow_run_id": 33023231374,
+    "artifact_id": 9627395284,
+    "artifact_digest": "sha256:4df6e8c3b0ee915dba8a501118d40245957e8cec51cd333163f5a2ee09b2b38d",
+    "mechanical_state": "READY_FOR_FOOT_SLIDE_PROBE",
+    "walk_length_s": 0.966666638851166,
+    "max_transfer_error_deg": 0.0,
+    "grounding_span_m": 0.0,
+    "skin_max_absolute_edge_change_m": 0.0000110603868961334
+  },
+  "source": {
+    "name": "Steve NPC1",
+    "license": "CC0-1.0",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_bytes": 1454243,
+    "normalizer_commit": "d021fa0a31c409e33102f5a94848a7c01bb019be"
+  },
+  "target": {
+    "candidate": "Gate-8 variant 01",
+    "artifact_id": 9470539830,
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "probe": {
+    "engine": "Godot 4.7.1",
+    "sample_rate_hz": 120.0,
+    "contact_height_epsilon_m": 0.035,
+    "minimum_source_pose_excitation_deg": 5.0,
+    "minimum_target_foot_path_m": 0.01,
+    "metrics": [
+      "raw_contact_slide_mean_mps",
+      "raw_contact_slide_peak_mps",
+      "optimal_root_compensation_mean_mps",
+      "optimal_root_compensation_peak_mps",
+      "irreducible_contact_slide_mean_mps",
+      "irreducible_contact_slide_peak_mps",
+      "double_support_velocity_disagreement_peak_mps"
+    ]
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "visual_approval_claimed": false,
+    "runtime_population_changed": false
+  },
+  "verdict": "MEASURE_PLANTED_FOOT_SLIDE_BEFORE_ANY_VISUAL_OR_ALIAS_DECISION"
+}

@@ -141,17 +141,21 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json,os,sys
+          import hashlib,json,os,sys
           from pathlib import Path
           contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
-          measured=json.loads((Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-crosswalk-candidate.json').read_text())
+          candidate_path=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-crosswalk-candidate.json'
+          measured=json.loads(candidate_path.read_text())
           if contract['status']=='MEASUREMENT_PENDING':
               print('RED_FIRST_CORRECTED_FRAME_CROSSWALK_CANDIDATE_NOT_LOCKED',measured['semantic_sha256'])
               sys.exit(1)
           locked=contract['locked_evidence']
+          candidate_json_sha256=hashlib.sha256(candidate_path.read_bytes()).hexdigest()
           assert measured['semantic_sha256']==locked['semantic_sha256']
+          assert candidate_json_sha256==locked['candidate_json_sha256']
           assert len(measured['rows'])==locked['candidate_unique_mapped_road_count']==96
           assert len(measured['multicell_hold_rows'])==locked['candidate_multicell_road_count']==2
+          assert measured['accounting']['candidate_no_registered_overlap_count']==locked['candidate_no_registered_overlap_count']==42
           assert all(v is False for v in measured['authorization'].values())
-          print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_LOCKED_EXACT',measured['semantic_sha256'])
+          print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_LOCKED_EXACT',measured['semantic_sha256'],candidate_json_sha256)
           PY

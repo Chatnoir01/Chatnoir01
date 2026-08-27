@@ -4,6 +4,10 @@ const RUNTIME_SCRIPT := preload("res://game/scripts/ixelles_midi_sidewalk_runtim
 const AUTOLOAD_NAME := &"IxellesMidiSidewalkRuntime"
 const MATERIAL_OWNER := "ixelles_midi_sidewalk_runtime"
 
+class TestIxellesSlice:
+    extends Node3D
+    var runtime_loaded := false
+
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -15,8 +19,12 @@ func _phase(name: String) -> void:
     print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_PHASE: %s" % name)
 
 func _build_target_fixture() -> Dictionary:
-    var slice_root := Node3D.new()
+    # Match the real LABO slice contract closely enough that unrelated registry
+    # bridges can inspect runtime_loaded without throwing while this regression
+    # still keeps geography/content minimal and owned by the test.
+    var slice_root := TestIxellesSlice.new()
     slice_root.name = "IxellesDirectMicroSlice"
+    slice_root.runtime_loaded = false
     root.add_child(slice_root)
     var parent := Node3D.new()
     parent.name = "OfficialIxellesStreetSurfaces"
@@ -115,5 +123,5 @@ func _run() -> void:
     await process_frame
     _phase("case2_invalid_id_ok")
 
-    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true ready=false")
+    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true valid_slice_contract=true ready=false")
     quit(0)

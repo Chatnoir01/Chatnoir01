@@ -41,8 +41,8 @@ def main() -> None:
 
     restore_body = function_body(source, "_restore_owned_materials")
     for token in (
-        "target.material_override == owned",
-        "target.material_override = _original_materials.get(instance_id) as Material",
+        "mesh_instance.material_override == owned",
+        "mesh_instance.material_override = _original_materials.get(instance_id) as Material",
     ):
         if token not in restore_body:
             fail(f"Fauquenberg owner-aware restore missing: {token}")
@@ -61,7 +61,7 @@ def main() -> None:
     toggle_body = function_body(source, "set_enhanced_material_enabled")
     for token in (
         "_owned_materials[instance_id] = _material",
-        "elif owned != null and target.material_override == owned",
+        "elif owned != null and mesh_instance.material_override == owned",
     ):
         if token not in toggle_body:
             fail(f"Fauquenberg owner-aware toggle missing: {token}")

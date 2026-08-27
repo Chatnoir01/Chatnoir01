@@ -11,6 +11,9 @@ func _fail(message: String) -> void:
     push_error("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_FAIL: %s" % message)
     quit(1)
 
+func _phase(name: String) -> void:
+    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_PHASE: %s" % name)
+
 func _build_target_fixture() -> Dictionary:
     var slice_root := Node3D.new()
     slice_root.name = "IxellesDirectMicroSlice"
@@ -31,23 +34,22 @@ func _new_runtime(label: String) -> Node:
     return runtime
 
 func _dispatch_candidate(runtime: Node, instance_id: int) -> void:
+    _phase("case2_dispatch_begin")
     if runtime == null or not is_instance_valid(runtime):
         _fail("runtime disappeared before isolated deferred ID dispatch")
         return
     runtime.call("_apply_candidate", instance_id)
+    _phase("case2_dispatch_end")
 
 func _run() -> void:
-    # The project autoload is active even when a SceneTree test instantiates a
-    # second copy. Remove it so only the instance under test owns callbacks.
+    _phase("isolate_canonical_autoload")
     var canonical_runtime: Node = root.get_node_or_null(str(AUTOLOAD_NAME))
     if canonical_runtime != null:
         root.remove_child(canonical_runtime)
         canonical_runtime.free()
         await process_frame
 
-    # Case 1: exercise the real node_added -> call_deferred path. Runtime
-    # teardown must suppress a candidate already queued before MessageQueue
-    # executes it.
+    _phase("case1_real_node_added_begin")
     var runtime := _new_runtime("teardown")
     await process_frame
     var teardown_fixture := _build_target_fixture()
@@ -71,13 +73,9 @@ func _run() -> void:
     var teardown_root := teardown_fixture["slice_root"] as Node3D
     teardown_root.queue_free()
     await process_frame
+    _phase("case1_real_node_added_ok")
 
-    # Case 2: isolate the production invalid-instance-ID guard. Keep the
-    # runtime alive, but disconnect its node_added watcher so the fixture does
-    # not enqueue a second competing callback. Then destroy the valid LABO
-    # target and defer only its integer instance ID through this test's
-    # MessageQueue callback. This proves exactly the execution-time contract
-    # without retaining a freed Object Variant or racing two deferred calls.
+    _phase("case2_invalid_id_begin")
     var freed_runtime := _new_runtime("freed_candidate")
     await process_frame
     var runtime_node_added := Callable(freed_runtime, "_on_node_added")
@@ -97,6 +95,7 @@ func _run() -> void:
     if is_instance_id_valid(freed_target_id):
         _fail("freed target instance id remained valid before deferred execution")
         return
+    _phase("case2_instance_id_invalid")
 
     call_deferred("_dispatch_candidate", freed_runtime, freed_target_id)
     await process_frame
@@ -114,6 +113,7 @@ func _run() -> void:
     var freed_root := freed_fixture["slice_root"] as Node3D
     freed_root.queue_free()
     await process_frame
+    _phase("case2_invalid_id_ok")
 
     print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true ready=false")
     quit(0)

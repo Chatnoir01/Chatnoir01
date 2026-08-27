@@ -14,6 +14,7 @@ REQUIRED_TARGETS = {
     359177328: "Maurice Lemonnier",
     408211693: "Fonsny",
     411724192: "Auguste Orts",
+    13842686: "Amigo",
 }
 
 

@@ -31,7 +31,10 @@ jobs:
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Import project
-        run: timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-fonsny-import.log
       - name: Prove deferred wait and owned root stop at teardown
         shell: bash
         run: |
@@ -39,3 +42,13 @@ jobs:
           timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_fonsny_full_entrance_teardown_test.gd 2>&1 | tee /tmp/midi-fonsny-teardown.log
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_FONSNY_FULL_ENTRANCE_TEARDOWN_FAIL" /tmp/midi-fonsny-teardown.log; then exit 1; fi
           grep -F "MIDI_FONSNY_FULL_ENTRANCE_TEARDOWN_OK" /tmp/midi-fonsny-teardown.log
+      - name: Persist teardown diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-fonsny-teardown-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/midi-fonsny-import.log
+            /tmp/midi-fonsny-teardown.log
+          if-no-files-found: error
+          retention-days: 14

@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 CONTRACT=ROOT/'data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json'
+IMPACT_CONTRACT=ROOT/'data/qa/osm_road_frame_correction_impact.contract.json'
 
 class CorrectedFrameRoadCellCrosswalkCandidateContractTest(unittest.TestCase):
     def test_contract_locks_corridor_rows_and_closed_rails(self):
@@ -32,5 +33,24 @@ class CorrectedFrameRoadCellCrosswalkCandidateContractTest(unittest.TestCase):
         got=hashlib.sha256(json.dumps(basis,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
         self.assertEqual(got,d['semantic_sha256'])
         self.assertEqual(got,'7d8a943297a16cc855e67128b979f3e538193706087df419c9709b1751b53dc1')
+
+    def test_locked_impact_keeps_historical_base_separate_from_candidate_base(self):
+        candidate=json.loads(CONTRACT.read_text(encoding='utf-8'))
+        impact=json.loads(IMPACT_CONTRACT.read_text(encoding='utf-8'))
+        self.assertEqual(impact['status'],'LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY')
+        self.assertEqual(impact['production_base_sha'],'2785106ee36ca1752ff033a754d2b0ef48a93a1b')
+        self.assertNotEqual(candidate['production_base_sha'],impact['production_base_sha'])
+        self.assertEqual(impact['semantic_identity_policy']['exclude_continuity_fields'],['production_base_sha'])
+        self.assertEqual(
+            impact['locked_evidence']['stable_semantic_sha256'],
+            candidate['source']['impact_stable_semantic_sha256'],
+        )
+        self.assertEqual(impact['locked_evidence']['accounting'],candidate['expected_accounting'] | {
+            'current_mapped_road_count':56,
+            'retained_mapping_count':0,
+            'changed_mapping_count':45,
+            'newly_mappable_count':51,
+            'no_longer_mappable_count':11,
+        })
 
 if __name__=='__main__': unittest.main()

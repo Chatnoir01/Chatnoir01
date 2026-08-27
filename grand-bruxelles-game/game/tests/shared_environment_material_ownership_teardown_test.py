@@ -103,6 +103,24 @@ TARGETS = {
         ],
         "official_family": "brussels_ground_network_official_material_v1",
     },
+    "game/scripts/midi_architectural_concrete_surface_runtime.gd": {
+        "family": "brussels_source_verified_architectural_concrete",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": [
+            "_restore_owned_materials()",
+            "_owned_materials.clear()",
+            "_original_material_overrides.clear()",
+            "_targets.clear()",
+            "_material = null",
+        ],
+        "restore_function": "_restore_owned_materials",
+        "required_restore_tokens": [
+            "target.material_override == owned",
+            "target.material_override = _original_material_overrides.get(instance_id) as Material",
+        ],
+        "apply_function": "set_enhanced_material_enabled",
+        "required_apply_tokens": ["_owned_materials[instance_id] = _material"],
+    },
 }
 
 
@@ -135,11 +153,7 @@ def main() -> None:
 
     validated: list[str] = []
     for target_path, expected in TARGETS.items():
-        matching = [
-            entry
-            for entry in runtimes
-            if isinstance(entry, dict) and entry.get("path") == target_path
-        ]
+        matching = [entry for entry in runtimes if isinstance(entry, dict) and entry.get("path") == target_path]
         if len(matching) != 1:
             fail(f"material owner runtime lifecycle entry missing or duplicated: {target_path}")
         entry = matching[0]
@@ -152,8 +166,7 @@ def main() -> None:
         if "official_family" in expected and entry.get("owned_official_material_family") != expected["official_family"]:
             fail(f"owned official material family drifted: {target_path}")
 
-        source_path = ROOT / target_path
-        source = source_path.read_text(encoding="utf-8")
+        source = (ROOT / target_path).read_text(encoding="utf-8")
         exit_body = function_body(source, "_exit_tree")
         if f"{expected['helper']}()" not in exit_body:
             fail(f"teardown does not release material ownership: {target_path}")
@@ -161,7 +174,16 @@ def main() -> None:
         helper_body = function_body(source, expected["helper"])
         for token in expected["required_helper_tokens"]:
             if token not in helper_body:
-                fail(f"owner-aware restore missing token in {target_path}: {token}")
+                fail(f"owner-aware release missing token in {target_path}: {token}")
+
+        restore_function = expected.get("restore_function")
+        if restore_function:
+            restore_body = function_body(source, restore_function)
+            if not restore_body:
+                fail(f"owner-aware restore helper missing in {target_path}: {restore_function}")
+            for token in expected.get("required_restore_tokens", []):
+                if token not in restore_body:
+                    fail(f"owner-aware restore missing token in {target_path}: {token}")
 
         apply_body = function_body(source, expected["apply_function"])
         for token in expected["required_apply_tokens"]:
@@ -170,17 +192,18 @@ def main() -> None:
 
         validated.append(target_path)
 
-    if len(validated) != 6:
-        fail("expected exactly six shared material-owning runtimes")
+    if len(validated) != 7:
+        fail("expected exactly seven shared material-owning runtimes")
 
     print(
         "SHARED_ENVIRONMENT_MATERIAL_OWNERSHIP_TEARDOWN_OK: "
-        "owners=6 facade_surface=brussels_osm_facade_surface_v1 "
+        "owners=7 facade_surface=brussels_osm_facade_surface_v1 "
         "facade_articulation=brussels_osm_facade_articulation_v1 "
         "road_surface=brussels_osm_road_surface_v1 "
         "base_ground=brussels_base_ground_surface_v1 "
         "sidewalk_surface=brussels_osm_sidewalk_surface_v1 "
-        "rail_surface=brussels_osm_rail_surface_v1 official_override=true "
+        "rail_surface=brussels_osm_rail_surface_v1 "
+        "midi_concrete=brussels_source_verified_architectural_concrete official_override=true "
         "owner_aware_restore=true geometry_changed=false"
     )
 

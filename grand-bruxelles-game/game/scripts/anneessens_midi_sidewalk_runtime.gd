@@ -31,6 +31,19 @@ func _exit_tree() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+    _release_owned_root()
+    _scene = null
+    _manual_binding = false
+
+func _release_owned_root() -> void:
+    if is_instance_valid(_root):
+        var parent := _root.get_parent()
+        if parent != null:
+            parent.remove_child(_root)
+        _root.queue_free()
+    _root = null
+    _sidewalk_count = 0
+    _collision_count = 0
 
 func _on_node_added(_node: Node) -> void:
     if _tearing_down or _manual_binding or is_instance_valid(_scene):
@@ -83,10 +96,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     if scene == null or (_tearing_down and not manual):
         return
     if is_instance_valid(_root):
-        var parent := _root.get_parent()
-        if parent != null:
-            parent.remove_child(_root)
-        _root.queue_free()
+        _release_owned_root()
     _manual_binding = manual
     _scene = scene
     _sidewalk_count = 0

@@ -1,6 +1,6 @@
 {
   "schema": "grand-bruxelles-corrected-frame-destination-production-apply-v1",
-  "status": "PRE_APPLY_BUILDER_ONLY",
+  "status": "LOCKED_STAGED_PAIR_EVIDENCE_ONLY",
   "production_base_sha": "14b89944049cb95a45bcb5aab5e3dd84fce85e9f",
   "source": {
     "provider": "OpenStreetMap contributors via Overpass API",
@@ -41,5 +41,17 @@
     "write_production_files_authorized": false,
     "runtime_probe_authorized": false,
     "jouable_promotion_authorized": false
+  },
+  "locked_staged_evidence": {
+    "run_id": 33115920683,
+    "head_sha": "7e99f9a6494925520c93b308cf0c8cdec2fc6c2c",
+    "artifact_id": 9664489630,
+    "artifact_sha256": "25095225b55405d8bb0c5da107f773951a29ccde6b4f681bdec835cd17e9ce4d",
+    "generated_crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
+    "generated_readiness_sha256": "2c98aa4315d446628ce260254082d76b29bd8fb097b73f76d0b5bfa03483f6b3",
+    "mapping_count": 96,
+    "destination_count": 96,
+    "mapped_cell_count": 4,
+    "multicell_hold_ids": [256158619, 397461693]
   }
 }

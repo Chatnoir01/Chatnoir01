@@ -50,6 +50,44 @@ TARGETS = {
         ],
         "official_family": "brussels_ground_network_official_material_v1",
     },
+    "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": {
+        "family": "brussels_osm_sidewalk_surface_v1",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": [
+            "_owned_materials",
+            "sidewalk.material == owned",
+            "sidewalk.material = _legacy_materials.get(instance_id) as Material",
+            "_official_owned_materials",
+            "instance.material_override == owned",
+            "instance.material_override = _official_legacy_materials.get(instance_id) as Material",
+            'remove_meta("ground_network_presentation_family")',
+        ],
+        "apply_function": "_set_material_state",
+        "required_apply_tokens": [
+            "_owned_materials[instance_id] = _material",
+            "_official_owned_materials[instance_id] = _official_material",
+        ],
+        "official_family": "brussels_ground_network_official_material_v1",
+    },
+    "game/scripts/brussels_osm_rail_surface_runtime.gd": {
+        "family": "brussels_osm_rail_surface_v1",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": [
+            "_owned_materials",
+            "rail.material == owned",
+            "rail.material = _legacy_materials.get(instance_id) as Material",
+            "_official_owned_materials",
+            "instance.material_override == owned",
+            "instance.material_override = _official_legacy_materials.get(instance_id) as Material",
+            'remove_meta("ground_network_presentation_family")',
+        ],
+        "apply_function": "_set_material_state",
+        "required_apply_tokens": [
+            "_owned_materials[instance_id] = _enhanced_material",
+            "_official_owned_materials[instance_id] = _official_material",
+        ],
+        "official_family": "brussels_ground_network_official_material_v1",
+    },
 }
 
 
@@ -117,14 +155,16 @@ def main() -> None:
 
         validated.append(target_path)
 
-    if len(validated) != 3:
-        fail("expected exactly three shared material-owning runtimes")
+    if len(validated) != 5:
+        fail("expected exactly five shared material-owning runtimes")
 
     print(
         "SHARED_ENVIRONMENT_MATERIAL_OWNERSHIP_TEARDOWN_OK: "
-        "owners=3 facade_surface=brussels_osm_facade_surface_v1 "
+        "owners=5 facade_surface=brussels_osm_facade_surface_v1 "
         "facade_articulation=brussels_osm_facade_articulation_v1 "
-        "road_surface=brussels_osm_road_surface_v1 official_override=true "
+        "road_surface=brussels_osm_road_surface_v1 "
+        "sidewalk_surface=brussels_osm_sidewalk_surface_v1 "
+        "rail_surface=brussels_osm_rail_surface_v1 official_override=true "
         "owner_aware_restore=true geometry_changed=false"
     )
 

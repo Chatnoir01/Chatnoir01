@@ -57,12 +57,22 @@ def build_candidate_crosswalk(candidate: dict, registered_cell_semantic: str) ->
     if policy.get("replace_current_crosswalk_authorized") is not False or policy.get("write_production_crosswalk_authorized") is not False:
         raise RuntimeError("candidate crosswalk replacement policy opened")
 
+    holds = candidate.get("multicell_hold_rows") or []
+    hold_ids = set()
+    for hold in holds:
+        road_id = int(hold["road_osm_id"])
+        if road_id in hold_ids:
+            raise RuntimeError(f"duplicate multicell hold road id: {road_id}")
+        hold_ids.add(road_id)
+
     rows = candidate.get("rows") or []
     seen = set()
     converted = []
     for row in rows:
         road_id = int(row["road_osm_id"])
         cell_id = str(row["cell_id"])
+        if road_id in hold_ids:
+            raise RuntimeError(f"multicell hold road leaked into unique mapping: {road_id}")
         if road_id in seen:
             raise RuntimeError(f"duplicate candidate road id: {road_id}")
         seen.add(road_id)

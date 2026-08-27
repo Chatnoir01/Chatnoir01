@@ -1,0 +1,136 @@
+name: Grand Bruxelles Corrected Frame Road Cell Migration Plan
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_corrected_frame_road_cell_migration_plan.py"
+      - "grand-bruxelles-game/tests/test_corrected_frame_road_cell_migration_plan.py"
+      - ".github/workflows/grand-bruxelles-corrected-frame-road-cell-migration-plan.yml"
+      - "grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json"
+      - "grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_osm_road_frame_correction_impact.py"
+      - "grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main and closed migration rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json')
+          d=json.loads(p.read_text())
+          assert d['production_base_sha']==sys.argv[1], (d['production_base_sha'],sys.argv[1])
+          assert d['status'] in {'MEASUREMENT_PENDING','LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY'}
+          assert d['migration_policy']['atomic_rebuild_required'] is True
+          assert d['migration_policy']['replace_current_crosswalk_authorized'] is False
+          assert d['migration_policy']['carry_old_mapping_without_reproof_authorized'] is False
+          assert all(v is False for v in d['authorization'].values())
+          if d['status']=='LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY':
+              locked=d['locked_evidence']
+              assert locked['accounting']==d['expected']
+              assert isinstance(locked['workflow_run_id'],int) and locked['workflow_run_id']>0
+              assert isinstance(locked['artifact_id'],int) and locked['artifact_id']>0
+              for key in ('artifact_sha256','measurement_json_sha256','semantic_sha256'):
+                  assert isinstance(locked[key],str) and len(locked[key])==64
+          print('CORRECTED_FRAME_MIGRATION_LIVE_MAIN_OK',sys.argv[1],d['status'])
+          PY
+      - name: Bind historical impact evidence to audited base
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMPACT_BASE_SHA="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          assert d['status']=='LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY'
+          assert d['semantic_identity_policy']['exclude_continuity_fields']==['production_base_sha']
+          print(d['production_base_sha'])
+          PY
+          )"
+          git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
+          echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
+          echo "CORRECTED_FRAME_MIGRATION_IMPACT_BASE_OK impact_base=$IMPACT_BASE_SHA live_main=$LIVE_MAIN_SHA"
+      - name: Run fail-closed migration-plan regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_corrected_frame_road_cell_migration_plan.py -v
+      - name: Recompute locked corrected-frame impact
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/measure_osm_road_frame_correction_impact.py
+          --contract data/qa/osm_road_frame_correction_impact.contract.json
+          --repo-root .
+          --live-main-sha "$IMPACT_BASE_SHA"
+          --output "$RUNNER_TEMP/osm-road-frame-impact.json"
+      - name: Measure exact migration delta
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/measure_corrected_frame_road_cell_migration_plan.py
+          --contract data/qa/corrected_frame_road_cell_migration_plan.contract.json
+          --impact "$RUNNER_TEMP/osm-road-frame-impact.json"
+          --repo-root .
+          --production-base-sha "$LIVE_MAIN_SHA"
+          --output "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
+      - name: Verify measured plan remains evidence-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
+          p=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-migration-plan.json'
+          d=json.loads(p.read_text())
+          assert d['status']=='MIGRATION_PLAN_EVIDENCE_ONLY'
+          assert d['accounting']==contract['expected']
+          assert len(d['changed_rows'])==45
+          assert len(d['newly_mappable_rows'])==51
+          assert len(d['no_longer_mappable_rows'])==11
+          assert len(d['multicell_hold_rows'])==2
+          assert all(v is False for v in d['authorization'].values())
+          if contract['status']=='LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY':
+              assert d['semantic_sha256']==contract['locked_evidence']['semantic_sha256']
+              assert d['accounting']==contract['locked_evidence']['accounting']
+          print('CORRECTED_FRAME_MIGRATION_PLAN_MEASURED',d['semantic_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-road-cell-migration-plan-reproduction
+          path: ${{ runner.temp }}/corrected-frame-road-cell-migration-plan.json
+          if-no-files-found: error
+      - name: Enforce content-addressed migration plan lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,sys
+          from pathlib import Path
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
+          measured=json.loads((Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-migration-plan.json').read_text())
+          if contract['status']=='MEASUREMENT_PENDING':
+              print('RED_FIRST_CORRECTED_FRAME_MIGRATION_PLAN_NOT_LOCKED')
+              sys.exit(1)
+          assert contract['status']=='LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY'
+          locked=contract['locked_evidence']
+          assert measured['semantic_sha256']==locked['semantic_sha256']
+          assert measured['accounting']==locked['accounting']==contract['expected']
+          assert all(v is False for v in measured['authorization'].values())
+          print('CORRECTED_FRAME_MIGRATION_PLAN_LOCKED_EXACT',measured['semantic_sha256'])
+          PY

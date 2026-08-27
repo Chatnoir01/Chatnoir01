@@ -1,0 +1,32 @@
+name: Grand Bruxelles Midi Fauquenberg Material Teardown
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/midi_fauquenberg_brick_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/midi_fauquenberg_material_ownership_teardown_test.py'
+      - 'grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json'
+      - 'grand-bruxelles-game/game/tests/shared_environment_material_ownership_teardown_test.py'
+      - '.github/workflows/grand-bruxelles-midi-fauquenberg-material-teardown.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fauquenberg-material-teardown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "${{ github.event.pull_request.base.sha }}"
+      - name: Validate Fauquenberg owner-aware teardown
+        run: python grand-bruxelles-game/game/tests/midi_fauquenberg_material_ownership_teardown_test.py

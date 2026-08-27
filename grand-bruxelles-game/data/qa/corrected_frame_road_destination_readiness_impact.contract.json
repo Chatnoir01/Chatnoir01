@@ -1,0 +1,41 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-road-destination-readiness-impact-contract-v1",
+  "status": "MEASUREMENT_PENDING",
+  "production_base_sha": "61a4b36f4f276bc39547359ffb727c1e0fc67399",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "materialization_contract_path": "data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json",
+    "materialization_semantic_sha256": "9fca92b20a3a45b8d9d8c8740a3e355cf993d9961797ed5a8e1a13f14989b173",
+    "current_readiness_catalog_path": "data/provenance/brussels_road_destination_readiness_catalog.json",
+    "crs": "EPSG:31370"
+  },
+  "expected": {
+    "current_destination_count": 56,
+    "candidate_unique_destination_count": 96,
+    "multicell_hold_count": 2,
+    "no_registered_overlap_count": 42,
+    "retained_destination_count": 0,
+    "changed_cell_destination_count": 45,
+    "new_destination_count": 51,
+    "removed_destination_count": 11
+  },
+  "policy": {
+    "measurement_only": true,
+    "replace_readiness_catalog_authorized": false,
+    "replace_crosswalk_authorized": false,
+    "multicell_destination_authorized": false,
+    "atomic_followup_required": true
+  },
+  "authorization": {
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_directory_scan_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

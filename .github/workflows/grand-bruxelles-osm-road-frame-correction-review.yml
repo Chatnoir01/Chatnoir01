@@ -70,7 +70,7 @@ jobs:
             --live-main-sha "$(git rev-parse origin/main)" \
             --output "$RUNNER_TEMP/osm-road-frame-correction-review.json"
 
-      - name: Assert correction remains un-authorized
+      - name: Assert correction remains un-authorized and engine-bound
         shell: bash
         run: |
           python3 - "$RUNNER_TEMP/osm-road-frame-correction-review.json" <<'PY'
@@ -81,12 +81,14 @@ jobs:
           assert r["candidate_worst_residual_m"] <= 1.0
           assert r["historical_worst_residual_m"] >= 900.0
           assert r["improvement_ratio"] >= 1000.0
+          assert r["projection_engine"] == {"name": "pyproj", "version": "3.7.2"}
+          assert all(value is False for value in r["authorization"].values())
           assert r["production_frame_update_authorized"] is False
           assert r["source_merge_authorized"] is False
           assert r["road_cell_mapping_authorized"] is False
           assert r["runtime_mount_authorized"] is False
           assert r["jouable_promotion_authorized"] is False
-          print("OSM_ROAD_FRAME_CORRECTION_REVIEW_READY production_authorization=false")
+          print("OSM_ROAD_FRAME_CORRECTION_REVIEW_READY production_authorization=false engine=pyproj-3.7.2")
           PY
 
       - name: Upload review evidence

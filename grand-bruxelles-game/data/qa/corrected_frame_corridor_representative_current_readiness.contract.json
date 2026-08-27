@@ -1,0 +1,63 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-corridor-representative-current-readiness-contract-v1",
+  "status": "LOCKED_EVIDENCE_ONLY",
+  "production_base_sha": "2c721444da42b02774a2b76687af6cda16810a0a",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "representative_contract_path": "data/qa/corrected_frame_corridor_representatives.contract.json",
+    "representative_semantic_sha256": "c97cf68d40e3edfaa16b97703bdcf336bd5ef7ce4d773518e0d8b24450c0ef32",
+    "readiness_catalog_path": "data/provenance/brussels_road_destination_readiness_catalog.json",
+    "crs": "EPSG:31370"
+  },
+  "expected": {
+    "representative_count": 4,
+    "present_in_current_readiness_count": 2,
+    "absent_from_current_readiness_count": 2,
+    "present_but_wrong_cell_count": 2,
+    "present_in_target_cell_count": 0,
+    "runtime_probe_eligible_count": 0,
+    "expected_absent_road_osm_ids": [8176386, 150205016],
+    "expected_wrong_cell_road_osm_ids": [8512036, 13767417]
+  },
+  "locked_evidence": {
+    "production_base_sha": "2c721444da42b02774a2b76687af6cda16810a0a",
+    "workflow_run_id": 33084829827,
+    "artifact_id": 9651677132,
+    "artifact_digest": "sha256:64ecae4929a1d304d54a37b5214823ad52542d0e7aa95755b69cf095bd293a55",
+    "measurement_sha256": "8a84b861f6ffc3f706cf87dcbd4fc886a40e18f3792672ddc99e92025a54d615",
+    "semantic_sha256": "f15a6dc04cff1103d1e5024e9c2d4fbc7655ec4778e0bcb80420bc1501e93eda",
+    "accounting": {
+      "representative_count": 4,
+      "present_in_current_readiness_count": 2,
+      "absent_from_current_readiness_count": 2,
+      "present_but_wrong_cell_count": 2,
+      "present_in_target_cell_count": 0,
+      "runtime_probe_eligible_count": 0,
+      "expected_absent_road_osm_ids": [8176386, 150205016],
+      "expected_wrong_cell_road_osm_ids": [8512036, 13767417]
+    }
+  },
+  "policy": {
+    "measurement_only": true,
+    "historical_readiness_is_not_corrected_frame_readiness": true,
+    "representative_runtime_probe_requires_target_cell_readiness": true,
+    "locked_measurement_sha_is_forensic_to_locked_base": true,
+    "semantic_lock_survives_clean_live_main_rebuild": true,
+    "replace_readiness_catalog_authorized": false,
+    "replace_crosswalk_authorized": false,
+    "runtime_probe_authorized": false,
+    "atomic_corrected_frame_migration_required": true
+  },
+  "authorization": {
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_directory_scan_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

@@ -1,0 +1,190 @@
+name: Grand Bruxelles Corrected Frame Destination Atomic Migration Preflight
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-corrected-frame-destination-atomic-migration-preflight.yml'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json'
+      - 'grand-bruxelles-game/tools/qa/check_corrected_frame_destination_atomic_migration_preflight.py'
+      - 'grand-bruxelles-game/tests/test_corrected_frame_destination_atomic_migration_preflight.py'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_candidate.contract.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  atomic-migration-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main and closed migration rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$HEAD_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json')
+          d=json.loads(p.read_text())
+          assert d['schema']=='grand-bruxelles-corrected-frame-destination-atomic-migration-preflight-contract-v1'
+          assert d['production_base_sha']==sys.argv[1], (d['production_base_sha'],sys.argv[1])
+          assert d['status'] in {'MEASUREMENT_PENDING','LOCKED_ATOMIC_MIGRATION_PREFLIGHT_EVIDENCE_ONLY'}
+          assert d['source']['provider']=='OpenStreetMap contributors via Overpass API'
+          assert d['source']['license']=='ODbL-1.0'
+          assert d['source']['crs']=='EPSG:31370'
+          assert d['policy']['artifact_only'] is True
+          assert d['policy']['atomic_migration_required'] is True
+          assert d['policy']['production_files_must_remain_unchanged'] is True
+          assert d['policy']['replace_production_crosswalk_authorized'] is False
+          assert d['policy']['replace_production_readiness_authorized'] is False
+          assert d['policy']['production_frame_update_authorized'] is False
+          assert d['policy']['road_cell_mapping_authorized'] is False
+          assert d['policy']['runtime_probe_authorized'] is False
+          assert all(v is False for v in d['authorization'].values())
+          print('CORRECTED_FRAME_ATOMIC_PREFLIGHT_LIVE_MAIN_OK',sys.argv[1],d['status'])
+          PY
+          git diff --quiet "$LIVE_MAIN_SHA" -- grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
+          git diff --quiet "$LIVE_MAIN_SHA" -- grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
+          echo "CORRECTED_FRAME_ATOMIC_PRODUCTION_INPUTS_UNCHANGED $LIVE_MAIN_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_corrected_frame_destination_atomic_migration_preflight.py -v
+
+      - name: Restore immutable corrected-frame crosswalk and readiness artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r CROSSWALK_ID CROSSWALK_ARTIFACT_SHA CROSSWALK_JSON_SHA READINESS_ID READINESS_ARTIFACT_SHA READINESS_JSON_SHA <<EOF
+          $(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          contract=json.loads((root/'data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json').read_text())
+          cross=json.loads((root/contract['source']['corrected_crosswalk_contract_path']).read_text())
+          readiness=json.loads((root/contract['source']['corrected_readiness_contract_path']).read_text())
+          print(
+              cross['locked_evidence']['artifact_id'],
+              cross['locked_evidence']['artifact_sha256'],
+              cross['locked_evidence']['candidate_json_sha256'],
+              readiness['locked_evidence']['red_first_artifact_id'],
+              readiness['locked_evidence']['red_first_artifact_sha256'],
+              readiness['locked_evidence']['candidate_json_sha256'],
+          )
+          PY
+          )
+          EOF
+          mkdir -p "$RUNNER_TEMP/crosswalk" "$RUNNER_TEMP/readiness"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${CROSSWALK_ID}/zip" > "$RUNNER_TEMP/crosswalk.zip"
+          echo "${CROSSWALK_ARTIFACT_SHA}  $RUNNER_TEMP/crosswalk.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/crosswalk.zip" -d "$RUNNER_TEMP/crosswalk"
+          CROSSWALK="$RUNNER_TEMP/crosswalk/corrected-frame-road-cell-crosswalk-candidate.json"
+          test -s "$CROSSWALK"
+          echo "${CROSSWALK_JSON_SHA}  $CROSSWALK" | sha256sum --check
+
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${READINESS_ID}/zip" > "$RUNNER_TEMP/readiness.zip"
+          echo "${READINESS_ARTIFACT_SHA}  $RUNNER_TEMP/readiness.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/readiness.zip" -d "$RUNNER_TEMP/readiness"
+          READINESS="$RUNNER_TEMP/readiness/corrected-frame-road-destination-readiness-candidate.json"
+          test -s "$READINESS"
+          echo "${READINESS_JSON_SHA}  $READINESS" | sha256sum --check
+          echo "CROSSWALK_CANDIDATE=$CROSSWALK" >> "$GITHUB_ENV"
+          echo "READINESS_CANDIDATE=$READINESS" >> "$GITHUB_ENV"
+          echo "CORRECTED_FRAME_ATOMIC_ARTIFACTS_RESTORED crosswalk=$CROSSWALK_ID readiness=$READINESS_ID"
+
+      - name: Measure atomic crosswalk-readiness migration pair
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/check_corrected_frame_destination_atomic_migration_preflight.py
+          --contract data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json
+          --corrected-crosswalk "$CROSSWALK_CANDIDATE"
+          --corrected-readiness "$READINESS_CANDIDATE"
+          --production-crosswalk data/provenance/brussels_road_registered_cell_crosswalk.json
+          --production-readiness data/provenance/brussels_road_destination_readiness_catalog.json
+          --production-base-sha "$LIVE_MAIN_SHA"
+          --output "$RUNNER_TEMP/corrected-frame-destination-atomic-migration-preflight.json"
+
+      - name: Require exact accounting and zero production authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-destination-atomic-migration-preflight.json'
+          d=json.loads(p.read_text())
+          assert d['status']=='ATOMIC_PAIR_PROVEN_EVIDENCE_ONLY_NOT_APPLIED'
+          a=d['accounting']
+          assert a=={
+              'production_mapping_count':56,
+              'production_destination_count':56,
+              'candidate_mapping_count':96,
+              'candidate_destination_count':96,
+              'candidate_mapped_cell_count':4,
+              'multicell_hold_count':2,
+              'no_registered_overlap_count':42,
+              'retained_same_cell_count':0,
+              'changed_cell_count':45,
+              'new_destination_count':51,
+              'removed_destination_count':11,
+          },a
+          assert len(d['multicell_hold_road_ids'])==2
+          assert len(d['changed_road_ids'])==45
+          assert len(d['new_road_ids'])==51
+          assert len(d['removed_road_ids'])==11
+          assert all(v is False for v in d['authorization'].values())
+          assert d['policy']['replace_production_crosswalk_authorized'] is False
+          assert d['policy']['replace_production_readiness_authorized'] is False
+          assert d['policy']['production_frame_update_authorized'] is False
+          print('CORRECTED_FRAME_ATOMIC_MIGRATION_ACCOUNTING_OK',d['semantic_sha256'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-destination-atomic-migration-preflight
+          path: ${{ runner.temp }}/corrected-frame-destination-atomic-migration-preflight.json
+          if-no-files-found: error
+
+      - name: Enforce content-addressed evidence lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          contract=json.loads((root/'data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json').read_text())
+          p=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-destination-atomic-migration-preflight.json'
+          measured=json.loads(p.read_text())
+          if contract['status']=='MEASUREMENT_PENDING':
+              print('RED_FIRST_CORRECTED_FRAME_ATOMIC_MIGRATION_PREFLIGHT_NOT_LOCKED',measured['semantic_sha256'])
+              sys.exit(1)
+          locked=contract['locked_evidence']
+          assert measured['semantic_sha256']==locked['semantic_sha256']
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['measurement_json_sha256']
+          assert measured['accounting']==locked['accounting']
+          assert all(v is False for v in measured['authorization'].values())
+          print('CORRECTED_FRAME_ATOMIC_MIGRATION_PREFLIGHT_LOCKED_EXACT',measured['semantic_sha256'])
+          PY

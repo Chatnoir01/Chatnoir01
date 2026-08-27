@@ -23,7 +23,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Require exact live main, exact candidate head, bounded Character/NPC scope and closed rails
+
+      - name: Require exact live main, exact candidate head and closed rails
         shell: bash
         run: |
           set -euo pipefail
@@ -33,17 +34,19 @@ jobs:
           LIVE_MAIN="$(git rev-parse origin/main)"
           test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
           printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
-          git diff --name-only origin/main HEAD | sort > "$RUNNER_TEMP/actual.txt"
-          printf '%s\n' \
-            '.github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml' \
-            'grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd' | sort > "$RUNNER_TEMP/expected.txt"
-          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+
+          # Persistent integrity gate after #1396 merged: validate the immutable
+          # target on later PRs instead of requiring #1396's historical 2-file diff.
+          test -f .github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml
+          test -f grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd
           ! grep -Eq '^[[:space:]]+EXPECTED_MAIN:' .github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml
           grep -q 'LIVE_MAIN="$(git rev-parse origin/main)"' .github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml
+          ! grep -q 'diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"' .github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml
           grep -q '"variant": 3' grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd
           grep -q '"production_authorized": false' grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd
           grep -q '"retarget_applied": false' grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd
-          printf 'GATE8_VARIANT03_LIVE_MAIN_OK main=%s head=%s\n' "$LIVE_MAIN" "$EXPECTED_HEAD"
+          printf 'GATE8_VARIANT03_LIVE_MAIN_OK main=%s head=%s reusable_integrity_gate=true\n' "$LIVE_MAIN" "$EXPECTED_HEAD"
+
       - name: Verify immutable Gate-8 generation artifact metadata
         env:
           GH_TOKEN: ${{ github.token }}
@@ -58,6 +61,7 @@ jobs:
           assert p.get('digest') == sys.argv[2], (p.get('digest'), sys.argv[2])
           print('GATE8_ARTIFACT_IDENTITY_OK id=%s digest=%s' % (p['id'], p['digest']))
           PY
+
       - name: Acquire and pin only Gate-8 variant03 from immutable artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,6 +83,7 @@ jobs:
           printf 'GATE8_VARIANT03_BINARY_IDENTITY_OK sha256=%s bytes=%s\n' "$ACTUAL_SHA256" "$ACTUAL_SIZE"
           mkdir -p "$PROJECT/assets"
           cp "$TARGET" "$PROJECT/assets/npc_gate_03.glb"
+
       - name: Import and inspect target under Godot 4.7.1
         shell: bash
         run: |
@@ -113,11 +118,13 @@ jobs:
           assert r['retarget_applied'] is False
           print('GATE8_VARIANT03_PAIRING_PREFLIGHT_OK bones=%d meshes=%d vertices=%d' % (r['bone_count'], r['skinned_meshes'], r['vertex_count']))
           PY
+
       - name: Require repository clean
         shell: bash
         run: |
           set -euo pipefail
           test -z "$(git status --porcelain)"
+
       - if: always()
         uses: actions/upload-artifact@v4
         with:

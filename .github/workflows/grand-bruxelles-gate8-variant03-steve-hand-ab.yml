@@ -1,0 +1,200 @@
+name: Grand Bruxelles Gate-8 Variant03 Steve Hand A/B
+on:
+  push:
+    branches: ["npc/gate8-variant03-steve-skin-culprit-20260827"]
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-gate8-variant03-steve-hand-ab.yml'
+      - 'grand-bruxelles-game/game/tests/gate8_variant03_steve_hand_ab_test.gd'
+      - '.github/workflows/grand-bruxelles-gate8-variant03-steve-shoulder-ab.yml'
+      - 'grand-bruxelles-game/game/tests/gate8_variant03_steve_shoulder_ab_test.gd'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  hand-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
+      SOURCE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
+      SOURCE_BYTES: "1454243"
+      NORMALIZER_COMMIT: d021fa0a31c409e33102f5a94848a7c01bb019be
+      HARDENER_COMMIT: 0a0e8e9330c88d1100054c3eb534a237cb5e7c8c
+      PROBE_SOURCE_COMMIT: f1c3778ccbfd31d9883fe40ee8f3b03288f325e5
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb
+      TARGET_GLB_SHA256: cd3d0abc6020789f4d000a84c6a6f44d9707942649d62a66a7406cbb2cd35313
+      TARGET_GLB_BYTES: "12589156"
+      SHOULDER_ARTIFACT_ID: "9666870216"
+      SHOULDER_ARTIFACT_DIGEST: sha256:2c7d95d9cb658528e9e61763f2c819297bbd7b0ec14fb3dc87201187ced34425
+      GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      PROJECT: /tmp/gate8-v03-steve-hand-ab
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live main, exact Character/NPC scope and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-boundary-ab-plan.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-culprit-classification.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-hand-ab.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-shoulder-ab.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant03_steve_skin_culprit.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant03_steve_hand_ab_test.gd' \
+            'grand-bruxelles-game/game/tests/gate8_variant03_steve_shoulder_ab_test.gd' \
+            'grand-bruxelles-game/tools/qa/classify_gate8_variant03_steve_skin_culprits.py' \
+            'grand-bruxelles-game/tools/qa/plan_gate8_variant03_steve_boundary_ab.py' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('grand-bruxelles-game/data/qa/gate8_variant03_steve_skin_culprit.json'))
+          assert d['base_main_sha']=='dec964e0b7374e8771a7e6103310751bbdb07483'
+          assert d['gates']=={'max_transfer_error_deg':3.0,'max_grounding_span_m':0.18,'max_skin_edge_change_m':0.25,'max_skin_stretch_ratio':3.0,'min_skin_compression_ratio':0.25}
+          assert [x['id'] for x in d['boundary_ab_plan']['experiments']]==['AB_SHOULDER','AB_HAND']
+          for k in ('production_authorized','activation_ready','adoption_ready','visual_approval_claimed','retarget_change_authorized','skin_weight_change_authorized','global_right_arm_fix_authorized'):
+              assert d['rails'][k] is False,k
+          PY
+          printf '%s\n' "$LIVE_MAIN" > "$RUNNER_TEMP/live-main.txt"
+      - name: Require immutable shoulder A/B rejection
+        env: {GH_TOKEN: "${{ github.token }}"}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SHOULDER_ARTIFACT_ID}" > "$RUNNER_TEMP/shoulder-artifact.json"
+          python3 - "$RUNNER_TEMP/shoulder-artifact.json" "$SHOULDER_ARTIFACT_DIGEST" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1])); assert not p.get('expired',True); assert p.get('digest')==sys.argv[2]
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SHOULDER_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/shoulder.zip"
+          mkdir -p "$RUNNER_TEMP/shoulder" && unzip -q "$RUNNER_TEMP/shoulder.zip" -d "$RUNNER_TEMP/shoulder"
+          python3 - "$RUNNER_TEMP/shoulder/godot-result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['mechanical_state']=='SHOULDER_AB_NO_CANDIDATE_WITHIN_GATES',r
+          assert r['shoulder_candidates']==[],r
+          assert r['failures']==[],r
+          print('GATE8_V03_SHOULDER_AB_FROZEN_REJECTED candidates=0')
+          PY
+      - name: Regenerate exact canonical Steve walk from pinned CC0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$SOURCE_ZIP" -o "$RUNNER_TEMP/steve.zip"
+          echo "$SOURCE_SHA256  $RUNNER_TEMP/steve.zip" | sha256sum -c -
+          test "$(stat -c '%s' "$RUNNER_TEMP/steve.zip")" = "$SOURCE_BYTES"
+          mkdir -p "$RUNNER_TEMP/steve-src" && unzip -q "$RUNNER_TEMP/steve.zip" -d "$RUNNER_TEMP/steve-src"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NORMALIZER_COMMIT}/grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py" -o "$RUNNER_TEMP/normalizer.py"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${HARDENER_COMMIT}/grand-bruxelles-game/tools/qa/harden_steve_normalizer_gltf_export.py" -o "$RUNNER_TEMP/hardener.py"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${HARDENER_COMMIT}/grand-bruxelles-game/tools/qa/canonicalize_steve_proxy_walk.py" -o "$RUNNER_TEMP/canonicalizer.py"
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends blender python3-numpy >/dev/null
+          python3 "$RUNNER_TEMP/hardener.py" --input "$RUNNER_TEMP/normalizer.py" --output "$RUNNER_TEMP/normalizer-hardened.py" | tee "$RUNNER_TEMP/hardening.log"
+          timeout 1800 blender --background "$RUNNER_TEMP/steve-src/steve_npc1.blend" --python-exit-code 42 --python "$RUNNER_TEMP/normalizer-hardened.py" -- --output /tmp/steve_proxy.glb --report "$RUNNER_TEMP/normalization.json" 2>&1 | tee "$RUNNER_TEMP/normalization.log"
+          timeout 300 blender --background --python-exit-code 42 --python "$RUNNER_TEMP/canonicalizer.py" -- --input /tmp/steve_proxy.glb --output /tmp/steve_canonical.glb --report "$RUNNER_TEMP/canonicalization.json" 2>&1 | tee "$RUNNER_TEMP/canonicalization.log"
+          grep -q 'GATE8_STEVE_WALK_CANONICALIZATION_OK canonical=walk' "$RUNNER_TEMP/canonicalization.log"
+          test -s /tmp/steve_canonical.glb
+      - name: Restore immutable Gate-8 variant03 target
+        env: {GH_TOKEN: "${{ github.token }}"}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}" > "$RUNNER_TEMP/target-artifact.json"
+          python3 - "$RUNNER_TEMP/target-artifact.json" "$TARGET_ARTIFACT_DIGEST" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1])); assert not p.get('expired',True); assert p.get('digest')==sys.argv[2]
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/target.zip"
+          mkdir -p "$RUNNER_TEMP/target" && unzip -q "$RUNNER_TEMP/target.zip" -d "$RUNNER_TEMP/target"
+          TARGET="$(find "$RUNNER_TEMP/target" -type f -name 'npc_gate_03.glb' -print -quit)"
+          test -n "$TARGET"
+          echo "$TARGET_GLB_SHA256  $TARGET" | sha256sum -c -
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_GLB_BYTES"
+          cp "$TARGET" /tmp/npc_gate_03.glb
+      - name: Build isolated Godot 4.7.1 hand A/B project
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PROBE_SOURCE_COMMIT}/grand-bruxelles-game/game/tests/gate8_variant01_steve_canonical_native_probe_test.gd" -o "$RUNNER_TEMP/base_probe.gd"
+          python3 - "$RUNNER_TEMP/base_probe.gd" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); s=p.read_text()
+          s=s.replace('res://assets/npc_gate_01.glb','res://assets/npc_gate_03.glb')
+          s=s.replace('gate8_variant01_steve_canonical_native_probe_result.json','unused_base_result.json')
+          p.write_text(s)
+          PY
+          mkdir -p "$PROJECT/assets"
+          cp /tmp/steve_canonical.glb "$PROJECT/assets/steve.glb"
+          cp /tmp/npc_gate_03.glb "$PROJECT/assets/npc_gate_03.glb"
+          cp "$RUNNER_TEMP/base_probe.gd" "$PROJECT/base_probe.gd"
+          cp grand-bruxelles-game/game/tests/gate8_variant03_steve_shoulder_ab_test.gd "$PROJECT/shoulder_ab.gd"
+          cp grand-bruxelles-game/game/tests/gate8_variant03_steve_hand_ab_test.gd "$PROJECT/hand_ab.gd"
+          printf '[application]\nconfig/name="Gate8Variant03SteveHandAB"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT/project.godot"
+          curl -L --fail --retry 4 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot*' -print -quit)"; chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"; grep -q '^4\.7\.1' "$RUNNER_TEMP/godot-version.txt"
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          timeout 240 "$GODOT" --headless --path "$PROJECT" --script res://hand_ab.gd 2>&1 | tee "$RUNNER_TEMP/godot-ab.log"
+          test -s "$PROJECT/gate8_variant03_steve_hand_ab_result.json"
+          cp "$PROJECT/gate8_variant03_steve_hand_ab_result.json" "$RUNNER_TEMP/godot-result.json"
+      - name: Validate hand A/B and shoulder non-regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/godot-result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['format']=='grand-bruxelles-gate8-variant03-steve-hand-ab-v1'
+          assert r['engine_version'].startswith('4.7.1')
+          assert r['experiment']=='AB_HAND'
+          assert len(r['results'])==7
+          assert r['failures']==[],r['failures']
+          b=r['results'][0]
+          assert b['id']=='BASELINE'
+          assert 49.0 < b['hand_edge']['ratio'] < 52.0,b
+          assert 0.44 < b['shoulder_absolute']['absolute_change_m'] < 0.46,b
+          assert 0.03 < b['shoulder_compression']['ratio'] < 0.05,b
+          assert all(x['max_native_transfer_error_deg']<=3.0 for x in r['results'])
+          assert all(x['grounding_span_m']<=0.18 for x in r['results'])
+          for x in r['results'][1:]:
+              assert x['shoulder_not_worse'] is True,x
+              assert x['protected_shoulder_local_pose_unchanged'] is True,x
+              assert x['protected_shoulder_local_error_deg']<=0.001,x
+          assert r['shoulder_ab_state']=='SHOULDER_AB_NO_CANDIDATE_WITHIN_GATES'
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          for k in ('production_authorized','activation_ready','adoption_ready','visual_approval_claimed','retarget_change_authorized','skin_weight_change_authorized'):
+              assert r[k] is False,k
+          assert r['mechanical_state'] in ('HAND_AB_CANDIDATE_IDENTIFIED_SHOULDER_STILL_BLOCKED','HAND_AB_NO_CANDIDATE_WITHIN_GATES')
+          print('GATE8_V03_STEVE_HAND_AB_OK state=%s candidates=%s' % (r['mechanical_state'],','.join(r['hand_candidates']) or 'none'))
+          PY
+          ! grep -Eq 'SCRIPT ERROR|Parse Error|ERROR: Failed to load|ERROR: Cannot open' "$RUNNER_TEMP/godot-ab.log"
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant03-steve-hand-ab-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/shoulder-artifact.json
+            ${{ runner.temp }}/normalization.json
+            ${{ runner.temp }}/canonicalization.json
+            ${{ runner.temp }}/target-artifact.json
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/godot-import.log
+            ${{ runner.temp }}/godot-ab.log
+            ${{ runner.temp }}/godot-result.json
+          retention-days: 14

@@ -1,0 +1,51 @@
+{
+  "schema": "grand-bruxelles-osm-road-frame-correction-review-v1",
+  "status": "READY_FOR_FRAME_CORRECTION_REVIEW_SOURCE_ORIGIN",
+  "production_base_sha": "0f11caa53afbb259ee25a69263ae29c45e753b8d",
+  "source": {
+    "path": "data/osm/vertical_slice_01.game.json",
+    "sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "declared_origin_wgs84": {
+      "lon": 4.348,
+      "lat": 50.8419
+    }
+  },
+  "reconciliation": {
+    "contract": "data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json",
+    "semantic_sha256": "32f3b83ccedacc98f48cb4824b82a1758e436df87cf6849806340d10b5d0ec8d",
+    "duplicate_osm_way_count": 14,
+    "duplicate_class_mismatch_count": 0,
+    "historical_worst_residual_m": 917.968732,
+    "candidate_worst_residual_m": 0.728489,
+    "candidate_worst_rigid_delta_deviation_m": 0.195964
+  },
+  "candidate_frame": {
+    "crs": "EPSG:31370",
+    "derivation": "EPSG:4326_to_EPSG:31370_via_pyproj_always_xy",
+    "pyproj_version": "3.7.2",
+    "origin_easting_m": 148538.362136,
+    "origin_northing_m": 170165.796688,
+    "formula": "E=origin_easting_m+x;N=origin_northing_m-z"
+  },
+  "acceptance": {
+    "historical_frame_rejected": true,
+    "candidate_supported": true,
+    "max_candidate_worst_residual_m": 1.0,
+    "min_historical_worst_residual_m": 900.0,
+    "min_improvement_ratio": 1000.0
+  },
+  "review_semantic_sha256": "03242b68dac6541bce21052e1e869fd577e4b08045b4999c0f4c3ac9cb5fd7f9",
+  "authorization": {
+    "production_frame_update_authorized": false,
+    "source_refresh_authorized": false,
+    "source_merge_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

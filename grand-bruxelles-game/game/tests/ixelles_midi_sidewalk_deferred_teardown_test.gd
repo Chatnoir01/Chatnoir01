@@ -74,8 +74,16 @@ func _run() -> void:
     var freed_parent := freed_fixture["parent"] as Node3D
     var freed_target := freed_fixture["target"] as MeshInstance3D
     var freed_target_id: int = freed_target.get_instance_id()
+
+    # Remove every non-owning Variant reference before free(). The regression
+    # must prove the deferred integer ID is harmless, not manufacture a stale
+    # Object Variant in its own fixture that can trigger Godot's freed-object
+    # diagnostics while the Dictionary is later destroyed.
+    freed_fixture.erase("target")
     freed_parent.remove_child(freed_target)
     freed_target.free()
+    freed_target = null
+
     if is_instance_id_valid(freed_target_id):
         _fail("freed target instance id remained valid before deferred execution")
         return
@@ -96,5 +104,5 @@ func _run() -> void:
     freed_root.queue_free()
     await process_frame
 
-    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true teardown_material_unchanged=true teardown_owner_unchanged=true freed_candidate_id_invalid=true freed_candidate_safe=true ready=false")
+    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true teardown_material_unchanged=true teardown_owner_unchanged=true freed_candidate_id_invalid=true stale_variant_removed=true freed_candidate_safe=true ready=false")
     quit(0)

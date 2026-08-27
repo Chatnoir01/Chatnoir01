@@ -22,6 +22,7 @@
     "expected_wrong_cell_road_osm_ids": [8512036, 13767417]
   },
   "locked_evidence": {
+    "production_base_sha": "2c721444da42b02774a2b76687af6cda16810a0a",
     "workflow_run_id": 33084829827,
     "artifact_id": 9651677132,
     "artifact_digest": "sha256:64ecae4929a1d304d54a37b5214823ad52542d0e7aa95755b69cf095bd293a55",
@@ -42,6 +43,8 @@
     "measurement_only": true,
     "historical_readiness_is_not_corrected_frame_readiness": true,
     "representative_runtime_probe_requires_target_cell_readiness": true,
+    "locked_measurement_sha_is_forensic_to_locked_base": true,
+    "semantic_lock_survives_clean_live_main_rebuild": true,
     "replace_readiness_catalog_authorized": false,
     "replace_crosswalk_authorized": false,
     "runtime_probe_authorized": false,

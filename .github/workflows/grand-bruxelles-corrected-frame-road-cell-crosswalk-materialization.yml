@@ -48,21 +48,31 @@ jobs:
       - name: Run fail-closed regressions
         working-directory: grand-bruxelles-game
         run: python -m unittest tests/test_corrected_frame_road_cell_crosswalk_materialization.py -v
-      - name: Resolve audited impact base
+      - name: Resolve audited historical evidence bases
         shell: bash
         run: |
           set -euo pipefail
-          IMPACT_BASE_SHA="$(python3 - <<'PY'
+          read -r IMPACT_BASE_SHA MIGRATION_BASE_SHA MIGRATION_SEMANTIC <<EOF
+          $(python3 - <<'PY'
           import json
           from pathlib import Path
-          d=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
-          assert d['status']=='LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY'
-          print(d['production_base_sha'])
+          impact=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          migration=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
+          materialization=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
+          assert impact['status']=='LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY'
+          assert migration['status']=='LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY'
+          assert migration['locked_evidence']['semantic_sha256']==materialization['source']['migration_plan_semantic_sha256']
+          print(impact['production_base_sha'], migration['production_base_sha'], migration['locked_evidence']['semantic_sha256'])
           PY
-          )"
+          )
+          EOF
           git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
+          git cat-file -e "${MIGRATION_BASE_SHA}^{commit}"
           git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
+          git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"
           echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
+          echo "MIGRATION_BASE_SHA=$MIGRATION_BASE_SHA" >> "$GITHUB_ENV"
+          echo "MIGRATION_SEMANTIC=$MIGRATION_SEMANTIC" >> "$GITHUB_ENV"
       - name: Recompute corrected-frame impact
         working-directory: grand-bruxelles-game
         run: >-
@@ -71,15 +81,29 @@ jobs:
           --repo-root .
           --live-main-sha "$IMPACT_BASE_SHA"
           --output "$RUNNER_TEMP/osm-road-frame-impact.json"
-      - name: Recompute locked migration plan on current main
+      - name: Recompute locked migration plan at historical evidence base
         working-directory: grand-bruxelles-game
         run: >-
           python tools/qa/measure_corrected_frame_road_cell_migration_plan.py
           --contract data/qa/corrected_frame_road_cell_migration_plan.contract.json
           --impact "$RUNNER_TEMP/osm-road-frame-impact.json"
           --repo-root .
-          --production-base-sha "$LIVE_MAIN_SHA"
+          --production-base-sha "$MIGRATION_BASE_SHA"
           --output "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
+      - name: Verify locked migration replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          migration=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
+          measured=json.loads((Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-migration-plan.json').read_text())
+          assert measured['semantic_sha256']==migration['locked_evidence']['semantic_sha256']==os.environ['MIGRATION_SEMANTIC']
+          assert measured['accounting']==migration['locked_evidence']['accounting']
+          assert all(v is False for v in measured['authorization'].values())
+          print('CORRECTED_FRAME_MIGRATION_PLAN_HISTORICAL_REPLAY_OK',measured['semantic_sha256'])
+          PY
       - name: Materialize corrected-frame crosswalk candidate
         working-directory: grand-bruxelles-game
         run: >-

@@ -1,0 +1,78 @@
+{
+  "authorization": {
+    "collision_authorized": false,
+    "jouable_promotion_authorized": false,
+    "rendered_geometry_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "safe_spawn_authorized": false
+  },
+  "corridor_representatives": {
+    "anneessens_lemonnier": {
+      "cell_id": "bxl-e148000-n170000-s500",
+      "road_osm_id": 359177328
+    },
+    "bourse_orts": {
+      "cell_id": "bxl-e148500-n170500-s500",
+      "road_osm_id": 411724192
+    },
+    "grand_place_amigo": {
+      "cell_id": "bxl-e148500-n170500-s500",
+      "road_osm_id": 13842686
+    },
+    "midi_fonsny": {
+      "cell_id": "bxl-e147500-n169500-s500",
+      "road_osm_id": 408211693
+    }
+  },
+  "expected_accounting": {
+    "candidate_cell_counts": {
+      "bxl-e147500-n169500-s500": 37,
+      "bxl-e147500-n170000-s500": 1,
+      "bxl-e148000-n170000-s500": 44,
+      "bxl-e148500-n170500-s500": 14
+    },
+    "candidate_multicell_road_count": 2,
+    "candidate_no_registered_overlap_count": 42,
+    "candidate_unique_mapped_road_count": 96,
+    "registered_cell_count": 5,
+    "source_road_count": 140
+  },
+  "multicell_holds": [
+    {
+      "hit_cells": [
+        "bxl-e147500-n169500-s500",
+        "bxl-e147500-n170000-s500"
+      ],
+      "road_osm_id": 256158619
+    },
+    {
+      "hit_cells": [
+        "bxl-e147500-n170000-s500",
+        "bxl-e148000-n170000-s500"
+      ],
+      "road_osm_id": 397461693
+    }
+  ],
+  "production_base_sha": "27ac48b36d962be89e5f10f4e3406c338c579d68",
+  "promotion_policy": {
+    "multicell_mapping_authorized": false,
+    "replace_current_crosswalk_authorized": false,
+    "unique_mapping_only": true
+  },
+  "schema": "grand-bruxelles-corrected-frame-road-cell-crosswalk-candidate-contract-v1",
+  "semantic_sha256": "7d8a943297a16cc855e67128b979f3e538193706087df419c9709b1751b53dc1",
+  "source": {
+    "crs": "EPSG:31370",
+    "formula": "E=origin_easting_m+x;N=origin_northing_m-z",
+    "frame_review_semantic_sha256": "03242b68dac6541bce21052e1e869fd577e4b08045b4999c0f4c3ac9cb5fd7f9",
+    "impact_contract_path": "data/qa/osm_road_frame_correction_impact.contract.json",
+    "impact_stable_semantic_sha256": "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62",
+    "license": "ODbL-1.0",
+    "origin_easting_m": 148538.362136,
+    "origin_northing_m": 170165.796688,
+    "road_source_path": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+  },
+  "status": "CANDIDATE_EVIDENCE_ONLY"
+}

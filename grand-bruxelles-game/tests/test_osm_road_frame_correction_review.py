@@ -1,4 +1,5 @@
 import copy
+import importlib.util
 import json
 import unittest
 from pathlib import Path
@@ -6,11 +7,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "data/qa/osm_road_frame_correction_review.contract.json"
+TOOL = ROOT / "tools/qa/review_osm_road_frame_correction.py"
+
+
+def load_tool():
+    spec = importlib.util.spec_from_file_location("review_osm_road_frame_correction", TOOL)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 class RoadFrameCorrectionReviewContractTest(unittest.TestCase):
     def setUp(self):
         self.contract = json.loads(CONTRACT.read_text())
+        self.tool = load_tool()
 
     def test_locked_candidate_is_review_only(self):
         c = self.contract
@@ -41,6 +52,12 @@ class RoadFrameCorrectionReviewContractTest(unittest.TestCase):
         self.assertEqual(c["origin_northing_m"], 170165.796688)
         self.assertEqual(c["formula"], "E=origin_easting_m+x;N=origin_northing_m-z")
         self.assertEqual(c["pyproj_version"], "3.7.2")
+
+    def test_projection_engine_version_mismatch_is_red(self):
+        expected = self.contract["candidate_frame"]["pyproj_version"]
+        with self.assertRaisesRegex(AssertionError, "pyproj version mismatch"):
+            self.tool.require_projection_version("0.0.0", expected)
+        self.tool.require_projection_version(expected, expected)
 
 
 if __name__ == "__main__":

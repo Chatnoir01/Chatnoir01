@@ -51,17 +51,25 @@ func _bind_existing_target() -> void:
 func _on_node_added(node: Node) -> void:
     if _tearing_down or not is_inside_tree():
         return
-    if node == null or node.name != TARGET_NAME:
+    if node == null or not is_instance_valid(node) or node.name != TARGET_NAME:
         return
-    call_deferred("_apply_candidate", node)
+    call_deferred("_apply_candidate", node.get_instance_id())
 
-func _apply_candidate(node: Node) -> void:
+func _apply_candidate(instance_id: int) -> void:
     if _tearing_down or not is_inside_tree():
         return
+    if not is_instance_id_valid(instance_id):
+        return
+    var candidate: Object = instance_from_id(instance_id)
+    if candidate == null or not is_instance_valid(candidate) or not candidate is Node:
+        return
+    var node := candidate as Node
     if node is MeshInstance3D and _is_valid_target(node):
         _apply_target(node as MeshInstance3D)
 
 func _is_valid_target(target: Node) -> bool:
+    if target == null or not is_instance_valid(target):
+        return false
     var parent := target.get_parent()
     if parent == null or parent.name != TARGET_PARENT_NAME:
         return false

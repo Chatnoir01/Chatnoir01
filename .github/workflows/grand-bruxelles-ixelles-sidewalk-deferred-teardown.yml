@@ -14,15 +14,18 @@ permissions:
 jobs:
   ixelles-deferred-teardown:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Require exact PR head ancestry
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           git fetch origin main --no-tags
           git merge-base --is-ancestor origin/main HEAD
       - name: Install Godot 4.7.1
@@ -38,10 +41,34 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log; then exit 1; fi
-      - name: Prove deferred callbacks stop at teardown
+      - name: Execute teardown and freed-candidate proof
         shell: bash
         run: |
+          set +e
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/ixelles_midi_sidewalk_deferred_teardown_test.gd 2>&1 | tee /tmp/teardown.log
-          if grep -E "SCRIPT ERROR|Parse Error:|IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_FAIL" /tmp/teardown.log; then exit 1; fi
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/ixelles_midi_sidewalk_deferred_teardown_test.gd 2>&1 | tee /tmp/teardown.log
+          status=${PIPESTATUS[0]}
+          printf '%s\n' "$status" > /tmp/teardown.status
+          exit 0
+      - name: Upload teardown diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-sidewalk-deferred-teardown-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/teardown.log
+            /tmp/teardown.status
+            /tmp/import.log
+          if-no-files-found: error
+          retention-days: 14
+      - name: Enforce teardown and freed-candidate proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(cat /tmp/teardown.status)"
+          test "$status" = "0" || { cat /tmp/teardown.log >&2; exit 1; }
+          if grep -E "SCRIPT ERROR|Parse Error:|IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_FAIL|ERROR: Error calling deferred method|Attempt to call.*freed|previously freed" /tmp/teardown.log; then
+            cat /tmp/teardown.log >&2
+            exit 1
+          fi
           grep -F "IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK" /tmp/teardown.log

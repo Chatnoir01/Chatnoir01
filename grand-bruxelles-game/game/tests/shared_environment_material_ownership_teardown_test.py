@@ -104,7 +104,7 @@ TARGETS = {
         "official_family": "brussels_ground_network_official_material_v1",
     },
     "game/scripts/midi_architectural_concrete_surface_runtime.gd": {
-        "family": "brussels_architectural_concrete_v1",
+        "family": "brussels_source_verified_architectural_concrete",
         "helper": "_release_material_ownership",
         "required_helper_tokens": [
             "_restore_owned_materials()",
@@ -199,7 +199,7 @@ def main() -> None:
         "base_ground=brussels_base_ground_surface_v1 "
         "sidewalk_surface=brussels_osm_sidewalk_surface_v1 "
         "rail_surface=brussels_osm_rail_surface_v1 "
-        "midi_concrete=brussels_architectural_concrete_v1 official_override=true "
+        "midi_concrete=brussels_source_verified_architectural_concrete official_override=true "
         "owner_aware_restore=true geometry_changed=false"
     )
 

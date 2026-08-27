@@ -26,16 +26,33 @@ var _replacement_enabled := false
 var _entrance: Node3D
 var _replacement: Node3D
 var _superseded: Array[Node3D] = []
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     call_deferred("_build_when_parent_ready")
 
+func _exit_tree() -> void:
+    _tearing_down = true
+    _release_owned_replacement()
+
 func _build_when_parent_ready() -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     var parent_runtime := get_parent()
     for _i in range(120):
+        if _tearing_down or not is_inside_tree():
+            return
         if parent_runtime != null and parent_runtime.has_method("ready_complete") and parent_runtime.ready_complete():
             break
-        await get_tree().process_frame
+        var tree: SceneTree = get_tree()
+        if tree == null:
+            return
+        await tree.process_frame
+        if _tearing_down or not is_inside_tree():
+            return
+    if _tearing_down or not is_inside_tree():
+        return
     if parent_runtime == null or not parent_runtime.has_method("ready_complete") or not parent_runtime.ready_complete():
         _fail("concrete material mount never became ready")
         return
@@ -48,7 +65,10 @@ func _build_when_parent_ready() -> void:
         _fail("source identity contract invalid")
         return
 
-    _entrance = get_tree().root.find_child("MidiMainEntranceFonsny", true, false) as Node3D
+    var tree: SceneTree = get_tree()
+    if tree == null or _tearing_down or not is_inside_tree():
+        return
+    _entrance = tree.root.find_child("MidiMainEntranceFonsny", true, false) as Node3D
     if _entrance == null:
         _fail("production entrance anchor missing")
         return
@@ -58,21 +78,43 @@ func _build_when_parent_ready() -> void:
     var blue_stone := _effective_material(_entrance.get_node_or_null("EntranceBlueStoneWall") as MeshInstance3D)
     var dark_glass := _effective_material(_entrance.get_node_or_null("EntranceGlazing") as MeshInstance3D)
     var concrete := _effective_material(_entrance.get_node_or_null("EntranceConcreteCanopy") as MeshInstance3D)
-    var glass_block_source := get_tree().root.find_child("VerticalGlassTower", true, false) as MeshInstance3D
-    var yellow_brick_source := get_tree().root.find_child("FauquenbergBrick", true, false) as MeshInstance3D
+    var glass_block_source := tree.root.find_child("VerticalGlassTower", true, false) as MeshInstance3D
+    var yellow_brick_source := tree.root.find_child("FauquenbergBrick", true, false) as MeshInstance3D
     var glass_block := _effective_material(glass_block_source)
     var yellow_brick := _effective_material(yellow_brick_source)
     if blue_stone == null or dark_glass == null or concrete == null or glass_block == null or yellow_brick == null:
         _fail("production material families unavailable")
+        return
+    if _tearing_down or not is_inside_tree():
         return
 
     _replacement = _build_replacement(blue_stone, dark_glass, concrete, glass_block, yellow_brick)
     if _replacement == null:
         _fail("replacement build failed")
         return
+    if _tearing_down or not is_inside_tree():
+        _release_owned_replacement()
+        return
     set_replacement_enabled(true)
     _built = true
     print("MIDI_FONSNY_FULL_ENTRANCE_READY bays=3 canopy_panels=%d polygonal_columns=4 source_urban_id=9423" % [X_CELLS * Z_CELLS])
+
+func _release_owned_replacement() -> void:
+    if _replacement != null and is_instance_valid(_replacement):
+        set_replacement_enabled(false)
+        var replacement_parent := _replacement.get_parent()
+        if replacement_parent != null:
+            replacement_parent.remove_child(_replacement)
+        _replacement.queue_free()
+    else:
+        for node in _superseded:
+            if is_instance_valid(node):
+                node.visible = true
+    _replacement = null
+    _replacement_enabled = false
+    _built = false
+    _entrance = null
+    _superseded.clear()
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):
@@ -197,6 +239,8 @@ func _add_polygonal_column(parent: Node3D, index: int, position: Vector3, concre
     return instance
 
 func _build_replacement(blue_stone: Material, dark_glass: Material, concrete: Material, glass_block: Material, yellow_brick: Material) -> Node3D:
+    if _tearing_down or not is_inside_tree() or _entrance == null or not is_instance_valid(_entrance):
+        return null
     if _entrance.get_node_or_null(REPLACEMENT_NAME) != null:
         return null
     var root := Node3D.new()
@@ -276,8 +320,9 @@ func _build_replacement(blue_stone: Material, dark_glass: Material, concrete: Ma
 func set_replacement_enabled(enabled: bool) -> void:
     _replacement_enabled = enabled
     for node in _superseded:
-        node.visible = not enabled
-    if _replacement != null:
+        if is_instance_valid(node):
+            node.visible = not enabled
+    if _replacement != null and is_instance_valid(_replacement):
         _replacement.visible = enabled
 
 func replacement_enabled() -> bool:
@@ -296,5 +341,7 @@ func superseded_count() -> int:
     return _superseded.size()
 
 func _fail(message: String) -> void:
+    if _tearing_down:
+        return
     push_error("Midi Fonsny full entrance: " + message)
     _build_failure = true

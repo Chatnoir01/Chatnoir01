@@ -1,0 +1,172 @@
+name: Grand Bruxelles Gate-8 Steve Walk Canonicalization
+
+on:
+  push:
+    branches: ["npc/gate8-steve-foot-slide-0f11caa"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-walk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      EXPECTED_MAIN: 7f8a83f76a512b6fe9eeb0743332059ec441425d
+      SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
+      SOURCE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
+      SOURCE_BYTES: "1454243"
+      NORMALIZER_COMMIT: d021fa0a31c409e33102f5a94848a7c01bb019be
+      GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      PROJECT: /tmp/gate8-steve-canonical-walk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main, bounded scope, and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE="$(git rev-parse origin/main)"
+          test "$LIVE" = "$EXPECTED_MAIN"
+          git merge-base --is-ancestor "$LIVE" HEAD
+          git diff --name-only "$LIVE" HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-steve-foot-slide-probe.yml' \
+            '.github/workflows/grand-bruxelles-gate8-steve-walk-canonicalization.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_steve_foot_slide_probe.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_contact_floor_v2.gd' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_probe_test.gd' \
+            'grand-bruxelles-game/tools/qa/canonicalize_steve_proxy_walk.py' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/tools/qa/canonicalize_steve_proxy_walk.py').read_text()
+          assert 'grand-bruxelles-steve-reviewed-walk-canonicalization-v2' in p
+          assert 'candidate_count_before' in p
+          assert 'duplicate_walk_identity_present' in p
+          assert 'assert len(candidates) >= 1' in p
+          assert 'assert len(candidates) >= 2' not in p
+          assert 'selected.name = "walk"' in p
+          print('GATE8_STEVE_WALK_CANONICALIZATION_CONTRACT_OK exact_main=true scope=6 single_or_duplicate_input=true aliases=false production=false')
+          PY
+
+      - name: Regenerate reviewed Steve proxy from pinned CC0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$SOURCE_ZIP" -o "$RUNNER_TEMP/steve.zip"
+          echo "$SOURCE_SHA256  $RUNNER_TEMP/steve.zip" | sha256sum -c -
+          test "$(stat -c '%s' "$RUNNER_TEMP/steve.zip")" = "$SOURCE_BYTES"
+          mkdir -p "$RUNNER_TEMP/steve-src" && unzip -q "$RUNNER_TEMP/steve.zip" -d "$RUNNER_TEMP/steve-src"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NORMALIZER_COMMIT}/grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py" -o "$RUNNER_TEMP/normalize.py"
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends blender python3-numpy >/dev/null
+          blender --background "$RUNNER_TEMP/steve-src/steve_npc1.blend" --python-exit-code 42 --python "$RUNNER_TEMP/normalize.py" -- --output /tmp/steve_reviewed_proxy.glb --report "$RUNNER_TEMP/normalization-report.json" 2>&1 | tee "$RUNNER_TEMP/normalization.log"
+          grep -q '^GATE8_STEVE_REVIEWED_PROXY_EXPORT_OK' "$RUNNER_TEMP/normalization.log"
+
+      - name: Canonicalize walk identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          blender --background --factory-startup --python-exit-code 42 --python grand-bruxelles-game/tools/qa/canonicalize_steve_proxy_walk.py -- --input /tmp/steve_reviewed_proxy.glb --output /tmp/steve_reviewed_proxy_canonical.glb --report "$RUNNER_TEMP/canonicalization-report.json" 2>&1 | tee "$RUNNER_TEMP/canonicalization.log"
+          grep -q '^GATE8_STEVE_WALK_CANONICALIZATION_OK .*canonical=walk .*candidates_after=1' "$RUNNER_TEMP/canonicalization.log"
+          python3 - "$RUNNER_TEMP/canonicalization-report.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['format']=='grand-bruxelles-steve-reviewed-walk-canonicalization-v2'
+          assert r['state']=='CANONICAL_WALK_EXPORT_READY'
+          assert r['candidate_count_before']>=1
+          assert r['canonical_action_after']=='walk'
+          assert r['walk_candidate_count_after']==1
+          assert r['selected_action_stats']['multi_key_fcurve_count']>=17
+          assert r['selected_action_stats']['total_key_count']>=300
+          if r['exact_walk_before_stats'] is not None and r['selected_action_before']!='walk':
+              assert r['selected_action_stats']['total_key_count']>r['exact_walk_before_stats']['total_key_count']
+          assert r['runtime_alias_published'] is False and r['production_authorized'] is False
+          print('GATE8_STEVE_CANONICAL_WALK_EXPORT_VERIFIED canonical=walk count=1 animated=true')
+          PY
+          sha256sum /tmp/steve_reviewed_proxy_canonical.glb | tee "$RUNNER_TEMP/canonical_proxy.sha256"
+
+      - name: Verify canonical walk under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot*' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
+          grep -q '^4\.7\.1' "$RUNNER_TEMP/godot-version.txt"
+          mkdir -p "$PROJECT/assets"
+          cp /tmp/steve_reviewed_proxy_canonical.glb "$PROJECT/assets/steve.glb"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          [application]
+          config/name="Gate8SteveCanonicalWalk"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          EOF
+          cat > "$PROJECT/verify.gd" <<'EOF'
+          extends SceneTree
+          func _init()->void:
+              var packed:PackedScene=load("res://assets/steve.glb") as PackedScene
+              assert(packed!=null)
+              var root:=packed.instantiate()
+              var players:Array[AnimationPlayer]=[]
+              collect_players(root,players)
+              assert(players.size()==1,"expected exactly one AnimationPlayer, got %d" % players.size())
+              var p:=players[0]
+              var walks:Array[String]=[]
+              for name in p.get_animation_list():
+                  var s:=String(name).to_lower()
+                  if s=="walk" or s.begins_with("walk_"): walks.append(String(name))
+              assert(walks==["walk"],"walk-like animations mismatch: %s" % str(walks))
+              var anim:=p.get_animation("walk")
+              assert(anim!=null,"canonical walk missing")
+              var multi:=0
+              var keys:=0
+              for i in range(anim.get_track_count()):
+                  var kc:=anim.track_get_key_count(i)
+                  keys+=kc
+                  if kc>1: multi+=1
+              assert(multi>=17,"multi-key track count too low: %d" % multi)
+              assert(keys>=300,"total key count too low: %d" % keys)
+              print("GATE8_STEVE_CANONICAL_WALK_GODOT_OK walks=1 name=walk multi_key_tracks=%d total_keys=%d" % [multi,keys])
+              root.free(); quit(0)
+          func collect_players(n:Node,out:Array[AnimationPlayer])->void:
+              if n is AnimationPlayer: out.append(n as AnimationPlayer)
+              for c in n.get_children(): collect_players(c,out)
+          EOF
+          "$GODOT" --headless --path "$PROJECT" --editor --quit 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          "$GODOT" --headless --path "$PROJECT" --script res://verify.gd 2>&1 | tee "$RUNNER_TEMP/godot-verify.log"
+          grep -q '^GATE8_STEVE_CANONICAL_WALK_GODOT_OK walks=1 name=walk' "$RUNNER_TEMP/godot-verify.log"
+
+      - name: Require repository remained untouched
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --porcelain | tee "$RUNNER_TEMP/git-status.txt"
+          test ! -s "$RUNNER_TEMP/git-status.txt"
+
+      - name: Upload canonical walk evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-steve-canonical-walk
+          path: |
+            ${{ runner.temp }}/normalization-report.json
+            ${{ runner.temp }}/normalization.log
+            ${{ runner.temp }}/canonicalization-report.json
+            ${{ runner.temp }}/canonicalization.log
+            ${{ runner.temp }}/canonical_proxy.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/godot-import.log
+            ${{ runner.temp }}/godot-verify.log
+            ${{ runner.temp }}/git-status.txt
+          if-no-files-found: ignore
+          retention-days: 14

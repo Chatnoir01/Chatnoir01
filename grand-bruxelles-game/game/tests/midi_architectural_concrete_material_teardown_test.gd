@@ -46,6 +46,19 @@ func _mount_runtime(identity: Dictionary, targets: Array[MeshInstance3D]) -> Nod
     var runtime := RUNTIME.new()
     runtime.name = "ConcreteOwnershipRuntimeUnderTest"
     root.add_child(runtime)
+
+    # This regression owns only the architectural-concrete presentation. The
+    # production runtime also mounts the Fonsny entrance child, whose separate
+    # asynchronous contract is covered by its own gates. Remove that child
+    # synchronously before MessageQueue dispatch so unrelated Fonsny discovery
+    # cannot pollute this teardown proof.
+    var fonsny: Node = runtime.call("fonsny_full_entrance_runtime") as Node
+    if fonsny != null:
+        if fonsny.get_parent() == runtime:
+            runtime.remove_child(fonsny)
+        fonsny.free()
+        runtime.set("_fonsny_full_entrance_runtime", null)
+
     runtime.set("_identity", identity)
     # The runtime owns and clears its registry at teardown. Keep the fixture's
     # observation array independent so post-teardown assertions inspect the

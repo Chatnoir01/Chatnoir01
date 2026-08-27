@@ -127,6 +127,7 @@ def build_pair(contract, crosswalk_candidate, readiness_candidate, current_cross
 
     out_rd = copy.deepcopy(current_readiness)
     out_rd["destination_count"] = len(rd_rows)
+    out_rd["mapped_cell_count"] = len(cells)
     out_rd["destinations"] = sorted(copy.deepcopy(rd_rows), key=lambda r: int(r["road_osm_id"]))
     out_rd["corrected_frame_source_sha256"] = road_sha
     out_rd["corrected_frame_candidate_semantic_sha256"] = source["readiness_semantic_sha256"]

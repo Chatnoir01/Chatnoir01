@@ -28,6 +28,18 @@
     "max_skin_stretch_ratio": 3.0,
     "min_skin_compression_ratio": 0.25
   },
+  "diagnostics": {
+    "collapsed_rest_rotation_metric": "shortest_quaternion_arc_atan2_abs_w",
+    "collapsed_rest_rotation_limit_deg": 0.001,
+    "latest_red_run": 33098598471,
+    "latest_red_artifact_id": 9657570506,
+    "latest_red_artifact_digest": "sha256:241f076a1cda3046e75d96b05cc2e4051b17741e4030f26da6b98e1226d18134",
+    "latest_red_state": "BLOCKED_COLLAPSED_REST",
+    "latest_red_role": "head",
+    "latest_red_rotation_error_deg": 0.0395646811852521,
+    "latest_red_position_error_m": 6.15518942481685e-08,
+    "regression": "q_and_neg_q_compare_as_zero_without_widening_threshold"
+  },
   "rails": {
     "walk_alias_selected": "",
     "run_alias_selected": "",

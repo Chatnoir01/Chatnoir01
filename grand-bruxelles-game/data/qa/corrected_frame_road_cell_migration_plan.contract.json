@@ -1,0 +1,65 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-road-cell-migration-plan-contract-v1",
+  "status": "LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY",
+  "production_base_sha": "6ac1d6582bdeb1cd6910c9dc5f785929ed4f9f90",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_path": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "current_crosswalk_path": "data/provenance/brussels_road_registered_cell_crosswalk.json",
+    "candidate_contract_path": "data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json",
+    "impact_contract_path": "data/qa/osm_road_frame_correction_impact.contract.json",
+    "candidate_semantic_sha256": "7d8a943297a16cc855e67128b979f3e538193706087df419c9709b1751b53dc1",
+    "impact_stable_semantic_sha256": "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62",
+    "crs": "EPSG:31370",
+    "origin_easting_m": 148538.362136,
+    "origin_northing_m": 170165.796688,
+    "formula": "E=origin_easting_m+x;N=origin_northing_m-z"
+  },
+  "expected": {
+    "source_road_count": 140,
+    "current_mapped_road_count": 56,
+    "candidate_unique_mapped_road_count": 96,
+    "candidate_multicell_road_count": 2,
+    "candidate_no_registered_overlap_count": 42,
+    "retained_mapping_count": 0,
+    "changed_mapping_count": 45,
+    "newly_mappable_count": 51,
+    "no_longer_mappable_count": 11
+  },
+  "locked_evidence": {
+    "workflow_run_id": 33051936782,
+    "artifact_id": 9637979216,
+    "artifact_sha256": "6aed348316a739d900423f28c74e77fe56b6b98da10726772c1cc9336d083af6",
+    "measurement_json_sha256": "936fe2fcba1d6c84f468351e1ec476f732f8bdc21b8153006c437cda621d8fb7",
+    "semantic_sha256": "5aff955a11c5b59e610b740ed8b1aca1b55a4eaf32457e01d35f2dfae20fa437",
+    "accounting": {
+      "source_road_count": 140,
+      "current_mapped_road_count": 56,
+      "candidate_unique_mapped_road_count": 96,
+      "candidate_multicell_road_count": 2,
+      "candidate_no_registered_overlap_count": 42,
+      "retained_mapping_count": 0,
+      "changed_mapping_count": 45,
+      "newly_mappable_count": 51,
+      "no_longer_mappable_count": 11
+    }
+  },
+  "migration_policy": {
+    "atomic_rebuild_required": true,
+    "replace_current_crosswalk_authorized": false,
+    "carry_old_mapping_without_reproof_authorized": false,
+    "multicell_mapping_authorized": false,
+    "unique_mapping_only": true
+  },
+  "authorization": {
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

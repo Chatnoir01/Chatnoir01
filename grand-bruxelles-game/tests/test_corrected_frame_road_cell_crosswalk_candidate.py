@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 CONTRACT=ROOT/'data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json'
 IMPACT_CONTRACT=ROOT/'data/qa/osm_road_frame_correction_impact.contract.json'
+WORKFLOW=ROOT.parent/'.github/workflows/grand-bruxelles-corrected-frame-road-cell-candidate.yml'
 
 class CorrectedFrameRoadCellCrosswalkCandidateContractTest(unittest.TestCase):
     def test_contract_locks_corridor_rows_and_closed_rails(self):
@@ -52,5 +53,12 @@ class CorrectedFrameRoadCellCrosswalkCandidateContractTest(unittest.TestCase):
             'newly_mappable_count':51,
             'no_longer_mappable_count':11,
         })
+
+    def test_materializer_fail_closes_on_duplicate_or_hold_row_leakage(self):
+        workflow=WORKFLOW.read_text(encoding='utf-8')
+        self.assertIn("assert road_ids==sorted(road_ids)",workflow)
+        self.assertIn("assert len(road_ids)==len(set(road_ids))",workflow)
+        self.assertIn("assert not (set(road_ids) & hold_ids)",workflow)
+        self.assertIn("assert set(r['cell_id'] for r in rows) <= set(e['candidate_cell_counts'])",workflow)
 
 if __name__=='__main__': unittest.main()

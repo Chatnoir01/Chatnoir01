@@ -8,6 +8,7 @@ const SUBTREE_READY_FRAMES := 30
 
 var _targets: Array[Node] = []
 var _original_materials: Dictionary = {}
+var _owned_materials: Dictionary = {}
 var _material: ShaderMaterial
 var _enabled := false
 var _ready_complete := false
@@ -26,6 +27,7 @@ func _exit_tree() -> void:
     _tearing_down = true
     _awaiting_station = false
     _bind_in_progress = false
+    _release_material_ownership()
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
@@ -72,6 +74,7 @@ func bind_station(station: Node) -> void:
         return
     _targets.clear()
     _original_materials.clear()
+    _owned_materials.clear()
     _identity_failure = false
     var identity := _read_identity()
     if identity.is_empty() or not _runtime_identity_allowed(identity):
@@ -156,12 +159,40 @@ func _get_material(target: Node) -> Material:
 func _set_material(target: Node, material: Material) -> void:
     (target as MeshInstance3D).material_override = material
 
+func _restore_owned_materials() -> void:
+    for target: Node in _targets:
+        if not is_instance_valid(target):
+            continue
+        var mesh_instance := target as MeshInstance3D
+        var instance_id := target.get_instance_id()
+        var owned: Material = _owned_materials.get(instance_id) as Material
+        if owned != null and mesh_instance.material_override == owned:
+            mesh_instance.material_override = _original_materials.get(instance_id) as Material
+
+func _release_material_ownership() -> void:
+    _restore_owned_materials()
+    _owned_materials.clear()
+    _original_materials.clear()
+    _targets.clear()
+    _material = null
+
 func set_enhanced_material_enabled(enabled: bool) -> void:
     _enabled = enabled
     if _material == null:
         return
     for target: Node in _targets:
-        _set_material(target, _material if enabled else _original_materials.get(target.get_instance_id(), null) as Material)
+        if not is_instance_valid(target):
+            continue
+        var mesh_instance := target as MeshInstance3D
+        var instance_id := target.get_instance_id()
+        var baseline: Material = _original_materials.get(instance_id) as Material
+        var owned: Material = _owned_materials.get(instance_id) as Material
+        if enabled:
+            if mesh_instance.material_override == baseline or (owned != null and mesh_instance.material_override == owned):
+                mesh_instance.material_override = _material
+                _owned_materials[instance_id] = _material
+        elif owned != null and mesh_instance.material_override == owned:
+            mesh_instance.material_override = baseline
 
 func ready_complete() -> bool:
     return _ready_complete

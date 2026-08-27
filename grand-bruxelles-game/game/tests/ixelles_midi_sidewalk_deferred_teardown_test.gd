@@ -105,5 +105,64 @@ func _run() -> void:
     (freed_fixture["slice_root"] as Node3D).queue_free()
     await process_frame
     _phase("case2_invalid_id_ok")
-    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true valid_slice_contract=true ready=false")
+
+    _phase("case3_material_restore_begin")
+    var restore_fixture := _build_target_fixture()
+    var restore_target := restore_fixture["target"] as MeshInstance3D
+    var restore_legacy := StandardMaterial3D.new()
+    restore_target.material_override = restore_legacy
+    var restore_runtime := _new_runtime("material_restore")
+    await process_frame
+    await process_frame
+    if not bool(restore_runtime.call("ready_complete")):
+        _fail("runtime did not bind material restore fixture")
+        return
+    if restore_target.material_override == restore_legacy:
+        _fail("runtime never acquired material ownership before teardown")
+        return
+    if not restore_target.has_meta("shared_sidewalk_material_owner") or str(restore_target.get_meta("shared_sidewalk_material_owner")) != MATERIAL_OWNER:
+        _fail("runtime material ownership metadata missing before teardown")
+        return
+    root.remove_child(restore_runtime)
+    if restore_target.material_override != restore_legacy:
+        _fail("teardown did not restore exact legacy material")
+        return
+    if restore_target.has_meta("shared_sidewalk_material_owner") and str(restore_target.get_meta("shared_sidewalk_material_owner")) == MATERIAL_OWNER:
+        _fail("teardown left Ixelles material ownership metadata behind")
+        return
+    if bool(restore_runtime.call("ready_complete")):
+        _fail("teardown did not reset ready state after material release")
+        return
+    restore_runtime.free()
+    (restore_fixture["slice_root"] as Node3D).queue_free()
+    await process_frame
+    _phase("case3_material_restore_ok")
+
+    _phase("case4_later_owner_begin")
+    var later_fixture := _build_target_fixture()
+    var later_target := later_fixture["target"] as MeshInstance3D
+    var later_legacy := StandardMaterial3D.new()
+    later_target.material_override = later_legacy
+    var later_runtime := _new_runtime("later_owner")
+    await process_frame
+    await process_frame
+    if not bool(later_runtime.call("ready_complete")):
+        _fail("runtime did not bind later-owner fixture")
+        return
+    var later_material := StandardMaterial3D.new()
+    later_target.material_override = later_material
+    later_target.set_meta("shared_sidewalk_material_owner", "later_owner")
+    root.remove_child(later_runtime)
+    if later_target.material_override != later_material:
+        _fail("teardown overwrote a later material owner")
+        return
+    if str(later_target.get_meta("shared_sidewalk_material_owner", "")) != "later_owner":
+        _fail("teardown removed later-owner metadata")
+        return
+    later_runtime.free()
+    (later_fixture["slice_root"] as Node3D).queue_free()
+    await process_frame
+    _phase("case4_later_owner_ok")
+
+    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true material_legacy_restored=true later_owner_preserved=true valid_slice_contract=true ready=false")
     quit(0)

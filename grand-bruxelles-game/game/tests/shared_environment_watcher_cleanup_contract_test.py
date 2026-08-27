@@ -28,6 +28,22 @@ def function_body(source: str, function_name: str) -> str:
     return match.group("body") if match else ""
 
 
+def has_guarded_node_added_disconnect(source: str, exit_body: str) -> bool:
+    """Accept direct teardown cleanup or a helper explicitly called by _exit_tree.
+
+    Terminal-bind runtimes often share one watcher-disconnect helper between
+    successful binding and teardown. The lifecycle contract cares that teardown
+    reaches a guarded disconnect, not that the statements are duplicated inline.
+    """
+    if "node_added.is_connected(" in exit_body and "node_added.disconnect(" in exit_body:
+        return True
+    for helper_name in re.findall(r"\b(_[A-Za-z0-9_]+)\(", exit_body):
+        helper_body = function_body(source, helper_name)
+        if "node_added.is_connected(" in helper_body and "node_added.disconnect(" in helper_body:
+            return True
+    return False
+
+
 def main() -> None:
     if not CONTRACT_PATH.is_file():
         fail("shared Environment lifecycle contract missing")
@@ -75,8 +91,8 @@ def main() -> None:
             exit_body = function_body(source, "_exit_tree")
             if not exit_body:
                 fail(f"runtime-lifetime watcher lacks teardown cleanup function: {rel_path}")
-            if "node_added.is_connected(" not in exit_body or "node_added.disconnect(" not in exit_body:
-                fail(f"runtime-lifetime watcher teardown is not guarded inside _exit_tree: {rel_path}")
+            if not has_guarded_node_added_disconnect(source, exit_body):
+                fail(f"runtime-lifetime watcher teardown does not reach guarded disconnect: {rel_path}")
             if "_tearing_down = true" not in exit_body:
                 fail(f"runtime-lifetime watcher teardown does not cancel deferred recovery: {rel_path}")
 
@@ -103,8 +119,8 @@ def main() -> None:
                 fail(f"bounded-wait runtime lost expected local await path: {rel_path}")
             if not exit_body or "_tearing_down = true" not in exit_body:
                 fail(f"bounded-wait runtime lacks teardown cancellation: {rel_path}")
-            if "node_added.is_connected(" not in exit_body or "node_added.disconnect(" not in exit_body:
-                fail(f"bounded-wait runtime teardown does not disconnect watcher: {rel_path}")
+            if not has_guarded_node_added_disconnect(source, exit_body):
+                fail(f"bounded-wait runtime teardown does not reach guarded watcher disconnect: {rel_path}")
             if "_tearing_down" not in wait_body or "is_inside_tree()" not in wait_body:
                 fail(f"bounded subtree wait can continue after teardown: {rel_path}")
             bounded_wait_verified += 1
@@ -127,7 +143,7 @@ def main() -> None:
         "SHARED_ENVIRONMENT_WATCHER_CLEANUP_OK: "
         f"runtimes={verified} runtime_lifetime_teardown={teardown_verified} "
         f"deferred_recovery_guarded={deferred_guard_verified} bounded_wait_guarded={bounded_wait_verified} "
-        "connect=guarded disconnect=explicit"
+        "connect=guarded disconnect=explicit_or_verified_delegate"
     )
 
 

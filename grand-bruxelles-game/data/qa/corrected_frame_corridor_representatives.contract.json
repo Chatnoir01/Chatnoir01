@@ -1,0 +1,54 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-corridor-representative-contract-v1",
+  "status": "LOCKED_REPRESENTATIVE_EVIDENCE_ONLY",
+  "production_base_sha": "7f792cb2000751aa35a203caea0479618d310946",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_path": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "impact_contract_path": "data/qa/corrected_frame_road_destination_readiness_impact.contract.json",
+    "impact_semantic_sha256": "ce77189d1745a1cccd2e24947333e0e2e5f1bca7cb84e3bb290265a43442af06",
+    "impact_artifact_id": 9643855829,
+    "impact_artifact_sha256": "da3654ef77ba43399c644d2b6e4bed4df0199413ec82f886f5bd8caea038926b",
+    "impact_measurement_sha256": "5d456abd83613a455e8086139bf41759174cb5b1c1751393cae1fdb3121e240f",
+    "registered_cell_index_path": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "registered_cell_index_semantic_sha256": "8dd6b8994160b7a22b83f8be4ce63cfa4b579f724d51b3896c0426782b259187",
+    "crs": "EPSG:31370"
+  },
+  "selection": {
+    "policy": "changed-first-then-new-lowest-osm-id-per-target-cell",
+    "target_cells": [
+      {"anchor": "anneessens", "cell_id": "bxl-e147500-n169500-s500", "expected_transition": "new", "expected_road_osm_id": 8176386},
+      {"anchor": "bourse", "cell_id": "bxl-e147500-n170000-s500", "expected_transition": "new", "expected_road_osm_id": 150205016},
+      {"anchor": "grand_place_historical", "cell_id": "bxl-e148000-n170000-s500", "expected_transition": "changed", "expected_road_osm_id": 13767417},
+      {"anchor": "grand_place_corrected", "cell_id": "bxl-e148500-n170500-s500", "expected_transition": "changed", "expected_road_osm_id": 8512036}
+    ]
+  },
+  "expected": {"representative_count": 4, "changed_count": 2, "new_count": 2},
+  "locked_evidence": {
+    "semantic_sha256": "c97cf68d40e3edfaa16b97703bdcf336bd5ef7ce4d773518e0d8b24450c0ef32",
+    "measurement_sha256": "e55c3d1145e7651376922314cae9f9c8582544dcf275376d265e9bbf796a318b",
+    "artifact_id": 9647761602,
+    "artifact_sha256": "1c5e2000edcf8a793c989fa61958be0c084a33c0da75c0ce71b18cf4202be8b7",
+    "accounting": {"representative_count": 4, "changed_count": 2, "new_count": 2},
+    "selected_road_osm_ids": [8176386, 150205016, 13767417, 8512036]
+  },
+  "policy": {
+    "measurement_only": true,
+    "replace_crosswalk_authorized": false,
+    "replace_readiness_catalog_authorized": false,
+    "representative_runtime_probe_authorized": false,
+    "atomic_followup_required": true
+  },
+  "authorization": {
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_directory_scan_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

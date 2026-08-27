@@ -1,0 +1,130 @@
+name: Grand Bruxelles Corrected Frame Corridor Representatives
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/corrected_frame_corridor_representatives.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_corrected_frame_corridor_representatives.py"
+      - "grand-bruxelles-game/tests/test_corrected_frame_corridor_representatives.py"
+      - ".github/workflows/grand-bruxelles-corrected-frame-corridor-representatives.yml"
+      - "grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_impact.contract.json"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  representatives:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main and evidence-only rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.loads(Path("grand-bruxelles-game/data/qa/corrected_frame_corridor_representatives.contract.json").read_text())
+          assert d["production_base_sha"]==sys.argv[1]
+          assert d["status"] in {"MEASUREMENT_PENDING","LOCKED_REPRESENTATIVE_EVIDENCE_ONLY"}
+          assert d["source"]["license"]=="ODbL-1.0"
+          assert d["source"]["crs"]=="EPSG:31370"
+          assert d["policy"]["measurement_only"] is True
+          assert all(v is False for v in d["authorization"].values())
+          print("CORRIDOR_REPRESENTATIVE_LIVE_MAIN_OK",sys.argv[1],d["status"])
+          PY
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_corrected_frame_corridor_representatives.py -v
+      - name: Restore locked corrected-frame destination impact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTRACT="grand-bruxelles-game/data/qa/corrected_frame_corridor_representatives.contract.json"
+          read -r ARTIFACT_ID ARTIFACT_SHA MEASUREMENT_SHA <<EOF
+          $(python3 - "$CONTRACT" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          s=d["source"]
+          print(s["impact_artifact_id"],s["impact_artifact_sha256"],s["impact_measurement_sha256"])
+          PY
+          )
+          EOF
+          gh api -H "Accept: application/vnd.github+json" "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > "$RUNNER_TEMP/impact.zip"
+          test "$(sha256sum "$RUNNER_TEMP/impact.zip" | cut -d' ' -f1)" = "$ARTIFACT_SHA"
+          python3 - "$RUNNER_TEMP/impact.zip" "$RUNNER_TEMP/impact.json" "$MEASUREMENT_SHA" <<'PY'
+          import hashlib,json,sys,zipfile
+          zpath,out,expected=sys.argv[1:]
+          with zipfile.ZipFile(zpath) as z:
+              names=z.namelist()
+              assert names==["corrected-frame-road-destination-impact.json"], names
+              raw=z.read(names[0])
+          assert hashlib.sha256(raw).hexdigest()==expected
+          d=json.loads(raw)
+          assert d["schema"]=="grand-bruxelles-corrected-frame-road-destination-readiness-impact-v1"
+          assert d["status"]=="IMPACT_EVIDENCE_ONLY_NOT_APPLIED"
+          open(out,"wb").write(raw)
+          print("LOCKED_DESTINATION_IMPACT_RESTORED",d["semantic_sha256"])
+          PY
+      - name: Measure deterministic corridor representatives
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/measure_corrected_frame_corridor_representatives.py
+          --contract data/qa/corrected_frame_corridor_representatives.contract.json
+          --impact "$RUNNER_TEMP/impact.json"
+          --road-source data/osm/vertical_slice_01.game.json
+          --cell-index data/provenance/brussels_registered_cell_manifest_index.json
+          --production-base-sha "$LIVE_MAIN_SHA"
+          --output "$RUNNER_TEMP/corrected-frame-corridor-representatives.json"
+      - name: Verify representative accounting and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"corrected-frame-corridor-representatives.json").read_text())
+          assert d["accounting"]=={"representative_count":4,"changed_count":2,"new_count":2}
+          assert [r["road_osm_id"] for r in d["representatives"]]==[8176386,150205016,13767417,8512036]
+          assert all(v is False for v in d["authorization"].values())
+          assert all(r["registered_cell"]["maturity_state"]=="data_ready" for r in d["representatives"])
+          print("CORRIDOR_REPRESENTATIVES_MEASURED",d["semantic_sha256"])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-corridor-representatives
+          path: ${{ runner.temp }}/corrected-frame-corridor-representatives.json
+          if-no-files-found: error
+      - name: Enforce content-addressed representative lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/corrected_frame_corridor_representatives.contract.json").read_text())
+          p=Path(os.environ["RUNNER_TEMP"])/"corrected-frame-corridor-representatives.json"
+          d=json.loads(p.read_text())
+          if c["status"]=="MEASUREMENT_PENDING":
+              print("RED_FIRST_CORRIDOR_REPRESENTATIVES_NOT_LOCKED",d["semantic_sha256"],hashlib.sha256(p.read_bytes()).hexdigest())
+              sys.exit(1)
+          locked=c["locked_evidence"]
+          assert d["semantic_sha256"]==locked["semantic_sha256"]
+          assert d["accounting"]==locked["accounting"]
+          assert [r["road_osm_id"] for r in d["representatives"]]==locked["selected_road_osm_ids"]
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==locked["measurement_sha256"]
+          assert all(v is False for v in d["authorization"].values())
+          print("CORRIDOR_REPRESENTATIVES_LOCKED_EXACT",d["semantic_sha256"])
+          PY

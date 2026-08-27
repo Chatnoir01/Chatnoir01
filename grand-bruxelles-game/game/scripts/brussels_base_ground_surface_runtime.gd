@@ -34,6 +34,15 @@ func _exit_tree() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+    _release_material_ownership()
+
+func _release_material_ownership() -> void:
+    if _ground != null and is_instance_valid(_ground):
+        if _ground.material == _enhanced_material:
+            _ground.material = _legacy_material
+    _ground = null
+    _legacy_material = null
+    _enhanced_material = null
 
 func _make_material() -> ShaderMaterial:
     var shader := Shader.new()

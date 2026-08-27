@@ -5,7 +5,9 @@ on:
   pull_request:
     paths:
       - '.github/workflows/grand-bruxelles-gate8-variant03-steve-shoulder-ab.yml'
+      - '.github/workflows/grand-bruxelles-gate8-variant03-steve-hand-ab.yml'
       - 'grand-bruxelles-game/game/tests/gate8_variant03_steve_shoulder_ab_test.gd'
+      - 'grand-bruxelles-game/game/tests/gate8_variant03_steve_hand_ab_test.gd'
       - 'grand-bruxelles-game/data/qa/gate8_variant03_steve_skin_culprit.json'
       - 'grand-bruxelles-game/tools/qa/plan_gate8_variant03_steve_boundary_ab.py'
   workflow_dispatch:
@@ -47,8 +49,10 @@ jobs:
           printf '%s\n' \
             '.github/workflows/grand-bruxelles-gate8-variant03-steve-boundary-ab-plan.yml' \
             '.github/workflows/grand-bruxelles-gate8-variant03-steve-culprit-classification.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-hand-ab.yml' \
             '.github/workflows/grand-bruxelles-gate8-variant03-steve-shoulder-ab.yml' \
             'grand-bruxelles-game/data/qa/gate8_variant03_steve_skin_culprit.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant03_steve_hand_ab_test.gd' \
             'grand-bruxelles-game/game/tests/gate8_variant03_steve_shoulder_ab_test.gd' \
             'grand-bruxelles-game/tools/qa/classify_gate8_variant03_steve_skin_culprits.py' \
             'grand-bruxelles-game/tools/qa/plan_gate8_variant03_steve_boundary_ab.py' | sort > "$RUNNER_TEMP/expected.txt"

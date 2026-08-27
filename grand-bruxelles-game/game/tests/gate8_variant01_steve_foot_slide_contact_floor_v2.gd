@@ -7,9 +7,9 @@ func _run()->void:
     await super._run()
 
 func _diagnose_binding()->Dictionary:
-    var packed:=load(SOURCE_SCENE)
+    var packed:PackedScene=load(SOURCE_SCENE) as PackedScene
     if packed==null: return {"state":"SOURCE_LOAD_FAILED"}
-    var n:=packed.instantiate()
+    var n:Node=packed.instantiate()
     if n==null: return {"state":"SOURCE_INSTANTIATE_FAILED"}
     var sk:=_find_skeleton(n)
     var players:Array[AnimationPlayer]=[]

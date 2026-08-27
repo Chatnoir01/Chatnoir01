@@ -1,6 +1,6 @@
 {
   "schema": "grand-bruxelles-osm-road-extension-reconciliation-v1",
-  "status": "RED_FIRST_RECONCILIATION_PENDING",
+  "status": "LOCKED_RECONCILIATION_MEASUREMENT",
   "production_base_sha": "17463a9edc39c6df85ccc1c9afa3a4b4bc6e3304",
   "predecessor": {
     "path": "data/osm/vertical_slice_01.game.json",
@@ -29,12 +29,79 @@
   "comparison_policy": {
     "identity": "exact_osm_way_id",
     "authoritative_projection": "EPSG:4326_to_EPSG:31370_via_pyproj_always_xy",
+    "pyproj_version": "3.7.2",
     "projected_coordinate_round_decimals": 6,
     "source_coordinate_comparison_decimals": 3,
     "sequence_orientation": "minimum_residual_forward_or_reverse",
     "purpose": "measure frame and duplicate-identity compatibility before any source merge"
   },
-  "locked_measurement_path": "data/qa/osm_road_extension_e148500_n170500_reconciliation.measurement.json",
+  "locked_measurement": {
+    "workflow_run_id": 33027454450,
+    "artifact_id": 9628947559,
+    "artifact_zip_sha256": "93eccce67e657da4d9cc289a01478221e222ec39009a628b4cc2a4c8f9182d62",
+    "artifact_zip_bytes": 4105,
+    "measurement_sha256": "4fa712348ff1e8f699c90b413e4187f5e6b0fce608804e4e2d9d6f0cf584388b",
+    "measurement_bytes": 26813,
+    "semantic_sha256": "32f3b83ccedacc98f48cb4824b82a1758e436df87cf6849806340d10b5d0ec8d",
+    "accounting": {
+      "predecessor_road_count": 140,
+      "extension_highway_way_count": 591,
+      "duplicate_osm_way_count": 14,
+      "extension_only_way_count": 577,
+      "predecessor_only_way_count": 126,
+      "duplicate_class_mismatch_count": 0,
+      "historical_frame_exact_sequence_3dp_count": 0,
+      "projected_source_origin_exact_sequence_3dp_count": 0
+    },
+    "duplicate_osm_way_ids": [
+      8512036,
+      8512040,
+      12357557,
+      13842686,
+      14391825,
+      40581330,
+      356328311,
+      402788142,
+      411724192,
+      510202247,
+      591894649,
+      684214770,
+      691649674,
+      860225856
+    ],
+    "extension_only_way_ids_sha256": "6ec08ca527f6e1350cdbf12a8d63fb6c24269822833729ef08cacb7bca1174cb",
+    "frame_comparison": {
+      "projected_source_origin_lambert72": [148538.362136, 170165.796688],
+      "projected_minus_historical_origin_m": [670.067908, 627.172539],
+      "origin_delta_magnitude_m": 917.788862
+    },
+    "historical_frame_fit": {
+      "same_count_duplicate_count": 14,
+      "median_max_corresponding_residual_m": 917.673964,
+      "worst_max_corresponding_residual_m": 917.968732,
+      "median_mean_corresponding_residual_m": 917.635665,
+      "median_mean_delta_x_m": 670.269904,
+      "median_mean_delta_z_m": -626.769121,
+      "worst_rigid_delta_deviation_m": 0.195964
+    },
+    "projected_source_origin_frame_fit": {
+      "same_count_duplicate_count": 14,
+      "median_max_corresponding_residual_m": 0.544052,
+      "worst_max_corresponding_residual_m": 0.728489,
+      "median_mean_corresponding_residual_m": 0.509296,
+      "median_mean_delta_x_m": 0.201996,
+      "median_mean_delta_z_m": 0.403419,
+      "worst_rigid_delta_deviation_m": 0.195964
+    }
+  },
+  "review_verdict": {
+    "status": "HOLD_FRAME_RECONCILIATION_REQUIRED",
+    "historical_coverage_frame_compatible_with_extension": false,
+    "projected_source_origin_frame_is_supported_candidate": true,
+    "projected_source_origin_frame_authorized_for_production": false,
+    "source_merge_decision": "HOLD",
+    "reason": "14 duplicate OSM identities agree on highway class, but the historical Lambert72 coverage origin produces about 917.7 m residual while a Lambert72 origin projected from the source WGS84 origin reduces the same duplicate geometry residual below 0.73 m worst-case. A separate frame-correction review is required before constructing any merged road source."
+  },
   "authorization": {
     "source_refresh_authorized": false,
     "source_merge_authorized": false,

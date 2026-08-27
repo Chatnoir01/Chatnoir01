@@ -1,0 +1,109 @@
+name: Grand Bruxelles OSM Road Frame Correction Impact
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-road-frame-correction-impact.yml"
+      - "grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_osm_road_frame_correction_impact.py"
+      - "grand-bruxelles-game/tests/test_osm_road_frame_correction_impact.py"
+      - "grand-bruxelles-game/data/qa/osm_road_frame_correction_review.contract.json"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure-frame-impact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and locked evidence-only rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json").read_text())
+          assert c["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-v2"
+          assert c["status"] == "LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY"
+          assert c["production_base_sha"] == sys.argv[1], (c["production_base_sha"], sys.argv[1])
+          assert c["semantic_identity_policy"]["exclude_continuity_fields"] == ["production_base_sha"]
+          assert c["source"]["sha256"] == "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+          assert c["source"]["license"] == "ODbL-1.0"
+          assert c["frame_review"]["review_semantic_sha256"] == "03242b68dac6541bce21052e1e869fd577e4b08045b4999c0f4c3ac9cb5fd7f9"
+          assert c["registered_cell_index"]["semantic_sha256"] == "8dd6b8994160b7a22b83f8be4ce63cfa4b579f724d51b3896c0426782b259187"
+          assert c["registered_cell_index"]["registered_cell_count"] == 5
+          assert c["locked_evidence"]["artifact_id"] == 9630512617
+          assert c["locked_evidence"]["artifact_zip_sha256"] == "1a2ec4a2d4b3a447a1a6a4f87f494ce10ad6fb5cd0a7f1f8f7524fd14cef926e"
+          assert c["locked_evidence"]["artifact_semantic_sha256"] == "cd24d32e811b57a672988dd0644e932434d1c36e9021eb944d6f8c79b16369fd"
+          assert c["locked_evidence"]["stable_semantic_sha256"] == "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62"
+          assert all(value is False for value in c["authorization"].values())
+          print("OSM_ROAD_FRAME_IMPACT_LOCK_OK semantic_continuity_split=true rails=closed")
+          PY
+
+      - name: Verify exact road source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398  grand-bruxelles-game/data/osm/vertical_slice_01.game.json" | sha256sum -c -
+
+      - name: Run impact regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_osm_road_frame_correction_impact.py -v
+
+      - name: Reproduce corrected-frame impact
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/qa/measure_osm_road_frame_correction_impact.py \
+            --contract data/qa/osm_road_frame_correction_impact.contract.json \
+            --repo-root . \
+            --live-main-sha "$(git rev-parse origin/main)" \
+            --output "$RUNNER_TEMP/osm-road-frame-correction-impact.json"
+
+      - name: Assert locked evidence-only result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/osm-road-frame-correction-impact.json" <<'PY'
+          import json, sys
+          r=json.load(open(sys.argv[1]))
+          assert r["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-measurement-v1"
+          assert r["status"] == "MEASURED_FRAME_CORRECTION_IMPACT_EVIDENCE_ONLY"
+          a=r["accounting"]
+          assert a["source_road_count"] == 140
+          assert a["registered_cell_count"] == 5
+          assert a["candidate_unique_mapped_road_count"] == 96
+          assert a["candidate_multicell_road_count"] == 2
+          assert a["candidate_no_registered_overlap_count"] == 42
+          assert a["retained_mapping_count"] == 0
+          assert a["changed_mapping_count"] == 45
+          assert a["newly_mappable_count"] == 51
+          assert a["no_longer_mappable_count"] == 11
+          assert r["semantic_sha256"] == "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62"
+          assert all(value is False for value in r["authorization"].values())
+          print("OSM_ROAD_FRAME_IMPACT_LOCKED_STABLE", a, r["semantic_sha256"])
+          PY
+
+      - name: Upload reproduced frame impact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: osm-road-frame-correction-impact
+          path: ${{ runner.temp }}/osm-road-frame-correction-impact.json
+          if-no-files-found: error
+          retention-days: 30

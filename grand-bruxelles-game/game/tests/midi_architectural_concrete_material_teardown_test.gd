@@ -47,7 +47,13 @@ func _mount_runtime(identity: Dictionary, targets: Array[MeshInstance3D]) -> Nod
     runtime.name = "ConcreteOwnershipRuntimeUnderTest"
     root.add_child(runtime)
     runtime.set("_identity", identity)
-    runtime.set("_targets", targets)
+    # The runtime owns and clears its registry at teardown. Keep the fixture's
+    # observation array independent so post-teardown assertions inspect the
+    # real target objects instead of a container intentionally emptied by the
+    # owner cleanup.
+    var runtime_targets: Array[MeshInstance3D] = []
+    runtime_targets.append_array(targets)
+    runtime.set("_targets", runtime_targets)
     runtime.call("_apply_material")
     return runtime
 

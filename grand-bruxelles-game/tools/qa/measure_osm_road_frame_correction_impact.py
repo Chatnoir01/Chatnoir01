@@ -158,7 +158,7 @@ def main():
         cell_counts[row["cell_id"]] = cell_counts.get(row["cell_id"], 0) + 1
 
     result = {
-        "schema": "grand-bruxelles-osm-road-frame-correction-impact-measurement-v2",
+        "schema": "grand-bruxelles-osm-road-frame-correction-impact-measurement-v1",
         "status": "MEASURED_FRAME_CORRECTION_IMPACT_EVIDENCE_ONLY",
         "production_base_sha": args.live_main_sha,
         "source_sha256": contract["source"]["sha256"],

@@ -19,6 +19,18 @@ def normalized_expected(expected):
     return out
 
 
+def indexed_readiness(readiness, expected_source_sha):
+    destinations=readiness['destinations']
+    assert readiness['destination_count']==len(destinations)
+    assert all(v is False for v in readiness['authorization'].values())
+    ids=[int(r['road_osm_id']) for r in destinations]
+    assert len(ids)==len(set(ids)), 'duplicate road_osm_id in readiness catalog'
+    for row in destinations:
+        assert row['source_license']=='ODbL-1.0'
+        assert row['source_sha256']==expected_source_sha
+    return {int(r['road_osm_id']):r for r in destinations}
+
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--contract',required=True)
@@ -33,9 +45,7 @@ def main():
     assert all(v is False for v in c['authorization'].values())
     assert reps['status']=='LOCKED_REPRESENTATIVE_EVIDENCE_ONLY'
     assert reps['locked_evidence']['semantic_sha256']==c['source']['representative_semantic_sha256']
-    assert rd['destination_count']==len(rd['destinations'])
-    assert all(v is False for v in rd['authorization'].values())
-    current={int(r['road_osm_id']):r for r in rd['destinations']}
+    current=indexed_readiness(rd,c['source']['road_source_sha256'])
     rows=[]; absent=[]; wrong=[]; correct=[]
     for t in reps['selection']['target_cells']:
         rid=int(t['expected_road_osm_id']); cur=current.get(rid); target=t['cell_id']

@@ -121,6 +121,42 @@ TARGETS = {
         "apply_function": "set_enhanced_material_enabled",
         "required_apply_tokens": ["_owned_materials[instance_id] = _material"],
     },
+    "game/scripts/midi_blue_stone_surface_runtime.gd": {
+        "family": "brussels_source_verified_blue_stone",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": [
+            "_restore_owned_materials()",
+            "_owned_materials.clear()",
+            "_original_material_overrides.clear()",
+            "_targets.clear()",
+            "_material = null",
+        ],
+        "restore_function": "_restore_owned_materials",
+        "required_restore_tokens": [
+            "target.material_override == owned",
+            "target.material_override = _original_material_overrides.get(instance_id) as Material",
+        ],
+        "apply_function": "set_enhanced_material_enabled",
+        "required_apply_tokens": ["_owned_materials[instance_id] = _material"],
+    },
+    "game/scripts/midi_architectural_glazing_surface_runtime.gd": {
+        "family": "brussels_source_verified_architectural_glazing",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": [
+            "_restore_owned_materials()",
+            "_owned_materials.clear()",
+            "_original_material_overrides.clear()",
+            "_targets.clear()",
+            "_material = null",
+        ],
+        "restore_function": "_restore_owned_materials",
+        "required_restore_tokens": [
+            "target.material_override == owned",
+            "target.material_override = _original_material_overrides.get(instance_id) as Material",
+        ],
+        "apply_function": "set_enhanced_material_enabled",
+        "required_apply_tokens": ["_owned_materials[instance_id] = _material"],
+    },
 }
 
 
@@ -146,10 +182,23 @@ def main() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("runtime_material_ownership_teardown_cleanup_required") is not True:
         fail("shared Environment material-ownership teardown rail missing")
+    if contract.get("material_ownership_registry_expected_count") != 9:
+        fail("shared Environment material owner count lock missing or drifted")
 
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list):
         fail("shared Environment runtime registry missing")
+
+    declared_owner_paths = {
+        entry.get("path")
+        for entry in runtimes
+        if isinstance(entry, dict) and entry.get("material_ownership_teardown_cleanup_required") is True
+    }
+    if declared_owner_paths != set(TARGETS):
+        fail(
+            "shared material owner registry differs from central owner regression: "
+            f"registry={sorted(declared_owner_paths)} test={sorted(TARGETS)}"
+        )
 
     validated: list[str] = []
     for target_path, expected in TARGETS.items():
@@ -192,19 +241,21 @@ def main() -> None:
 
         validated.append(target_path)
 
-    if len(validated) != 7:
-        fail("expected exactly seven shared material-owning runtimes")
+    if len(validated) != 9:
+        fail("expected exactly nine shared material-owning runtimes")
 
     print(
         "SHARED_ENVIRONMENT_MATERIAL_OWNERSHIP_TEARDOWN_OK: "
-        "owners=7 facade_surface=brussels_osm_facade_surface_v1 "
+        "owners=9 facade_surface=brussels_osm_facade_surface_v1 "
         "facade_articulation=brussels_osm_facade_articulation_v1 "
         "road_surface=brussels_osm_road_surface_v1 "
         "base_ground=brussels_base_ground_surface_v1 "
         "sidewalk_surface=brussels_osm_sidewalk_surface_v1 "
         "rail_surface=brussels_osm_rail_surface_v1 "
-        "midi_concrete=brussels_source_verified_architectural_concrete official_override=true "
-        "owner_aware_restore=true geometry_changed=false"
+        "midi_concrete=brussels_source_verified_architectural_concrete "
+        "midi_blue_stone=brussels_source_verified_blue_stone "
+        "midi_glazing=brussels_source_verified_architectural_glazing "
+        "official_override=true owner_aware_restore=true geometry_changed=false"
     )
 
 

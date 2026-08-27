@@ -7,6 +7,7 @@ on:
       - 'grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json'
       - 'grand-bruxelles-game/game/scripts/**'
       - 'grand-bruxelles-game/game/tests/shared_environment_lifecycle_contract_test.py'
+      - 'grand-bruxelles-game/game/tests/shared_environment_material_ownership_teardown_test.py'
       - '.github/workflows/grand-bruxelles-shared-environment-lifecycle-contract.yml'
   workflow_dispatch:
 
@@ -37,3 +38,4 @@ jobs:
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/game/tests/shared_environment_lifecycle_contract_test.py
+          python3 grand-bruxelles-game/game/tests/shared_environment_material_ownership_teardown_test.py

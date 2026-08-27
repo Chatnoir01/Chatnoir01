@@ -7,11 +7,13 @@ const LICENSE := "ODbL-1.0"
 
 var _rails: Array[CSGBox3D] = []
 var _legacy_materials: Dictionary = {}
+var _owned_materials: Dictionary = {}
 var _original_transforms: Dictionary = {}
 var _original_sizes: Dictionary = {}
 var _enhanced_material: Material
 var _official_rails: Dictionary = {}
 var _official_legacy_materials: Dictionary = {}
+var _official_owned_materials: Dictionary = {}
 var _official_material: StandardMaterial3D
 var _enhanced_enabled := true
 var _ready_complete := false
@@ -30,6 +32,36 @@ func _exit_tree() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+    _release_material_ownership()
+
+func _release_material_ownership() -> void:
+    for rail: CSGBox3D in _rails:
+        if rail == null or not is_instance_valid(rail):
+            continue
+        var instance_id := rail.get_instance_id()
+        var owned := _owned_materials.get(instance_id) as Material
+        if owned != null and rail.material == owned:
+            rail.material = _legacy_materials.get(instance_id) as Material
+            if str(rail.get_meta("material_family", "")) == MATERIAL_FACTORY.MATERIAL_FAMILY:
+                rail.remove_meta("material_family")
+    for raw_id: Variant in _official_rails.keys():
+        var instance_id := int(raw_id)
+        var instance := _official_rails.get(instance_id) as MeshInstance3D
+        if instance == null or not is_instance_valid(instance):
+            continue
+        var owned := _official_owned_materials.get(instance_id) as Material
+        if owned != null and instance.material_override == owned:
+            instance.material_override = _official_legacy_materials.get(instance_id) as Material
+            if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
+                instance.remove_meta("ground_network_presentation_family")
+    _rails.clear()
+    _legacy_materials.clear()
+    _owned_materials.clear()
+    _original_transforms.clear()
+    _original_sizes.clear()
+    _official_rails.clear()
+    _official_legacy_materials.clear()
+    _official_owned_materials.clear()
 
 func _is_generated_rails_root(node: Node) -> bool:
     if not node is Node3D or str(node.name) != "GeneratedRails":
@@ -98,6 +130,7 @@ func _bind_rail(rail: CSGBox3D) -> bool:
     rail.set_meta("wear_source_backed", false)
     rail.set_meta("geometry_changed_by_rail_surface_runtime", false)
     if _enhanced_enabled:
+        _owned_materials[instance_id] = _enhanced_material
         rail.material = _enhanced_material
     return true
 
@@ -148,6 +181,7 @@ func _register_official_rail(node: Node) -> void:
     instance.set_meta("ground_network_geometry_claim", "source_alignment_only_no_fabricated_dual_rail_gauge")
     instance.set_meta("geometry_changed_by_ground_network_runtime", false)
     if _enhanced_enabled:
+        _official_owned_materials[instance_id] = _official_material
         instance.material_override = _official_material
     print("BRUSSELS_OFFICIAL_TRAM_RAIL_READY: node=%s provider=UrbIS source_alignment_only=true fabricated_gauge=false geometry_changed=false license_claimed=false" % instance.name)
 
@@ -155,19 +189,28 @@ func _set_material_state(enabled: bool) -> void:
     for rail: CSGBox3D in _rails:
         if not is_instance_valid(rail):
             continue
+        var instance_id := rail.get_instance_id()
         if enabled:
+            _owned_materials[instance_id] = _enhanced_material
             rail.material = _enhanced_material
         else:
-            rail.material = _legacy_materials.get(rail.get_instance_id()) as Material
+            var owned := _owned_materials.get(instance_id) as Material
+            if owned == null or rail.material == owned:
+                rail.material = _legacy_materials.get(instance_id) as Material
+            _owned_materials.erase(instance_id)
     for raw_id: Variant in _official_rails.keys():
         var instance_id := int(raw_id)
         var instance := _official_rails.get(instance_id) as MeshInstance3D
         if instance == null or not is_instance_valid(instance):
             continue
         if enabled:
+            _official_owned_materials[instance_id] = _official_material
             instance.material_override = _official_material
         else:
-            instance.material_override = _official_legacy_materials.get(instance_id) as Material
+            var owned := _official_owned_materials.get(instance_id) as Material
+            if owned == null or instance.material_override == owned:
+                instance.material_override = _official_legacy_materials.get(instance_id) as Material
+            _official_owned_materials.erase(instance_id)
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled

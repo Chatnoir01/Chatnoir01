@@ -1,6 +1,6 @@
 {
   "schema": "grand-bruxelles-corrected-frame-destination-atomic-migration-preflight-contract-v1",
-  "status": "MEASUREMENT_PENDING",
+  "status": "LOCKED_ATOMIC_MIGRATION_PREFLIGHT_EVIDENCE_ONLY",
   "production_base_sha": "87ddd67eb3b7992ea43193c71ed1cfaab640b3d6",
   "source": {
     "provider": "OpenStreetMap contributors via Overpass API",
@@ -56,5 +56,27 @@
     "collision_authorized": false,
     "safe_spawn_authorized": false,
     "jouable_promotion_authorized": false
+  },
+  "locked_evidence": {
+    "run_id": 33110698414,
+    "head_sha": "be7f51b40a4cc10fc097ee0b245615fe26f102e9",
+    "production_base_sha": "87ddd67eb3b7992ea43193c71ed1cfaab640b3d6",
+    "artifact_id": 9662398907,
+    "artifact_sha256": "f4d2664229d2b8cec22df8172a86a0e5bfa3a4eee8b4a46b4eff654675dcf1a1",
+    "measurement_json_sha256": "5ed28707c38379ad6d6deb424be1afd5e0c7aca0066dd5ab146e4ff25495eafb",
+    "semantic_sha256": "f1f1a359ae5460ce7b534d1484a8d01b00f6c0e0fed08eba367282cd5bbf705f",
+    "accounting": {
+      "production_mapping_count": 56,
+      "production_destination_count": 56,
+      "candidate_mapping_count": 96,
+      "candidate_destination_count": 96,
+      "candidate_mapped_cell_count": 4,
+      "multicell_hold_count": 2,
+      "no_registered_overlap_count": 42,
+      "retained_same_cell_count": 0,
+      "changed_cell_count": 45,
+      "new_destination_count": 51,
+      "removed_destination_count": 11
+    }
   }
 }

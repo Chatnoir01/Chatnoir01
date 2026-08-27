@@ -20,6 +20,7 @@ var _fonsny_full_entrance_runtime: Node
 var _awaiting_midi := false
 var _bind_in_progress := false
 var _tearing_down := false
+var _watched_tree: SceneTree
 
 func _ready() -> void:
     _tearing_down = false
@@ -33,7 +34,8 @@ func _ready() -> void:
         _ready_complete = true
         return
     _awaiting_midi = true
-    get_tree().node_added.connect(_on_node_added)
+    _watched_tree = get_tree()
+    _watched_tree.node_added.connect(_on_node_added)
     call_deferred("_bind_existing_midi")
 
 func _exit_tree() -> void:
@@ -41,9 +43,12 @@ func _exit_tree() -> void:
     _awaiting_midi = false
     _bind_in_progress = false
     _release_material_ownership()
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
+    _disconnect_node_added_watcher()
+
+func _disconnect_node_added_watcher() -> void:
+    if _watched_tree != null and is_instance_valid(_watched_tree) and _watched_tree.node_added.is_connected(_on_node_added):
+        _watched_tree.node_added.disconnect(_on_node_added)
+    _watched_tree = null
 
 func _bind_existing_midi() -> void:
     if _ready_complete or _identity_failure or _bind_in_progress or _tearing_down or not is_inside_tree():
@@ -97,9 +102,7 @@ func _apply_material() -> void:
 func _finish_waiting() -> void:
     _awaiting_midi = false
     _bind_in_progress = false
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
+    _disconnect_node_added_watcher()
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):

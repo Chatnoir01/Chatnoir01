@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/bourse_official_sidewalk_overlay.gd"
       - "grand-bruxelles-game/game/scripts/bourse_front_wall_reveal.gd"
       - "grand-bruxelles-game/game/tests/bourse_sidewalk_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_public_space_collision_test.gd"
       - ".github/workflows/grand-bruxelles-bourse-sidewalk-visual.yml"
   workflow_dispatch:
 
@@ -19,6 +20,30 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact PR head on live main
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$HEAD_SHA"
+          echo "BOURSE_EVIDENCE_HEAD_SHA=$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "BOURSE_LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          echo "BOURSE_SIDEWALK_EXACT_HEAD_OK head=$HEAD_SHA main=$LIVE_MAIN_SHA"
+      - name: Bind workflow-dispatch provenance
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "BOURSE_EVIDENCE_HEAD_SHA=$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "BOURSE_LIVE_MAIN_SHA=$HEAD_SHA" >> "$GITHUB_ENV"
       - name: Install software renderer dependencies
         run: |
           sudo apt-get update
@@ -37,6 +62,13 @@ jobs:
           timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_sidewalk_runtime_test.gd 2>&1 | tee /tmp/sidewalk-runtime.log
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_SIDEWALK_RUNTIME_FAIL" /tmp/sidewalk-runtime.log; then exit 1; fi
           grep -F "BOURSE_SIDEWALK_RUNTIME_OK" /tmp/sidewalk-runtime.log
+      - name: Prove official Bourse public-space collision
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_public_space_collision_test.gd 2>&1 | tee /tmp/bourse-public-space-collision.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_PUBLIC_SPACE_COLLISION_FAIL" /tmp/bourse-public-space-collision.log; then exit 1; fi
+          grep -F "BOURSE_PUBLIC_SPACE_COLLISION_OK" /tmp/bourse-public-space-collision.log
       - name: Render geotagged Bourse witness
         shell: bash
         run: |
@@ -45,11 +77,69 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GEOTAGGED_CAPTURE_FAIL" /tmp/bourse-sidewalk-visual.log; then exit 1; fi
           grep -F "BOURSE_GEOTAGGED_CAPTURE_OK" /tmp/bourse-sidewalk-visual.log
           test -f grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
+      - name: Persist exact-head witness provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("grand-bruxelles-game")
+          source_path = root / "data/urbis/bourse_official_sidewalks.game.json"
+          image_path = root / "artifacts/photo-match/bourse_2019_geotagged_camera.png"
+          source = json.loads(source_path.read_text(encoding="utf-8"))
+          collision_log = Path("/tmp/bourse-public-space-collision.log").read_text(encoding="utf-8")
+          if "BOURSE_PUBLIC_SPACE_COLLISION_OK" not in collision_log:
+              raise SystemExit("collision proof missing before provenance persistence")
+          head = os.environ.get("BOURSE_EVIDENCE_HEAD_SHA", "")
+          main = os.environ.get("BOURSE_LIVE_MAIN_SHA", "")
+          if len(head) != 40 or len(main) != 40:
+              raise SystemExit("exact head/live-main provenance missing")
+          if source.get("selection", {}).get("feature_count") != 5:
+              raise SystemExit("official Bourse feature count drifted")
+          report = {
+              "schema": "grand-bruxelles-bourse-sidewalk-witness-provenance-v1",
+              "head_sha": head,
+              "live_main_sha": main,
+              "godot_version": "4.7.1-stable",
+              "source_path": "data/urbis/bourse_official_sidewalks.game.json",
+              "source_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+              "source_response_sha256": source["source"]["response_sha256"],
+              "source_layer": source["source"]["layer"],
+              "source_license": source["source"]["license"],
+              "feature_count": 5,
+              "triangle_count": 52,
+              "collision_y_m": 0.170,
+              "render_y_m": 0.176,
+              "image_sha256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
+              "collision_provenance": "same_official_urbis_sidewalk_mesh",
+              "visual_approval_claimed": False,
+              "playability_claimed": False,
+              "jouable_authorized": False,
+          }
+          out = Path("/tmp/bourse-sidewalk-witness-provenance.json")
+          out.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+          locked = json.loads(out.read_text(encoding="utf-8"))
+          assert locked["head_sha"] == head
+          assert locked["live_main_sha"] == main
+          assert locked["source_sha256"] == hashlib.sha256(source_path.read_bytes()).hexdigest()
+          assert locked["image_sha256"] == hashlib.sha256(image_path.read_bytes()).hexdigest()
+          assert locked["collision_provenance"] == "same_official_urbis_sidewalk_mesh"
+          assert locked["visual_approval_claimed"] is False
+          assert locked["playability_claimed"] is False
+          assert locked["jouable_authorized"] is False
+          print(f"BOURSE_SIDEWALK_PROVENANCE_OK head={head} main={main} source={locked['source_sha256']} image={locked['image_sha256']}")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: bourse-sidewalk-geotagged-witness
           path: |
             grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
             /tmp/sidewalk-runtime.log
+            /tmp/bourse-public-space-collision.log
             /tmp/bourse-sidewalk-visual.log
+            /tmp/bourse-sidewalk-witness-provenance.json
           if-no-files-found: error

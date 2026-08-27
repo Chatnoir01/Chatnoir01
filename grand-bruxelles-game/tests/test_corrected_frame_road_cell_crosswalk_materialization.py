@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json"
 MIGRATION = ROOT / "data/qa/corrected_frame_road_cell_migration_plan.contract.json"
 CURRENT = ROOT / "data/provenance/brussels_road_registered_cell_crosswalk.json"
+WORKFLOW = ROOT.parent / ".github/workflows/grand-bruxelles-corrected-frame-road-cell-crosswalk-materialization.yml"
 
 
 class CorrectedFrameRoadCellCrosswalkMaterializationTest(unittest.TestCase):
@@ -30,6 +31,16 @@ class CorrectedFrameRoadCellCrosswalkMaterializationTest(unittest.TestCase):
         self.assertEqual(migration["locked_evidence"]["semantic_sha256"], contract["source"]["migration_plan_semantic_sha256"])
         self.assertEqual(migration["locked_evidence"]["accounting"], contract["expected"])
         self.assertTrue(all(v is False for v in migration["authorization"].values()))
+
+    def test_historical_migration_receipt_is_replayed_at_its_evidence_base(self):
+        contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        migration = json.loads(MIGRATION.read_text(encoding="utf-8"))
+        self.assertNotEqual(migration["production_base_sha"], contract["production_base_sha"])
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("MIGRATION_BASE_SHA", workflow)
+        self.assertIn("git merge-base --is-ancestor \"$MIGRATION_BASE_SHA\" \"$LIVE_MAIN_SHA\"", workflow)
+        self.assertIn("--production-base-sha \"$MIGRATION_BASE_SHA\"", workflow)
+        self.assertNotIn("--production-base-sha \"$LIVE_MAIN_SHA\"\n          --output \"$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json\"", workflow)
 
     def test_production_crosswalk_remains_untouched_and_non_authorizing(self):
         current = json.loads(CURRENT.read_text(encoding="utf-8"))

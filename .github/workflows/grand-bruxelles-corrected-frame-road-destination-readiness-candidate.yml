@@ -1,0 +1,165 @@
+name: Grand Bruxelles Corrected Frame Road Destination Readiness Candidate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-corrected-frame-road-destination-readiness-candidate.yml'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_candidate.contract.json'
+      - 'grand-bruxelles-game/tools/qa/materialize_corrected_frame_road_destination_readiness_candidate.py'
+      - 'grand-bruxelles-game/tests/test_corrected_frame_road_destination_readiness_candidate.py'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  corrected-frame-readiness-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$HEAD_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_candidate.contract.json')
+          d=json.loads(p.read_text())
+          assert d['schema']=='grand-bruxelles-corrected-frame-road-destination-readiness-candidate-contract-v1'
+          assert d['production_base_sha']==sys.argv[1], (d['production_base_sha'],sys.argv[1])
+          assert d['status'] in {'MEASUREMENT_PENDING','LOCKED_CANDIDATE_EVIDENCE_ONLY'}
+          assert d['source']['provider']=='OpenStreetMap contributors via Overpass API'
+          assert d['source']['license']=='ODbL-1.0'
+          assert d['source']['crs']=='EPSG:31370'
+          assert d['policy']['artifact_only'] is True
+          assert d['policy']['replace_current_readiness_catalog_authorized'] is False
+          assert d['policy']['replace_current_crosswalk_authorized'] is False
+          assert d['policy']['runtime_probe_authorized'] is False
+          assert all(v is False for v in d['authorization'].values())
+          print('CORRECTED_FRAME_READINESS_CANDIDATE_LIVE_MAIN_OK',sys.argv[1],d['status'])
+          PY
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_corrected_frame_road_destination_readiness_candidate.py -v
+
+      - name: Restore immutable corrected-frame crosswalk candidate artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r ARTIFACT_ID ARTIFACT_SHA CANDIDATE_SHA <<EOF
+          $(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_candidate.contract.json').read_text())
+          s=d['source']
+          print(s['crosswalk_candidate_artifact_id'],s['crosswalk_candidate_artifact_sha256'],s['crosswalk_candidate_json_sha256'])
+          PY
+          )
+          EOF
+          mkdir -p "$RUNNER_TEMP/corrected-frame-crosswalk-artifact"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > "$RUNNER_TEMP/corrected-frame-crosswalk.zip"
+          echo "${ARTIFACT_SHA}  $RUNNER_TEMP/corrected-frame-crosswalk.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/corrected-frame-crosswalk.zip" -d "$RUNNER_TEMP/corrected-frame-crosswalk-artifact"
+          CANDIDATE="$RUNNER_TEMP/corrected-frame-crosswalk-artifact/corrected-frame-road-cell-crosswalk-candidate.json"
+          test -s "$CANDIDATE"
+          echo "${CANDIDATE_SHA}  $CANDIDATE" | sha256sum --check
+          echo "CROSSWALK_CANDIDATE=$CANDIDATE" >> "$GITHUB_ENV"
+          echo "CORRECTED_FRAME_CROSSWALK_ARTIFACT_RESTORED id=$ARTIFACT_ID"
+
+      - name: Materialize corrected-frame readiness candidate
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/materialize_corrected_frame_road_destination_readiness_candidate.py
+          --contract data/qa/corrected_frame_road_destination_readiness_candidate.contract.json
+          --crosswalk-candidate "$CROSSWALK_CANDIDATE"
+          --repo-root .
+          --production-base-sha "$LIVE_MAIN_SHA"
+          --output "$RUNNER_TEMP/corrected-frame-road-destination-readiness-candidate.json"
+
+      - name: Require candidate accounting and zero runtime authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_candidate.contract.json').read_text())
+          measured=json.loads((Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-destination-readiness-candidate.json').read_text())
+          current=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json').read_text())
+          expected=contract['expected']
+          assert measured['status']=='CANDIDATE_SOURCE_BACKED_REGISTERED_NOT_RENDERED'
+          assert measured['accounting']['candidate_destination_count']==expected['candidate_destination_count']==96
+          assert measured['accounting']['candidate_mapped_cell_count']==expected['candidate_mapped_cell_count']==4
+          assert measured['accounting']['multicell_hold_count']==expected['multicell_hold_count']==2
+          assert measured['accounting']['no_registered_overlap_count']==expected['no_registered_overlap_count']==42
+          assert len(measured['destinations'])==96
+          assert len(measured['multicell_hold_rows'])==2
+          assert current['destination_count']==56
+          assert current['semantic_sha256'] != measured['semantic_sha256']
+          assert all(v is False for v in measured['authorization'].values())
+          by_id={int(row['road_osm_id']):row for row in measured['destinations']}
+          for rep in expected['representatives']:
+              row=by_id[int(rep['road_osm_id'])]
+              assert row['cell_id']==rep['cell_id']
+              assert row['readiness']=='REGISTERED_NOT_RENDERED'
+              assert row['render_authorized'] is False
+              assert row['collision_authorized'] is False
+              assert row['runtime_mount_authorized'] is False
+              assert row['safe_spawn_authorized'] is False
+              assert row['jouable_authorized'] is False
+          print('CORRECTED_FRAME_READINESS_CANDIDATE_MEASURED',measured['semantic_sha256'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-road-destination-readiness-candidate
+          path: ${{ runner.temp }}/corrected-frame-road-destination-readiness-candidate.json
+          if-no-files-found: error
+
+      - name: Enforce content-addressed evidence lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_candidate.contract.json').read_text())
+          p=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-destination-readiness-candidate.json'
+          measured=json.loads(p.read_text())
+          if contract['status']=='MEASUREMENT_PENDING':
+              print('RED_FIRST_CORRECTED_FRAME_READINESS_CANDIDATE_NOT_LOCKED',measured['semantic_sha256'])
+              sys.exit(1)
+          locked=contract['locked_evidence']
+          assert measured['semantic_sha256']==locked['semantic_sha256']
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['candidate_json_sha256']
+          assert measured['accounting']==locked['accounting']
+          assert all(v is False for v in measured['authorization'].values())
+          print('CORRECTED_FRAME_READINESS_CANDIDATE_LOCKED_EXACT',measured['semantic_sha256'])
+          PY

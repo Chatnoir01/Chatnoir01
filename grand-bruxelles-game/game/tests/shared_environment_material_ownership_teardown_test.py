@@ -84,7 +84,7 @@ TARGETS = {
         "helper": "_release_material_ownership",
         "required_helper_tokens": ["_restore_owned_materials()", "_owned_materials.clear()", "_original_materials.clear()", "_targets.clear()", "_material = null"],
         "restore_function": "_restore_owned_materials",
-        "required_restore_tokens": ["target.material_override == owned", "target.material_override = _original_materials.get(instance_id) as Material"],
+        "required_restore_tokens": ["mesh_instance.material_override == owned", "mesh_instance.material_override = _original_materials.get(instance_id) as Material"],
         "apply_function": "set_enhanced_material_enabled",
         "required_apply_tokens": ["_owned_materials[instance_id] = _material"],
     },

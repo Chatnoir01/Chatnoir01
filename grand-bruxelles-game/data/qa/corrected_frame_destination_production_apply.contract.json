@@ -1,7 +1,7 @@
 {
   "schema": "grand-bruxelles-corrected-frame-destination-production-apply-v1",
   "status": "LOCKED_STAGED_PAIR_EVIDENCE_ONLY",
-  "production_base_sha": "14b89944049cb95a45bcb5aab5e3dd84fce85e9f",
+  "production_base_sha": "bf6af7de0973c42b93397fd3dcc26ca8a3bb3bc8",
   "source": {
     "provider": "OpenStreetMap contributors via Overpass API",
     "license": "ODbL-1.0",
@@ -37,21 +37,39 @@
     "candidate_identity_must_match_artifacts": true,
     "destination_id_must_equal_road_dash_osm_id": true,
     "multicell_hold_must_be_excluded": true,
+    "readiness_mapped_cell_count_must_equal_crosswalk": true,
+    "red_first_artifact_must_upload_before_lock": true,
     "all_runtime_authorizations_must_remain_false": true,
     "write_production_files_authorized": false,
     "runtime_probe_authorized": false,
     "jouable_promotion_authorized": false
   },
-  "locked_staged_evidence": {
+  "superseded_staged_evidence": {
+    "reason": "readiness_mapped_cell_count_inherited_stale_wrapper_3_expected_4",
     "run_id": 33115920683,
     "head_sha": "7e99f9a6494925520c93b308cf0c8cdec2fc6c2c",
     "artifact_id": 9664489630,
     "artifact_sha256": "25095225b55405d8bb0c5da107f773951a29ccde6b4f681bdec835cd17e9ce4d",
     "generated_crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
     "generated_readiness_sha256": "2c98aa4315d446628ce260254082d76b29bd8fb097b73f76d0b5bfa03483f6b3",
+    "observed_readiness_mapped_cell_count": 3,
+    "actual_destination_cell_count": 4,
     "mapping_count": 96,
     "destination_count": 96,
     "mapped_cell_count": 4,
+    "multicell_hold_ids": [256158619, 397461693]
+  },
+  "locked_staged_evidence": {
+    "run_id": 33117227791,
+    "head_sha": "e19da871855b9bdc8a83acce5d1dfe4aa08e7af2",
+    "artifact_id": 9664991653,
+    "artifact_sha256": "fbe7a847bdfbd8e3e2d736e06fe63c4e6324233b30c78d49c8ca578e1a386d63",
+    "generated_crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
+    "generated_readiness_sha256": "95430fb61fb3205fb4f3bd4c59b9720b0feb475ce04f5ede2c7b74d22ec6f040",
+    "mapping_count": 96,
+    "destination_count": 96,
+    "mapped_cell_count": 4,
+    "readiness_mapped_cell_count": 4,
     "multicell_hold_ids": [256158619, 397461693]
   }
 }

@@ -41,10 +41,12 @@ jobs:
           p='grand-bruxelles-game/data/qa/corrected_frame_destination_production_apply.contract.json'
           d=json.load(open(p))
           assert d['production_base_sha'] == '${{ github.event.pull_request.base.sha }}'
-          assert d['status'] in ('PRE_APPLY_BUILDER_ONLY','LOCKED_STAGED_PAIR_EVIDENCE_ONLY')
+          assert d['status'] == 'LOCKED_STAGED_PAIR_EVIDENCE_ONLY'
           assert d['policy']['write_production_files_authorized'] is False
           assert d['policy']['runtime_probe_authorized'] is False
           assert d['policy']['jouable_promotion_authorized'] is False
+          assert d['policy']['readiness_mapped_cell_count_must_equal_crosswalk'] is True
+          assert d['policy']['red_first_artifact_must_upload_before_lock'] is True
           PY
 
       - name: Run fail-closed regressions
@@ -89,9 +91,14 @@ jobs:
           import json
           cw=json.load(open('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json'))
           rd=json.load(open('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json'))
-          assert cw['mapped_road_count'] == 96 and cw['mapped_cell_count'] == 4 and rd['destination_count'] == 96
+          assert cw['mapped_road_count'] == 96
+          assert cw['mapped_cell_count'] == 4
+          assert rd['destination_count'] == 96
+          assert rd['mapped_cell_count'] == 4
+          assert len({r['cell_id'] for r in rd['destinations']}) == 4
           assert cw['excluded_multicell_road_ids'] == [256158619,397461693]
-          a={int(r['road_osm_id']):r['cell_id'] for r in cw['rows']}; b={int(r['road_osm_id']):r['cell_id'] for r in rd['destinations']}
+          a={int(r['road_osm_id']):r['cell_id'] for r in cw['rows']}
+          b={int(r['road_osm_id']):r['cell_id'] for r in rd['destinations']}
           assert a == b and len(a)==96
           reps={8176386:'bxl-e147500-n169500-s500',150205016:'bxl-e147500-n170000-s500',13767417:'bxl-e148000-n170000-s500',8512036:'bxl-e148500-n170500-s500'}
           for rid,cell in reps.items(): assert a[rid] == cell
@@ -108,11 +115,14 @@ jobs:
           python - <<'PY'
           import hashlib,json
           p='grand-bruxelles-game/data/qa/corrected_frame_destination_production_apply.contract.json'
-          d=json.load(open(p)); lock=d.get('locked_staged_evidence',{})
-          if d['status'] != 'LOCKED_STAGED_PAIR_EVIDENCE_ONLY': raise SystemExit('EXPECTED_RED: staged pair not content-addressed yet')
+          d=json.load(open(p)); lock=d['locked_staged_evidence']
           def sha(path): return hashlib.sha256(open(path,'rb').read()).hexdigest()
           assert sha('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json') == lock['generated_crosswalk_sha256']
           assert sha('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json') == lock['generated_readiness_sha256']
+          assert lock['mapping_count'] == 96
+          assert lock['destination_count'] == 96
+          assert lock['mapped_cell_count'] == 4
+          assert lock['readiness_mapped_cell_count'] == 4
           assert d['policy']['write_production_files_authorized'] is False
           print('LOCKED_STAGED_PAIR_OK production_write_authorized=false')
           PY

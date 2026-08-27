@@ -12,11 +12,13 @@ const IXELLES_ROOT_NAME := &"IxellesDirectMicroSlice"
 
 var _sidewalks: Array[CSGBox3D] = []
 var _legacy_materials: Dictionary = {}
+var _owned_materials: Dictionary = {}
 var _original_transforms: Dictionary = {}
 var _original_sizes: Dictionary = {}
 var _material: ShaderMaterial
 var _official_sidewalks: Dictionary = {}
 var _official_legacy_materials: Dictionary = {}
+var _official_owned_materials: Dictionary = {}
 var _official_material: StandardMaterial3D
 var _enhanced_enabled := true
 var _ready_complete := false
@@ -35,6 +37,36 @@ func _exit_tree() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+    _release_material_ownership()
+
+func _release_material_ownership() -> void:
+    for sidewalk: CSGBox3D in _sidewalks:
+        if sidewalk == null or not is_instance_valid(sidewalk):
+            continue
+        var instance_id := sidewalk.get_instance_id()
+        var owned := _owned_materials.get(instance_id) as Material
+        if owned != null and sidewalk.material == owned:
+            sidewalk.material = _legacy_materials.get(instance_id) as Material
+            if str(sidewalk.get_meta("material_family", "")) == MATERIAL_FACTORY.MATERIAL_FAMILY:
+                sidewalk.remove_meta("material_family")
+    for raw_id: Variant in _official_sidewalks.keys():
+        var instance_id := int(raw_id)
+        var instance := _official_sidewalks.get(instance_id) as MeshInstance3D
+        if instance == null or not is_instance_valid(instance):
+            continue
+        var owned := _official_owned_materials.get(instance_id) as Material
+        if owned != null and instance.material_override == owned:
+            instance.material_override = _official_legacy_materials.get(instance_id) as Material
+            if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
+                instance.remove_meta("ground_network_presentation_family")
+    _sidewalks.clear()
+    _legacy_materials.clear()
+    _owned_materials.clear()
+    _original_transforms.clear()
+    _original_sizes.clear()
+    _official_sidewalks.clear()
+    _official_legacy_materials.clear()
+    _official_owned_materials.clear()
 
 func _is_generated_sidewalk(box: CSGBox3D) -> bool:
     if str(box.name).begins_with("Road_"):
@@ -108,6 +140,7 @@ func _bind_sidewalk(sidewalk: CSGBox3D) -> bool:
     sidewalk.set_meta("curb_height_source_backed", false)
     sidewalk.set_meta("geometry_changed_by_sidewalk_surface_runtime", false)
     if _enhanced_enabled:
+        _owned_materials[instance_id] = _material
         sidewalk.material = _material
     return true
 
@@ -170,6 +203,7 @@ func _register_official_sidewalk(node: Node) -> void:
     instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
     instance.set_meta("geometry_changed_by_ground_network_runtime", false)
     if _enhanced_enabled:
+        _official_owned_materials[instance_id] = _official_material
         instance.material_override = _official_material
     print("BRUSSELS_OFFICIAL_SIDEWALK_SURFACE_READY: node=%s provider=UrbIS geometry_changed=false license_claimed=false" % instance.name)
 
@@ -179,18 +213,26 @@ func _set_material_state(enabled: bool) -> void:
             continue
         var instance_id := sidewalk.get_instance_id()
         if enabled:
+            _owned_materials[instance_id] = _material
             sidewalk.material = _material
         else:
-            sidewalk.material = _legacy_materials.get(instance_id) as Material
+            var owned := _owned_materials.get(instance_id) as Material
+            if owned == null or sidewalk.material == owned:
+                sidewalk.material = _legacy_materials.get(instance_id) as Material
+            _owned_materials.erase(instance_id)
     for raw_id: Variant in _official_sidewalks.keys():
         var instance_id := int(raw_id)
         var instance := _official_sidewalks.get(instance_id) as MeshInstance3D
         if instance == null or not is_instance_valid(instance):
             continue
         if enabled:
+            _official_owned_materials[instance_id] = _official_material
             instance.material_override = _official_material
         else:
-            instance.material_override = _official_legacy_materials.get(instance_id) as Material
+            var owned := _official_owned_materials.get(instance_id) as Material
+            if owned == null or instance.material_override == owned:
+                instance.material_override = _official_legacy_materials.get(instance_id) as Material
+            _official_owned_materials.erase(instance_id)
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled

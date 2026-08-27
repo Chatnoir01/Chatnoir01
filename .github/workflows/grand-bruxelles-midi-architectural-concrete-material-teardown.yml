@@ -72,7 +72,7 @@ jobs:
             --headless --path grand-bruxelles-game \
             --script res://game/tests/midi_architectural_concrete_material_teardown_test.gd 2>&1 | tee /tmp/midi-concrete-teardown.log
           grep -q 'MIDI_ARCHITECTURAL_CONCRETE_MATERIAL_TEARDOWN_OK' /tmp/midi-concrete-teardown.log
-          ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked' /tmp/midi-concrete-teardown.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/midi-concrete-teardown.log
 
       - name: Upload concrete teardown diagnostics
         if: always()

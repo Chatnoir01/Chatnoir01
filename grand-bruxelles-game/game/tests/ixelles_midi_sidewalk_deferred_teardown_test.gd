@@ -30,6 +30,12 @@ func _new_runtime(label: String) -> Node:
     root.add_child(runtime)
     return runtime
 
+func _dispatch_candidate(runtime: Node, instance_id: int) -> void:
+    if runtime == null or not is_instance_valid(runtime):
+        _fail("runtime disappeared before isolated deferred ID dispatch")
+        return
+    runtime.call("_apply_candidate", instance_id)
+
 func _run() -> void:
     # The project autoload is active even when a SceneTree test instantiates a
     # second copy. Remove it so only the instance under test owns callbacks.
@@ -39,8 +45,9 @@ func _run() -> void:
         canonical_runtime.free()
         await process_frame
 
-    # Case 1: runtime teardown must suppress a candidate already queued by
-    # node_added before MessageQueue executes it.
+    # Case 1: exercise the real node_added -> call_deferred path. Runtime
+    # teardown must suppress a candidate already queued before MessageQueue
+    # executes it.
     var runtime := _new_runtime("teardown")
     await process_frame
     var teardown_fixture := _build_target_fixture()
@@ -65,20 +72,23 @@ func _run() -> void:
     teardown_root.queue_free()
     await process_frame
 
-    # Case 2: keep the runtime alive, queue a valid LABO target, then free that
-    # target before the deferred callback executes. Production must carry only
-    # the instance ID, validate it at execution time, and return silently.
+    # Case 2: isolate the production invalid-instance-ID guard. Keep the
+    # runtime alive, but disconnect its node_added watcher so the fixture does
+    # not enqueue a second competing callback. Then destroy the valid LABO
+    # target and defer only its integer instance ID through this test's
+    # MessageQueue callback. This proves exactly the execution-time contract
+    # without retaining a freed Object Variant or racing two deferred calls.
     var freed_runtime := _new_runtime("freed_candidate")
     await process_frame
+    var runtime_node_added := Callable(freed_runtime, "_on_node_added")
+    if node_added.is_connected(runtime_node_added):
+        node_added.disconnect(runtime_node_added)
+
     var freed_fixture := _build_target_fixture()
     var freed_parent := freed_fixture["parent"] as Node3D
     var freed_target := freed_fixture["target"] as MeshInstance3D
     var freed_target_id: int = freed_target.get_instance_id()
 
-    # Remove every non-owning Variant reference before free(). The regression
-    # must prove the deferred integer ID is harmless, not manufacture a stale
-    # Object Variant in its own fixture that can trigger Godot's freed-object
-    # diagnostics while the Dictionary is later destroyed.
     freed_fixture.erase("target")
     freed_parent.remove_child(freed_target)
     freed_target.free()
@@ -88,6 +98,7 @@ func _run() -> void:
         _fail("freed target instance id remained valid before deferred execution")
         return
 
+    call_deferred("_dispatch_candidate", freed_runtime, freed_target_id)
     await process_frame
     await process_frame
 
@@ -104,5 +115,5 @@ func _run() -> void:
     freed_root.queue_free()
     await process_frame
 
-    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true teardown_material_unchanged=true teardown_owner_unchanged=true freed_candidate_id_invalid=true stale_variant_removed=true freed_candidate_safe=true ready=false")
+    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true ready=false")
     quit(0)

@@ -92,12 +92,23 @@ def test_staged_evidence_lock_never_implies_production_write_authorization():
     assert d["policy"]["runtime_probe_authorized"] is False
     assert d["policy"]["jouable_promotion_authorized"] is False
     if d["status"] == "LOCKED_STAGED_PAIR_EVIDENCE_ONLY":
-        locked = d["locked_staged_pair"]
-        assert int(locked["artifact_id"]) > 0
-        for key in ("artifact_sha256", "crosswalk_json_sha256", "readiness_json_sha256"):
-            value = locked[key]
-            assert len(value) == 64
-            int(value, 16)
+        locked = d["locked_staged_evidence"]
+        assert locked["run_id"] == 33115920683
+        assert locked["head_sha"] == "7e99f9a6494925520c93b308cf0c8cdec2fc6c2c"
+        assert locked["artifact_id"] == 9664489630
+        expected_hashes = {
+            "artifact_sha256": "25095225b55405d8bb0c5da107f773951a29ccde6b4f681bdec835cd17e9ce4d",
+            "generated_crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
+            "generated_readiness_sha256": "2c98aa4315d446628ce260254082d76b29bd8fb097b73f76d0b5bfa03483f6b3",
+        }
+        for key, expected in expected_hashes.items():
+            assert locked[key] == expected
+            assert len(locked[key]) == 64
+            int(locked[key], 16)
+        assert locked["mapping_count"] == 96
+        assert locked["destination_count"] == 96
+        assert locked["mapped_cell_count"] == 4
+        assert locked["multicell_hold_ids"] == [256158619, 397461693]
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@ func _build_fixture() -> Dictionary:
         "rails_root": rails_root,
         "rail": rail,
         "legacy_material": legacy_material,
-        "rail_transform": rail.global_transform,
+        "rail_transform": rail.transform,
         "rail_size": rail.size,
         "official": official,
         "official_legacy": official_legacy,
@@ -139,7 +139,7 @@ func _run() -> void:
     if official.has_meta("ground_network_presentation_family"):
         _fail("official rail presentation ownership metadata survived teardown")
         return
-    if not rail.global_transform.is_equal_approx(original_transform) or not rail.size.is_equal_approx(original_size):
+    if not rail.transform.is_equal_approx(original_transform) or not rail.size.is_equal_approx(original_size):
         _fail("rail geometry changed during teardown ownership restoration")
         return
     runtime.free()
@@ -172,7 +172,7 @@ func _run() -> void:
     if official.material_override != later_official or str(official.get_meta("ground_network_presentation_family", "")) != "test_later_official_owner":
         _fail("official rail teardown overwrote a later presentation owner")
         return
-    if not rail.global_transform.is_equal_approx(original_transform) or not rail.size.is_equal_approx(original_size):
+    if not rail.transform.is_equal_approx(original_transform) or not rail.size.is_equal_approx(original_size):
         _fail("rail geometry changed while preserving later owner")
         return
 

@@ -2,7 +2,7 @@ name: Grand Bruxelles Gate-8 Steve Foot-Slide Probe
 
 on:
   push:
-    branches: ["npc/gate8-steve-foot-slide-8677939"]
+    branches: ["npc/gate8-steve-foot-slide-17463a9"]
   pull_request:
   workflow_dispatch:
 
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      EXPECTED_MAIN: 867793955c5fe7160222ed68ae927a11474f3c6c
+      EXPECTED_MAIN: 17463a9edc39c6df85ccc1c9afa3a4b4bc6e3304
       SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
       SOURCE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
       SOURCE_BYTES: "1454243"
@@ -49,7 +49,7 @@ jobs:
           import json
           from pathlib import Path
           d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_steve_foot_slide_probe.json').read_text())
-          assert d['base_main_sha']=='867793955c5fe7160222ed68ae927a11474f3c6c'
+          assert d['base_main_sha']=='17463a9edc39c6df85ccc1c9afa3a4b4bc6e3304'
           assert d['predecessor']['workflow_run_id']==33023231374
           assert d['predecessor']['artifact_id']==9627395284
           assert d['predecessor']['mechanical_state']=='READY_FOR_FOOT_SLIDE_PROBE'

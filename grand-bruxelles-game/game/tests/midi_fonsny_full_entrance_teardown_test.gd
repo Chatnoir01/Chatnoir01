@@ -14,7 +14,7 @@ func _init() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    if not await _prove_owned_root_is_released():
+    if not _prove_owned_root_is_released():
         return
     if not await _prove_deferred_wait_stops_after_teardown():
         return
@@ -39,9 +39,11 @@ func _prove_owned_root_is_released() -> bool:
     parent.add_child(runtime)
     runtime.set("_entrance", entrance)
     runtime.set("_replacement", replacement)
-    runtime.set("_superseded", [baseline])
+    var superseded: Array = runtime.get("_superseded") as Array
+    superseded.append(baseline)
     runtime.set("_built", true)
     runtime.set("_replacement_enabled", true)
+    print("FONSNY_TEARDOWN_FIXTURE: removing built runtime")
     parent.remove_child(runtime)
     if replacement.get_parent() != null:
         return _fail("owned Fonsny replacement root survived runtime teardown")
@@ -59,6 +61,7 @@ func _prove_deferred_wait_stops_after_teardown() -> bool:
     var runtime := RUNTIME_SCRIPT.new()
     parent.add_child(runtime)
     await process_frame
+    print("FONSNY_TEARDOWN_FIXTURE: removing waiting runtime")
     parent.remove_child(runtime)
     await process_frame
     await process_frame

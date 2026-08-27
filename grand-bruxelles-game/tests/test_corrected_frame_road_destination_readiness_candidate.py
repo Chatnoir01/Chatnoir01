@@ -62,6 +62,21 @@ class CorrectedFrameReadinessCandidateTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             mod.build_candidate_crosswalk(candidate, "b" * 64)
 
+    def test_multicell_hold_cannot_leak_into_unique_mapping(self):
+        candidate = self.candidate()
+        candidate["multicell_hold_rows"] = [
+            {"road_osm_id": candidate["rows"][0]["road_osm_id"], "candidate_cell_ids": ["bxl-e147500-n169500-s500", "bxl-e147500-n170000-s500"]}
+        ]
+        with self.assertRaises(RuntimeError):
+            mod.build_candidate_crosswalk(candidate, "b" * 64)
+
+    def test_duplicate_multicell_hold_id_fails_closed(self):
+        candidate = self.candidate()
+        hold = {"road_osm_id": 256158619, "candidate_cell_ids": ["bxl-e147500-n169500-s500", "bxl-e147500-n170000-s500"]}
+        candidate["multicell_hold_rows"] = [hold, dict(hold)]
+        with self.assertRaises(RuntimeError):
+            mod.build_candidate_crosswalk(candidate, "b" * 64)
+
     def test_open_authorization_fails_closed(self):
         candidate = self.candidate()
         candidate["authorization"]["road_cell_mapping_authorized"] = True

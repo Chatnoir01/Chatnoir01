@@ -11,11 +11,61 @@ EXPECTED = {
         "autoload": "MidiBlueStoneSurfaceRuntime",
         "family": "brussels_source_verified_blue_stone",
         "surface_count_token": "EXPECTED_SURFACES := 3",
+        "restore_tokens": (
+            "target.material_override == owned",
+            "target.material_override = _original_material_overrides.get(instance_id) as Material",
+        ),
+        "release_tokens": (
+            "_restore_owned_materials()",
+            "_owned_materials.clear()",
+            "_original_material_overrides.clear()",
+            "_targets.clear()",
+            "_material = null",
+        ),
+        "toggle_tokens": (
+            "_owned_materials[instance_id] = _material",
+            "elif owned != null and target.material_override == owned",
+        ),
     },
     "game/scripts/midi_architectural_glazing_surface_runtime.gd": {
         "autoload": "MidiArchitecturalGlazingSurfaceRuntime",
         "family": "brussels_source_verified_architectural_glazing",
         "surface_count_token": "EXPECTED_SURFACES := 340",
+        "restore_tokens": (
+            "target.material_override == owned",
+            "target.material_override = _original_material_overrides.get(instance_id) as Material",
+        ),
+        "release_tokens": (
+            "_restore_owned_materials()",
+            "_owned_materials.clear()",
+            "_original_material_overrides.clear()",
+            "_targets.clear()",
+            "_material = null",
+        ),
+        "toggle_tokens": (
+            "_owned_materials[instance_id] = _material",
+            "elif owned != null and target.material_override == owned",
+        ),
+    },
+    "game/scripts/midi_fauquenberg_brick_surface_runtime.gd": {
+        "autoload": "MidiFauquenbergBrickSurfaceRuntime",
+        "family": "brussels_source_verified_fauquenberg_brick",
+        "surface_count_token": "EXPECTED_SURFACES := 3",
+        "restore_tokens": (
+            "mesh_instance.material_override == owned",
+            "mesh_instance.material_override = _original_materials.get(instance_id) as Material",
+        ),
+        "release_tokens": (
+            "_restore_owned_materials()",
+            "_owned_materials.clear()",
+            "_original_materials.clear()",
+            "_targets.clear()",
+            "_material = null",
+        ),
+        "toggle_tokens": (
+            "_owned_materials[instance_id] = _material",
+            "elif owned != null and mesh_instance.material_override == owned",
+        ),
     },
 }
 
@@ -42,8 +92,8 @@ def main() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("runtime_material_ownership_teardown_cleanup_required") is not True:
         fail("global material ownership teardown rail missing")
-    if contract.get("material_ownership_registry_expected_count") != 9:
-        fail("shared material owner registry count is not durably locked to 9")
+    if contract.get("material_ownership_registry_expected_count") != 10:
+        fail("shared material owner registry count is not durably locked to 10")
 
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list):
@@ -53,8 +103,8 @@ def main() -> None:
         entry for entry in runtimes
         if isinstance(entry, dict) and entry.get("material_ownership_teardown_cleanup_required") is True
     ]
-    if len(declared_owners) != 9:
-        fail(f"expected exactly 9 declared shared material owners, got {len(declared_owners)}")
+    if len(declared_owners) != 10:
+        fail(f"expected exactly 10 declared shared material owners, got {len(declared_owners)}")
 
     for path, expected in EXPECTED.items():
         matches = [entry for entry in runtimes if isinstance(entry, dict) and entry.get("path") == path]
@@ -79,35 +129,24 @@ def main() -> None:
             fail(f"teardown no longer releases material ownership: {path}")
 
         restore_body = function_body(source, "_restore_owned_materials")
-        for token in (
-            "target.material_override == owned",
-            "target.material_override = _original_material_overrides.get(instance_id) as Material",
-        ):
+        for token in expected["restore_tokens"]:
             if token not in restore_body:
                 fail(f"owner-aware restore drifted in {path}: {token}")
 
         release_body = function_body(source, "_release_material_ownership")
-        for token in (
-            "_restore_owned_materials()",
-            "_owned_materials.clear()",
-            "_original_material_overrides.clear()",
-            "_targets.clear()",
-            "_material = null",
-        ):
+        for token in expected["release_tokens"]:
             if token not in release_body:
                 fail(f"ownership release cleanup drifted in {path}: {token}")
 
         toggle_body = function_body(source, "set_enhanced_material_enabled")
-        for token in (
-            "_owned_materials[instance_id] = _material",
-            "elif owned != null and target.material_override == owned",
-        ):
+        for token in expected["toggle_tokens"]:
             if token not in toggle_body:
                 fail(f"owner-aware toggle drifted in {path}: {token}")
 
     print(
         "SHARED_ENVIRONMENT_MIDI_MATERIAL_OWNER_REGISTRY_OK: "
-        "owners=9 blue_stone=3 glazing=340 owner_aware_restore=true geometry_changed=false"
+        "owners=10 blue_stone=3 glazing=340 fauquenberg=3 "
+        "owner_aware_restore=true geometry_changed=false"
     )
 
 

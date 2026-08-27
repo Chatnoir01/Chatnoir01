@@ -1,0 +1,152 @@
+name: Grand Bruxelles Gate-8 Steve Canonical Native Probe
+
+on:
+  push:
+    branches: ["npc/gate8-steve-canonical-native-probe-8422840"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  canonical-native-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      EXPECTED_MAIN: 61a4b36f4f276bc39547359ffb727c1e0fc67399
+      SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
+      SOURCE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
+      SOURCE_BYTES: "1454243"
+      NORMALIZER_COMMIT: d021fa0a31c409e33102f5a94848a7c01bb019be
+      HARDENER_COMMIT: 0a0e8e9330c88d1100054c3eb534a237cb5e7c8c
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_GLB_SHA256: 912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9
+      GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      PROJECT: /tmp/gate8-steve-canonical-native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live main, bounded scope, provenance and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE="$(git rev-parse origin/main)"
+          test "$LIVE" = "$EXPECTED_MAIN"
+          test "$(git merge-base "$LIVE" HEAD)" = "$LIVE"
+          git diff --name-only "$LIVE" HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' '.github/workflows/grand-bruxelles-gate8-steve-canonical-native-probe.yml' 'grand-bruxelles-game/data/qa/gate8_variant01_steve_canonical_native_probe.json' 'grand-bruxelles-game/game/tests/gate8_variant01_steve_canonical_native_probe_test.gd' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_steve_canonical_native_probe.json').read_text())
+          assert d['base_main_sha']=='61a4b36f4f276bc39547359ffb727c1e0fc67399'
+          assert d['format']=='grand-bruxelles-gate8-variant01-steve-canonical-native-probe-v2'
+          assert d['source']['license']=='CC0-1.0'
+          assert d['source']['archive_sha256']=='e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5'
+          assert d['source']['canonical_source_head']=='0a0e8e9330c88d1100054c3eb534a237cb5e7c8c'
+          assert d['target']['glb_sha256']=='912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9'
+          assert d['probe']['modifier']=='RetargetModifier3D'
+          assert d['probe']['hierarchy_collapse_policy']=='target_global_rest_rebased_to_reviewed_parent'
+          assert d['probe']['mirror_policy']=='collapsed_probe_delta_composed_with_actual_target_rest'
+          assert d['latest_red']['run_id']==33062612678
+          assert d['latest_red']['artifact_id']==9642411102
+          for k,v in d['rails'].items():
+              if k in ('walk_alias_selected','run_alias_selected'): assert v==''
+              else: assert v is False, k
+          text=Path('grand-bruxelles-game/game/tests/gate8_variant01_steve_canonical_native_probe_test.gd').read_text()
+          for token in ('RetargetModifier3D.new()','_build_collapsed_target_probe','_validate_collapsed_rest_roundtrip','target_skeleton.reset_bone_poses()','probe_delta','_measure_skin_edges','grounding_span_m','READY_FOR_CANONICAL_FOOT_SLIDE_PROBE','has_animation("walk")'): assert token in text, token
+          assert '_build_probe(' not in text
+          print('GATE8_STEVE_CANONICAL_NATIVE_V2_CONTRACT_OK production=false visual=false')
+          PY
+      - name: Regenerate exact canonical Steve walk from pinned CC0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$SOURCE_ZIP" -o "$RUNNER_TEMP/steve.zip"
+          echo "$SOURCE_SHA256  $RUNNER_TEMP/steve.zip" | sha256sum -c -
+          test "$(stat -c '%s' "$RUNNER_TEMP/steve.zip")" = "$SOURCE_BYTES"
+          mkdir -p "$RUNNER_TEMP/steve-src" && unzip -q "$RUNNER_TEMP/steve.zip" -d "$RUNNER_TEMP/steve-src"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NORMALIZER_COMMIT}/grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py" -o "$RUNNER_TEMP/normalizer.py"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${HARDENER_COMMIT}/grand-bruxelles-game/tools/qa/harden_steve_normalizer_gltf_export.py" -o "$RUNNER_TEMP/hardener.py"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${HARDENER_COMMIT}/grand-bruxelles-game/tools/qa/canonicalize_steve_proxy_walk.py" -o "$RUNNER_TEMP/canonicalizer.py"
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends blender python3-numpy >/dev/null
+          python3 "$RUNNER_TEMP/hardener.py" --input "$RUNNER_TEMP/normalizer.py" --output "$RUNNER_TEMP/normalizer-hardened.py" | tee "$RUNNER_TEMP/hardening.log"
+          timeout 1800 blender --background "$RUNNER_TEMP/steve-src/steve_npc1.blend" --python-exit-code 42 --python "$RUNNER_TEMP/normalizer-hardened.py" -- --output /tmp/steve_proxy.glb --report "$RUNNER_TEMP/normalization.json" 2>&1 | tee "$RUNNER_TEMP/normalization.log"
+          timeout 300 blender --background --python-exit-code 42 --python "$RUNNER_TEMP/canonicalizer.py" -- --input /tmp/steve_proxy.glb --output /tmp/steve_canonical.glb --report "$RUNNER_TEMP/canonicalization.json" 2>&1 | tee "$RUNNER_TEMP/canonicalization.log"
+          grep -q 'GATE8_STEVE_WALK_CANONICALIZATION_OK canonical=walk' "$RUNNER_TEMP/canonicalization.log"
+          test -s /tmp/steve_canonical.glb
+          sha256sum /tmp/steve_canonical.glb | tee "$RUNNER_TEMP/steve_canonical.sha256"
+      - name: Restore immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/actions/artifacts/$TARGET_ARTIFACT_ID/zip" > "$RUNNER_TEMP/target.zip"
+          mkdir -p "$RUNNER_TEMP/target" && unzip -q "$RUNNER_TEMP/target.zip" -d "$RUNNER_TEMP/target"
+          TARGET="$(find "$RUNNER_TEMP/target" -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"
+          echo "$TARGET_GLB_SHA256  $TARGET" | sha256sum -c -
+          cp "$TARGET" /tmp/npc_gate_01.glb
+      - name: Run Godot 4.7.1 collapsed-hierarchy native retarget, grounding and CPU skin-space
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot*' -print -quit)"; chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"; grep -q '^4\.7\.1' "$RUNNER_TEMP/godot-version.txt"
+          mkdir -p "$PROJECT/assets"
+          cp /tmp/steve_canonical.glb "$PROJECT/assets/steve.glb"; cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"; cp grand-bruxelles-game/game/tests/gate8_variant01_steve_canonical_native_probe_test.gd "$PROJECT/gate_test.gd"
+          printf '[application]\nconfig/name="Gate8SteveCanonicalNativeProbe"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT/project.godot"
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          set +e
+          timeout 180 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd 2>&1 | tee "$RUNNER_TEMP/godot-probe.log"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          test -s "$PROJECT/gate8_variant01_steve_canonical_native_probe_result.json"
+          cp "$PROJECT/gate8_variant01_steve_canonical_native_probe_result.json" "$RUNNER_TEMP/godot-result.json"
+          python3 - "$RUNNER_TEMP/godot-result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['format']=='grand-bruxelles-gate8-variant01-steve-canonical-native-probe-v2'
+          assert r['engine_version'].startswith('4.7.1')
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          m=r.get('metrics',{})
+          if 'collapsed_rest' in m:
+              assert m['collapsed_rest']['max_position_error_m'] <= 0.000001
+              assert m['collapsed_rest']['max_rotation_error_deg'] <= 0.001
+          print('GATE8_STEVE_CANONICAL_NATIVE_V2_RESULT state=%s failures=%d'%(r['mechanical_state'],len(r['failures'])))
+          PY
+          exit "$STATUS"
+      - name: Require repository remained untouched
+        if: always()
+        shell: bash
+        run: |
+          git status --porcelain | tee "$RUNNER_TEMP/git-status.txt"
+          test ! -s "$RUNNER_TEMP/git-status.txt"
+      - name: Upload canonical native probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-steve-canonical-native-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/normalization.json
+            ${{ runner.temp }}/normalization.log
+            ${{ runner.temp }}/canonicalization.json
+            ${{ runner.temp }}/canonicalization.log
+            ${{ runner.temp }}/steve_canonical.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/godot-import.log
+            ${{ runner.temp }}/godot-probe.log
+            ${{ runner.temp }}/godot-result.json
+            ${{ runner.temp }}/git-status.txt
+          if-no-files-found: ignore
+          retention-days: 14

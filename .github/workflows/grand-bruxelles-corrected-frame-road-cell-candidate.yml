@@ -1,0 +1,87 @@
+name: Grand Bruxelles Corrected Frame Road Cell Candidate
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json"
+      - "grand-bruxelles-game/tests/test_corrected_frame_road_cell_crosswalk_candidate.py"
+      - ".github/workflows/grand-bruxelles-corrected-frame-road-cell-candidate.yml"
+      - "grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_osm_road_frame_correction_impact.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json').read_text())
+          assert d['production_base_sha']==sys.argv[1], (d['production_base_sha'],sys.argv[1])
+          assert d['status']=='CANDIDATE_EVIDENCE_ONLY'
+          assert d['promotion_policy']['replace_current_crosswalk_authorized'] is False
+          assert all(v is False for v in d['authorization'].values())
+          print('CORRECTED_FRAME_CROSSWALK_LIVE_MAIN_OK',sys.argv[1])
+          PY
+      - name: Run fail-closed contract regression
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_corrected_frame_road_cell_crosswalk_candidate.py -v
+      - name: Recompute corrected-frame impact
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/measure_osm_road_frame_correction_impact.py
+          --contract data/qa/osm_road_frame_correction_impact.contract.json
+          --repo-root .
+          --live-main-sha "$LIVE_MAIN_SHA"
+          --output "$RUNNER_TEMP/osm-road-frame-impact.json"
+      - name: Materialize candidate crosswalk artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json').read_text())
+          impact=json.loads((Path(os.environ['RUNNER_TEMP'])/'osm-road-frame-impact.json').read_text())
+          assert impact['semantic_sha256']==contract['source']['impact_stable_semantic_sha256']
+          a=impact['accounting']; e=contract['expected_accounting']
+          for k,v in e.items(): assert a[k]==v,(k,a[k],v)
+          rows=impact['candidate_unique_rows']; by_id={int(r['road_osm_id']):r['cell_id'] for r in rows}
+          for rep in contract['corridor_representatives'].values(): assert by_id[int(rep['road_osm_id'])]==rep['cell_id']
+          holds=[{'road_osm_id':int(r['road_osm_id']),'hit_cells':r['hit_cells']} for r in impact['candidate_multicell_rows']]
+          assert holds==contract['multicell_holds'],(holds,contract['multicell_holds'])
+          out={
+            'schema':'grand-bruxelles-road-registered-cell-crosswalk-candidate-v1',
+            'status':'GENERATED_EVIDENCE_ONLY',
+            'base_sha':os.environ['LIVE_MAIN_SHA'],
+            'source_sha256':contract['source']['road_source_sha256'],
+            'frame_review_semantic_sha256':contract['source']['frame_review_semantic_sha256'],
+            'impact_semantic_sha256':impact['semantic_sha256'],
+            'accounting':impact['accounting'],
+            'rows':rows,
+            'multicell_hold_rows':impact['candidate_multicell_rows'],
+            'authorization':contract['authorization'],
+          }
+          p=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-crosswalk-candidate.json'
+          p.write_text(json.dumps(out,sort_keys=True,indent=2)+'\n')
+          print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_OK unique=96 multicell_hold=2 no_overlap=42 rails=closed')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-road-cell-crosswalk-candidate
+          path: ${{ runner.temp }}/corrected-frame-road-cell-crosswalk-candidate.json
+          if-no-files-found: error

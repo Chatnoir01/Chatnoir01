@@ -15,6 +15,8 @@ jobs:
       EXPECTED_MAIN: 305453191ae64ab5da9da6f935177f55ba501820
       TARGET_ARTIFACT_ID: "9470539830"
       TARGET_ARTIFACT_DIGEST: sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb
+      TARGET_VARIANT03_SHA256: cd3d0abc6020789f4d000a84c6a6f44d9707942649d62a66a7406cbb2cd35313
+      TARGET_VARIANT03_SIZE_BYTES: "12589156"
       GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
       PROJECT: /tmp/gate8-variant03-integrity
     steps:
@@ -53,7 +55,7 @@ jobs:
           assert p.get('digest') == sys.argv[2], (p.get('digest'), sys.argv[2])
           print('GATE8_ARTIFACT_IDENTITY_OK id=%s digest=%s' % (p['id'], p['digest']))
           PY
-      - name: Acquire only Gate-8 variant03 from immutable artifact
+      - name: Acquire and pin only Gate-8 variant03 from immutable artifact
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -65,8 +67,13 @@ jobs:
           TARGET="$(find "$RUNNER_TEMP/gate8" -type f -name 'npc_gate_03.glb' -print -quit)"
           test -n "$TARGET"
           test "$(find "$RUNNER_TEMP/gate8" -type f -name 'npc_gate_03.glb' | wc -l)" -eq 1
-          sha256sum "$TARGET" | tee "$RUNNER_TEMP/npc_gate_03.sha256"
-          stat -c '%s' "$TARGET" | tee "$RUNNER_TEMP/npc_gate_03.size"
+          ACTUAL_SHA256="$(sha256sum "$TARGET" | awk '{print $1}')"
+          ACTUAL_SIZE="$(stat -c '%s' "$TARGET")"
+          test "$ACTUAL_SHA256" = "$TARGET_VARIANT03_SHA256"
+          test "$ACTUAL_SIZE" = "$TARGET_VARIANT03_SIZE_BYTES"
+          printf '%s  %s\n' "$ACTUAL_SHA256" "$TARGET" | tee "$RUNNER_TEMP/npc_gate_03.sha256"
+          printf '%s\n' "$ACTUAL_SIZE" | tee "$RUNNER_TEMP/npc_gate_03.size"
+          printf 'GATE8_VARIANT03_BINARY_IDENTITY_OK sha256=%s bytes=%s\n' "$ACTUAL_SHA256" "$ACTUAL_SIZE"
           mkdir -p "$PROJECT/assets"
           cp "$TARGET" "$PROJECT/assets/npc_gate_03.glb"
       - name: Import and inspect target under Godot 4.7.1
@@ -87,10 +94,12 @@ jobs:
           r=json.load(open(sys.argv[1]))
           assert r['state']=='TARGET03_INTEGRITY_READY_FOR_PAIRING_PROBE', r
           assert r['variant']==3
-          assert r['bone_count']>=53
-          assert r['skinned_meshes']>=1
-          assert r['skinned_surfaces']>=1
-          assert r['material_surfaces']==r['skinned_surfaces']
+          assert r['skeleton_count']==1, r
+          assert r['bone_count']==53, r
+          assert r['skinned_meshes']==8, r
+          assert r['skinned_surfaces']==8, r
+          assert r['material_surfaces']==8, r
+          assert r['vertex_count']==20495, r
           assert r['invalid_skeleton_links']==0
           assert r['missing_material_surfaces']==0
           assert len(r['required_roles'])==17

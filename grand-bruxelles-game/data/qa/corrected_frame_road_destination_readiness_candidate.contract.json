@@ -1,0 +1,51 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-road-destination-readiness-candidate-contract-v1",
+  "status": "MEASUREMENT_PENDING",
+  "production_base_sha": "129feaa432a263b391dc958008570a230362e259",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "crosswalk_materialization_contract_path": "data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json",
+    "crosswalk_candidate_artifact_id": 9642195509,
+    "crosswalk_candidate_artifact_sha256": "a9f5d7f129f5c48b02094bb35d1b06643bcb133e54411483f471268308a1bd63",
+    "crosswalk_candidate_json_sha256": "3a3b9f3d5be97cec930a39a69a627d4638d5b4672e31c607efee07c0c978e640",
+    "crosswalk_candidate_semantic_sha256": "9fca92b20a3a45b8d9d8c8740a3e355cf993d9961797ed5a8e1a13f14989b173",
+    "road_runtime_index_path": "data/runtime/road_destination_runtime_index.json",
+    "registered_cell_index_path": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "current_readiness_catalog_path": "data/provenance/brussels_road_destination_readiness_catalog.json",
+    "crs": "EPSG:31370"
+  },
+  "expected": {
+    "candidate_destination_count": 96,
+    "candidate_mapped_cell_count": 4,
+    "multicell_hold_count": 2,
+    "no_registered_overlap_count": 42,
+    "representative_target_cell_count": 4,
+    "representatives": [
+      {"road_osm_id": 8176386, "cell_id": "bxl-e147500-n169500-s500"},
+      {"road_osm_id": 150205016, "cell_id": "bxl-e147500-n170000-s500"},
+      {"road_osm_id": 13767417, "cell_id": "bxl-e148000-n170000-s500"},
+      {"road_osm_id": 8512036, "cell_id": "bxl-e148500-n170500-s500"}
+    ]
+  },
+  "policy": {
+    "artifact_only": true,
+    "replace_current_readiness_catalog_authorized": false,
+    "replace_current_crosswalk_authorized": false,
+    "runtime_probe_authorized": false,
+    "representatives_must_bind_to_corrected_target_cells": true,
+    "multicell_routes_remain_hold": true,
+    "atomic_migration_followup_required": true
+  },
+  "authorization": {
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_directory_scan_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

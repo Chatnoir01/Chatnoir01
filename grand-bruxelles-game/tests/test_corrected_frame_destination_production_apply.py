@@ -1,9 +1,11 @@
 import copy
 import importlib.util
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "tools/qa/build_corrected_frame_destination_production_pair.py"
+CONTRACT_PATH = ROOT / "data/qa/corrected_frame_destination_production_apply.contract.json"
 spec = importlib.util.spec_from_file_location("builder", MODULE_PATH)
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
@@ -81,6 +83,21 @@ def test_cell_mismatch_rejected():
 
 def test_runtime_authorization_rejected():
     must_fail(rd_mut=lambda rd: rd["destinations"][0].update(collision_authorized=True))
+
+
+def test_staged_evidence_lock_never_implies_production_write_authorization():
+    d = json.loads(CONTRACT_PATH.read_text())
+    assert d["status"] in {"PRE_APPLY_BUILDER_ONLY", "LOCKED_STAGED_PAIR_EVIDENCE_ONLY"}
+    assert d["policy"]["write_production_files_authorized"] is False
+    assert d["policy"]["runtime_probe_authorized"] is False
+    assert d["policy"]["jouable_promotion_authorized"] is False
+    if d["status"] == "LOCKED_STAGED_PAIR_EVIDENCE_ONLY":
+        locked = d["locked_staged_pair"]
+        assert int(locked["artifact_id"]) > 0
+        for key in ("artifact_sha256", "crosswalk_json_sha256", "readiness_json_sha256"):
+            value = locked[key]
+            assert len(value) == 64
+            int(value, 16)
 
 
 if __name__ == "__main__":

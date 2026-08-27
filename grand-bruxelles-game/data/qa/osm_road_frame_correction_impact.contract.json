@@ -1,5 +1,5 @@
 {
-  "schema": "grand-bruxelles-osm-road-frame-correction-impact-v1",
+  "schema": "grand-bruxelles-osm-road-frame-correction-impact-v2",
   "status": "LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY",
   "production_base_sha": "5066b1a5c3bcdb80b2e30ef6df4b16f0684b470b",
   "source": {
@@ -36,13 +36,21 @@
     "mutate_registered_index": false,
     "mutate_current_crosswalk": false
   },
+  "semantic_identity_policy": {
+    "canonical_json": "sort_keys_compact_utf8",
+    "exclude_continuity_fields": [
+      "production_base_sha"
+    ],
+    "artifact_semantic_retained_for_forensics": true
+  },
   "locked_evidence": {
     "run_id": 33031795662,
     "artifact_id": 9630512617,
     "artifact_zip_sha256": "1a2ec4a2d4b3a447a1a6a4f87f494ce10ad6fb5cd0a7f1f8f7524fd14cef926e",
     "measurement_json_sha256": "276b22a09178bf8dfd95ac7159b27a775683491ed40c1ec75c268a9ba3700a81",
     "measurement_json_bytes": 24148,
-    "semantic_sha256": "cd24d32e811b57a672988dd0644e932434d1c36e9021eb944d6f8c79b16369fd",
+    "artifact_semantic_sha256": "cd24d32e811b57a672988dd0644e932434d1c36e9021eb944d6f8c79b16369fd",
+    "stable_semantic_sha256": "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62",
     "accounting": {
       "source_road_count": 140,
       "registered_cell_count": 5,

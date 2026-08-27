@@ -164,6 +164,20 @@ class CorrectedFrameDestinationImpactTests(unittest.TestCase):
                     "b" * 40,
                 )
 
+    def test_workflow_replays_locked_materialization_at_historical_base(self):
+        workflow = (
+            Path(__file__).resolve().parents[2]
+            / ".github/workflows/grand-bruxelles-corrected-frame-road-destination-impact.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("MATERIALIZATION_BASE_SHA", workflow)
+        self.assertIn("materialization['production_base_sha']", workflow)
+        self.assertIn('git merge-base --is-ancestor "$MATERIALIZATION_BASE_SHA" "$LIVE_MAIN_SHA"', workflow)
+        materialize_step = workflow.split("- name: Materialize locked corrected-frame crosswalk candidate", 1)[1].split(
+            "- name: Measure destination readiness impact", 1
+        )[0]
+        self.assertIn('--production-base-sha "$MATERIALIZATION_BASE_SHA"', materialize_step)
+        self.assertNotIn('--production-base-sha "$LIVE_MAIN_SHA"', materialize_step)
+
 
 if __name__ == "__main__":
     unittest.main()

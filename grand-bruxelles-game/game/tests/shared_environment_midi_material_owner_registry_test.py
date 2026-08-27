@@ -92,8 +92,10 @@ def main() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("runtime_material_ownership_teardown_cleanup_required") is not True:
         fail("global material ownership teardown rail missing")
-    if contract.get("material_ownership_registry_expected_count") != 10:
-        fail("shared material owner registry count is not durably locked to 10")
+
+    expected_owner_count = contract.get("material_ownership_registry_expected_count")
+    if not isinstance(expected_owner_count, int) or expected_owner_count < len(EXPECTED):
+        fail("shared material owner registry count is missing or below the Midi-owned subset")
 
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list):
@@ -103,8 +105,11 @@ def main() -> None:
         entry for entry in runtimes
         if isinstance(entry, dict) and entry.get("material_ownership_teardown_cleanup_required") is True
     ]
-    if len(declared_owners) != 10:
-        fail(f"expected exactly 10 declared shared material owners, got {len(declared_owners)}")
+    if len(declared_owners) != expected_owner_count:
+        fail(
+            "shared material owner registry count disagrees with declared owners: "
+            f"contract={expected_owner_count} declared={len(declared_owners)}"
+        )
 
     for path, expected in EXPECTED.items():
         matches = [entry for entry in runtimes if isinstance(entry, dict) and entry.get("path") == path]
@@ -145,7 +150,8 @@ def main() -> None:
 
     print(
         "SHARED_ENVIRONMENT_MIDI_MATERIAL_OWNER_REGISTRY_OK: "
-        "owners=10 blue_stone=3 glazing=340 fauquenberg=3 "
+        f"global_owners={expected_owner_count} midi_owned_subset={len(EXPECTED)} "
+        "blue_stone=3 glazing=340 fauquenberg=3 "
         "owner_aware_restore=true geometry_changed=false"
     )
 

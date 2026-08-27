@@ -9,6 +9,8 @@ const MATERIAL_OWNER := "ixelles_midi_sidewalk_runtime"
 
 var _target: MeshInstance3D = null
 var _material: ShaderMaterial = null
+var _legacy_material: Material = null
+var _owned_material: Material = null
 var _ready_complete := false
 var _tree_bound := false
 var _tearing_down := false
@@ -31,12 +33,25 @@ func _bind_tree() -> void:
 
 func _exit_tree() -> void:
     _tearing_down = true
+    _release_material_ownership()
     if not _tree_bound:
         return
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
     _tree_bound = false
+
+func _release_material_ownership() -> void:
+    if _target != null and is_instance_valid(_target):
+        if _owned_material != null and _target.material_override == _owned_material:
+            _target.material_override = _legacy_material
+        if _target.has_meta("shared_sidewalk_material_owner") and str(_target.get_meta("shared_sidewalk_material_owner")) == MATERIAL_OWNER:
+            _target.remove_meta("shared_sidewalk_material_owner")
+    _target = null
+    _legacy_material = null
+    _owned_material = null
+    _material = null
+    _ready_complete = false
 
 func _bind_existing_target() -> void:
     if _tearing_down or not is_inside_tree():
@@ -96,14 +111,22 @@ func _apply_target(target: MeshInstance3D) -> void:
         return
     if target == null or not is_instance_valid(target) or not _is_valid_target(target):
         return
+    if _target != null and _target != target:
+        _release_material_ownership()
+        if _tearing_down or not is_inside_tree():
+            return
     _ensure_material()
     _target = target
+    _legacy_material = target.material_override
     _target.set_meta("shared_sidewalk_material_owner", MATERIAL_OWNER)
     _target.set_meta("legacy_surface_type", "SW")
     _target.set_meta("legacy_surface_type_semantics", "cell.street_surfaces.type")
     _target.set_meta("material_identity_source_backed", false)
     if OS.get_environment(DISABLE_ENV) != "0":
         _target.material_override = _material
+        _owned_material = _material
+    else:
+        _owned_material = null
     _ready_complete = true
     print("IXELLES_MIDI_SIDEWALK_READY: surfaces=1 recipe=midi geometry_changed=false enabled=%s owner=%s" % [str(OS.get_environment(DISABLE_ENV) != "0"), MATERIAL_OWNER])
 

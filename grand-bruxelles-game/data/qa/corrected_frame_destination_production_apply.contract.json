@@ -1,0 +1,57 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-destination-production-apply-v1",
+  "status": "LOCKED_STAGED_PAIR_EVIDENCE_ONLY",
+  "production_base_sha": "14b89944049cb95a45bcb5aab5e3dd84fce85e9f",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "crs": "EPSG:31370",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "crosswalk_artifact_id": 9642195509,
+    "crosswalk_artifact_sha256": "a9f5d7f129f5c48b02094bb35d1b06643bcb133e54411483f471268308a1bd63",
+    "crosswalk_json_sha256": "3a3b9f3d5be97cec930a39a69a627d4638d5b4672e31c607efee07c0c978e640",
+    "crosswalk_semantic_sha256": "9fca92b20a3a45b8d9d8c8740a3e355cf993d9961797ed5a8e1a13f14989b173",
+    "readiness_artifact_id": 9658376002,
+    "readiness_artifact_sha256": "bc834eaca6d6b51c5a84c124a122345433f30cd68a1e4f5dddf9dbf14a000cf3",
+    "readiness_json_sha256": "39ab8b88f43ad01c6d43344e01fbb50176539b754498a6232ba2aab322ef906a",
+    "readiness_semantic_sha256": "d6fd92ebf0220dbda9dd46da4629ec99f0e0a2839b83ea9dbd40af78dff3eed9"
+  },
+  "production": {
+    "crosswalk_path": "data/provenance/brussels_road_registered_cell_crosswalk.json",
+    "readiness_path": "data/provenance/brussels_road_destination_readiness_catalog.json"
+  },
+  "expected": {
+    "mapping_count": 96,
+    "destination_count": 96,
+    "mapped_cell_count": 4,
+    "multicell_hold_ids": [256158619, 397461693],
+    "representatives": [
+      {"road_osm_id": 8176386, "cell_id": "bxl-e147500-n169500-s500"},
+      {"road_osm_id": 150205016, "cell_id": "bxl-e147500-n170000-s500"},
+      {"road_osm_id": 13767417, "cell_id": "bxl-e148000-n170000-s500"},
+      {"road_osm_id": 8512036, "cell_id": "bxl-e148500-n170500-s500"}
+    ]
+  },
+  "policy": {
+    "atomic_pair_required": true,
+    "candidate_identity_must_match_artifacts": true,
+    "destination_id_must_equal_road_dash_osm_id": true,
+    "multicell_hold_must_be_excluded": true,
+    "all_runtime_authorizations_must_remain_false": true,
+    "write_production_files_authorized": false,
+    "runtime_probe_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "locked_staged_evidence": {
+    "run_id": 33115920683,
+    "head_sha": "7e99f9a6494925520c93b308cf0c8cdec2fc6c2c",
+    "artifact_id": 9664489630,
+    "artifact_sha256": "25095225b55405d8bb0c5da107f773951a29ccde6b4f681bdec835cd17e9ce4d",
+    "generated_crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
+    "generated_readiness_sha256": "2c98aa4315d446628ce260254082d76b29bd8fb097b73f76d0b5bfa03483f6b3",
+    "mapping_count": 96,
+    "destination_count": 96,
+    "mapped_cell_count": 4,
+    "multicell_hold_ids": [256158619, 397461693]
+  }
+}

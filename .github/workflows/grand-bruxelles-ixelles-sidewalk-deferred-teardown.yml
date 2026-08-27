@@ -38,10 +38,10 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log; then exit 1; fi
-      - name: Prove deferred callbacks stop at teardown
+      - name: Prove deferred callbacks stop at teardown and freed candidates are harmless
         shell: bash
         run: |
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/ixelles_midi_sidewalk_deferred_teardown_test.gd 2>&1 | tee /tmp/teardown.log
-          if grep -E "SCRIPT ERROR|Parse Error:|IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_FAIL" /tmp/teardown.log; then exit 1; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_FAIL|ERROR: Error calling deferred method" /tmp/teardown.log; then exit 1; fi
           grep -F "IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK" /tmp/teardown.log

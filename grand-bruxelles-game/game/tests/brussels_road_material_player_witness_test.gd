@@ -8,6 +8,7 @@ const TARGETS := {
     359177328: {"name_fragment": "Maurice Lemonnier", "slug": "lemmonnier"},
     408211693: {"name_fragment": "Fonsny", "slug": "fonsny"},
     411724192: {"name_fragment": "Auguste Orts", "slug": "orts"},
+    13842686: {"name_fragment": "Amigo", "slug": "amigo"},
 }
 const ARTIFACT_DIR := "res://artifacts/road_material_player_witness"
 const DIFF_THRESHOLD := 0.08

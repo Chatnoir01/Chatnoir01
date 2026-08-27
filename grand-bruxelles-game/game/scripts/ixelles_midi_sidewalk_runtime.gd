@@ -51,17 +51,27 @@ func _bind_existing_target() -> void:
 func _on_node_added(node: Node) -> void:
     if _tearing_down or not is_inside_tree():
         return
-    if node == null or node.name != TARGET_NAME:
+    if node == null or not is_instance_valid(node) or node.name != TARGET_NAME:
         return
-    call_deferred("_apply_candidate", node)
+    # Never transport a live Object through MessageQueue. A node can be freed
+    # after node_added but before the deferred call executes; a typed Object
+    # argument then fails conversion before the callback body can run. Defer
+    # the stable instance id and resolve it at execution time instead.
+    call_deferred("_apply_candidate_id", node.get_instance_id())
 
-func _apply_candidate(node: Node) -> void:
+func _apply_candidate_id(instance_id: int) -> void:
     if _tearing_down or not is_inside_tree():
         return
+    var candidate: Object = instance_from_id(instance_id)
+    if candidate == null or not is_instance_valid(candidate) or not candidate is Node:
+        return
+    var node := candidate as Node
     if node is MeshInstance3D and _is_valid_target(node):
         _apply_target(node as MeshInstance3D)
 
 func _is_valid_target(target: Node) -> bool:
+    if target == null or not is_instance_valid(target):
+        return false
     var parent := target.get_parent()
     if parent == null or parent.name != TARGET_PARENT_NAME:
         return false

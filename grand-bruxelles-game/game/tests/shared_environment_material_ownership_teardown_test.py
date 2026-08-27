@@ -88,6 +88,13 @@ TARGETS = {
         "apply_function": "set_enhanced_material_enabled",
         "required_apply_tokens": ["_owned_materials[instance_id] = _material"],
     },
+    "game/scripts/ixelles_midi_sidewalk_runtime.gd": {
+        "family": "ixelles_midi_sidewalk_blue_stone_labo",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": ["_owned_material", "_target.material_override == _owned_material", "_target.material_override = _legacy_material", 'remove_meta("shared_sidewalk_material_owner")', "_target = null", "_legacy_material = null", "_owned_material = null", "_material = null"],
+        "apply_function": "_apply_target",
+        "required_apply_tokens": ["_legacy_material = target.material_override", "_owned_material = _material"],
+    },
 }
 
 
@@ -113,7 +120,7 @@ def main() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("runtime_material_ownership_teardown_cleanup_required") is not True:
         fail("shared Environment material-ownership teardown rail missing")
-    if contract.get("material_ownership_registry_expected_count") != 10:
+    if contract.get("material_ownership_registry_expected_count") != 11:
         fail("shared Environment material owner count lock missing or drifted")
 
     runtimes = contract.get("runtimes")
@@ -168,10 +175,10 @@ def main() -> None:
                 fail(f"runtime does not persist exact owned material identity in {target_path}: {token}")
         validated.append(target_path)
 
-    if len(validated) != 10:
-        fail("expected exactly ten shared material-owning runtimes")
+    if len(validated) != 11:
+        fail("expected exactly eleven shared material-owning runtimes")
 
-    print("SHARED_ENVIRONMENT_MATERIAL_OWNERSHIP_TEARDOWN_OK: owners=10 owner_aware_restore=true geometry_changed=false")
+    print("SHARED_ENVIRONMENT_MATERIAL_OWNERSHIP_TEARDOWN_OK: owners=11 owner_aware_restore=true geometry_changed=false")
 
 
 if __name__ == "__main__":

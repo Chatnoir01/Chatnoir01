@@ -1,0 +1,65 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-steve-canonical-walk-speed-contract-v6",
+  "base_main_sha": "6ac1d6582bdeb1cd6910c9dc5f785929ed4f9f90",
+  "candidate": "Steve reviewed proxy -> Gate-8 variant 01",
+  "source": {
+    "license": "CC0-1.0",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_bytes": 1454243,
+    "normalizer_commit": "d021fa0a31c409e33102f5a94848a7c01bb019be",
+    "normalizer_git_blob_sha1": "9bdbd5868ef72ba57e3a22659817e400b85e7363"
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "validated_evidence": {
+    "foot_slide_run_id": 33036018020,
+    "foot_slide_artifact_id": 9632044993,
+    "foot_slide_artifact_digest": "sha256:a0eeacc54dc4e51d384eaa9ab0144c198827067208c7fa64ce21789a53055249",
+    "source_pose_excitation_max_deg": 82.1453532608552,
+    "optimal_root_compensation_mean_mps": 0.944561766360396,
+    "optimal_root_compensation_peak_mps": 2.57288408279419,
+    "irreducible_contact_slide_mean_mps": 0.0,
+    "irreducible_contact_slide_peak_mps": 0.0,
+    "left_foot_path_m": 1.19528574729338,
+    "right_foot_path_m": 1.26409517414868,
+    "godot_static_playback_red_run_id": 33045319632,
+    "godot_static_playback_red_artifact_id": 9635443451,
+    "upstream_export_boundary_red_run_id": 33049581146,
+    "upstream_export_boundary_red_artifact_id": 9637034417,
+    "active_action_isolation_red_run_id": 33050319119,
+    "active_action_isolation_red_artifact_id": 9637357647,
+    "active_action_isolation_red_state": "NO_WALK_ACTION_AFTER_GLTF_REIMPORT"
+  },
+  "runtime_contract": {
+    "walk_reference_speed_mps": 1.0,
+    "walk_playback_min": 0.68,
+    "walk_playback_max": 1.45,
+    "run_enter_speed_mps": 1.65,
+    "max_observed_speed_mps": 2.4
+  },
+  "mechanical_gate": {
+    "raw_glb_exact_walk_count": 1,
+    "raw_glb_min_channels": 17,
+    "raw_glb_min_samplers": 17,
+    "proxy_bone_count": 17,
+    "minimum_animation_length_s": 0.5,
+    "sample_count": 17,
+    "minimum_pose_excitation_deg": 10.0,
+    "minimum_moving_bone_count": 6
+  },
+  "decision": {
+    "required_playback_for_reference_walk": 1.0586920152963841,
+    "speed_contract_state": "WALK_SPEED_COMPATIBLE_PENDING_EXPORT_PLAYBACK_RETEST",
+    "visual_witness_justified": false
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "visual_approval_claimed": false
+  }
+}

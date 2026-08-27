@@ -1,0 +1,197 @@
+name: Grand Bruxelles Gate-8 Steve Canonical Walk Speed
+
+on:
+  push:
+    branches: ["npc/gate8-steve-canonical-walk-speed-27ac48b"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  canonical-walk-speed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      EXPECTED_MAIN: 6ac1d6582bdeb1cd6910c9dc5f785929ed4f9f90
+      SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
+      SOURCE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
+      SOURCE_BYTES: "1454243"
+      NORMALIZER_COMMIT: d021fa0a31c409e33102f5a94848a7c01bb019be
+      NORMALIZER_BLOB: 9bdbd5868ef72ba57e3a22659817e400b85e7363
+      GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      PROJECT: /tmp/gate8-steve-canonical-walk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main, bounded scope, provenance and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE="$(git rev-parse origin/main)"
+          test "$LIVE" = "$EXPECTED_MAIN"
+          test "$(git merge-base "$LIVE" HEAD)" = "$LIVE"
+          git diff --name-only "$LIVE" HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-steve-canonical-walk-speed.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_steve_canonical_walk_speed_contract.json' \
+            'grand-bruxelles-game/tools/qa/canonicalize_steve_proxy_walk.py' \
+            'grand-bruxelles-game/tools/qa/harden_steve_normalizer_gltf_export.py' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_steve_canonical_walk_speed_contract.json').read_text())
+          assert d['format'].endswith('-v6')
+          assert d['base_main_sha']=='6ac1d6582bdeb1cd6910c9dc5f785929ed4f9f90'
+          assert d['source']['license']=='CC0-1.0'
+          assert d['source']['archive_sha256']=='e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5'
+          assert d['source']['normalizer_git_blob_sha1']=='9bdbd5868ef72ba57e3a22659817e400b85e7363'
+          root=d['validated_evidence']['optimal_root_compensation_mean_mps']
+          required=d['runtime_contract']['walk_reference_speed_mps']/root
+          assert abs(required-d['decision']['required_playback_for_reference_walk']) < 1e-9
+          assert d['runtime_contract']['walk_playback_min'] <= required <= d['runtime_contract']['walk_playback_max']
+          for k,v in d['rails'].items():
+              if k in ('walk_alias_selected','run_alias_selected'): assert v==''
+              else: assert v is False, k
+          print('GATE8_STEVE_CONTRACT_V6_OK required_playback=%.9f' % required)
+          PY
+          RUNTIME=grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd
+          grep -q 'const WALK_REFERENCE_SPEED_MPS := 1.0' "$RUNTIME"
+          grep -q 'const WALK_PLAYBACK_MIN := 0.68' "$RUNTIME"
+          grep -q 'const WALK_PLAYBACK_MAX := 1.45' "$RUNTIME"
+
+      - name: Regenerate reviewed Steve proxy and require raw GLB walk
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$SOURCE_ZIP" -o "$RUNNER_TEMP/steve.zip"
+          echo "$SOURCE_SHA256  $RUNNER_TEMP/steve.zip" | sha256sum -c -
+          test "$(stat -c '%s' "$RUNNER_TEMP/steve.zip")" = "$SOURCE_BYTES"
+          mkdir -p "$RUNNER_TEMP/steve-src" && unzip -q "$RUNNER_TEMP/steve.zip" -d "$RUNNER_TEMP/steve-src"
+          curl -L --fail --retry 4 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NORMALIZER_COMMIT}/grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py" -o "$RUNNER_TEMP/normalize-original.py"
+          python3 grand-bruxelles-game/tools/qa/harden_steve_normalizer_gltf_export.py --input "$RUNNER_TEMP/normalize-original.py" --output "$RUNNER_TEMP/normalize-hardened.py" 2>&1 | tee "$RUNNER_TEMP/export-hardening.log"
+          grep -q "input_git_blob=$NORMALIZER_BLOB" "$RUNNER_TEMP/export-hardening.log"
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends blender python3-numpy >/dev/null
+          blender --background "$RUNNER_TEMP/steve-src/steve_npc1.blend" --python-exit-code 42 --python "$RUNNER_TEMP/normalize-hardened.py" -- --output /tmp/steve_reviewed_proxy.glb --report "$RUNNER_TEMP/normalization-report.json" 2>&1 | tee "$RUNNER_TEMP/normalization.log"
+          python3 - <<'PY'
+          import json, os, struct
+          from pathlib import Path
+          p=Path('/tmp/steve_reviewed_proxy.glb'); raw=p.read_bytes(); assert raw[:4]==b'glTF'
+          off=12; doc=None
+          while off < len(raw):
+              n,t=struct.unpack_from('<II',raw,off); off+=8; chunk=raw[off:off+n]; off+=n
+              if t==0x4E4F534A: doc=json.loads(chunk.decode('utf-8').rstrip(' \t\r\n\x00')); break
+          assert doc is not None
+          a=doc.get('animations',[])
+          report={'animation_count':len(a),'animations':[{'name':x.get('name',''),'channels':len(x.get('channels',[])),'samplers':len(x.get('samplers',[]))} for x in a]}
+          Path(os.environ['RUNNER_TEMP']+'/raw-glb-animation-report.json').write_text(json.dumps(report,indent=2,sort_keys=True))
+          assert len(a)==1, report
+          assert str(a[0].get('name','')).lower()=='walk', report
+          assert len(a[0].get('channels',[]))>=17 and len(a[0].get('samplers',[]))>=17, report
+          print('GATE8_STEVE_RAW_GLB_WALK_OK channels=%d samplers=%d' % (len(a[0]['channels']),len(a[0]['samplers'])))
+          PY
+          sha256sum /tmp/steve_reviewed_proxy.glb | tee "$RUNNER_TEMP/normalized_proxy.sha256"
+
+      - name: Canonicalize and fresh-bake walk in Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          blender --background --python-exit-code 42 --python grand-bruxelles-game/tools/qa/canonicalize_steve_proxy_walk.py -- --input /tmp/steve_reviewed_proxy.glb --output /tmp/steve_reviewed_proxy_canonical.glb --report "$RUNNER_TEMP/canonicalization-report.json" 2>&1 | tee "$RUNNER_TEMP/canonicalization.log"
+          grep -q 'GATE8_STEVE_WALK_CANONICALIZATION_OK canonical=walk' "$RUNNER_TEMP/canonicalization.log"
+          python3 - <<'PY'
+          import json, os
+          d=json.load(open(os.environ['RUNNER_TEMP']+'/canonicalization-report.json'))
+          assert d['state']=='CANONICAL_WALK_EXPORT_READY'
+          s=d['source_evaluated_motion']; b=d['baked_evaluated_motion']
+          assert s['max_pose_excitation_deg']>=10 and s['moving_bone_count']>=6
+          assert b['max_pose_excitation_deg']>=10 and b['moving_bone_count']>=6
+          assert b['max_bake_position_error_m']<=0.0001 and b['max_bake_rotation_error_deg']<=0.1
+          print('GATE8_STEVE_FRESH_BAKE_OK excitation=%.6f moving=%d' % (b['max_pose_excitation_deg'],b['moving_bone_count']))
+          PY
+          sha256sum /tmp/steve_reviewed_proxy_canonical.glb | tee "$RUNNER_TEMP/canonical_proxy.sha256"
+
+      - name: Require real canonical walk playback under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot*' -print -quit)"; chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"; grep -q '^4\.7\.1' "$RUNNER_TEMP/godot-version.txt"
+          mkdir -p "$PROJECT/assets"; cp /tmp/steve_reviewed_proxy_canonical.glb "$PROJECT/assets/steve.glb"
+          printf '[application]\nconfig/name="Gate8SteveCanonicalWalk"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT/project.godot"
+          cat > "$PROJECT/verify.gd" <<'EOF'
+          extends SceneTree
+          const EXPECTED_BONES := 17
+          func qdeg(a:Quaternion,b:Quaternion)->float:
+              return rad_to_deg(2.0*acos(clampf(absf(a.normalized().dot(b.normalized())),0.0,1.0)))
+          func collect(n:Node,p:Array,s:Array)->void:
+              if n is AnimationPlayer:p.append(n)
+              if n is Skeleton3D:s.append(n)
+              for c in n.get_children():collect(c,p,s)
+          func _init()->void:
+              var packed:=load('res://assets/steve.glb') as PackedScene; assert(packed!=null,'missing scene')
+              var root:=packed.instantiate(); get_root().add_child(root)
+              var players:Array=[]; var skeletons:Array=[]; collect(root,players,skeletons)
+              assert(skeletons.size()==1,'skeletons=%s'%str(skeletons.size()))
+              var sk:=skeletons[0] as Skeleton3D; assert(sk.get_bone_count()==EXPECTED_BONES,'bones=%d'%sk.get_bone_count())
+              var hits:Array=[]
+              for p in players:
+                  for n in p.get_animation_list():
+                      if str(n).to_lower()=='walk':hits.append([p,str(n)])
+              assert(hits.size()==1,'walks=%s'%str(hits))
+              var ap:=hits[0][0] as AnimationPlayer; var name:=hits[0][1] as String; var anim:=ap.get_animation(name)
+              assert(anim!=null and anim.length>=0.5,'walk length invalid')
+              ap.play(name); ap.seek(0.0,true)
+              var base:Array[Quaternion]=[]; var maxd:Array[float]=[]
+              for i in range(EXPECTED_BONES):base.append(sk.get_bone_pose_rotation(i));maxd.append(0.0)
+              for k in range(17):
+                  ap.seek(anim.length*float(k)/16.0,true)
+                  for i in range(EXPECTED_BONES):maxd[i]=maxf(maxd[i],qdeg(base[i],sk.get_bone_pose_rotation(i)))
+              var moving:=0; var excitation:=0.0
+              for d in maxd: excitation=maxf(excitation,d); if d>=1.0:moving+=1
+              var report={'walk':name,'length_s':anim.length,'track_count':anim.get_track_count(),'bones':EXPECTED_BONES,'excitation_deg':excitation,'moving_bones':moving}
+              var f:=FileAccess.open('/tmp/godot-playback-report.json',FileAccess.WRITE);f.store_string(JSON.stringify(report,'  '));f.close()
+              assert(excitation>=10.0,'excitation=%.6f'%excitation);assert(moving>=6,'moving=%d'%moving)
+              print('GATE8_STEVE_GODOT_PLAYBACK_OK excitation=%.6f moving=%d'%[excitation,moving]);quit(0)
+          EOF
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          timeout 60 "$GODOT" --headless --path "$PROJECT" --script verify.gd 2>&1 | tee "$RUNNER_TEMP/godot-playback.log"
+          grep -q 'GATE8_STEVE_GODOT_PLAYBACK_OK' "$RUNNER_TEMP/godot-playback.log"
+          cp /tmp/godot-playback-report.json "$RUNNER_TEMP/godot-playback-report.json"
+
+      - name: Require clean repository
+        if: always()
+        shell: bash
+        run: |
+          git status --porcelain | tee "$RUNNER_TEMP/git-status.txt"
+          test ! -s "$RUNNER_TEMP/git-status.txt"
+
+      - name: Upload mechanical evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-steve-canonical-walk-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/normalization-report.json
+            ${{ runner.temp }}/normalization.log
+            ${{ runner.temp }}/export-hardening.log
+            ${{ runner.temp }}/raw-glb-animation-report.json
+            ${{ runner.temp }}/canonicalization-report.json
+            ${{ runner.temp }}/canonicalization.log
+            ${{ runner.temp }}/normalized_proxy.sha256
+            ${{ runner.temp }}/canonical_proxy.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/godot-import.log
+            ${{ runner.temp }}/godot-playback.log
+            ${{ runner.temp }}/godot-playback-report.json
+            ${{ runner.temp }}/git-status.txt
+          if-no-files-found: ignore
+          retention-days: 7

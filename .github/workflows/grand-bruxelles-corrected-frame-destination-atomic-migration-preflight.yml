@@ -50,6 +50,7 @@ jobs:
           assert d['source']['crs']=='EPSG:31370'
           assert d['policy']['artifact_only'] is True
           assert d['policy']['atomic_migration_required'] is True
+          assert d['policy']['production_files_must_remain_unchanged'] is True
           assert d['policy']['replace_production_crosswalk_authorized'] is False
           assert d['policy']['replace_production_readiness_authorized'] is False
           assert d['policy']['production_frame_update_authorized'] is False
@@ -58,6 +59,9 @@ jobs:
           assert all(v is False for v in d['authorization'].values())
           print('CORRECTED_FRAME_ATOMIC_PREFLIGHT_LIVE_MAIN_OK',sys.argv[1],d['status'])
           PY
+          git diff --quiet "$LIVE_MAIN_SHA" -- grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
+          git diff --quiet "$LIVE_MAIN_SHA" -- grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
+          echo "CORRECTED_FRAME_ATOMIC_PRODUCTION_INPUTS_UNCHANGED $LIVE_MAIN_SHA"
 
       - uses: actions/setup-python@v5
         with:

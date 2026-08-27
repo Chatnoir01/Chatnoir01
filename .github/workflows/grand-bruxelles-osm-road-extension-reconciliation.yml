@@ -1,0 +1,169 @@
+name: Grand Bruxelles OSM Road Extension Reconciliation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-road-extension-reconciliation.yml"
+      - "grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json"
+      - "grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.measurement.json"
+      - "grand-bruxelles-game/tools/qa/reconcile_osm_road_extension_candidate.py"
+      - "grand-bruxelles-game/tests/test_osm_road_extension_reconciliation.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json
+  MEASUREMENT: grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.measurement.json
+  TOOL: grand-bruxelles-game/tools/qa/reconcile_osm_road_extension_candidate.py
+  PREDECESSOR: grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+
+jobs:
+  reconcile-source-frames:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          CANDIDATE_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json").read_text())
+          assert c["schema"] == "grand-bruxelles-osm-road-extension-reconciliation-v1"
+          assert c["status"] in {"RED_FIRST_RECONCILIATION_PENDING", "LOCKED_RECONCILIATION_MEASUREMENT"}
+          assert c["production_base_sha"] == sys.argv[1], (c["production_base_sha"], sys.argv[1])
+          assert c["predecessor"]["sha256"] == "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+          assert c["extension"]["artifact_id"] == 9617302727
+          assert c["extension"]["artifact_zip_sha256"] == "8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3"
+          assert c["extension"]["raw_sha256"] == "80544caed58414f3f3c58274659fcb9ec9487621976c263843af7c59d007b4ab"
+          assert c["extension"]["acquisition_semantic_sha256"] == "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf"
+          frame=c["historical_coverage_frame"]
+          assert frame["crs"] == "EPSG:31370"
+          assert frame["origin_easting_m"] == 147868.29422791934
+          assert frame["origin_northing_m"] == 169538.62414926197
+          assert frame["formula"] == "E=origin_easting_m+x;N=origin_northing_m-z"
+          assert all(value is False for value in c["authorization"].values())
+          print("OSM_ROAD_EXTENSION_RECONCILIATION_CONTRACT_OK", c["status"], "rails=closed")
+          PY
+
+      - name: Verify exact predecessor and acquisition contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398  $PREDECESSOR" | sha256sum -c -
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
+          assert c["schema"] == "grand-bruxelles-osm-road-extension-acquisition-v2"
+          assert c["status"] == "LOCKED_SOURCE_ONLY_ARTIFACT"
+          assert c["locked_evidence"]["artifact_id"] == 9617302727
+          assert c["locked_evidence"]["raw_sha256"] == "80544caed58414f3f3c58274659fcb9ec9487621976c263843af7c59d007b4ab"
+          assert c["locked_evidence"]["semantic_sha256"] == "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf"
+          assert c["predecessor"]["source_sha256"] == "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+          assert c["authorization"]["source_merge_authorized"] is False
+          assert all(value is False for value in c["authorization"].values())
+          print("LOCKED_EXTENSION_INPUT_OK")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned projection dependency
+        run: python -m pip install --disable-pip-version-check "pyproj==3.7.2"
+
+      - name: Run reconciliation regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_osm_road_extension_reconciliation.py -v
+
+      - name: Restore immutable #1352 source artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/osm-road-extension-e148500-n170500-red-first.zip"
+          OUT="$RUNNER_TEMP/osm-road-extension-locked"
+          curl --fail --silent --show-error --location \
+            --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9617302727/zip" \
+            -o "$ZIP"
+          echo "8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3  $ZIP" | sha256sum -c -
+          test "$(wc -c < "$ZIP")" -eq 79621
+          mkdir -p "$OUT"
+          unzip -q "$ZIP" -d "$OUT"
+          echo "80544caed58414f3f3c58274659fcb9ec9487621976c263843af7c59d007b4ab  $OUT/overpass.raw.json" | sha256sum -c -
+          test "$(wc -c < "$OUT/overpass.raw.json")" -eq 538236
+
+      - name: Measure predecessor versus locked extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$TOOL" \
+            --contract "$CONTRACT" \
+            --predecessor "$PREDECESSOR" \
+            --extension-raw "$RUNNER_TEMP/osm-road-extension-locked/overpass.raw.json" \
+            --output "$RUNNER_TEMP/reconciliation.measurement.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])/"reconciliation.measurement.json"
+          d=json.loads(p.read_text())
+          assert d["schema"] == "grand-bruxelles-osm-road-extension-reconciliation-measurement-v1"
+          assert d["status"] == "MEASURED_RECONCILIATION_EVIDENCE_ONLY"
+          assert d["accounting"]["predecessor_road_count"] == 140
+          assert d["accounting"]["extension_highway_way_count"] == 591
+          assert d["interpretation"]["source_merge_decision"] == "HOLD_PENDING_REVIEW"
+          assert all(value is False for value in d["authorization"].values())
+          print("RECONCILIATION_MEASUREMENT_READY", d["semantic_sha256"], d["accounting"], d["frame_comparison"])
+          PY
+
+      - name: Upload exact reconciliation measurement
+        uses: actions/upload-artifact@v4
+        with:
+          name: osm-road-extension-e148500-n170500-reconciliation
+          path: ${{ runner.temp }}/reconciliation.measurement.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Require reviewed persisted reconciliation lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(python3 - <<'PY'
+          import json
+          print(json.load(open("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json"))["status"])
+          PY
+          )"
+          if [ "$status" = "RED_FIRST_RECONCILIATION_PENDING" ]; then
+            echo "RED_FIRST_RECONCILIATION_MEASUREMENT_NOT_PERSISTED" >&2
+            exit 1
+          fi
+          test "$status" = "LOCKED_RECONCILIATION_MEASUREMENT"
+          test -f "$MEASUREMENT"
+          cmp "$RUNNER_TEMP/reconciliation.measurement.json" "$MEASUREMENT"
+          python "$TOOL" \
+            --contract "$CONTRACT" \
+            --predecessor "$PREDECESSOR" \
+            --extension-raw "$RUNNER_TEMP/osm-road-extension-locked/overpass.raw.json" \
+            --output "$RUNNER_TEMP/reconciliation.second-pass.json"
+          cmp "$MEASUREMENT" "$RUNNER_TEMP/reconciliation.second-pass.json"
+          echo "OSM_ROAD_EXTENSION_RECONCILIATION_LOCKED_EXACT source_merge_authorized=false"

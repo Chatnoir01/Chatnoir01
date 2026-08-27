@@ -2,9 +2,13 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
+import pyproj
 from pyproj import Transformer
+
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -13,6 +17,14 @@ def sha256_bytes(data: bytes) -> str:
 
 def canonical_sha(obj) -> str:
     return sha256_bytes(json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
+def require_projection_version(actual: str, expected: str) -> None:
+    assert actual == expected, f"pyproj version mismatch: actual={actual} expected={expected}"
+
+
+def require_git_sha(value: str, label: str) -> None:
+    assert SHA_RE.fullmatch(value or "") is not None, f"{label} malformed: {value}"
 
 
 def main() -> int:
@@ -27,8 +39,9 @@ def main() -> int:
     contract = json.loads((root / args.contract).read_text())
     assert contract["schema"] == "grand-bruxelles-osm-road-frame-correction-review-v1"
     assert contract["status"] == "READY_FOR_FRAME_CORRECTION_REVIEW_SOURCE_ORIGIN"
+    require_git_sha(contract["production_base_sha"], "production evidence base")
     if args.live_main_sha:
-        assert contract["production_base_sha"] == args.live_main_sha
+        require_git_sha(args.live_main_sha, "live main")
 
     source = contract["source"]
     source_path = root / source["path"]
@@ -55,6 +68,7 @@ def main() -> int:
     assert recon_json["review_verdict"]["projected_source_origin_frame_authorized_for_production"] is False
 
     candidate = contract["candidate_frame"]
+    require_projection_version(pyproj.__version__, candidate["pyproj_version"])
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:31370", always_xy=True)
     easting, northing = transformer.transform(source["declared_origin_wgs84"]["lon"], source["declared_origin_wgs84"]["lat"])
     projected = [round(easting, 6), round(northing, 6)]
@@ -79,15 +93,18 @@ def main() -> int:
     result = {
         "schema": "grand-bruxelles-osm-road-frame-correction-review-result-v1",
         "status": contract["status"],
-        "production_base_sha": contract["production_base_sha"],
+        "production_evidence_base_sha": contract["production_base_sha"],
+        "live_main_sha": args.live_main_sha,
         "source_sha256": source["sha256"],
         "source_origin_wgs84": source["declared_origin_wgs84"],
+        "projection_engine": {"name": "pyproj", "version": pyproj.__version__},
         "candidate_origin_epsg31370": projected,
         "duplicate_osm_way_count": recon["duplicate_osm_way_count"],
         "historical_worst_residual_m": historical,
         "candidate_worst_residual_m": proposed,
         "improvement_ratio": round(improvement, 6),
         "review_semantic_sha256": contract["review_semantic_sha256"],
+        "authorization": dict(contract["authorization"]),
         "production_frame_update_authorized": False,
         "source_merge_authorized": False,
         "road_cell_mapping_authorized": False,

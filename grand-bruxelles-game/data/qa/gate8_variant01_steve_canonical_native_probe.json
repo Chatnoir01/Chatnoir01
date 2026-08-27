@@ -1,0 +1,70 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-steve-canonical-native-probe-v2",
+  "base_main_sha": "61a4b36f4f276bc39547359ffb727c1e0fc67399",
+  "candidate": "Steve canonical walk -> Gate-8 variant 01",
+  "source": {
+    "license": "CC0-1.0",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_bytes": 1454243,
+    "canonical_source_pr": 1377,
+    "canonical_source_head": "0a0e8e9330c88d1100054c3eb534a237cb5e7c8c",
+    "canonical_walk_artifact_id": 9640403274,
+    "canonical_walk_artifact_digest": "sha256:bfcd5c1cd566dc9a4fbb48aa789325cf709becb4242d72597098faa4436b5d90"
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "actual_hierarchy_notes": [
+      "spine_02 -> spine_03 -> neck_01",
+      "spine_03 -> clavicle_l -> upperarm_l",
+      "spine_03 -> clavicle_r -> upperarm_r"
+    ]
+  },
+  "validated_input": {
+    "exact_walk_count": 1,
+    "raw_glb_channels": 51,
+    "raw_glb_samplers": 51,
+    "blender_excitation_deg": 53.099506,
+    "godot_excitation_deg": 56.710960,
+    "moving_bones": 12,
+    "required_playback_for_reference_walk": 1.0586920152963841
+  },
+  "latest_red": {
+    "head_sha": "a69c22696a89ac12ae7419e5251df441a703461e",
+    "run_id": 33062612678,
+    "artifact_id": 9642411102,
+    "artifact_digest": "sha256:ac4593eeff07211a37c140d026b3499e3438319b211f868626bf5d265fab1d59",
+    "mechanical_state": "BLOCKED_CANONICAL_NATIVE_WALK_MECHANICS",
+    "grounding_span_m": 0.149057567119598,
+    "max_transfer_error_deg": 0.0395646811852521,
+    "max_skin_edge_change_m": 0.539009641855955,
+    "max_skin_stretch_ratio": 44.9179319041278,
+    "min_skin_compression_ratio": 0.0633830625941833
+  },
+  "probe": {
+    "modifier": "RetargetModifier3D",
+    "sample_count": 16,
+    "max_transfer_error_deg": 3.0,
+    "max_grounding_span_m": 0.18,
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "collapsed_rest_max_position_error_m": 0.000001,
+    "collapsed_rest_max_rotation_error_deg": 0.001,
+    "hierarchy_collapse_policy": "target_global_rest_rebased_to_reviewed_parent",
+    "mirror_policy": "collapsed_probe_delta_composed_with_actual_target_rest"
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "visual_approval_claimed": false,
+    "runtime_population_changed": false
+  },
+  "decision": {
+    "state": "PENDING_COLLAPSED_HIERARCHY_NATIVE_MECHANICAL_PROBE",
+    "visual_witness_justified": false
+  }
+}

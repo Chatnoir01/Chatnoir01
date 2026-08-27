@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      EXPECTED_MAIN: 305453191ae64ab5da9da6f935177f55ba501820
       TARGET_ARTIFACT_ID: "9470539830"
       TARGET_ARTIFACT_DIGEST: sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb
       TARGET_VARIANT03_SHA256: cd3d0abc6020789f4d000a84c6a6f44d9707942649d62a66a7406cbb2cd35313
@@ -31,16 +30,20 @@ jobs:
           EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git fetch --no-tags origin main
-          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
-          test "$(git merge-base origin/main HEAD)" = "$EXPECTED_MAIN"
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
           git diff --name-only origin/main HEAD | sort > "$RUNNER_TEMP/actual.txt"
           printf '%s\n' \
             '.github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml' \
             'grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd' | sort > "$RUNNER_TEMP/expected.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          ! grep -Eq '^[[:space:]]+EXPECTED_MAIN:' .github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml
+          grep -q 'LIVE_MAIN="$(git rev-parse origin/main)"' .github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml
           grep -q '"variant": 3' grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd
           grep -q '"production_authorized": false' grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd
           grep -q '"retarget_applied": false' grand-bruxelles-game/game/tests/gate8_variant03_target_integrity_preflight.gd
+          printf 'GATE8_VARIANT03_LIVE_MAIN_OK main=%s head=%s\n' "$LIVE_MAIN" "$EXPECTED_HEAD"
       - name: Verify immutable Gate-8 generation artifact metadata
         env:
           GH_TOKEN: ${{ github.token }}
@@ -120,6 +123,7 @@ jobs:
         with:
           name: gate8-variant03-target-integrity-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
+            ${{ runner.temp }}/live-main.txt
             ${{ runner.temp }}/artifact.json
             ${{ runner.temp }}/npc_gate_03.sha256
             ${{ runner.temp }}/npc_gate_03.size

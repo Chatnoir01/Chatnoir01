@@ -42,7 +42,8 @@ jobs:
           printf '%s\n' \
             '.github/workflows/grand-bruxelles-gate8-steve-foot-slide-probe.yml' \
             'grand-bruxelles-game/data/qa/gate8_variant01_steve_foot_slide_probe.json' \
-            'grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_probe_test.gd' | sort > "$RUNNER_TEMP/expected.txt"
+            'grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_probe_test.gd' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_contact_floor_v2.gd' | sort > "$RUNNER_TEMP/expected.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
           python3 - <<'PY'
           import json
@@ -59,10 +60,14 @@ jobs:
           for k,v in d['rails'].items():
               if k in ('walk_alias_selected','run_alias_selected'): assert v==''
               else: assert v is False, k
-          text=Path('grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_probe_test.gd').read_text()
+          base=Path('grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_probe_test.gd').read_text()
+          v2=Path('grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_contact_floor_v2.gd').read_text()
           for needle in ('SAMPLE_RATE_HZ := 120.0','irreducible_contact_slide_mean_mps','double_support_velocity_disagreement_peak_mps','source_pose_excitation_too_low','target_foot_path_too_low'):
-              assert needle in text, needle
-          print('GATE8_STEVE_FOOT_SLIDE_CONTRACT_OK exact_main=true rate_hz=120 aliases=false production=false')
+              assert needle in base, needle
+          for needle in ('shared_cycle_floor_v2','shared_cycle_floor_y_m','contact_threshold_y_m'):
+              assert needle in v2, needle
+          assert 'var shared_floor_y:=minf(lmin,rmin)' in v2
+          print('GATE8_STEVE_FOOT_SLIDE_CONTRACT_OK exact_main=true rate_hz=120 contact_model=shared_cycle_floor_v2 aliases=false production=false')
           PY
 
       - name: Regenerate reviewed Steve proxy from pinned CC0 source
@@ -122,7 +127,8 @@ jobs:
           mkdir -p "$PROJECT/assets"
           cp /tmp/steve_reviewed_proxy.glb "$PROJECT/assets/steve_reviewed_proxy.glb"
           cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
-          cp grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_probe_test.gd "$PROJECT/gate_test.gd"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_probe_test.gd "$PROJECT/base_probe.gd"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_steve_foot_slide_contact_floor_v2.gd "$PROJECT/gate_test.gd"
           cat > "$PROJECT/project.godot" <<'EOF'
           [application]
           config/name="Gate8SteveFootSlideProbe"
@@ -145,10 +151,14 @@ jobs:
           assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
           assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
           m=r['metrics']
-          for k in ('raw_contact_slide_mean_mps','raw_contact_slide_peak_mps','optimal_root_compensation_mean_mps','optimal_root_compensation_peak_mps','irreducible_contact_slide_mean_mps','irreducible_contact_slide_peak_mps','double_support_velocity_disagreement_peak_mps'):
-              assert k in m and m[k] >= 0.0, k
-          print('GATE8_STEVE_FOOT_SLIDE_RESULT state=%s raw_mean=%.6f raw_peak=%.6f root_mean=%.6f residual_mean=%.6f residual_peak=%.6f double_support_peak=%.6f failures=%d' % (
-              r['mechanical_state'],m['raw_contact_slide_mean_mps'],m['raw_contact_slide_peak_mps'],m['optimal_root_compensation_mean_mps'],m['irreducible_contact_slide_mean_mps'],m['irreducible_contact_slide_peak_mps'],m['double_support_velocity_disagreement_peak_mps'],len(r['failures'])))
+          if m:
+              assert m['contact_model']=='shared_cycle_floor_v2'
+              for k in ('raw_contact_slide_mean_mps','raw_contact_slide_peak_mps','optimal_root_compensation_mean_mps','optimal_root_compensation_peak_mps','irreducible_contact_slide_mean_mps','irreducible_contact_slide_peak_mps','double_support_velocity_disagreement_peak_mps'):
+                  assert k in m and m[k] >= 0.0, k
+              print('GATE8_STEVE_FOOT_SLIDE_RESULT state=%s raw_mean=%.6f raw_peak=%.6f root_mean=%.6f residual_mean=%.6f residual_peak=%.6f double_support_peak=%.6f failures=%d' % (
+                  r['mechanical_state'],m['raw_contact_slide_mean_mps'],m['raw_contact_slide_peak_mps'],m['optimal_root_compensation_mean_mps'],m['irreducible_contact_slide_mean_mps'],m['irreducible_contact_slide_peak_mps'],m['double_support_velocity_disagreement_peak_mps'],len(r['failures'])))
+          else:
+              print('GATE8_STEVE_FOOT_SLIDE_RESULT state=%s metrics=empty failures=%d' % (r['mechanical_state'],len(r['failures'])))
           PY
           exit "$STATUS"
 

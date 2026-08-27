@@ -39,6 +39,16 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
         self.assertFalse(self.contract['policy']['replace_readiness_catalog_authorized'])
         self.assertFalse(self.contract['policy']['replace_crosswalk_authorized'])
 
+    def test_locked_forensic_bytes_are_bound_to_historical_base(self):
+        self.assertEqual(self.contract['status'],'LOCKED_EVIDENCE_ONLY')
+        locked=self.contract['locked_evidence']
+        self.assertEqual(len(locked['production_base_sha']),40)
+        self.assertEqual(len(locked['measurement_sha256']),64)
+        self.assertEqual(len(locked['semantic_sha256']),64)
+        self.assertTrue(self.contract['policy']['locked_measurement_sha_is_forensic_to_locked_base'])
+        self.assertTrue(self.contract['policy']['semantic_lock_survives_clean_live_main_rebuild'])
+        self.assertEqual(locked['semantic_sha256'],'f15a6dc04cff1103d1e5024e9c2d4fbc7655ec4778e0bcb80420bc1501e93eda')
+
     def test_current_catalog_is_registered_not_rendered(self):
         self.assertEqual(self.readiness['destination_count'],len(self.readiness['destinations']))
         for row in self.readiness['destinations']:

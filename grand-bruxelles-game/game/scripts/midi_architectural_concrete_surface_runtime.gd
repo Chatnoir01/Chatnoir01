@@ -9,7 +9,8 @@ const EXPECTED_SURFACES := 74
 const SUBTREE_READY_FRAMES := 30
 
 var _targets: Array[MeshInstance3D] = []
-var _original_materials: Dictionary = {}
+var _original_material_overrides: Dictionary = {}
+var _owned_materials: Dictionary = {}
 var _material: ShaderMaterial
 var _ready_complete := false
 var _identity_failure := false
@@ -39,6 +40,7 @@ func _exit_tree() -> void:
     _tearing_down = true
     _awaiting_midi = false
     _bind_in_progress = false
+    _release_material_ownership()
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
@@ -85,7 +87,8 @@ func _apply_when_subtree_ready(midi: Node) -> void:
 func _apply_material() -> void:
     _material = MATERIAL_FACTORY.create("Midi Urban 9423 concrete bay frames and canopy")
     for target in _targets:
-        _original_materials[target.get_instance_id()] = target.material_override if target.material_override != null else target.mesh.material
+        var instance_id := target.get_instance_id()
+        _original_material_overrides[instance_id] = target.material_override
     if _runtime_identity_allowed(_identity):
         set_enhanced_material_enabled(true)
     _ready_complete = true
@@ -136,18 +139,38 @@ func _collect_targets(node: Node) -> void:
     for child in node.get_children():
         _collect_targets(child)
 
+func _restore_owned_materials() -> void:
+    for target in _targets:
+        if not is_instance_valid(target):
+            continue
+        var instance_id := target.get_instance_id()
+        var owned: Material = _owned_materials.get(instance_id) as Material
+        if owned != null and target.material_override == owned:
+            target.material_override = _original_material_overrides.get(instance_id) as Material
+
+func _release_material_ownership() -> void:
+    _restore_owned_materials()
+    _owned_materials.clear()
+    _original_material_overrides.clear()
+    _targets.clear()
+    _material = null
+
 func set_enhanced_material_enabled(enabled: bool) -> void:
     _enabled = enabled
     if _material == null:
         return
     for target in _targets:
+        if not is_instance_valid(target):
+            continue
+        var instance_id := target.get_instance_id()
+        var baseline: Material = _original_material_overrides.get(instance_id) as Material
+        var owned: Material = _owned_materials.get(instance_id) as Material
         if enabled:
-            target.material_override = _material
-        else:
-            target.material_override = null
-            var original: Material = _original_materials.get(target.get_instance_id(), null)
-            if target.mesh != null:
-                target.mesh.material = original
+            if target.material_override == baseline or (owned != null and target.material_override == owned):
+                target.material_override = _material
+                _owned_materials[instance_id] = _material
+        elif owned != null and target.material_override == owned:
+            target.material_override = baseline
 
 func apply_candidate_for_validation() -> void:
     set_enhanced_material_enabled(true)
@@ -169,6 +192,3 @@ func applied_surface_count() -> int:
 
 func enhanced_material() -> ShaderMaterial:
     return _material
-
-func fonsny_full_entrance_runtime() -> Node:
-    return _fonsny_full_entrance_runtime

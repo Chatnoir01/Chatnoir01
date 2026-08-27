@@ -34,7 +34,7 @@ def require_false_auth(obj, where):
 
 def grid_from_cell(cell_id: str) -> str:
     parts = cell_id.split("-")
-    if len(parts) != 5 or not parts[1].startswith("e") or not parts[2].startswith("n"):
+    if len(parts) != 4 or parts[0] != "bxl" or not parts[1].startswith("e") or not parts[2].startswith("n") or not parts[3].startswith("s"):
         raise AssertionError(f"invalid cell_id: {cell_id}")
     return f"E{parts[1][1:]}_N{parts[2][1:]}"
 

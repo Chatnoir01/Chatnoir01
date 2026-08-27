@@ -78,7 +78,14 @@ jobs:
           assert impact['semantic_sha256']==contract['source']['impact_stable_semantic_sha256']
           a=impact['accounting']; e=contract['expected_accounting']
           for k,v in e.items(): assert a[k]==v,(k,a[k],v)
-          rows=impact['candidate_unique_rows']; by_id={int(r['road_osm_id']):r['cell_id'] for r in rows}
+          rows=impact['candidate_unique_rows']
+          road_ids=[int(r['road_osm_id']) for r in rows]
+          assert road_ids==sorted(road_ids)
+          assert len(road_ids)==len(set(road_ids))
+          hold_ids={int(r['road_osm_id']) for r in impact['candidate_multicell_rows']}
+          assert not (set(road_ids) & hold_ids)
+          assert set(r['cell_id'] for r in rows) <= set(e['candidate_cell_counts'])
+          by_id={int(r['road_osm_id']):r['cell_id'] for r in rows}
           for rep in contract['corridor_representatives'].values(): assert by_id[int(rep['road_osm_id'])]==rep['cell_id']
           holds=[{'road_osm_id':int(r['road_osm_id']),'hit_cells':r['hit_cells']} for r in impact['candidate_multicell_rows']]
           assert holds==contract['multicell_holds'],(holds,contract['multicell_holds'])

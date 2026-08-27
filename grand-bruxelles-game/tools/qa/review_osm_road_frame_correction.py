@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import pyproj
 from pyproj import Transformer
 
 
@@ -13,6 +14,10 @@ def sha256_bytes(data: bytes) -> str:
 
 def canonical_sha(obj) -> str:
     return sha256_bytes(json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
+def require_projection_version(actual: str, expected: str) -> None:
+    assert actual == expected, f"pyproj version mismatch: actual={actual} expected={expected}"
 
 
 def main() -> int:
@@ -55,6 +60,7 @@ def main() -> int:
     assert recon_json["review_verdict"]["projected_source_origin_frame_authorized_for_production"] is False
 
     candidate = contract["candidate_frame"]
+    require_projection_version(pyproj.__version__, candidate["pyproj_version"])
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:31370", always_xy=True)
     easting, northing = transformer.transform(source["declared_origin_wgs84"]["lon"], source["declared_origin_wgs84"]["lat"])
     projected = [round(easting, 6), round(northing, 6)]
@@ -82,12 +88,14 @@ def main() -> int:
         "production_base_sha": contract["production_base_sha"],
         "source_sha256": source["sha256"],
         "source_origin_wgs84": source["declared_origin_wgs84"],
+        "projection_engine": {"name": "pyproj", "version": pyproj.__version__},
         "candidate_origin_epsg31370": projected,
         "duplicate_osm_way_count": recon["duplicate_osm_way_count"],
         "historical_worst_residual_m": historical,
         "candidate_worst_residual_m": proposed,
         "improvement_ratio": round(improvement, 6),
         "review_semantic_sha256": contract["review_semantic_sha256"],
+        "authorization": dict(contract["authorization"]),
         "production_frame_update_authorized": False,
         "source_merge_authorized": False,
         "road_cell_mapping_authorized": False,

@@ -18,29 +18,61 @@ func _diagnose_binding()->Dictionary:
     var walk_tracks:Array=[]
     var walk_player_path:=""
     var walk_root_node:=""
+    var selected_walk:=""
     for p in players:
         var names:Array[String]=[]
-        for a in p.get_animation_list():
-            var an:=String(a); names.append(an)
-            if walk_tracks.is_empty() and _is_walk_name(an):
-                walk_player_path=String(n.get_path_to(p)); walk_root_node=String(p.root_node)
-                var anim:=p.get_animation(an)
-                for i in range(anim.get_track_count()):
-                    var path:=String(anim.track_get_path(i))
-                    var hits:Array[String]=[]
-                    for bone in SOURCE.values():
-                        if path.contains(String(bone)): hits.append(String(bone))
-                    walk_tracks.append({"index":i,"type":int(anim.track_get_type(i)),"path":path,"enabled":anim.track_is_enabled(i),"key_count":anim.track_get_key_count(i),"reviewed_bone_hits":hits})
+        for a in p.get_animation_list(): names.append(String(a))
+        var chosen:=_walk_name(p)
+        if selected_walk.is_empty() and not chosen.is_empty():
+            selected_walk=chosen
+            walk_player_path=String(n.get_path_to(p)); walk_root_node=String(p.root_node)
+            var anim:=p.get_animation(chosen)
+            for i in range(anim.get_track_count()):
+                var path:=String(anim.track_get_path(i))
+                var hits:Array[String]=[]
+                for bone in SOURCE.values():
+                    if path.contains(String(bone)): hits.append(String(bone))
+                walk_tracks.append({"index":i,"type":int(anim.track_get_type(i)),"path":path,"enabled":anim.track_is_enabled(i),"key_count":anim.track_get_key_count(i),"reviewed_bone_hits":hits})
         records.append({"path":String(n.get_path_to(p)),"root_node":String(p.root_node),"animations":names})
     var named:=0
+    var multi_key:=0
+    var total_keys:=0
     for t in walk_tracks:
         if not (t.reviewed_bone_hits as Array).is_empty(): named+=1
+        var kc:=int(t.key_count); total_keys+=kc
+        if kc>1: multi_key+=1
+    var skeleton_bones:=sk.get_bone_count() if sk!=null else -1
     n.free()
-    return {"state":"TRACK_INVENTORY_CAPTURED","skeleton_bones":sk.get_bone_count() if sk!=null else -1,"animation_player_count":players.size(),"players":records,"walk_player_path":walk_player_path,"walk_player_root_node":walk_root_node,"walk_track_count":walk_tracks.size(),"walk_reviewed_bone_named_track_count":named,"walk_tracks":walk_tracks}
+    return {"state":"TRACK_INVENTORY_CAPTURED","skeleton_bones":skeleton_bones,"animation_player_count":players.size(),"players":records,"selected_walk":selected_walk,"walk_player_path":walk_player_path,"walk_player_root_node":walk_root_node,"walk_track_count":walk_tracks.size(),"walk_multi_key_track_count":multi_key,"walk_total_key_count":total_keys,"walk_reviewed_bone_named_track_count":named,"walk_tracks":walk_tracks}
 
 func _collect_players_local(n:Node,out:Array[AnimationPlayer])->void:
     if n is AnimationPlayer: out.append(n as AnimationPlayer)
     for c in n.get_children(): _collect_players_local(c,out)
+
+# Blender keeps the source `walk` action and collision-renames the reviewed
+# proxy bake to `walk_001`. For this QA measurement, select the walk candidate
+# with the richest keyed motion instead of the first lexicographic name. This
+# does not publish a runtime alias or authorize production adoption.
+func _walk_name(p:AnimationPlayer)->String:
+    var best_name:String=""
+    var best_multi_key_tracks:int=-1
+    var best_total_keys:int=-1
+    for a in p.get_animation_list():
+        var candidate:=String(a)
+        if not _is_walk_name(candidate): continue
+        var anim:=p.get_animation(candidate)
+        if anim==null: continue
+        var multi_key_tracks:int=0
+        var total_keys:int=0
+        for i in range(anim.get_track_count()):
+            var key_count:=anim.track_get_key_count(i)
+            total_keys+=key_count
+            if key_count>1: multi_key_tracks+=1
+        if multi_key_tracks>best_multi_key_tracks or (multi_key_tracks==best_multi_key_tracks and total_keys>best_total_keys):
+            best_name=candidate
+            best_multi_key_tracks=multi_key_tracks
+            best_total_keys=total_keys
+    return best_name
 
 func _finish(state:String,metrics:Dictionary)->void:
     metrics["walk_import_binding_diagnostic"]=binding_diagnostic

@@ -1,0 +1,63 @@
+{
+  "authorization": {
+    "collision_authorized": false,
+    "jouable_promotion_authorized": false,
+    "rendered_geometry_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_directory_scan_authorized": false,
+    "runtime_mount_authorized": false,
+    "safe_spawn_authorized": false,
+    "source_acquisition_authorized": false,
+    "source_refresh_authorized": false,
+    "source_registration_authorized": false
+  },
+  "baseline_source": {
+    "lambert72_bbox": [
+      147023.79522791933,
+      168637.98314926197,
+      148125.81622791933,
+      170433.92214926198
+    ],
+    "may_be_overwritten": false,
+    "path": "data/osm/vertical_slice_01.game.json",
+    "sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+  },
+  "future_acquisition_contract": {
+    "acquired_at_utc_required": true,
+    "merge_policy": "append_or_rebuild_under_new_semantic_lock_never_mutate_baseline_in_place",
+    "new_snapshot_path_required": true,
+    "normalized_semantic_sha256_required": true,
+    "odbl_attribution_required": true,
+    "overpass_query_sha256_required": true,
+    "overpass_query_text_required": true,
+    "raw_payload_sha256_required": true,
+    "request_url_required": true,
+    "road_count_required": true,
+    "road_point_count_required": true,
+    "target_snapshot_path": "data/osm/road_extension_registered_cells_v1.raw.json"
+  },
+  "input_gap_semantic_sha256": "65536c521ff9897b74046bc1ac5aa653d4dce08ea3a66d60a610b913481508a3",
+  "required_acquisition_envelope_lambert72": [
+    148500.0,
+    169000.0,
+    149500.0,
+    171000.0
+  ],
+  "required_cells": {
+    "bxl-e148500-n170500-s500": [
+      148500.0,
+      170500.0,
+      149000.0,
+      171000.0
+    ],
+    "bxl-e149000-n169000-s500": [
+      149000.0,
+      169000.0,
+      149500.0,
+      169500.0
+    ]
+  },
+  "schema": "grand-bruxelles-road-source-extension-plan-v1",
+  "semantic_sha256": "3791e905ed10e300bd0c48d03edd45a54555cb5416e092bb8ec1a1672d53fafe",
+  "status": "PLANNED_NOT_ACQUIRED"
+}

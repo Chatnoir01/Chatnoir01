@@ -1,0 +1,101 @@
+name: Grand Bruxelles Registered Cell Road Coverage Gaps
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_road_coverage_gaps.json"
+      - "grand-bruxelles-game/data/qa/brussels_registered_cell_road_source_extension.plan.json"
+      - "grand-bruxelles-game/tools/qa/audit_registered_cell_road_coverage_gaps.py"
+      - "grand-bruxelles-game/tests/test_registered_cell_road_coverage_gaps.py"
+      - "grand-bruxelles-game/tests/test_registered_cell_road_source_extension_plan.py"
+      - ".github/workflows/grand-bruxelles-registered-cell-road-coverage-gaps.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require durable live-main continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          CANDIDATE_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python - "$LIVE_MAIN_SHA" <<'PY'
+          import json, subprocess, sys
+          from pathlib import Path
+          live_main=sys.argv[1]
+          lock=json.loads(Path("grand-bruxelles-game/data/provenance/brussels_registered_cell_road_coverage_gaps.json").read_text())
+          floor=lock["production_base_sha"]
+          subprocess.run(["git", "merge-base", "--is-ancestor", floor, live_main], check=True)
+          print("REGISTERED_CELL_ROAD_GAP_CONTINUITY_OK", f"floor={floor}", f"live_main={live_main}")
+          PY
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m unittest tests/test_registered_cell_road_coverage_gaps.py -v
+          python -m unittest tests/test_registered_cell_road_source_extension_plan.py -v
+      - name: Regenerate deterministic gap evidence
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/audit_registered_cell_road_coverage_gaps.py
+          --coverage data/city_machine/road_cell_coverage_candidates.json
+          --cells data/provenance/brussels_registered_cell_manifest_index.json
+          --crosswalk data/provenance/brussels_road_registered_cell_crosswalk.json
+          --production-base-sha "$(python -c 'import json; print(json.load(open("data/provenance/brussels_registered_cell_road_coverage_gaps.json"))["production_base_sha"])')"
+          --output "$RUNNER_TEMP/brussels_registered_cell_road_coverage_gaps.json"
+      - name: Require exact locked accounting, extension envelope and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          generated=json.loads((Path(os.environ["RUNNER_TEMP"])/"brussels_registered_cell_road_coverage_gaps.json").read_text())
+          locked=json.loads(Path("grand-bruxelles-game/data/provenance/brussels_registered_cell_road_coverage_gaps.json").read_text())
+          plan=json.loads(Path("grand-bruxelles-game/data/qa/brussels_registered_cell_road_source_extension.plan.json").read_text())
+          assert generated == locked
+          assert generated["semantic_sha256"] == "65536c521ff9897b74046bc1ac5aa653d4dce08ea3a66d60a610b913481508a3"
+          a=generated["coverage_accounting"]
+          assert a == {
+              "registered_cell_count": 5,
+              "mapped_registered_cell_count": 3,
+              "unmatched_registered_cell_count": 2,
+              "all_unmatched_are_source_bbox_disjoint": True,
+          }
+          by_id={g["cell_id"]:g for g in generated["gaps"]}
+          assert by_id["bxl-e148500-n170500-s500"]["reason"] == "SOURCE_ROAD_BBOX_DISJOINT"
+          assert by_id["bxl-e149000-n169000-s500"]["reason"] == "SOURCE_ROAD_BBOX_DISJOINT"
+          assert all(v is False for v in generated["authorization"].values())
+          assert plan["input_gap_semantic_sha256"] == generated["semantic_sha256"]
+          assert plan["required_acquisition_envelope_lambert72"] == [148500.0,169000.0,149500.0,171000.0]
+          assert plan["baseline_source"]["may_be_overwritten"] is False
+          assert plan["future_acquisition_contract"]["target_snapshot_path"] != generated["road_source"]["source_path"]
+          assert all(v is False for v in plan["authorization"].values())
+          print(
+              "REGISTERED_CELL_ROAD_COVERAGE_GAPS_LOCKED_EXACT "
+              f"registered={a['registered_cell_count']} mapped={a['mapped_registered_cell_count']} "
+              f"unmatched={a['unmatched_registered_cell_count']} semantic={generated['semantic_sha256']} "
+              f"extension_plan={plan['semantic_sha256']}"
+          )
+          PY
+      - name: Upload gap evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: registered-cell-road-coverage-gaps
+          path: ${{ runner.temp }}/brussels_registered_cell_road_coverage_gaps.json
+          if-no-files-found: error

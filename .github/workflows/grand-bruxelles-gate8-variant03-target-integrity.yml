@@ -19,11 +19,15 @@ jobs:
       PROJECT: /tmp/gate8-variant03-integrity
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - name: Require exact live main, bounded Character/NPC scope and closed rails
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live main, exact candidate head, bounded Character/NPC scope and closed rails
         shell: bash
         run: |
           set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git fetch --no-tags origin main
           test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
           test "$(git merge-base origin/main HEAD)" = "$EXPECTED_MAIN"
@@ -105,7 +109,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gate8-variant03-target-integrity-${{ github.sha }}
+          name: gate8-variant03-target-integrity-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             ${{ runner.temp }}/artifact.json
             ${{ runner.temp }}/npc_gate_03.sha256

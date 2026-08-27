@@ -192,3 +192,6 @@ func applied_surface_count() -> int:
 
 func enhanced_material() -> ShaderMaterial:
     return _material
+
+func fonsny_full_entrance_runtime() -> Node:
+    return _fonsny_full_entrance_runtime

@@ -1,0 +1,161 @@
+name: Grand Bruxelles Corrected Frame Road Cell Crosswalk Materialization Candidate
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json"
+      - "grand-bruxelles-game/tools/qa/materialize_corrected_frame_road_cell_crosswalk_candidate.py"
+      - "grand-bruxelles-game/tests/test_corrected_frame_road_cell_crosswalk_materialization.py"
+      - ".github/workflows/grand-bruxelles-corrected-frame-road-cell-crosswalk-materialization.yml"
+      - "grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_corrected_frame_road_cell_migration_plan.py"
+      - "grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_osm_road_frame_correction_impact.py"
+      - "grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
+          assert d['production_base_sha']==sys.argv[1], (d['production_base_sha'],sys.argv[1])
+          assert d['status'] in {'MEASUREMENT_PENDING','LOCKED_CANDIDATE_EVIDENCE_ONLY'}
+          assert d['materialization_policy']['artifact_only'] is True
+          assert d['materialization_policy']['replace_current_crosswalk_authorized'] is False
+          assert d['materialization_policy']['write_production_crosswalk_authorized'] is False
+          assert d['materialization_policy']['multicell_mapping_authorized'] is False
+          assert all(v is False for v in d['authorization'].values())
+          print('CORRECTED_FRAME_CROSSWALK_MATERIALIZATION_LIVE_MAIN_OK',sys.argv[1],d['status'])
+          PY
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_corrected_frame_road_cell_crosswalk_materialization.py -v
+      - name: Resolve audited historical evidence bases
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r IMPACT_BASE_SHA MIGRATION_BASE_SHA MIGRATION_SEMANTIC <<EOF
+          $(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          impact=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          migration=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
+          materialization=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
+          assert impact['status']=='LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY'
+          assert migration['status']=='LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY'
+          assert migration['locked_evidence']['semantic_sha256']==materialization['source']['migration_plan_semantic_sha256']
+          print(impact['production_base_sha'], migration['production_base_sha'], migration['locked_evidence']['semantic_sha256'])
+          PY
+          )
+          EOF
+          git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
+          git cat-file -e "${MIGRATION_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
+          git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"
+          echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
+          echo "MIGRATION_BASE_SHA=$MIGRATION_BASE_SHA" >> "$GITHUB_ENV"
+          echo "MIGRATION_SEMANTIC=$MIGRATION_SEMANTIC" >> "$GITHUB_ENV"
+      - name: Recompute corrected-frame impact
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/measure_osm_road_frame_correction_impact.py
+          --contract data/qa/osm_road_frame_correction_impact.contract.json
+          --repo-root .
+          --live-main-sha "$IMPACT_BASE_SHA"
+          --output "$RUNNER_TEMP/osm-road-frame-impact.json"
+      - name: Recompute locked migration plan at historical evidence base
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/measure_corrected_frame_road_cell_migration_plan.py
+          --contract data/qa/corrected_frame_road_cell_migration_plan.contract.json
+          --impact "$RUNNER_TEMP/osm-road-frame-impact.json"
+          --repo-root .
+          --production-base-sha "$MIGRATION_BASE_SHA"
+          --output "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
+      - name: Verify locked migration replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          migration=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
+          measured=json.loads((Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-migration-plan.json').read_text())
+          assert measured['semantic_sha256']==migration['locked_evidence']['semantic_sha256']==os.environ['MIGRATION_SEMANTIC']
+          assert measured['accounting']==migration['locked_evidence']['accounting']
+          assert all(v is False for v in measured['authorization'].values())
+          print('CORRECTED_FRAME_MIGRATION_PLAN_HISTORICAL_REPLAY_OK',measured['semantic_sha256'])
+          PY
+      - name: Materialize corrected-frame crosswalk candidate
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/materialize_corrected_frame_road_cell_crosswalk_candidate.py
+          --contract data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json
+          --plan "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
+          --repo-root .
+          --production-base-sha "$LIVE_MAIN_SHA"
+          --output "$RUNNER_TEMP/corrected-frame-road-cell-crosswalk-candidate.json"
+      - name: Verify evidence-only candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
+          d=json.loads((Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-crosswalk-candidate.json').read_text())
+          assert d['status']=='CANDIDATE_EVIDENCE_ONLY_NOT_APPLIED'
+          assert len(d['rows'])==96
+          assert len(d['multicell_hold_rows'])==2
+          assert d['accounting']['candidate_no_registered_overlap_count']==42
+          assert all(v is False for v in d['authorization'].values())
+          assert d['materialization_policy']['replace_current_crosswalk_authorized'] is False
+          assert d['materialization_policy']['write_production_crosswalk_authorized'] is False
+          print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_MEASURED',d['semantic_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-road-cell-crosswalk-materialization-candidate
+          path: ${{ runner.temp }}/corrected-frame-road-cell-crosswalk-candidate.json
+          if-no-files-found: error
+      - name: Enforce content-addressed candidate lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
+          candidate_path=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-crosswalk-candidate.json'
+          measured=json.loads(candidate_path.read_text())
+          if contract['status']=='MEASUREMENT_PENDING':
+              print('RED_FIRST_CORRECTED_FRAME_CROSSWALK_CANDIDATE_NOT_LOCKED',measured['semantic_sha256'])
+              sys.exit(1)
+          locked=contract['locked_evidence']
+          candidate_json_sha256=hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+          assert measured['semantic_sha256']==locked['semantic_sha256']
+          assert candidate_json_sha256==locked['candidate_json_sha256']
+          assert len(measured['rows'])==locked['candidate_unique_mapped_road_count']==96
+          assert len(measured['multicell_hold_rows'])==locked['candidate_multicell_road_count']==2
+          assert measured['accounting']['candidate_no_registered_overlap_count']==locked['candidate_no_registered_overlap_count']==42
+          assert all(v is False for v in measured['authorization'].values())
+          print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_LOCKED_EXACT',measured['semantic_sha256'],candidate_json_sha256)
+          PY

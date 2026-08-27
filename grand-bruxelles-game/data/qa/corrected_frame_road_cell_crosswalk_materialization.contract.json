@@ -1,0 +1,58 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-road-cell-crosswalk-materialization-contract-v1",
+  "status": "LOCKED_CANDIDATE_EVIDENCE_ONLY",
+  "production_base_sha": "b7bf88ce557cd87948363ea726ab4bcd76b35911",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_path": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "migration_plan_contract_path": "data/qa/corrected_frame_road_cell_migration_plan.contract.json",
+    "migration_plan_semantic_sha256": "5aff955a11c5b59e610b740ed8b1aca1b55a4eaf32457e01d35f2dfae20fa437",
+    "current_crosswalk_path": "data/provenance/brussels_road_registered_cell_crosswalk.json",
+    "candidate_contract_path": "data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json",
+    "candidate_semantic_sha256": "7d8a943297a16cc855e67128b979f3e538193706087df419c9709b1751b53dc1",
+    "crs": "EPSG:31370",
+    "origin_easting_m": 148538.362136,
+    "origin_northing_m": 170165.796688,
+    "formula": "E=origin_easting_m+x;N=origin_northing_m-z"
+  },
+  "expected": {
+    "source_road_count": 140,
+    "current_mapped_road_count": 56,
+    "candidate_unique_mapped_road_count": 96,
+    "candidate_multicell_road_count": 2,
+    "candidate_no_registered_overlap_count": 42,
+    "retained_mapping_count": 0,
+    "changed_mapping_count": 45,
+    "newly_mappable_count": 51,
+    "no_longer_mappable_count": 11
+  },
+  "locked_evidence": {
+    "workflow_run_id": 33062220654,
+    "artifact_id": 9642195509,
+    "artifact_sha256": "a9f5d7f129f5c48b02094bb35d1b06643bcb133e54411483f471268308a1bd63",
+    "candidate_json_sha256": "3a3b9f3d5be97cec930a39a69a627d4638d5b4672e31c607efee07c0c978e640",
+    "semantic_sha256": "9fca92b20a3a45b8d9d8c8740a3e355cf993d9961797ed5a8e1a13f14989b173",
+    "candidate_unique_mapped_road_count": 96,
+    "candidate_multicell_road_count": 2,
+    "candidate_no_registered_overlap_count": 42
+  },
+  "materialization_policy": {
+    "artifact_only": true,
+    "replace_current_crosswalk_authorized": false,
+    "write_production_crosswalk_authorized": false,
+    "multicell_mapping_authorized": false,
+    "unique_mapping_only": true,
+    "atomic_followup_required": true
+  },
+  "authorization": {
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

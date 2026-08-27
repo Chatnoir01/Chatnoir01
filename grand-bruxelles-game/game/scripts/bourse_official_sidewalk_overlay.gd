@@ -17,6 +17,9 @@ var _height_is_renderer_bias_only: bool = false
 var _boundary_segment_count: int = 0
 var _boundary_triangle_count: int = 0
 var _boundary_is_renderer_only: bool = false
+var _collision_ready: bool = false
+var _collision_triangle_count: int = 0
+var _collision_vertex_count: int = 0
 
 func _ready() -> void:
     _build()
@@ -119,6 +122,73 @@ func _build_boundary_mesh(records: Dictionary) -> void:
     add_child(instance)
     _boundary_is_renderer_only = true
 
+func _append_collision_surface_faces(arrays: Array, collision_faces: PackedVector3Array) -> void:
+    if arrays.size() <= Mesh.ARRAY_VERTEX:
+        return
+    var vertices_value: Variant = arrays[Mesh.ARRAY_VERTEX]
+    if typeof(vertices_value) != TYPE_PACKED_VECTOR3_ARRAY:
+        return
+    var vertices: PackedVector3Array = vertices_value
+
+    var indices := PackedInt32Array()
+    if arrays.size() > Mesh.ARRAY_INDEX:
+        var indices_value: Variant = arrays[Mesh.ARRAY_INDEX]
+        if typeof(indices_value) == TYPE_PACKED_INT32_ARRAY:
+            indices = indices_value
+
+    if indices.is_empty():
+        for vertex: Vector3 in vertices:
+            collision_faces.append(Vector3(vertex.x, BASE_SURFACE_Y_M, vertex.z))
+        return
+
+    for vertex_index: int in indices:
+        if vertex_index < 0 or vertex_index >= vertices.size():
+            _fail("render mesh contains an invalid collision vertex index")
+            collision_faces.clear()
+            return
+        var vertex := vertices[vertex_index]
+        collision_faces.append(Vector3(vertex.x, BASE_SURFACE_Y_M, vertex.z))
+
+func _build_collision_from_render_mesh(mesh: ArrayMesh, data: Dictionary) -> void:
+    if mesh == null or mesh.get_surface_count() == 0:
+        _fail("cannot derive public-space collision from empty render mesh")
+        return
+
+    var collision_faces := PackedVector3Array()
+    for surface_index in range(mesh.get_surface_count()):
+        var arrays := mesh.surface_get_arrays(surface_index)
+        _append_collision_surface_faces(arrays, collision_faces)
+        if collision_faces.is_empty():
+            _fail("could not derive collision faces from official render mesh")
+            return
+
+    if collision_faces.size() < 3 or collision_faces.size() % 3 != 0:
+        _fail("invalid collision face topology derived from official render mesh")
+        return
+
+    var shape := ConcavePolygonShape3D.new()
+    shape.set_faces(collision_faces)
+    var shape_node := CollisionShape3D.new()
+    shape_node.name = "CollisionShape3D"
+    shape_node.shape = shape
+
+    var body := StaticBody3D.new()
+    body.name = "OfficialBourseSidewalkCollision"
+    body.set_meta("geometry_source", "same_official_urbis_sidewalk_mesh")
+    body.set_meta("height_authority", "gameplay_base_surface_datum")
+    body.set_meta("source_elevation_authority", false)
+    body.set_meta("no_curb_height_inference", true)
+    body.set_meta("no_wall_height_inference", true)
+    body.set_meta("presentation_bias_applied", false)
+    body.set_meta("data_path", DATA_PATH)
+    body.set_meta("source_release", str(data.get("source_release", "")))
+    body.add_child(shape_node)
+    add_child(body)
+
+    _collision_vertex_count = collision_faces.size()
+    _collision_triangle_count = collision_faces.size() / 3
+    _collision_ready = true
+
 func _build() -> void:
     if not FileAccess.file_exists(DATA_PATH):
         _fail("data missing")
@@ -181,10 +251,11 @@ func _build() -> void:
     instance.mesh = mesh
     instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(instance)
+    _build_collision_from_render_mesh(mesh, data)
     _build_boundary_mesh(segment_records)
     print(
-        "Bourse official sidewalk overlay: %d polygons, %d triangles, %d exterior boundary segments" %
-        [_polygon_count, _triangle_count, _boundary_segment_count]
+        "Bourse official sidewalk overlay: %d polygons, %d triangles, %d collision triangles, %d exterior boundary segments" %
+        [_polygon_count, _triangle_count, _collision_triangle_count, _boundary_segment_count]
     )
 
 func official_sidewalk_overlay_count() -> int:
@@ -207,3 +278,21 @@ func official_sidewalk_boundary_triangle_count() -> int:
 
 func sidewalk_boundary_is_renderer_only() -> bool:
     return _boundary_is_renderer_only
+
+func collision_ready() -> bool:
+    return _collision_ready
+
+func collision_triangle_count() -> int:
+    return _collision_triangle_count
+
+func collision_vertex_count() -> int:
+    return _collision_vertex_count
+
+func base_surface_y_m() -> float:
+    return BASE_SURFACE_Y_M
+
+func presentation_y_m() -> float:
+    return BASE_SURFACE_Y_M + PRESENTATION_EPSILON_M
+
+func render_bias_m() -> float:
+    return PRESENTATION_EPSILON_M

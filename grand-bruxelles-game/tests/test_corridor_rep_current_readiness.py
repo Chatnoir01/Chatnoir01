@@ -1,7 +1,8 @@
+import copy
 import unittest
 from pathlib import Path
 
-from tools.qa.measure_corridor_rep_current_readiness import load, normalized_expected
+from tools.qa.measure_corridor_rep_current_readiness import indexed_readiness, load, normalized_expected
 
 
 class CorridorRepresentativeReadinessTests(unittest.TestCase):
@@ -14,7 +15,7 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
     def test_locked_selection_and_expected_gap(self):
         ids=[int(x['expected_road_osm_id']) for x in self.reps['selection']['target_cells']]
         self.assertEqual(ids,[8176386,150205016,13767417,8512036])
-        current={int(x['road_osm_id']):x for x in self.readiness['destinations']}
+        current=indexed_readiness(self.readiness,self.contract['source']['road_source_sha256'])
         self.assertNotIn(8176386,current)
         self.assertNotIn(150205016,current)
         self.assertEqual(current[13767417]['cell_id'],'bxl-e147500-n169500-s500')
@@ -31,6 +32,19 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
         normalized=normalized_expected(expected)
         self.assertEqual(normalized['expected_wrong_cell_road_osm_ids'],[8512036,13767417])
         self.assertEqual(normalized['expected_absent_road_osm_ids'],[8176386,150205016])
+
+    def test_readiness_catalog_rejects_duplicate_road_ids(self):
+        duplicate=copy.deepcopy(self.readiness)
+        duplicate['destinations'].append(copy.deepcopy(duplicate['destinations'][0]))
+        duplicate['destination_count']=len(duplicate['destinations'])
+        with self.assertRaisesRegex(AssertionError,'duplicate road_osm_id'):
+            indexed_readiness(duplicate,self.contract['source']['road_source_sha256'])
+
+    def test_readiness_catalog_is_bound_to_locked_source(self):
+        drift=copy.deepcopy(self.readiness)
+        drift['destinations'][0]['source_sha256']='0'*64
+        with self.assertRaises(AssertionError):
+            indexed_readiness(drift,self.contract['source']['road_source_sha256'])
 
     def test_all_authorizations_remain_closed(self):
         self.assertTrue(self.contract['authorization'])

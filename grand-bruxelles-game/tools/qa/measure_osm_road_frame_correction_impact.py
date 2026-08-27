@@ -22,6 +22,14 @@ def canonical_sha256(obj) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def semantic_identity_basis(result):
+    """Return the stable engineering identity, excluding continuity-only metadata."""
+    basis = dict(result)
+    basis.pop("semantic_sha256", None)
+    basis.pop("production_base_sha", None)
+    return basis
+
+
 def segment_intersects_rect(p0, p1, bbox):
     x0, z0 = float(p0[0]), float(p0[1])
     x1, z1 = float(p1[0]), float(p1[1])
@@ -62,9 +70,14 @@ def main():
 
     root = Path(args.repo_root).resolve()
     contract = load_json(root / args.contract)
-    assert contract["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-v1"
+    assert contract["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-v2"
     assert contract["status"] in {"MEASUREMENT_PENDING", "LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY"}
     assert contract["production_base_sha"] == args.live_main_sha
+    assert contract["semantic_identity_policy"] == {
+        "canonical_json": "sort_keys_compact_utf8",
+        "exclude_continuity_fields": ["production_base_sha"],
+        "artifact_semantic_retained_for_forensics": True,
+    }
     assert all(v is False for v in contract["authorization"].values())
 
     source_path = root / contract["source"]["path"]
@@ -145,7 +158,7 @@ def main():
         cell_counts[row["cell_id"]] = cell_counts.get(row["cell_id"], 0) + 1
 
     result = {
-        "schema": "grand-bruxelles-osm-road-frame-correction-impact-measurement-v1",
+        "schema": "grand-bruxelles-osm-road-frame-correction-impact-measurement-v2",
         "status": "MEASURED_FRAME_CORRECTION_IMPACT_EVIDENCE_ONLY",
         "production_base_sha": args.live_main_sha,
         "source_sha256": contract["source"]["sha256"],
@@ -180,12 +193,11 @@ def main():
         },
         "authorization": dict(contract["authorization"]),
     }
-    semantic_basis = dict(result)
-    result["semantic_sha256"] = canonical_sha256(semantic_basis)
+    result["semantic_sha256"] = canonical_sha256(semantic_identity_basis(result))
 
     if contract["status"] == "LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY":
         locked = contract["locked_evidence"]
-        assert result["semantic_sha256"] == locked["semantic_sha256"]
+        assert result["semantic_sha256"] == locked["stable_semantic_sha256"]
         assert result["accounting"] == locked["accounting"]
 
     Path(args.output).write_text(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")

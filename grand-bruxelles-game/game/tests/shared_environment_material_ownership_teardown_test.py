@@ -50,6 +50,21 @@ TARGETS = {
         ],
         "official_family": "brussels_ground_network_official_material_v1",
     },
+    "game/scripts/brussels_base_ground_surface_runtime.gd": {
+        "family": "brussels_base_ground_surface_v1",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": [
+            "_ground.material == _enhanced_material",
+            "_ground.material = _legacy_material",
+            "_ground = null",
+            "_legacy_material = null",
+            "_enhanced_material = null",
+        ],
+        "apply_function": "_set_material_state",
+        "required_apply_tokens": [
+            "_ground.material = _enhanced_material if enabled else _legacy_material",
+        ],
+    },
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": {
         "family": "brussels_osm_sidewalk_surface_v1",
         "helper": "_release_material_ownership",
@@ -155,14 +170,15 @@ def main() -> None:
 
         validated.append(target_path)
 
-    if len(validated) != 5:
-        fail("expected exactly five shared material-owning runtimes")
+    if len(validated) != 6:
+        fail("expected exactly six shared material-owning runtimes")
 
     print(
         "SHARED_ENVIRONMENT_MATERIAL_OWNERSHIP_TEARDOWN_OK: "
-        "owners=5 facade_surface=brussels_osm_facade_surface_v1 "
+        "owners=6 facade_surface=brussels_osm_facade_surface_v1 "
         "facade_articulation=brussels_osm_facade_articulation_v1 "
         "road_surface=brussels_osm_road_surface_v1 "
+        "base_ground=brussels_base_ground_surface_v1 "
         "sidewalk_surface=brussels_osm_sidewalk_surface_v1 "
         "rail_surface=brussels_osm_rail_surface_v1 official_override=true "
         "owner_aware_restore=true geometry_changed=false"

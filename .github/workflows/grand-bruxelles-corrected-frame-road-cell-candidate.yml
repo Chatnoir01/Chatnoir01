@@ -37,16 +37,33 @@ jobs:
           assert all(v is False for v in d['authorization'].values())
           print('CORRECTED_FRAME_CROSSWALK_LIVE_MAIN_OK',sys.argv[1])
           PY
+      - name: Bind historical impact evidence to its audited base
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMPACT_BASE_SHA="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          assert d['status']=='LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY'
+          assert d['semantic_identity_policy']['exclude_continuity_fields']==['production_base_sha']
+          print(d['production_base_sha'])
+          PY
+          )"
+          git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
+          echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
+          echo "CORRECTED_FRAME_IMPACT_HISTORICAL_BASE_OK impact_base=$IMPACT_BASE_SHA live_main=$LIVE_MAIN_SHA"
       - name: Run fail-closed contract regression
         working-directory: grand-bruxelles-game
         run: python -m unittest tests/test_corrected_frame_road_cell_crosswalk_candidate.py -v
-      - name: Recompute corrected-frame impact
+      - name: Recompute corrected-frame impact from locked historical evidence
         working-directory: grand-bruxelles-game
         run: >-
           python tools/qa/measure_osm_road_frame_correction_impact.py
           --contract data/qa/osm_road_frame_correction_impact.contract.json
           --repo-root .
-          --live-main-sha "$LIVE_MAIN_SHA"
+          --live-main-sha "$IMPACT_BASE_SHA"
           --output "$RUNNER_TEMP/osm-road-frame-impact.json"
       - name: Materialize candidate crosswalk artifact
         shell: bash
@@ -57,6 +74,7 @@ jobs:
           from pathlib import Path
           contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json').read_text())
           impact=json.loads((Path(os.environ['RUNNER_TEMP'])/'osm-road-frame-impact.json').read_text())
+          assert impact['production_base_sha']==os.environ['IMPACT_BASE_SHA']
           assert impact['semantic_sha256']==contract['source']['impact_stable_semantic_sha256']
           a=impact['accounting']; e=contract['expected_accounting']
           for k,v in e.items(): assert a[k]==v,(k,a[k],v)
@@ -68,6 +86,7 @@ jobs:
             'schema':'grand-bruxelles-road-registered-cell-crosswalk-candidate-v1',
             'status':'GENERATED_EVIDENCE_ONLY',
             'base_sha':os.environ['LIVE_MAIN_SHA'],
+            'impact_evidence_base_sha':os.environ['IMPACT_BASE_SHA'],
             'source_sha256':contract['source']['road_source_sha256'],
             'frame_review_semantic_sha256':contract['source']['frame_review_semantic_sha256'],
             'impact_semantic_sha256':impact['semantic_sha256'],

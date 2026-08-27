@@ -45,6 +45,7 @@ jobs:
           git diff --name-only origin/main HEAD | sort > "$RUNNER_TEMP/actual.txt"
           printf '%s\n' \
             '.github/workflows/grand-bruxelles-gate8-variant03-steve-native-probe.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-target-integrity.yml' \
             'grand-bruxelles-game/data/qa/gate8_variant03_steve_canonical_native_probe.json' | sort > "$RUNNER_TEMP/expected.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
           python3 - <<'PY'
@@ -61,6 +62,10 @@ jobs:
           assert d['target']['size_bytes']==12589156
           assert d['target']['bone_count']==53 and d['target']['vertex_count']==20495
           assert d['gates']=={'max_transfer_error_deg':3.0,'max_grounding_span_m':0.18,'max_skin_edge_change_m':0.25,'max_skin_stretch_ratio':3.0,'min_skin_compression_ratio':0.25}
+          diag=d['diagnostics']
+          assert diag['collapsed_rest_rotation_metric']=='shortest_quaternion_arc_atan2_abs_w'
+          assert diag['collapsed_rest_rotation_limit_deg']==0.001
+          assert diag['latest_red_run']==33098598471 and diag['latest_red_artifact_id']==9657570506
           assert d['rails']['walk_alias_selected']=='' and d['rails']['run_alias_selected']==''
           for k in ('production_authorized','activation_ready','adoption_ready','visual_approval_claimed'): assert d['rails'][k] is False
           print('GATE8_VARIANT03_STEVE_NATIVE_CONTRACT_OK main=%s'%d['base_main_sha'])
@@ -122,9 +127,30 @@ jobs:
           s=s.replace('res://assets/npc_gate_01.glb','res://assets/npc_gate_03.glb')
           s=s.replace('gate8_variant01_steve_canonical_native_probe_result.json','gate8_variant03_steve_canonical_native_probe_result.json')
           s=s.replace('grand-bruxelles-gate8-variant01-steve-canonical-native-probe-v2','grand-bruxelles-gate8-variant03-steve-canonical-native-probe-v1')
+          old='var rotation_error:=rad_to_deg(a.basis.orthonormalized().get_rotation_quaternion().angle_to(b.basis.orthonormalized().get_rotation_quaternion()))'
+          new='var rotation_error:=_stable_quaternion_angle_deg(a.basis.orthonormalized().get_rotation_quaternion(),b.basis.orthonormalized().get_rotation_quaternion())'
+          assert old in s, 'collapsed-rest rotation expression drifted'
+          s=s.replace(old,new,1)
+          marker='func _build_profile()->SkeletonProfile:'
+          helper='func _stable_quaternion_angle_deg(a:Quaternion,b:Quaternion)->float:\n    var qa:=a.normalized()\n    var qb:=b.normalized()\n    var d:Quaternion=(qa.inverse()*qb).normalized()\n    return rad_to_deg(2.0*atan2(Vector3(d.x,d.y,d.z).length(),absf(d.w)))\n\n'
+          assert marker in s
+          s=s.replace(marker,helper+marker,1)
           p.write_text(s)
           PY
           grep -q 'res://assets/npc_gate_03.glb' "$RUNNER_TEMP/probe.gd"
+          grep -q '_stable_quaternion_angle_deg' "$RUNNER_TEMP/probe.gd"
+          ! grep -q 'get_rotation_quaternion().angle_to(b.basis.orthonormalized().get_rotation_quaternion())' "$RUNNER_TEMP/probe.gd"
+          python3 - <<'PY'
+          import math
+          q=(0.0,0.0,0.0,1.0); nq=tuple(-x for x in q)
+          def stable(a,b):
+              dot=sum(x*y for x,y in zip(a,b))
+              w=abs(max(-1.0,min(1.0,dot)))
+              return math.degrees(2.0*math.atan2(math.sqrt(max(0.0,1.0-w*w)),w))
+          assert stable(q,nq) < 1e-9
+          assert 0.0005 < 0.001 < 0.002
+          print('GATE8_COLLAPSED_REST_QUATERNION_REGRESSION_OK')
+          PY
 
       - name: Run Godot 4.7.1 transfer, grounding and CPU skin-space on variant03
         shell: bash

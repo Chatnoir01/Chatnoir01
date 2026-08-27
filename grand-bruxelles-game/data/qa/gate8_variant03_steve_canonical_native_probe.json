@@ -1,0 +1,39 @@
+{
+  "format": "grand-bruxelles-gate8-variant03-steve-canonical-native-probe-v1",
+  "base_main_sha": "03d8871bb1985da7b661d7d1e1530916fc144a37",
+  "source": {
+    "name": "Steve NPC1",
+    "license": "CC0-1.0",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_size_bytes": 1454243,
+    "canonical_walk_pipeline_head": "0a0e8e9330c88d1100054c3eb534a237cb5e7c8c"
+  },
+  "target": {
+    "variant": 3,
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "cd3d0abc6020789f4d000a84c6a6f44d9707942649d62a66a7406cbb2cd35313",
+    "size_bytes": 12589156,
+    "skeleton_count": 1,
+    "bone_count": 53,
+    "skinned_meshes": 8,
+    "skinned_surfaces": 8,
+    "material_surfaces": 8,
+    "vertex_count": 20495
+  },
+  "gates": {
+    "max_transfer_error_deg": 3.0,
+    "max_grounding_span_m": 0.18,
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "visual_approval_claimed": false
+  }
+}

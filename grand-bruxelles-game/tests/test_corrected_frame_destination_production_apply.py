@@ -58,11 +58,18 @@ def must_fail(cw_mut=None, rd_mut=None):
 
 def test_valid_pair():
     cw, rd = candidates()
-    out_cw, out_rd = builder.build_pair(contract(), cw, rd, {"rows": []}, {"destinations": [], "authorization": {}})
+    out_cw, out_rd = builder.build_pair(
+        contract(),
+        cw,
+        rd,
+        {"rows": [], "mapped_cell_count": 1},
+        {"destinations": [], "mapped_cell_count": 1, "authorization": {}},
+    )
     assert len(out_cw["rows"]) == 2
     assert len(out_rd["destinations"]) == 2
     assert out_rd["destinations"][0]["destination_id"] == "road-1"
     assert out_cw["mapped_cell_count"] == 2
+    assert out_rd["mapped_cell_count"] == 2
 
 
 def test_destination_identity_mismatch_rejected():
@@ -85,30 +92,40 @@ def test_runtime_authorization_rejected():
     must_fail(rd_mut=lambda rd: rd["destinations"][0].update(collision_authorized=True))
 
 
-def test_staged_evidence_lock_never_implies_production_write_authorization():
+def test_corrected_staged_lock_is_exact_and_never_authorizes_production_write():
     d = json.loads(CONTRACT_PATH.read_text())
-    assert d["status"] in {"PRE_APPLY_BUILDER_ONLY", "LOCKED_STAGED_PAIR_EVIDENCE_ONLY"}
+    assert d["status"] == "LOCKED_STAGED_PAIR_EVIDENCE_ONLY"
     assert d["policy"]["write_production_files_authorized"] is False
     assert d["policy"]["runtime_probe_authorized"] is False
     assert d["policy"]["jouable_promotion_authorized"] is False
-    if d["status"] == "LOCKED_STAGED_PAIR_EVIDENCE_ONLY":
-        locked = d["locked_staged_evidence"]
-        assert locked["run_id"] == 33115920683
-        assert locked["head_sha"] == "7e99f9a6494925520c93b308cf0c8cdec2fc6c2c"
-        assert locked["artifact_id"] == 9664489630
-        expected_hashes = {
-            "artifact_sha256": "25095225b55405d8bb0c5da107f773951a29ccde6b4f681bdec835cd17e9ce4d",
-            "generated_crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
-            "generated_readiness_sha256": "2c98aa4315d446628ce260254082d76b29bd8fb097b73f76d0b5bfa03483f6b3",
-        }
-        for key, expected in expected_hashes.items():
-            assert locked[key] == expected
-            assert len(locked[key]) == 64
-            int(locked[key], 16)
-        assert locked["mapping_count"] == 96
-        assert locked["destination_count"] == 96
-        assert locked["mapped_cell_count"] == 4
-        assert locked["multicell_hold_ids"] == [256158619, 397461693]
+    assert d["policy"]["readiness_mapped_cell_count_must_equal_crosswalk"] is True
+    assert d["policy"]["red_first_artifact_must_upload_before_lock"] is True
+
+    superseded = d["superseded_staged_evidence"]
+    assert superseded["reason"] == "readiness_mapped_cell_count_inherited_stale_wrapper_3_expected_4"
+    assert superseded["artifact_id"] == 9664489630
+    assert superseded["generated_readiness_sha256"] == "2c98aa4315d446628ce260254082d76b29bd8fb097b73f76d0b5bfa03483f6b3"
+    assert superseded["observed_readiness_mapped_cell_count"] == 3
+    assert superseded["actual_destination_cell_count"] == 4
+
+    locked = d["locked_staged_evidence"]
+    assert locked["run_id"] == 33117227791
+    assert locked["head_sha"] == "e19da871855b9bdc8a83acce5d1dfe4aa08e7af2"
+    assert locked["artifact_id"] == 9664991653
+    expected_hashes = {
+        "artifact_sha256": "fbe7a847bdfbd8e3e2d736e06fe63c4e6324233b30c78d49c8ca578e1a386d63",
+        "generated_crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
+        "generated_readiness_sha256": "95430fb61fb3205fb4f3bd4c59b9720b0feb475ce04f5ede2c7b74d22ec6f040",
+    }
+    for key, expected in expected_hashes.items():
+        assert locked[key] == expected
+        assert len(locked[key]) == 64
+        int(locked[key], 16)
+    assert locked["mapping_count"] == 96
+    assert locked["destination_count"] == 96
+    assert locked["mapped_cell_count"] == 4
+    assert locked["readiness_mapped_cell_count"] == 4
+    assert locked["multicell_hold_ids"] == [256158619, 397461693]
 
 
 if __name__ == "__main__":

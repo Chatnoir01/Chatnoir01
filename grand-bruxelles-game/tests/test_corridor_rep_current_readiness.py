@@ -2,7 +2,7 @@ import copy
 import unittest
 from pathlib import Path
 
-from tools.qa.measure_corridor_rep_current_readiness import indexed_readiness, load, normalized_expected
+from tools.qa.measure_corridor_rep_current_readiness import indexed_readiness, load, normalized_expected, validate_measurement_base
 
 
 class CorridorRepresentativeReadinessTests(unittest.TestCase):
@@ -62,6 +62,24 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
         self.assertTrue(self.contract['policy']['locked_measurement_sha_is_forensic_to_locked_base'])
         self.assertTrue(self.contract['policy']['semantic_lock_survives_clean_live_main_rebuild'])
         self.assertEqual(locked['semantic_sha256'],'f15a6dc04cff1103d1e5024e9c2d4fbc7655ec4778e0bcb80420bc1501e93eda')
+
+    def test_historical_locked_base_can_measure_clean_live_main(self):
+        live_main='7c1143fa1e4df4d524d3791a72237f4b81196b34'
+        evidence=validate_measurement_base(self.contract,live_main)
+        self.assertEqual(evidence,self.contract['production_base_sha'])
+        self.assertNotEqual(live_main,evidence)
+
+    def test_live_main_replay_rejects_without_semantic_policy(self):
+        drift=copy.deepcopy(self.contract)
+        drift['policy']['semantic_lock_survives_clean_live_main_rebuild']=False
+        with self.assertRaises(AssertionError):
+            validate_measurement_base(drift,'7c1143fa1e4df4d524d3791a72237f4b81196b34')
+
+    def test_live_main_replay_rejects_locked_base_drift(self):
+        drift=copy.deepcopy(self.contract)
+        drift['locked_evidence']['production_base_sha']='0'*40
+        with self.assertRaises(AssertionError):
+            validate_measurement_base(drift,'7c1143fa1e4df4d524d3791a72237f4b81196b34')
 
     def test_current_catalog_is_registered_not_rendered(self):
         self.assertEqual(self.readiness['destination_count'],len(self.readiness['destinations']))

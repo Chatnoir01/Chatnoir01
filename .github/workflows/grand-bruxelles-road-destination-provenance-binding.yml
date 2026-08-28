@@ -35,7 +35,10 @@ jobs:
           python3 tools/build_road_destination_provenance_binding.py --output artifacts/road-provenance-binding/binding-a.json
           python3 tools/build_road_destination_provenance_binding.py --output artifacts/road-provenance-binding/binding-b.json
           cmp artifacts/road-provenance-binding/binding-a.json artifacts/road-provenance-binding/binding-b.json
-          sha256sum artifacts/road-provenance-binding/binding-a.json | tee artifacts/road-provenance-binding/binding-file.sha256
+          (
+            cd artifacts/road-provenance-binding
+            sha256sum binding-a.json | tee binding-file.sha256
+          )
 
       - name: Validate state and authorization accounting
         working-directory: grand-bruxelles-game

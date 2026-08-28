@@ -4,11 +4,11 @@
   "all_discovered_environment_autoloads_classified": true,
   "nearest_owner_inference_authorized": false,
   "shared_runtime_count": 16,
-  "explicit_exclusion_count": 8,
-  "classified_autoload_count": 24,
+  "explicit_exclusion_count": 9,
+  "classified_autoload_count": 25,
   "notes": [
     "Shared Environment lifecycle ownership comes from the shipped lifecycle contract, never from alias proximity or location guessing.",
-    "Exact-location Grand-Place and Bourse material/paving autoloads remain outside Shared Environment and are listed explicitly so a new Environment autoload cannot silently bypass classification.",
+    "Exact-location Grand-Place, Bourse and source-backed Anneessens landmark autoloads remain outside Shared Environment and are listed explicitly so a production Environment autoload cannot silently bypass classification.",
     "This contract does not authorize runtime, geometry, material, collision, camera, source or JOUABLE changes."
   ],
   "explicit_exclusions": [
@@ -19,6 +19,7 @@
     {"autoload_name":"BourseWhiteStoneSurfaceRuntime","path":"game/scripts/bourse_white_stone_surface_runtime.gd","owner_scope":"bourse_exact","reason":"exact_location_owner_outside_shared_environment"},
     {"autoload_name":"BourseLimestoneBaseSurfaceRuntime","path":"game/scripts/bourse_limestone_base_surface_runtime.gd","owner_scope":"bourse_exact","reason":"exact_location_owner_outside_shared_environment"},
     {"autoload_name":"BourseArchitecturalGlazingSurfaceRuntime","path":"game/scripts/bourse_architectural_glazing_surface_runtime.gd","owner_scope":"bourse_exact","reason":"exact_location_owner_outside_shared_environment"},
-    {"autoload_name":"BourseBlueStonePavingRuntime","path":"game/scripts/bourse_blue_stone_paving_runtime.gd","owner_scope":"bourse_exact","reason":"exact_location_owner_outside_shared_environment"}
+    {"autoload_name":"BourseBlueStonePavingRuntime","path":"game/scripts/bourse_blue_stone_paving_runtime.gd","owner_scope":"bourse_exact","reason":"exact_location_owner_outside_shared_environment"},
+    {"autoload_name":"AnneessensSchoolHero","path":"game/scripts/anneessens_school_hero.gd","owner_scope":"anneessens_exact","reason":"exact_location_owner_outside_shared_environment"}
   ]
 }

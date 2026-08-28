@@ -1,0 +1,61 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-target-micropose-skin-v1",
+  "base_main_sha": "67ef88339ca751f41166ea8c958028fb3b4437fe",
+  "target": {
+    "variant": 1,
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "bone_count": 53,
+    "skinned_meshes": 8,
+    "skinned_surfaces": 8,
+    "material_surfaces": 8,
+    "vertex_count": 21044
+  },
+  "validated_integrity_prerequisite": {
+    "run_id": 33154779876,
+    "head_sha": "93bafd7f06a7a96d2aca5645f7ee8e81f3e264d2",
+    "artifact_id": 9679159082,
+    "artifact_digest": "sha256:fadf18b842ab4f4daaa21281e9aa811799a83df28a43fae4d934d73b49986104",
+    "state": "TARGET01_EXACT_INTEGRITY_READY"
+  },
+  "validated_harness_source": {
+    "commit_sha": "73feaa653d3d66bbd46cd218576e7d9585161ae2",
+    "path": "grand-bruxelles-game/game/tests/gate8_variant06_target_micropose_skin_test.gd",
+    "source_variant": 6,
+    "source_vertex_count": 24073,
+    "transformer": "grand-bruxelles-game/game/tests/gate8_variant01_micropose_materialize.py"
+  },
+  "method": {
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "target_skin_modified": false,
+    "target_rest_modified": false,
+    "micropose_degrees": 5.0,
+    "micropose_role_count": 9,
+    "axis_count": 3,
+    "expected_case_count": 54
+  },
+  "gates": {
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "max_foot_drift_m": 0.000001,
+    "max_rest_position_drift_m": 0.000001,
+    "max_rest_rotation_drift_deg": 0.0001
+  },
+  "rails": {
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_witness_authorized": false,
+    "visual_approval_claimed": false,
+    "player_character_reuse_allowed": false,
+    "mixamo_payload_allowed": false,
+    "walk_alias_selected": "",
+    "run_alias_selected": ""
+  },
+  "mechanical_state": "TARGET01_MICROPOSE_PENDING"
+}

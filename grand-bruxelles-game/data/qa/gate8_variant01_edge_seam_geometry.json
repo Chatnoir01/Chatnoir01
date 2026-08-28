@@ -1,0 +1,39 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-edge-seam-geometry-v1",
+  "base_main_sha": "d418afad3d0f67871240998ec2af813f67555e60",
+  "candidate_variant": 1,
+  "target_artifact": {
+    "id": 9470539830,
+    "digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "file": "npc_gate_01.glb",
+    "sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "expected_vertex_total": 21044
+  },
+  "coverage_artifact": {
+    "id": 9695092926,
+    "digest": "sha256:40b70fc406c02766052a8f19ca07a85a385beef1ba7ac97a221dc973315052bc",
+    "expected_state": "BLOCKED_WORST_EDGE_COVERAGE_READY",
+    "expected_unique_edges": 6,
+    "expected_unique_vertices": 12,
+    "expected_covered_cases": 48
+  },
+  "geometry_gates": {
+    "coincident_position_tolerance_m": 0.000001,
+    "weight_vector_l1_difference_tolerance": 0.0001,
+    "require_all_pairs_triangle_adjacent": true,
+    "require_nonzero_rest_edge_length": true
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  },
+  "next_safe_axis_if_split_weights_found": "DESIGN_LOCAL_SEAM_WEIGHT_CONTINUITY_OPERATOR_FROM_MEASURED_DUPLICATE_GROUPS",
+  "next_safe_axis_if_no_split_weights_found": "TRACE_SIX_TRUE_EDGES_TO_NEIGHBORHOOD_WEIGHT_FIELD_BEFORE_ANY_REWEIGHT"
+}

@@ -1,0 +1,37 @@
+{
+  "format": "grand-bruxelles-gate8-systemic-skin-quality-v1",
+  "base_main_sha": "0f8d4c3fa7a31f28cba35251e208885118a4bdf8",
+  "engine": "Godot 4.7.1",
+  "measurement": "target_only_controlled_micropose_cpu_skin_space",
+  "frozen_gates": {
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "max_foot_drift_m": 0.000001,
+    "max_rest_position_drift_m": 0.000001,
+    "max_rest_rotation_drift_deg": 0.0001
+  },
+  "variants": [
+    {"variant": 1, "run_id": 33154992910, "artifact_id": 9679245275, "artifact_digest": "sha256:310bf9d8c55f4e97ac1480351b4235e230305ccb959570581c8c2c03046703a5"},
+    {"variant": 3, "run_id": 33132917367, "artifact_id": 9670949476, "artifact_digest": "sha256:8ab197e8ba4f4780ac822fea7c57c7ac76ed3dc420017a3e6f4e143f1d1894d4"},
+    {"variant": 5, "run_id": 33138411053, "artifact_id": 9672947015, "artifact_digest": "sha256:dde0afe3d872cf7f682d5f04499ba177aea5e8b40e5c7e39bd48a07a09f893a3"},
+    {"variant": 6, "run_id": 33144182114, "artifact_id": 9675127366, "artifact_digest": "sha256:6331359ff37964ee92b0e91444610a26ba82d79c7f998723195da25818d87f6a"},
+    {"variant": 7, "run_id": 33147449534, "artifact_id": 9676336988, "artifact_digest": "sha256:30ae9ba67d7fa6ec6a2e47640f68552206b7faee72baca6e2a11a8d67fc0588b"},
+    {"variant": 8, "run_id": 33151101113, "artifact_id": 9677743609, "artifact_digest": "sha256:719cb2690f671bdb4b964e8d2bceb6473d9b559b2877f18cea79ae5115954063"}
+  ],
+  "rails": {
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "target_skin_modified": false,
+    "target_rest_modified": false,
+    "runtime_population_changed": false,
+    "player_character_reuse_allowed": false,
+    "production_authorized": false,
+    "visual_witness_authorized": false
+  },
+  "decision_contract": {
+    "all_current_candidate_skins_blocked_state": "GATE8_CURRENT_SKINS_SYSTEMICALLY_BLOCKED",
+    "next_safe_axis": "EXPLICIT_REWEIGHT_OR_REGENERATE_SKIN",
+    "forbid_additional_source_swap": true
+  }
+}

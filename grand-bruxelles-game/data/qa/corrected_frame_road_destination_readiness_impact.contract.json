@@ -21,6 +21,13 @@
     "new_destination_count": 51,
     "removed_destination_count": 11
   },
+  "semantic_identity_policy": {
+    "canonical_json": "sort_keys_compact_utf8",
+    "exclude_continuity_fields": [
+      "production_base_sha"
+    ],
+    "historical_measurement_bytes_retained_for_forensics": true
+  },
   "locked_evidence": {
     "workflow_run_id": 33066317119,
     "artifact_id": 9643855829,

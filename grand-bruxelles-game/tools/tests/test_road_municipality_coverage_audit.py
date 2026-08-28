@@ -56,7 +56,8 @@ def test_hash_tamper_fails_closed() -> None:
     try:
         module.validate_audit(audit)
     except SystemExit as exc:
-        assert "accounting drift" in str(exc) or "audit sha drift" in str(exc)
+        message = str(exc)
+        assert "discovered road identity drift" in message or "accounting drift" in message or "audit sha drift" in message
     else:
         raise AssertionError("tampered audit did not fail closed")
 

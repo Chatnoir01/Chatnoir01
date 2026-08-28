@@ -2,7 +2,7 @@ import copy
 import unittest
 from pathlib import Path
 
-from tools.qa.measure_corridor_rep_current_readiness import indexed_readiness, load, normalized_expected, validate_measurement_base
+from tools.qa.measure_corridor_rep_current_readiness import indexed_readiness, load, measure, normalized_expected, validate_measurement_base
 
 
 class CorridorRepresentativeReadinessTests(unittest.TestCase):
@@ -12,18 +12,31 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
         self.reps=load(root/'data/qa/corrected_frame_corridor_representatives.contract.json')
         self.readiness=load(root/'data/provenance/brussels_road_destination_readiness_catalog.json')
 
-    def test_locked_selection_and_expected_gap(self):
+    def test_locked_selection_and_historical_expectation_are_preserved(self):
         ids=[int(x['expected_road_osm_id']) for x in self.reps['selection']['target_cells']]
         self.assertEqual(ids,[8176386,150205016,13767417,8512036])
+        expected=normalized_expected(self.contract['expected'])
+        self.assertEqual(expected['expected_absent_road_osm_ids'],[8176386,150205016])
+        self.assertEqual(expected['expected_wrong_cell_road_osm_ids'],[8512036,13767417])
+        self.assertEqual(expected['present_in_target_cell_count'],0)
+        self.assertEqual(expected['runtime_probe_eligible_count'],0)
+
+    def test_corrected_pair_current_catalog_has_all_representatives_in_target_cells(self):
         current=indexed_readiness(self.readiness,self.contract['source']['road_source_sha256'])
-        self.assertNotIn(8176386,current)
-        self.assertNotIn(150205016,current)
-        self.assertEqual(current[13767417]['cell_id'],'bxl-e147500-n169500-s500')
-        self.assertEqual(current[8512036]['cell_id'],'bxl-e147500-n170000-s500')
         targets={int(x['expected_road_osm_id']):x['cell_id'] for x in self.reps['selection']['target_cells']}
-        self.assertNotEqual(current[13767417]['cell_id'],targets[13767417])
-        self.assertNotEqual(current[8512036]['cell_id'],targets[8512036])
-        self.assertEqual(self.contract['expected']['runtime_probe_eligible_count'],0)
+        for rid,cell_id in targets.items():
+            self.assertIn(rid,current)
+            self.assertEqual(current[rid]['cell_id'],cell_id)
+            self.assertEqual(current[rid]['readiness'],'REGISTERED_NOT_RENDERED')
+        out=measure(self.contract,self.reps,self.readiness,'c0b75e84d7498c616996216b3f976d8195a6dadd','corrected-pair-current')
+        self.assertEqual(out['status'],'REGISTERED_TARGET_CELLS_HOLD_RENDER_COLLISION')
+        self.assertEqual(out['accounting']['present_in_target_cell_count'],4)
+        self.assertEqual(out['accounting']['runtime_probe_eligible_count'],0)
+        self.assertTrue(all(v is False for v in out['authorization'].values()))
+
+    def test_historical_mode_still_fails_closed_on_current_corrected_pair(self):
+        with self.assertRaises(AssertionError):
+            measure(self.contract,self.reps,self.readiness,self.contract['production_base_sha'],'historical')
 
     def test_expected_id_sets_are_normalized_for_deterministic_compare(self):
         expected=dict(self.contract['expected'])
@@ -46,12 +59,20 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             indexed_readiness(drift,self.contract['source']['road_source_sha256'])
 
+    def test_runtime_flags_must_remain_closed(self):
+        drift=copy.deepcopy(self.readiness)
+        drift['destinations'][0]['render_authorized']=True
+        with self.assertRaises(AssertionError):
+            indexed_readiness(drift,self.contract['source']['road_source_sha256'])
+
     def test_all_authorizations_remain_closed(self):
         self.assertTrue(self.contract['authorization'])
         self.assertTrue(all(v is False for v in self.contract['authorization'].values()))
         self.assertFalse(self.contract['policy']['runtime_probe_authorized'])
         self.assertFalse(self.contract['policy']['replace_readiness_catalog_authorized'])
         self.assertFalse(self.contract['policy']['replace_crosswalk_authorized'])
+        self.assertTrue(self.contract['policy']['historical_locked_evidence_must_replay_from_evidence_base'])
+        self.assertTrue(self.contract['policy']['current_corrected_pair_measurement_is_separate_from_historical_lock'])
 
     def test_locked_forensic_bytes_are_bound_to_historical_base(self):
         self.assertEqual(self.contract['status'],'LOCKED_EVIDENCE_ONLY')
@@ -64,7 +85,7 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
         self.assertEqual(locked['semantic_sha256'],'f15a6dc04cff1103d1e5024e9c2d4fbc7655ec4778e0bcb80420bc1501e93eda')
 
     def test_historical_locked_base_can_measure_clean_live_main(self):
-        live_main='7c1143fa1e4df4d524d3791a72237f4b81196b34'
+        live_main='c0b75e84d7498c616996216b3f976d8195a6dadd'
         evidence=validate_measurement_base(self.contract,live_main)
         self.assertEqual(evidence,self.contract['production_base_sha'])
         self.assertNotEqual(live_main,evidence)
@@ -73,13 +94,13 @@ class CorridorRepresentativeReadinessTests(unittest.TestCase):
         drift=copy.deepcopy(self.contract)
         drift['policy']['semantic_lock_survives_clean_live_main_rebuild']=False
         with self.assertRaises(AssertionError):
-            validate_measurement_base(drift,'7c1143fa1e4df4d524d3791a72237f4b81196b34')
+            validate_measurement_base(drift,'c0b75e84d7498c616996216b3f976d8195a6dadd')
 
     def test_live_main_replay_rejects_locked_base_drift(self):
         drift=copy.deepcopy(self.contract)
         drift['locked_evidence']['production_base_sha']='0'*40
         with self.assertRaises(AssertionError):
-            validate_measurement_base(drift,'7c1143fa1e4df4d524d3791a72237f4b81196b34')
+            validate_measurement_base(drift,'c0b75e84d7498c616996216b3f976d8195a6dadd')
 
     def test_current_catalog_is_registered_not_rendered(self):
         self.assertEqual(self.readiness['destination_count'],len(self.readiness['destinations']))

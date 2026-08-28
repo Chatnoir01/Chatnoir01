@@ -22,6 +22,11 @@ def sha256_json(payload: Any) -> str:
     return sha256_bytes(raw)
 
 
+def serialize_catalog(payload: dict[str, Any]) -> str:
+    """Serialize persisted readiness evidence using the locked ASCII-escaped canonical form."""
+    return json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n"
+
+
 def load_json(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -345,7 +350,7 @@ def main() -> None:
     args = parser.parse_args()
     catalog = build_catalog(args.repo_root, args.road_index, args.cell_index, args.crosswalk)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(catalog, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.output.write_text(serialize_catalog(catalog), encoding="utf-8")
     print(f"ROAD_DESTINATION_READINESS_CATALOG_OK destinations={catalog['destination_count']} semantic={catalog['semantic_sha256']} runtime=false")
 
 

@@ -2,6 +2,9 @@
   "schema": "grand-bruxelles-corrected-frame-corridor-representative-contract-v1",
   "status": "LOCKED_REPRESENTATIVE_EVIDENCE_ONLY",
   "production_base_sha": "7f792cb2000751aa35a203caea0479618d310946",
+  "continuity": {
+    "semantic_lock_survives_clean_live_main_rebuild": true
+  },
   "source": {
     "provider": "OpenStreetMap contributors via Overpass API",
     "license": "ODbL-1.0",
@@ -36,7 +39,6 @@
   },
   "policy": {
     "measurement_only": true,
-    "semantic_lock_survives_clean_live_main_rebuild": true,
     "replace_crosswalk_authorized": false,
     "replace_readiness_catalog_authorized": false,
     "representative_runtime_probe_authorized": false,

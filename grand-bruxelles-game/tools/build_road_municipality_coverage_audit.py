@@ -164,6 +164,7 @@ def validate_audit(audit: dict[str, Any]) -> None:
     if [row.get("niscode") for row in municipalities] != audit.get("municipality_niscodes"):
         raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: municipality index drift")
     seen_nis: set[str] = set()
+    registered_union: set[int] = set()
     for row in municipalities:
         if not isinstance(row, dict):
             raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: malformed municipality row")
@@ -174,8 +175,9 @@ def validate_audit(audit: dict[str, Any]) -> None:
         if row.get("readiness") != "REGISTERED_NOT_RENDERED":
             raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality readiness drift {nis}")
         road_ids = row.get("registered_road_osm_ids")
-        if not isinstance(road_ids, list) or road_ids != sorted(set(road_ids)) or int(row.get("registered_road_count", -1)) != len(road_ids):
+        if not isinstance(road_ids, list) or road_ids != sorted(set(road_ids)) or any(not isinstance(value, int) or value <= 0 for value in road_ids) or int(row.get("registered_road_count", -1)) != len(road_ids):
             raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality road accounting drift {nis}")
+        registered_union.update(road_ids)
         cell_ids = row.get("cell_ids")
         if not isinstance(cell_ids, list) or not cell_ids or cell_ids != sorted(set(cell_ids)) or int(row.get("cell_count", -1)) != len(cell_ids):
             raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality cell accounting drift {nis}")
@@ -194,6 +196,19 @@ def validate_audit(audit: dict[str, Any]) -> None:
             raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality weighted coverage drift {nis}") from exc
         if weighted <= 0.0 or weighted > float(len(road_ids)):
             raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality weighted coverage drift {nis}")
+
+    discovered_ids = audit.get("discovered_unassigned_road_osm_ids")
+    if (
+        not isinstance(discovered_ids, list)
+        or discovered_ids != sorted(set(discovered_ids))
+        or any(not isinstance(value, int) or value <= 0 for value in discovered_ids)
+        or len(discovered_ids) != int(audit.get("discovered_unassigned_count", -1))
+    ):
+        raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: discovered road identity drift")
+    if registered_union.intersection(discovered_ids):
+        raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: registered/discovered road identity overlap")
+    if len(registered_union) != int(audit.get("registered_not_rendered_count", -1)):
+        raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: registered road identity accounting drift")
     if int(audit.get("registered_not_rendered_count", -1)) + int(audit.get("discovered_unassigned_count", -1)) != int(audit.get("source_entry_count", -1)):
         raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: source state accounting drift")
     auth = audit.get("authorization") or {}

@@ -70,6 +70,18 @@ def main() -> int:
         tampered["evidence_sha256"] = tool.sha256_json({k: v for k, v in tampered.items() if k != "evidence_sha256"})
         expect_fail(lambda: tool.validate_evidence(tampered, SOURCE, FRAME, CELLS), "source binding drift")
 
+    # The registered-cell index must not be able to redefine the spatial identity
+    # of immutable manifest bytes. The builder uses index bboxes for intersection
+    # math, so both cell_id and bbox must agree with the referenced manifest.
+    cell_index = json.loads(CELLS.read_text(encoding="utf-8"))
+    tampered_cells = json.loads(json.dumps(cell_index))
+    tampered_cells["entries"][0]["bbox"][0] += 1.0
+    expect_fail(lambda: tool._cell_rows(ROOT, tampered_cells), "cell manifest content drift")
+
+    tampered_cells = json.loads(json.dumps(cell_index))
+    tampered_cells["entries"][0]["cell_id"] = "bxl-e000000-n000000-s500"
+    expect_fail(lambda: tool._cell_rows(ROOT, tampered_cells), "cell manifest content drift")
+
     print("DISCOVERED_ROAD_CELL_INTERSECTION_EVIDENCE_TEST_GREEN")
     return 0
 

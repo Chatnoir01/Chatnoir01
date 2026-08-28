@@ -19,6 +19,21 @@ def normalized_expected(expected):
     return out
 
 
+def validate_measurement_base(contract, measurement_base_sha):
+    evidence_base=contract['production_base_sha']
+    assert isinstance(evidence_base,str) and len(evidence_base)==40
+    assert isinstance(measurement_base_sha,str) and len(measurement_base_sha)==40
+    if measurement_base_sha==evidence_base:
+        return evidence_base
+    assert contract['status']=='LOCKED_EVIDENCE_ONLY'
+    assert contract['policy']['semantic_lock_survives_clean_live_main_rebuild'] is True
+    locked=contract['locked_evidence']
+    assert locked['production_base_sha']==evidence_base
+    assert len(locked['semantic_sha256'])==64
+    assert len(locked['measurement_sha256'])==64
+    return evidence_base
+
+
 def indexed_readiness(readiness, expected_source_sha):
     destinations=readiness['destinations']
     assert readiness['destination_count']==len(destinations)
@@ -40,7 +55,7 @@ def main():
     ap.add_argument('--output',required=True)
     a=ap.parse_args()
     c=load(a.contract); reps=load(a.representatives); rd=load(a.readiness)
-    assert c['production_base_sha']==a.production_base_sha
+    validate_measurement_base(c,a.production_base_sha)
     assert c['source']['license']=='ODbL-1.0'
     assert all(v is False for v in c['authorization'].values())
     assert reps['status']=='LOCKED_REPRESENTATIVE_EVIDENCE_ONLY'

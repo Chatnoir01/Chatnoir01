@@ -242,7 +242,8 @@ func _set_material_state(enabled: bool) -> void:
             continue
         var instance_id := sidewalk.get_instance_id()
         if enabled:
-            _claim_generated_material(sidewalk)
+            if _claim_generated_material(sidewalk):
+                _owned_materials[instance_id] = _material
         else:
             var owned := _owned_materials.get(instance_id) as Material
             if owned != null and sidewalk.material == owned and _owns_material_metadata(sidewalk):
@@ -257,7 +258,8 @@ func _set_material_state(enabled: bool) -> void:
         if instance == null or not is_instance_valid(instance):
             continue
         if enabled:
-            _claim_official_material(instance)
+            if _claim_official_material(instance):
+                _official_owned_materials[instance_id] = _official_material
         else:
             var owned := _official_owned_materials.get(instance_id) as Material
             if owned != null and instance.material_override == owned and _owns_material_metadata(instance):

@@ -1,0 +1,31 @@
+{
+  "schema": "grand-bruxelles-shared-environment-visibility-ownership-v1",
+  "scope": "shared_environment_visibility_ownership_qa_only",
+  "visibility_ownership_registry_expected_count": 1,
+  "normal_player_visual_change_authorized": false,
+  "geometry_or_collision_change_authorized": false,
+  "camera_or_threshold_change_authorized": false,
+  "jouable_promotion_authorized": false,
+  "notes": [
+    "Visibility ownership is separate from material ownership and runtime-owned-root lifecycle governance.",
+    "A visibility owner must restore the exact captured baseline only while it still owns the visibility state.",
+    "A later owner must survive teardown unchanged; unconditional visibility resets are forbidden.",
+    "This contract records the already-shipped Fonsny lifecycle behavior and authorizes no new art or geometry."
+  ],
+  "owners": [
+    {
+      "runtime_path": "game/scripts/midi_fonsny_full_entrance_runtime.gd",
+      "owner_meta": "fonsny_visibility_owner",
+      "owner_value": "midi_fonsny_full_entrance_runtime",
+      "baseline_store": "_original_visibility",
+      "cleanup_helper": "_release_superseded_visibility_ownership",
+      "owned_replacement_root": "EntranceSourceBackedFonsnyPorch",
+      "restore_only_while_still_owned": true,
+      "later_owner_preserved": true,
+      "bookkeeping_cleared_on_teardown": true,
+      "source_identity": "urban.brussels Urban 9423",
+      "station_plan_authority": "UrbIS",
+      "source_measured_visibility_state": false
+    }
+  ]
+}

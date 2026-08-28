@@ -104,7 +104,12 @@ def test_rehashed_candidate_identity_substitution_fails_closed() -> None:
     try:
         validate_real(frontier)
     except SystemExit as exc:
-        assert "source binding drift" in str(exc) or "candidate identity drift" in str(exc)
+        diagnostic = str(exc)
+        assert (
+            "candidate identity drift" in diagnostic
+            or "candidate index drift" in diagnostic
+            or "source binding drift" in diagnostic
+        )
     else:
         raise AssertionError("rehashed road identity substitution did not fail closed")
 

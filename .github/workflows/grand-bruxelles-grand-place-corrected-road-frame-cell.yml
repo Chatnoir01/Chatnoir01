@@ -1,0 +1,185 @@
+name: Grand Bruxelles Grand-Place Corrected Road Frame Cell
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-corrected-road-frame-cell.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_corrected_road_frame_cell.contract.json"
+      - "grand-bruxelles-game/tools/qa/measure_grand_place_corrected_road_frame_cell.py"
+      - "grand-bruxelles-game/tests/test_grand_place_corrected_road_frame_cell.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/grand_place_corrected_road_frame_cell.contract.json
+  ROAD_SOURCE: grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+  HISTORICAL: grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json
+  RECONCILIATION: grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json
+  URBIS: grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.contract.json
+  TOOL: grand-bruxelles-game/tools/qa/measure_grand_place_corrected_road_frame_cell.py
+
+jobs:
+  measure-grand-place-cell:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and locked contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$(git rev-parse HEAD)"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/grand_place_corrected_road_frame_cell.contract.json").read_text())
+          assert c["schema"] == "grand-bruxelles-grand-place-corrected-road-frame-cell-contract-v1"
+          assert c["status"] == "LOCKED_CORRECTED_FRAME_CELL_MEASUREMENT"
+          assert c["production_base_sha"] == sys.argv[1]
+          assert c["zone"] == "grand_place"
+          assert c["target"] == {
+              "grid_cell_id":"E148500_N170500",
+              "urbis_cell_id":"bxl-e148500-n170500-s500",
+              "crs":"EPSG:31370",
+              "bbox":[148500.0,170500.0,149000.0,171000.0],
+          }
+          deps=c["dependencies"]
+          assert deps["road_source_sha256"] == "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+          assert deps["historical_coverage_semantic_sha256"] == "8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b"
+          assert deps["reconciliation_semantic_sha256"] == "32f3b83ccedacc98f48cb4824b82a1758e436df87cf6849806340d10b5d0ec8d"
+          assert deps["official_anchor_epsg31370"] == [148852.74417614136,170704.8857889818]
+          assert [r["osm_id"] for r in c["representative_roads"]] == [13842686,684214770]
+          lock=c["locked_measurement"]
+          assert lock["workflow_run_id"] == 33128511499
+          assert lock["artifact_id"] == 9669327043
+          assert lock["artifact_zip_sha256"] == "24e9835fafc390a8f44d926ef0cc7632f13011762edef9892d4071ebd5fb45a7"
+          assert lock["artifact_zip_bytes"] == 2319
+          assert lock["measurement_sha256"] == "c7dd0292a8c7e0bde3a4f4c63e29665b03bc0db9d500be0d8b9dd8ba59a652fa"
+          assert lock["measurement_bytes"] == 8489
+          assert lock["semantic_sha256"] == "fc31a2631590ddc89cffff43e7f2df4e93c37f7bd05383fcb0c33a9fc21e2679"
+          verdict=c["review_verdict"]
+          assert verdict["status"] == "LOCKED_GRAND_PLACE_CELL_IDENTITY_CORRECTED_FRAME_CANDIDATE"
+          assert verdict["historical_frame_matches_official_grand_place_cell"] is False
+          assert verdict["corrected_frame_candidate_matches_official_grand_place_cell"] is True
+          assert verdict["shared_frame_adoption_decision"] == "HOLD_SEPARATE_REVIEW_REQUIRED"
+          assert all(v is False for v in c["authorization"].values())
+          print("GRAND_PLACE_CORRECTED_FRAME_CONTRACT_LOCKED_EXACT rails=closed")
+          PY
+
+      - name: Require locked upstream evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398  $ROAD_SOURCE" | sha256sum -c -
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          h=json.loads(Path("grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json").read_text())
+          r=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json").read_text())
+          u=json.loads(Path("grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.contract.json").read_text())
+          assert h["semantic_sha256"] == "8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b"
+          assert [h["frame"]["origin_easting_m"],h["frame"]["origin_northing_m"]] == [147868.29422791934,169538.62414926197]
+          assert next(a for a in h["corridor_anchors"] if a["anchor_id"]=="grand_place")["grid_cell_id"] == "E148000_N170000"
+          assert r["status"] == "LOCKED_RECONCILIATION_MEASUREMENT"
+          assert r["locked_measurement"]["semantic_sha256"] == "32f3b83ccedacc98f48cb4824b82a1758e436df87cf6849806340d10b5d0ec8d"
+          assert r["locked_measurement"]["frame_comparison"]["projected_source_origin_lambert72"] == [148538.362136,170165.796688]
+          assert r["locked_measurement"]["duplicate_osm_way_ids"] == [8512036,8512040,12357557,13842686,14391825,40581330,356328311,402788142,411724192,510202247,591894649,684214770,691649674,860225856]
+          assert r["review_verdict"]["status"] == "HOLD_FRAME_RECONCILIATION_REQUIRED"
+          assert r["review_verdict"]["projected_source_origin_frame_is_supported_candidate"] is True
+          assert r["review_verdict"]["projected_source_origin_frame_authorized_for_production"] is False
+          assert all(v is False for v in r["authorization"].values())
+          assert u["target"]["cell_id"] == "bxl-e148500-n170500-s500"
+          assert u["target"]["bbox"] == [148500.0,170500.0,149000.0,171000.0]
+          assert u["identity_dependency"]["official_anchor_epsg31370"] == [148852.74417614136,170704.8857889818]
+          assert u["authorization"]["road_to_cell_mapping"] is False
+          assert u["authorization"]["runtime_mount"] is False
+          assert u["authorization"]["jouable_promotion"] is False
+          print("GRAND_PLACE_UPSTREAM_EVIDENCE_LOCKED")
+          PY
+
+      - name: Run corrected-frame regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_grand_place_corrected_road_frame_cell.py -v
+
+      - name: Restore immutable reviewed RED-first measurement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/grand-place-corrected-road-frame-cell-measurement.zip"
+          OUT="$RUNNER_TEMP/reviewed-measurement"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --connect-timeout 20 --max-time 120 \
+            -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9669327043/zip" -o "$ZIP"
+          echo "24e9835fafc390a8f44d926ef0cc7632f13011762edef9892d4071ebd5fb45a7  $ZIP" | sha256sum -c -
+          test "$(wc -c < "$ZIP")" -eq 2319
+          mkdir -p "$OUT"
+          unzip -q "$ZIP" -d "$OUT"
+          REVIEWED="$OUT/grand_place_corrected_road_frame_cell.measurement.json"
+          echo "c7dd0292a8c7e0bde3a4f4c63e29665b03bc0db9d500be0d8b9dd8ba59a652fa  $REVIEWED" | sha256sum -c -
+          test "$(wc -c < "$REVIEWED")" -eq 8489
+
+      - name: Regenerate and byte-compare reviewed measurement
+        shell: bash
+        run: |
+          set -euo pipefail
+          GENERATED="$RUNNER_TEMP/grand_place_corrected_road_frame_cell.generated.json"
+          REVIEWED="$RUNNER_TEMP/reviewed-measurement/grand_place_corrected_road_frame_cell.measurement.json"
+          python "$TOOL" --contract "$CONTRACT" --road-source "$ROAD_SOURCE" \
+            --historical-coverage "$HISTORICAL" --reconciliation "$RECONCILIATION" \
+            --urbis-contract "$URBIS" --output "$GENERATED"
+          echo "c7dd0292a8c7e0bde3a4f4c63e29665b03bc0db9d500be0d8b9dd8ba59a652fa  $GENERATED" | sha256sum -c -
+          test "$(wc -c < "$GENERATED")" -eq 8489
+          cmp "$REVIEWED" "$GENERATED"
+
+      - name: Require exact locked accounting and HOLD verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/grand_place_corrected_road_frame_cell.contract.json").read_text())
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"grand_place_corrected_road_frame_cell.generated.json").read_text())
+          lock=c["locked_measurement"]
+          assert d["semantic_sha256"] == lock["semantic_sha256"] == "fc31a2631590ddc89cffff43e7f2df4e93c37f7bd05383fcb0c33a9fc21e2679"
+          assert d["anchor"] == lock["anchor"]
+          assert d["road_accounting"] == lock["road_accounting"]
+          expected=[8512036,8512040,12357557,13842686,14391825,40581330,356328311,402788142,411724192,510202247,591894649,684214770,691649674,860225856]
+          assert d["road_accounting"]["historical_target_intersecting_road_count"] == 0
+          assert d["road_accounting"]["corrected_target_intersecting_road_count"] == 14
+          assert d["road_accounting"]["corrected_target_road_ids"] == expected
+          reps={str(r["osm_id"]):r for r in d["representative_roads"]}
+          for road_id in ("13842686","684214770"):
+              expected_hits=lock["representative_hits"][road_id]
+              assert {k:reps[road_id]["historical_frame"][k] for k in ("point_hits","segment_hits")} == expected_hits["historical"]
+              assert {k:reps[road_id]["corrected_frame_candidate"][k] for k in ("point_hits","segment_hits")} == expected_hits["corrected"]
+          assert d["anchor"]["historical_grid_cell_id"] == "E148000_N170000"
+          assert d["anchor"]["corrected_grid_cell_id"] == d["anchor"]["official_grid_cell_id"] == "E148500_N170500"
+          assert d["anchor"]["corrected_to_official_distance_m"] == 6.04509
+          assert d["verdict"]["historical_frame_matches_official_grand_place_cell"] is False
+          assert d["verdict"]["corrected_frame_candidate_matches_official_grand_place_cell"] is True
+          assert d["verdict"]["shared_frame_adoption_decision"] == "HOLD_SEPARATE_REVIEW_REQUIRED"
+          assert all(v is False for v in d["authorization"].values())
+          print("GRAND_PLACE_CORRECTED_FRAME_CELL_LOCKED_EXACT historical_roads=0 corrected_roads=14 official_distance_m=6.04509 shared_frame_change_authorized=false")
+          PY
+
+      - name: Upload exact reproduction evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-corrected-road-frame-cell-reproduction
+          path: ${{ runner.temp }}/grand_place_corrected_road_frame_cell.generated.json
+          if-no-files-found: error
+          retention-days: 30

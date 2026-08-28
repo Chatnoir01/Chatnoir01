@@ -31,6 +31,7 @@ def main() -> None:
     exclusions = contract.get("explicit_exclusions")
     if not isinstance(exclusions, list): fail("explicit exclusion list missing")
     excluded: dict[str, str] = {}
+    allowed_exact_scopes = {"grand_place_exact", "bourse_exact", "anneessens_exact"}
     for entry in exclusions:
         if not isinstance(entry, dict): fail("malformed exclusion entry")
         name, path = entry.get("autoload_name"), entry.get("path")
@@ -38,7 +39,7 @@ def main() -> None:
         if name in excluded: fail(f"duplicate excluded autoload: {name}")
         if autoload_map.get(name) != path: fail(f"excluded autoload identity drifted: {name}")
         if entry.get("reason") != "exact_location_owner_outside_shared_environment": fail(f"excluded autoload reason drifted: {name}")
-        if entry.get("owner_scope") not in ("grand_place_exact", "bourse_exact"): fail(f"excluded autoload owner scope invalid: {name}")
+        if entry.get("owner_scope") not in allowed_exact_scopes: fail(f"excluded autoload owner scope invalid: {name}")
         excluded[name] = path
     overlap = set(registered) & set(excluded)
     if overlap: fail(f"autoload cannot be both shared and exact-location excluded: {sorted(overlap)}")

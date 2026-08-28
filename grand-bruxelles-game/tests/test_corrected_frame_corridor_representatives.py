@@ -62,6 +62,19 @@ class CorridorRepresentativeTests(unittest.TestCase):
         }
         return base, contract, impact, index, source_path
 
+    def _lock_contract(self, root, base, contract, impact, index, source):
+        result = measure(self._write(root, "pending-contract.json", contract), self._write(root, "pending-impact.json", impact), source, self._write(root, "pending-index.json", index), base)
+        locked = copy.deepcopy(contract)
+        locked["status"] = "LOCKED_REPRESENTATIVE_EVIDENCE_ONLY"
+        locked["continuity"] = {"semantic_lock_survives_clean_live_main_rebuild": True}
+        locked["locked_evidence"] = {
+            "semantic_sha256": result["semantic_sha256"],
+            "measurement_sha256": "5" * 64,
+            "accounting": copy.deepcopy(result["accounting"]),
+            "selected_road_osm_ids": [row["road_osm_id"] for row in result["representatives"]]
+        }
+        return locked
+
     def test_selects_changed_first_and_new_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -69,6 +82,24 @@ class CorridorRepresentativeTests(unittest.TestCase):
             result = measure(self._write(root, "contract.json", contract), self._write(root, "impact.json", impact), source, self._write(root, "index.json", index), base)
             self.assertEqual([10, 20], [row["road_osm_id"] for row in result["representatives"]])
             self.assertTrue(all(v is False for v in result["authorization"].values()))
+
+    def test_allows_locked_semantic_replay_on_new_live_main(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base, contract, impact, index, source = self._fixture(root)
+            locked = self._lock_contract(root, base, contract, impact, index, source)
+            result = measure(self._write(root, "locked-contract.json", locked), self._write(root, "impact.json", impact), source, self._write(root, "index.json", index), "b" * 40)
+            self.assertEqual("b" * 40, result["production_base_sha"])
+            self.assertEqual(locked["locked_evidence"]["semantic_sha256"], result["semantic_sha256"])
+
+    def test_rejects_live_main_replay_without_explicit_continuity_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base, contract, impact, index, source = self._fixture(root)
+            locked = self._lock_contract(root, base, contract, impact, index, source)
+            locked["continuity"]["semantic_lock_survives_clean_live_main_rebuild"] = False
+            with self.assertRaises(AssertionError):
+                measure(self._write(root, "locked-contract.json", locked), self._write(root, "impact.json", impact), source, self._write(root, "index.json", index), "b" * 40)
 
     def test_rejects_source_byte_drift(self):
         with tempfile.TemporaryDirectory() as tmp:

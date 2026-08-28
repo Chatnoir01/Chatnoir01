@@ -4,7 +4,9 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ROOT.parent
 TOOL = ROOT / "tools" / "qa" / "measure_osm_road_frame_correction_impact.py"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "grand-bruxelles-osm-road-frame-correction-impact.yml"
 spec = importlib.util.spec_from_file_location("impact", TOOL)
 impact = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(impact)
@@ -75,6 +77,17 @@ class TestRoadFrameCorrectionImpact(unittest.TestCase):
         self.assertEqual(locked["accounting"]["candidate_unique_mapped_road_count"], 96)
         self.assertEqual(locked["accounting"]["retained_mapping_count"], 0)
         self.assertEqual(locked["accounting"]["changed_mapping_count"], 45)
+
+    def test_workflow_replays_locked_impact_at_historical_evidence_base(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn('IMPACT_BASE_SHA=', workflow)
+        self.assertIn('git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"', workflow)
+        self.assertIn('IMPACT_HISTORICAL_CROSSWALK=', workflow)
+        self.assertIn('git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"', workflow)
+        self.assertIn('--live-main-sha "$IMPACT_BASE_SHA"', workflow)
+        self.assertIn('--current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"', workflow)
+        self.assertNotIn('assert c["production_base_sha"] == sys.argv[1]', workflow)
+        self.assertNotIn('--live-main-sha "$(git rev-parse origin/main)"', workflow)
 
 
 if __name__ == "__main__":

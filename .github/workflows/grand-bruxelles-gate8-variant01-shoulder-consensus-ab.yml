@@ -1,0 +1,262 @@
+name: Grand Bruxelles Gate-8 Variant01 Shoulder Consensus A-B
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-shoulder-consensus-ab-20260828"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-shoulder-consensus-ab.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_shoulder_consensus_ab.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_shoulder_consensus_ab_materialize.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  shoulder-consensus-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      TARGET_SIZE_BYTES: "15580240"
+      BASELINE_ARTIFACT_ID: "9679245275"
+      BASELINE_ARTIFACT_DIGEST: "sha256:310bf9d8c55f4e97ac1480351b4235e230305ccb959570581c8c2c03046703a5"
+      ONE_RING_ARTIFACT_ID: "9698597710"
+      ONE_RING_ARTIFACT_DIGEST: "sha256:d4717ce3d48200d390e27d7cf403e1d52868e8bd23b030eca9dbd001479d596c"
+      CLASSIFIER_ARTIFACT_ID: "9700327190"
+      CLASSIFIER_ARTIFACT_DIGEST: "sha256:b61fa76e2b1c566a974aa6a892b9aaa1d70b876a37209f8366a6a271364e8c54"
+      HARNESS_COMMIT_SHA: "73feaa653d3d66bbd46cd218576e7d9585161ae2"
+      HARNESS_PATH: "grand-bruxelles-game/game/tests/gate8_variant06_target_micropose_skin_test.gd"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-v01-shoulder-consensus-ab"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main bounded scope and frozen rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "9d8e12d8ea790f09d3dddef9b413a60a0013e86c"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-shoulder-consensus-ab.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_shoulder_consensus_ab.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_shoulder_consensus_ab_materialize.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/qa/gate8_variant01_shoulder_consensus_ab.json'
+          m=json.load(open(p))
+          assert m['base_main_sha']=='9d8e12d8ea790f09d3dddef9b413a60a0013e86c'
+          assert m['candidate_variant']==1 and m['target']['vertices']==21044
+          assert m['operator']['family']=='shoulder'
+          assert m['operator']['expected_edges']==2 and m['operator']['expected_corrected_vertices']==2
+          assert m['cases']=={'degrees':5.0,'roles':9,'axes':3,'count':54}
+          assert m['gates']=={'max_skin_edge_change_m':0.25,'max_skin_stretch_ratio':3.0,'min_skin_compression_ratio':0.25,'max_foot_drift_m':0.000001,'max_rest_position_drift_m':0.000001,'max_rest_rotation_drift_deg':0.0001}
+          assert all(v is False for v in m['rails'].values())
+          assert all(v is True for v in m['superiority'].values())
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee /tmp/live-main.txt
+
+      - name: Verify immutable evidence and target bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in \
+            "$TARGET_ARTIFACT_ID|$TARGET_ARTIFACT_DIGEST" \
+            "$BASELINE_ARTIFACT_ID|$BASELINE_ARTIFACT_DIGEST" \
+            "$ONE_RING_ARTIFACT_ID|$ONE_RING_ARTIFACT_DIGEST" \
+            "$CLASSIFIER_ARTIFACT_ID|$CLASSIFIER_ARTIFACT_DIGEST"; do
+            ID="${pair%%|*}"; EXPECTED="${pair#*|}"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" > "/tmp/artifact-${ID}.json"
+            python3 - "/tmp/artifact-${ID}.json" "$EXPECTED" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1])); assert not a['expired']; assert a['digest']==sys.argv[2]
+          PY
+          done
+          rm -rf /tmp/target-evidence /tmp/baseline-evidence /tmp/one-ring-evidence /tmp/classifier-evidence "$PROJECT"
+          mkdir -p /tmp/target-evidence /tmp/baseline-evidence /tmp/one-ring-evidence /tmp/classifier-evidence "$PROJECT/assets" "$PROJECT/game/tests"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/target.zip
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${BASELINE_ARTIFACT_ID}/zip" > /tmp/baseline.zip
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ONE_RING_ARTIFACT_ID}/zip" > /tmp/one-ring.zip
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${CLASSIFIER_ARTIFACT_ID}/zip" > /tmp/classifier.zip
+          unzip -q /tmp/target.zip -d /tmp/target-evidence
+          unzip -q /tmp/baseline.zip -d /tmp/baseline-evidence
+          unzip -q /tmp/one-ring.zip -d /tmp/one-ring-evidence
+          unzip -q /tmp/classifier.zip -d /tmp/classifier-evidence
+          TARGET="$(find /tmp/target-evidence -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$TARGET"
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          python3 - <<'PY'
+          import json,pathlib
+          def find_one(root,pred):
+              found=[]
+              for p in pathlib.Path(root).rglob('*.json'):
+                  try:d=json.loads(p.read_text())
+                  except Exception:continue
+                  if pred(d):found.append((p,d))
+              assert len(found)==1, [(str(p),d.get('diagnostic_state')) for p,d in found]
+              return found[0][1]
+          b=find_one('/tmp/baseline-evidence',lambda d:d.get('candidate_variant')==1 and d.get('case_count')==54 and d.get('diagnostic_state')=='TARGET_MICROPOSE_SKIN_BLOCKED')
+          assert b['blocked_case_count']==48 and b['failures']==[]
+          pathlib.Path('/tmp/immutable-baseline-result.json').write_text(json.dumps(b,indent=2,sort_keys=True))
+          o=find_one('/tmp/one-ring-evidence',lambda d:d.get('diagnostic_state')=='ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED')
+          assert o['audited_edge_count']==6 and o['target_vertex_total']==21044 and o['failures']==[]
+          pathlib.Path('/tmp/one-ring-result.json').write_text(json.dumps(o,indent=2,sort_keys=True))
+          c=find_one('/tmp/classifier-evidence',lambda d:d.get('diagnostic_state')=='ONE_RING_FAMILY_SIGNATURES_CONFIRMED')
+          assert c['signature_counts']=={'ASYMMETRIC_COHERENT_MATE_CLIFF':2,'BILATERAL_BROAD_WEIGHT_FIELD':2,'MIXED_NARROW_BROAD_TRANSITION':2}
+          assert c['failures']==[]
+          pathlib.Path('/tmp/family-result.json').write_text(json.dumps(c,indent=2,sort_keys=True))
+          PY
+
+      - name: Materialize baseline and shoulder consensus candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${HARNESS_COMMIT_SHA}^{commit}"
+          git show "${HARNESS_COMMIT_SHA}:${HARNESS_PATH}" > /tmp/validated-harness.gd
+          python3 grand-bruxelles-game/game/tests/gate8_variant01_shoulder_consensus_ab_materialize.py \
+            /tmp/validated-harness.gd \
+            grand-bruxelles-game/data/qa/gate8_variant01_shoulder_consensus_ab.json \
+            /tmp/one-ring-result.json \
+            "$PROJECT/game/tests/baseline.gd" "$PROJECT/game/tests/candidate.gd" | tee /tmp/materialize-summary.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/materialize-summary.json'))
+          assert r['operator']=='shoulder_coherent_one_ring_consensus'
+          assert r['corrected_vertex_count']==2 and len(r['shoulder_edges'])==2
+          assert all(x['consensus_member_count']>=2 for x in r['shoulder_edges'])
+          PY
+          grep -q 'SHOULDER_CONSENSUS_WEIGHTS' "$PROJECT/game/tests/candidate.gd"
+          ! grep -q 'RetargetModifier3D' "$PROJECT/game/tests/baseline.gd"
+          ! grep -q 'RetargetModifier3D' "$PROJECT/game/tests/candidate.gd"
+          sha256sum /tmp/validated-harness.gd "$PROJECT/game/tests/baseline.gd" "$PROJECT/game/tests/candidate.gd" | tee /tmp/harness-sha256.txt
+
+      - name: Install exact Godot 4.7.1 and import target
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01ShoulderConsensusAB"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          timeout 300s "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee /tmp/import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Replay immutable baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/baseline.gd 2>&1 | tee /tmp/baseline.log
+          cp "$PROJECT/baseline-result.json" /tmp/baseline-result.json
+
+      - name: Measure shoulder consensus candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/candidate.gd 2>&1 | tee /tmp/candidate.log
+          cp "$PROJECT/candidate-result.json" /tmp/candidate-result.json
+
+      - name: Enforce replay and classify measured superiority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,math,pathlib
+          immutable=json.load(open('/tmp/immutable-baseline-result.json'))
+          b=json.load(open('/tmp/baseline-result.json'))
+          c=json.load(open('/tmp/candidate-result.json'))
+          m=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_shoulder_consensus_ab.json'))
+          assert b['candidate_variant']==1 and b['case_count']==54 and len(b['case_results'])==54
+          assert b['diagnostic_state']=='TARGET_MICROPOSE_SKIN_BLOCKED' and b['blocked_case_count']==48 and b['failures']==[]
+          assert b['blocked_cases']==immutable['blocked_cases']
+          for k in ('max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio'):
+              assert math.isclose(float(b[k]),float(immutable[k]),rel_tol=0.0,abs_tol=1e-9),(k,b[k],immutable[k])
+          assert c['candidate_variant']==1 and c['case_count']==54 and len(c['case_results'])==54 and c['failures']==[]
+          assert c.get('shoulder_consensus_candidate') is True and c.get('canonical_glb_modified') is False
+          assert int(c.get('candidate_corrected_vertex_count',-1))==2
+          improved={
+            'blocked_case_count': int(c['blocked_case_count']) < int(b['blocked_case_count']),
+            'max_edge_absolute_change_m': float(c['max_edge_absolute_change_m']) < float(b['max_edge_absolute_change_m']),
+            'max_edge_stretch_ratio': float(c['max_edge_stretch_ratio']) < float(b['max_edge_stretch_ratio']),
+            'min_edge_compression_ratio': float(c['min_edge_compression_ratio']) > float(b['min_edge_compression_ratio']),
+          }
+          g=m['gates']
+          all_green=(
+            int(c['blocked_case_count'])==0 and
+            float(c['max_edge_absolute_change_m'])<=g['max_skin_edge_change_m'] and
+            float(c['max_edge_stretch_ratio'])<=g['max_skin_stretch_ratio'] and
+            float(c['min_edge_compression_ratio'])>=g['min_skin_compression_ratio'] and
+            float(c.get('max_foot_drift_m',0.0))<=g['max_foot_drift_m'] and
+            float(c.get('max_rest_position_drift_m',0.0))<=g['max_rest_position_drift_m'] and
+            float(c.get('max_rest_rotation_drift_deg',0.0))<=g['max_rest_rotation_drift_deg']
+          )
+          superior=all(improved.values())
+          state='ALL_GATES_GREEN' if all_green else ('MEASURED_SUPERIORITY' if superior else 'NOT_SUPERIOR')
+          result={
+            'diagnostic_state':state,
+            'candidate_variant':1,
+            'operator':'shoulder_coherent_one_ring_consensus',
+            'corrected_vertex_count':2,
+            'baseline':{k:b[k] for k in ('blocked_case_count','max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio')},
+            'candidate':{k:c[k] for k in ('blocked_case_count','max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio')},
+            'improved':improved,
+            'candidate_failures':c['failures'],
+            'production_activation_allowed':False,
+            'visual_approval_allowed':False,
+            'next_safe_axis':('MATERIALIZE_SEPARATE_REWEIGHT_AND_ENGINE_VERIFY' if all_green else ('REFINE_SHOULDER_ONLY_OPERATOR' if superior else 'REJECT_SHOULDER_CONSENSUS_AND_ANALYZE_BROAD_SIDE_TWO_RING')),
+          }
+          pathlib.Path('/tmp/shoulder-consensus-ab-result.json').write_text(json.dumps(result,indent=2,sort_keys=True))
+          print(json.dumps(result,sort_keys=True))
+          PY
+
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-shoulder-consensus-ab-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/live-main.txt
+            /tmp/materialize-summary.json
+            /tmp/harness-sha256.txt
+            /tmp/godot-version.txt
+            /tmp/import.log
+            /tmp/baseline.log
+            /tmp/candidate.log
+            /tmp/baseline-result.json
+            /tmp/candidate-result.json
+            /tmp/shoulder-consensus-ab-result.json
+          retention-days: 14

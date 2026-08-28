@@ -1,0 +1,68 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-shoulder-consensus-ab-v1",
+  "base_main_sha": "9d8e12d8ea790f09d3dddef9b413a60a0013e86c",
+  "candidate_variant": 1,
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "vertices": 21044
+  },
+  "baseline": {
+    "artifact_id": 9679245275,
+    "artifact_digest": "sha256:310bf9d8c55f4e97ac1480351b4235e230305ccb959570581c8c2c03046703a5",
+    "expected_blocked_cases": 48
+  },
+  "one_ring": {
+    "artifact_id": 9698597710,
+    "artifact_digest": "sha256:d4717ce3d48200d390e27d7cf403e1d52868e8bd23b030eca9dbd001479d596c",
+    "expected_state": "ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED",
+    "expected_edges": 6
+  },
+  "family_classifier": {
+    "artifact_id": 9700327190,
+    "artifact_digest": "sha256:b61fa76e2b1c566a974aa6a892b9aaa1d70b876a37209f8366a6a271364e8c54",
+    "expected_state": "ONE_RING_FAMILY_SIGNATURES_CONFIRMED",
+    "expected_shoulder_signature": "ASYMMETRIC_COHERENT_MATE_CLIFF"
+  },
+  "operator": {
+    "family": "shoulder",
+    "expected_edges": 2,
+    "expected_corrected_vertices": 2,
+    "coherent_side_max_other_l1_max": 0.10,
+    "broad_side_max_other_l1_min": 1.70,
+    "consensus_neighbor_l1_max": 0.10,
+    "include_coherent_endpoint": true,
+    "include_pair_endpoint": false
+  },
+  "cases": {"degrees": 5.0, "roles": 9, "axes": 3, "count": 54},
+  "gates": {
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "max_foot_drift_m": 0.000001,
+    "max_rest_position_drift_m": 0.000001,
+    "max_rest_rotation_drift_deg": 0.0001
+  },
+  "superiority": {
+    "blocked_case_count_must_decrease": true,
+    "max_edge_absolute_change_m_must_decrease": true,
+    "max_edge_stretch_ratio_must_decrease": true,
+    "min_edge_compression_ratio_must_increase": true
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "navigation_changed": false,
+    "traffic_changed": false,
+    "environment_changed": false,
+    "combat_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  }
+}

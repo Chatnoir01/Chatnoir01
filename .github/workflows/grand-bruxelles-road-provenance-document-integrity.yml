@@ -1,0 +1,28 @@
+name: Grand Bruxelles Road Provenance Document Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/verify_road_provenance_document_integrity.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_provenance_document_integrity.py'
+      - 'grand-bruxelles-game/tools/build_road_destination_provenance_binding.py'
+      - 'grand-bruxelles-game/tools/build_road_destination_catalog.py'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - '.github/workflows/grand-bruxelles-road-provenance-document-integrity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run fail-closed document-integrity regressions
+        working-directory: grand-bruxelles-game
+        run: python tools/tests/test_road_provenance_document_integrity.py

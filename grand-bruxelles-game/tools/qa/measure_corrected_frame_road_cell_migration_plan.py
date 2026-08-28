@@ -19,7 +19,13 @@ def _all_false(mapping):
     return isinstance(mapping, dict) and mapping and all(value is False for value in mapping.values())
 
 
-def measure(contract_path: Path, impact_path: Path, repo_root: Path, production_base_sha: str):
+def measure(
+    contract_path: Path,
+    impact_path: Path,
+    repo_root: Path,
+    production_base_sha: str,
+    current_crosswalk_path: Path | None = None,
+):
     contract = _load(contract_path)
     assert contract["schema"] == "grand-bruxelles-corrected-frame-road-cell-migration-plan-contract-v1"
     assert contract["status"] in {"MEASUREMENT_PENDING", "LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY"}
@@ -34,7 +40,8 @@ def measure(contract_path: Path, impact_path: Path, repo_root: Path, production_
     road_source = repo_root / source["road_source_path"]
     assert hashlib.sha256(road_source.read_bytes()).hexdigest() == source["road_source_sha256"]
 
-    current = _load(repo_root / source["current_crosswalk_path"])
+    current_path = current_crosswalk_path or (repo_root / source["current_crosswalk_path"])
+    current = _load(current_path)
     assert current["road_cell_mapping_authorized"] is False
     assert current["rendered_geometry_authorized"] is False
     assert current["collision_authorized"] is False
@@ -132,10 +139,15 @@ def main():
     parser.add_argument("--impact", required=True)
     parser.add_argument("--repo-root", required=True)
     parser.add_argument("--production-base-sha", required=True)
+    parser.add_argument("--current-crosswalk")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     result = measure(
-        Path(args.contract), Path(args.impact), Path(args.repo_root), args.production_base_sha
+        Path(args.contract),
+        Path(args.impact),
+        Path(args.repo_root),
+        args.production_base_sha,
+        Path(args.current_crosswalk) if args.current_crosswalk else None,
     )
     out = Path(args.output)
     out.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")

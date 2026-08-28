@@ -5,6 +5,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "tools" / "qa" / "materialize_corrected_frame_road_destination_readiness_candidate.py"
+WORKFLOW_PATH = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-corrected-frame-road-destination-readiness-candidate.yml"
 TOOLS_QA = str(MODULE_PATH.parent)
 if TOOLS_QA not in sys.path:
     sys.path.insert(0, TOOLS_QA)
@@ -88,6 +89,16 @@ class CorrectedFrameReadinessCandidateTest(unittest.TestCase):
         candidate["materialization_policy"]["replace_current_crosswalk_authorized"] = True
         with self.assertRaises(RuntimeError):
             mod.build_candidate_crosswalk(candidate, "b" * 64)
+
+    def test_workflow_is_successor_aware_and_preserves_forensic_lock(self):
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("assert current['destination_count']==96", workflow)
+        self.assertNotIn("assert current['destination_count']==56", workflow)
+        self.assertIn("LOCKED_READINESS_EVIDENCE", workflow)
+        self.assertIn("normalized_live", workflow)
+        self.assertIn("normalized_historical", workflow)
+        self.assertIn("assert normalized_live==normalized_historical", workflow)
+        self.assertNotIn("assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['candidate_json_sha256']", workflow)
 
 
 if __name__ == "__main__":

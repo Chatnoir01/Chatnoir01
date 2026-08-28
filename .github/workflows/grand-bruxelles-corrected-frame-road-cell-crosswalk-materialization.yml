@@ -42,6 +42,8 @@ jobs:
           assert d['materialization_policy']['replace_current_crosswalk_authorized'] is False
           assert d['materialization_policy']['write_production_crosswalk_authorized'] is False
           assert d['materialization_policy']['multicell_mapping_authorized'] is False
+          assert d['semantic_identity_policy']['exclude_continuity_fields']==['production_base_sha']
+          assert d['semantic_identity_policy']['historical_candidate_bytes_retained_for_forensics'] is True
           assert all(v is False for v in d['authorization'].values())
           print('CORRECTED_FRAME_CROSSWALK_MATERIALIZATION_LIVE_MAIN_OK',sys.argv[1],d['status'])
           PY
@@ -52,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          read -r IMPACT_BASE_SHA MIGRATION_BASE_SHA MIGRATION_SEMANTIC <<EOF
+          read -r IMPACT_BASE_SHA MIGRATION_BASE_SHA MATERIALIZATION_EVIDENCE_BASE_SHA MIGRATION_SEMANTIC <<EOF
           $(python3 - <<'PY'
           import json
           from pathlib import Path
@@ -62,17 +64,34 @@ jobs:
           assert impact['status']=='LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY'
           assert migration['status']=='LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY'
           assert migration['locked_evidence']['semantic_sha256']==materialization['source']['migration_plan_semantic_sha256']
-          print(impact['production_base_sha'], migration['production_base_sha'], migration['locked_evidence']['semantic_sha256'])
+          print(impact['production_base_sha'], migration['production_base_sha'], materialization['locked_evidence']['production_base_sha'], migration['locked_evidence']['semantic_sha256'])
           PY
           )
           EOF
-          git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
-          git cat-file -e "${MIGRATION_BASE_SHA}^{commit}"
-          git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
-          git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"
+          for sha in "$IMPACT_BASE_SHA" "$MIGRATION_BASE_SHA" "$MATERIALIZATION_EVIDENCE_BASE_SHA"; do
+            git cat-file -e "${sha}^{commit}"
+            git merge-base --is-ancestor "$sha" "$LIVE_MAIN_SHA"
+          done
+          IMPACT_HISTORICAL_CROSSWALK="$RUNNER_TEMP/impact-historical-crosswalk.json"
+          MIGRATION_HISTORICAL_CROSSWALK="$RUNNER_TEMP/migration-historical-crosswalk.json"
+          MATERIALIZATION_HISTORICAL_CROSSWALK="$RUNNER_TEMP/materialization-historical-crosswalk.json"
+          git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$IMPACT_HISTORICAL_CROSSWALK"
+          git show "$MIGRATION_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$MIGRATION_HISTORICAL_CROSSWALK"
+          git show "$MATERIALIZATION_EVIDENCE_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$MATERIALIZATION_HISTORICAL_CROSSWALK"
+          python3 - "$IMPACT_HISTORICAL_CROSSWALK" "$MIGRATION_HISTORICAL_CROSSWALK" "$MATERIALIZATION_HISTORICAL_CROSSWALK" <<'PY'
+          import json,sys
+          for p in sys.argv[1:]:
+              d=json.load(open(p)); assert d['mapped_road_count']==56; assert len(d['rows'])==56
+              for k in ('road_cell_mapping_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'): assert d[k] is False
+          print('CORRECTED_FRAME_MATERIALIZATION_HISTORICAL_CROSSWALKS_OK rows=56 epochs=3')
+          PY
           echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
           echo "MIGRATION_BASE_SHA=$MIGRATION_BASE_SHA" >> "$GITHUB_ENV"
+          echo "MATERIALIZATION_EVIDENCE_BASE_SHA=$MATERIALIZATION_EVIDENCE_BASE_SHA" >> "$GITHUB_ENV"
           echo "MIGRATION_SEMANTIC=$MIGRATION_SEMANTIC" >> "$GITHUB_ENV"
+          echo "IMPACT_HISTORICAL_CROSSWALK=$IMPACT_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+          echo "MIGRATION_HISTORICAL_CROSSWALK=$MIGRATION_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+          echo "MATERIALIZATION_HISTORICAL_CROSSWALK=$MATERIALIZATION_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
       - name: Recompute corrected-frame impact
         working-directory: grand-bruxelles-game
         run: >-
@@ -80,6 +99,7 @@ jobs:
           --contract data/qa/osm_road_frame_correction_impact.contract.json
           --repo-root .
           --live-main-sha "$IMPACT_BASE_SHA"
+          --current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/osm-road-frame-impact.json"
       - name: Recompute locked migration plan at historical evidence base
         working-directory: grand-bruxelles-game
@@ -89,6 +109,7 @@ jobs:
           --impact "$RUNNER_TEMP/osm-road-frame-impact.json"
           --repo-root .
           --production-base-sha "$MIGRATION_BASE_SHA"
+          --current-crosswalk "$MIGRATION_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
       - name: Verify locked migration replay
         shell: bash
@@ -112,6 +133,7 @@ jobs:
           --plan "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
           --repo-root .
           --production-base-sha "$LIVE_MAIN_SHA"
+          --current-crosswalk "$MATERIALIZATION_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/corrected-frame-road-cell-crosswalk-candidate.json"
       - name: Verify evidence-only candidate
         shell: bash
@@ -122,6 +144,7 @@ jobs:
           from pathlib import Path
           contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
           d=json.loads((Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-crosswalk-candidate.json').read_text())
+          assert d['production_base_sha']==os.environ['LIVE_MAIN_SHA']==contract['production_base_sha']
           assert d['status']=='CANDIDATE_EVIDENCE_ONLY_NOT_APPLIED'
           assert len(d['rows'])==96
           assert len(d['multicell_hold_rows'])==2
@@ -136,7 +159,7 @@ jobs:
           name: corrected-frame-road-cell-crosswalk-materialization-candidate
           path: ${{ runner.temp }}/corrected-frame-road-cell-crosswalk-candidate.json
           if-no-files-found: error
-      - name: Enforce content-addressed candidate lock
+      - name: Enforce semantic candidate lock with historical bytes retained
         shell: bash
         run: |
           set -euo pipefail
@@ -149,13 +172,19 @@ jobs:
           if contract['status']=='MEASUREMENT_PENDING':
               print('RED_FIRST_CORRECTED_FRAME_CROSSWALK_CANDIDATE_NOT_LOCKED',measured['semantic_sha256'])
               sys.exit(1)
+          policy=contract['semantic_identity_policy']
+          assert policy['exclude_continuity_fields']==['production_base_sha']
+          assert policy['historical_candidate_bytes_retained_for_forensics'] is True
           locked=contract['locked_evidence']
           candidate_json_sha256=hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+          assert measured['production_base_sha']==contract['production_base_sha']==os.environ['LIVE_MAIN_SHA']
           assert measured['semantic_sha256']==locked['semantic_sha256']
-          assert candidate_json_sha256==locked['candidate_json_sha256']
           assert len(measured['rows'])==locked['candidate_unique_mapped_road_count']==96
           assert len(measured['multicell_hold_rows'])==locked['candidate_multicell_road_count']==2
           assert measured['accounting']['candidate_no_registered_overlap_count']==locked['candidate_no_registered_overlap_count']==42
           assert all(v is False for v in measured['authorization'].values())
-          print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_LOCKED_EXACT',measured['semantic_sha256'],candidate_json_sha256)
+          if candidate_json_sha256==locked['candidate_json_sha256']:
+              print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_LOCKED_EXACT',measured['semantic_sha256'],candidate_json_sha256)
+          else:
+              print('CORRECTED_FRAME_CROSSWALK_CANDIDATE_SEMANTIC_CONTINUITY_OK',measured['semantic_sha256'],'current_bytes='+candidate_json_sha256,'historical_bytes='+locked['candidate_json_sha256'],'live_base='+measured['production_base_sha'])
           PY

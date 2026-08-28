@@ -108,11 +108,58 @@ class RoadRegisteredCellHandshakeTest(unittest.TestCase):
             "jouable_promotion_authorized": False,
         }
 
+    def corrected_payload(self):
+        payload = self.payload()
+        payload.update({
+            "destination_readiness": "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY",
+            "mapping_policy": "unique_source_coverage_cell_only_corrected_epsg31370",
+            "corrected_frame_source_sha256": "b" * 64,
+            "corrected_frame_candidate_semantic_sha256": "c" * 64,
+            "excluded_multicell_road_ids": [200],
+            "mapped_road_count": 1,
+            "mapped_cell_count": 1,
+        })
+        return payload
+
     def test_valid_mapping_is_evidence_only(self):
         write(self.crosswalk, self.payload())
         result = validate_handshake(self.road, self.cells, self.crosswalk)
         self.assertEqual(result["mapped_road_count"], 1)
         self.assertFalse(result["runtime_authorized"])
+        self.assertEqual(result["destination_readiness"], "ROAD_CELL_CROSSWALK_EVIDENCE_ONLY")
+
+    def test_corrected_frame_mapping_is_evidence_only(self):
+        write(self.crosswalk, self.corrected_payload())
+        result = validate_handshake(self.road, self.cells, self.crosswalk)
+        self.assertEqual(result["mapped_road_count"], 1)
+        self.assertEqual(result["mapped_cell_count"], 1)
+        self.assertFalse(result["runtime_authorized"])
+        self.assertEqual(result["destination_readiness"], "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY")
+
+    def test_corrected_frame_multicell_hold_leak_fails_closed(self):
+        payload = self.corrected_payload()
+        payload["excluded_multicell_road_ids"] = [100, 200]
+        write(self.crosswalk, payload)
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
+
+    def test_unknown_lifecycle_fails_closed(self):
+        payload = self.payload(); payload["destination_readiness"] = "FUTURE_UNREVIEWED_PHASE"
+        write(self.crosswalk, payload)
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
+
+    def test_corrected_frame_mapping_policy_drift_fails_closed(self):
+        payload = self.corrected_payload(); payload["mapping_policy"] = "dominant_cell_guess"
+        write(self.crosswalk, payload)
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
+
+    def test_corrected_frame_accounting_drift_fails_closed(self):
+        payload = self.corrected_payload(); payload["mapped_road_count"] = 2
+        write(self.crosswalk, payload)
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
 
     def test_unknown_road_fails_closed(self):
         payload = self.payload(); payload["rows"][0]["road_osm_id"] = 999
@@ -147,54 +194,42 @@ class RoadRegisteredCellHandshakeTest(unittest.TestCase):
             validate_handshake(self.road, self.cells, self.crosswalk)
 
     def test_future_row_authorization_fails_closed(self):
-        payload = self.payload()
-        payload["rows"][0]["streaming_mount_authorized"] = True
+        payload = self.payload(); payload["rows"][0]["streaming_mount_authorized"] = True
         write(self.crosswalk, payload)
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 
     def test_future_crosswalk_authorization_fails_closed(self):
-        payload = self.payload()
-        payload["streaming_mount_authorized"] = True
+        payload = self.payload(); payload["streaming_mount_authorized"] = True
         write(self.crosswalk, payload)
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 
     def test_future_cell_authorization_fails_closed(self):
-        cells = json.loads(self.cells.read_text())
-        cells["entries"][0]["streaming_mount_authorized"] = True
-        write(self.cells, cells)
-        write(self.crosswalk, self.payload())
+        cells = json.loads(self.cells.read_text()); cells["entries"][0]["streaming_mount_authorized"] = True
+        write(self.cells, cells); write(self.crosswalk, self.payload())
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 
     def test_registered_cell_manifest_sha_drift_fails_closed(self):
-        cells = json.loads(self.cells.read_text())
-        cells["entries"][0]["manifest_sha256"] = "0" * 64
-        write(self.cells, cells)
-        write(self.crosswalk, self.payload())
+        cells = json.loads(self.cells.read_text()); cells["entries"][0]["manifest_sha256"] = "0" * 64
+        write(self.cells, cells); write(self.crosswalk, self.payload())
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 
     def test_registered_cell_manifest_identity_drift_fails_closed(self):
-        manifest = json.loads(self.cell_manifest.read_text())
-        manifest["cell_id"] = "bxl-e149500-n169000-s500"
+        manifest = json.loads(self.cell_manifest.read_text()); manifest["cell_id"] = "bxl-e149500-n169000-s500"
         write(self.cell_manifest, manifest)
-        cells = json.loads(self.cells.read_text())
-        cells["entries"][0]["manifest_sha256"] = sha256_file(self.cell_manifest)
-        write(self.cells, cells)
-        write(self.crosswalk, self.payload())
+        cells = json.loads(self.cells.read_text()); cells["entries"][0]["manifest_sha256"] = sha256_file(self.cell_manifest)
+        write(self.cells, cells); write(self.crosswalk, self.payload())
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 
     def test_registered_cell_manifest_bbox_drift_fails_closed(self):
-        manifest = json.loads(self.cell_manifest.read_text())
-        manifest["bbox"][2] += 1.0
+        manifest = json.loads(self.cell_manifest.read_text()); manifest["bbox"][2] += 1.0
         write(self.cell_manifest, manifest)
-        cells = json.loads(self.cells.read_text())
-        cells["entries"][0]["manifest_sha256"] = sha256_file(self.cell_manifest)
-        write(self.cells, cells)
-        write(self.crosswalk, self.payload())
+        cells = json.loads(self.cells.read_text()); cells["entries"][0]["manifest_sha256"] = sha256_file(self.cell_manifest)
+        write(self.cells, cells); write(self.crosswalk, self.payload())
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 

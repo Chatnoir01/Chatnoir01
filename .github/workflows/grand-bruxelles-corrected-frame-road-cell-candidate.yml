@@ -52,7 +52,10 @@ jobs:
           )"
           git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
           git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
+          IMPACT_HISTORICAL_CROSSWALK="$RUNNER_TEMP/impact-historical-crosswalk.json"
+          git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$IMPACT_HISTORICAL_CROSSWALK"
           echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
+          echo "IMPACT_HISTORICAL_CROSSWALK=$IMPACT_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
           echo "CORRECTED_FRAME_IMPACT_HISTORICAL_BASE_OK impact_base=$IMPACT_BASE_SHA live_main=$LIVE_MAIN_SHA"
       - name: Run fail-closed contract regression
         working-directory: grand-bruxelles-game
@@ -64,6 +67,7 @@ jobs:
           --contract data/qa/osm_road_frame_correction_impact.contract.json
           --repo-root .
           --live-main-sha "$IMPACT_BASE_SHA"
+          --current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/osm-road-frame-impact.json"
       - name: Materialize candidate crosswalk artifact
         shell: bash

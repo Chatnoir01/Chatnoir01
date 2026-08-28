@@ -1,7 +1,7 @@
 {
   "schema": "grand-bruxelles-corrected-frame-road-destination-readiness-impact-contract-v1",
   "status": "LOCKED_IMPACT_EVIDENCE_ONLY",
-  "production_base_sha": "61a4b36f4f276bc39547359ffb727c1e0fc67399",
+  "production_base_sha": "b702171ff9927c5b7399b7557ef60189f6661de1",
   "source": {
     "provider": "OpenStreetMap contributors via Overpass API",
     "license": "ODbL-1.0",
@@ -20,6 +20,13 @@
     "changed_cell_destination_count": 45,
     "new_destination_count": 51,
     "removed_destination_count": 11
+  },
+  "semantic_identity_policy": {
+    "canonical_json": "sort_keys_compact_utf8",
+    "exclude_continuity_fields": [
+      "production_base_sha"
+    ],
+    "historical_measurement_bytes_retained_for_forensics": true
   },
   "locked_evidence": {
     "workflow_run_id": 33066317119,

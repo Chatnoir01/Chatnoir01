@@ -65,6 +65,7 @@ def main():
     ap.add_argument("--contract", required=True)
     ap.add_argument("--repo-root", default=".")
     ap.add_argument("--live-main-sha", required=True)
+    ap.add_argument("--current-crosswalk")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -105,7 +106,8 @@ def main():
     for key in ["road_crosswalk_authorized", "runtime_directory_scan_authorized", "runtime_mount_authorized", "rendered_geometry_authorized", "collision_authorized", "safe_spawn_authorized", "jouable_promotion_authorized"]:
         assert index[key] is False
 
-    current = load_json(root / contract["current_crosswalk"]["path"])
+    current_path = Path(args.current_crosswalk) if args.current_crosswalk else (root / contract["current_crosswalk"]["path"])
+    current = load_json(current_path)
     assert current["destination_readiness"] == contract["current_crosswalk"]["destination_readiness"]
     assert current["road_semantic_sha256"] == contract["current_crosswalk"]["road_semantic_sha256"]
     assert current["registered_cell_index_semantic_sha256"] == contract["current_crosswalk"]["registered_cell_index_semantic_sha256"]

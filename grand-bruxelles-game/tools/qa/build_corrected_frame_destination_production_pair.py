@@ -16,6 +16,14 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def semantic_sha256(payload) -> str:
+    basis = copy.deepcopy(payload)
+    basis.pop("semantic_sha256", None)
+    return sha256_bytes(
+        json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+
+
 def load_json(path: Path):
     raw = path.read_bytes()
     return json.loads(raw), raw
@@ -124,6 +132,10 @@ def build_pair(contract, crosswalk_candidate, readiness_candidate, current_cross
             "safe_spawn_authorized": False,
             "jouable_promotion_authorized": False,
         })
+    # The production wrapper semantic belongs to the wrapper itself, not the
+    # corrected-frame candidate that supplied its rows. Recompute it after all
+    # wrapper mutations so a 56/3 digest can never survive a 96/4 migration.
+    out_cw["semantic_sha256"] = semantic_sha256(out_cw)
 
     out_rd = copy.deepcopy(current_readiness)
     out_rd["destination_count"] = len(rd_rows)
@@ -132,6 +144,11 @@ def build_pair(contract, crosswalk_candidate, readiness_candidate, current_cross
     out_rd["corrected_frame_source_sha256"] = road_sha
     out_rd["corrected_frame_candidate_semantic_sha256"] = source["readiness_semantic_sha256"]
     out_rd["migration_state"] = "CORRECTED_FRAME_REGISTERED_NOT_RENDERED"
+    # Readiness is cryptographically bound to the newly generated production
+    # crosswalk, not to the legacy wrapper copied as a starting point.
+    out_rd["road_cell_crosswalk_semantic_sha256"] = out_cw["semantic_sha256"]
+    out_rd["semantic_sha256"] = semantic_sha256(out_rd)
+
     require_false_auth(out_cw, "generated_crosswalk")
     require_false_auth(out_rd, "generated_readiness")
     return out_cw, out_rd
@@ -168,7 +185,15 @@ def main():
     args.out_readiness.parent.mkdir(parents=True, exist_ok=True)
     args.out_crosswalk.write_text(json.dumps(out_cw, indent=2, sort_keys=True) + "\n")
     args.out_readiness.write_text(json.dumps(out_rd, indent=2, sort_keys=True) + "\n")
-    print(f"CORRECTED_FRAME_PRODUCTION_PAIR_STAGED mapping={len(out_cw['rows'])} destinations={len(out_rd['destinations'])} cells={out_cw['mapped_cell_count']} write_authorized=false")
+    print(
+        "CORRECTED_FRAME_PRODUCTION_PAIR_STAGED",
+        f"mapping={len(out_cw['rows'])}",
+        f"destinations={len(out_rd['destinations'])}",
+        f"cells={out_cw['mapped_cell_count']}",
+        f"crosswalk_semantic={out_cw['semantic_sha256']}",
+        f"readiness_semantic={out_rd['semantic_sha256']}",
+        "write_authorized=false",
+    )
 
 
 if __name__ == "__main__":

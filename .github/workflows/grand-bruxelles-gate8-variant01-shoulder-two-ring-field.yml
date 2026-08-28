@@ -1,0 +1,156 @@
+name: Grand Bruxelles Gate-8 Variant01 Shoulder Two-Ring Field
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-shoulder-two-ring-field-20260829"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-shoulder-two-ring-field.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_shoulder_two_ring_field.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_shoulder_two_ring_field_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  shoulder-two-ring-field:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      TARGET_SIZE_BYTES: "15580240"
+      ONE_RING_ARTIFACT_ID: "9698597710"
+      ONE_RING_ARTIFACT_DIGEST: "sha256:d4717ce3d48200d390e27d7cf403e1d52868e8bd23b030eca9dbd001479d596c"
+      FAILED_AB_ARTIFACT_ID: "9702006329"
+      FAILED_AB_ARTIFACT_DIGEST: "sha256:b9c5217698c02ac91bbfae9664914170c3fc99594b72de87b16defa5fe12e605"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-shoulder-two-ring-field"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main bounded scope and frozen rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "5c378b25d33cff7ce6e3edf5c13055f3c4c3b47d"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-shoulder-two-ring-field.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_shoulder_two_ring_field.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_shoulder_two_ring_field_test.gd' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_shoulder_two_ring_field.json'))
+          assert d['base_main_sha']=='5c378b25d33cff7ce6e3edf5c13055f3c4c3b47d'
+          assert d['candidate_variant']==1
+          assert d['one_ring_artifact']['id']==9698597710
+          assert d['failed_operator_artifact']['id']==9702006329
+          assert d['failed_operator_artifact']['expected_state']=='NOT_SUPERIOR'
+          assert d['field_gates']['require_exact_shoulder_edges']==2
+          assert all(v is False for v in d['rails'].values())
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
+
+      - name: Verify immutable target one-ring and failed A-B evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in \
+            "$TARGET_ARTIFACT_ID|$TARGET_ARTIFACT_DIGEST" \
+            "$ONE_RING_ARTIFACT_ID|$ONE_RING_ARTIFACT_DIGEST" \
+            "$FAILED_AB_ARTIFACT_ID|$FAILED_AB_ARTIFACT_DIGEST"; do
+            ID="${pair%%|*}"; EXPECTED="${pair#*|}"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" > "$RUNNER_TEMP/artifact-${ID}.json"
+            python3 - "$RUNNER_TEMP/artifact-${ID}.json" "$EXPECTED" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1])); assert not a['expired']; assert a['digest']==sys.argv[2]
+          PY
+          done
+          mkdir -p "$RUNNER_TEMP/target" "$RUNNER_TEMP/one-ring" "$RUNNER_TEMP/failed" "$PROJECT/assets" "$PROJECT/evidence"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/target.zip"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ONE_RING_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/one-ring.zip"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${FAILED_AB_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/failed.zip"
+          unzip -q "$RUNNER_TEMP/target.zip" -d "$RUNNER_TEMP/target"
+          unzip -q "$RUNNER_TEMP/one-ring.zip" -d "$RUNNER_TEMP/one-ring"
+          unzip -q "$RUNNER_TEMP/failed.zip" -d "$RUNNER_TEMP/failed"
+          TARGET="$(find "$RUNNER_TEMP/target" -type f -name npc_gate_01.glb -print -quit)"
+          ONE_RING="$(find "$RUNNER_TEMP/one-ring" -type f -name result.json -print -quit)"
+          FAILED="$(find "$RUNNER_TEMP/failed" -type f -name shoulder-consensus-ab-result.json -print -quit)"
+          test -n "$TARGET" && test -n "$ONE_RING" && test -n "$FAILED"
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          python3 - "$ONE_RING" "$FAILED" <<'PY'
+          import json,sys
+          o=json.load(open(sys.argv[1])); f=json.load(open(sys.argv[2]))
+          assert o['diagnostic_state']=='ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED'
+          assert o['audited_edge_count']==6 and sum(e['family']=='shoulder' for e in o['edges'])==2
+          assert o['failures']==[]
+          assert f['diagnostic_state']=='NOT_SUPERIOR'
+          assert f['operator']=='shoulder_coherent_one_ring_consensus'
+          assert f['corrected_vertex_count']==2
+          assert f['candidate']['blocked_case_count']==48
+          PY
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          cp "$ONE_RING" "$PROJECT/evidence/one-ring-result.json"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_shoulder_two_ring_field.json "$PROJECT/contract.json"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_shoulder_two_ring_field_test.gd "$PROJECT/gate_test.gd"
+          sha256sum "$TARGET" | tee "$RUNNER_TEMP/npc_gate_01.sha256"
+
+      - name: Import exact target and map shoulder two-ring field under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT"; chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
+          printf '[application]\nconfig/name="Gate8Variant01ShoulderTwoRingField"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT/project.godot"
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import > "$RUNNER_TEMP/godot-import.log" 2>&1
+          timeout 180 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
+          cp "$PROJECT/gate8_variant01_shoulder_two_ring_field_result.json" "$RUNNER_TEMP/result.json"
+          python3 - "$RUNNER_TEMP/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['diagnostic_state'] in {'SHOULDER_BROAD_ENDPOINTS_ISOLATED_IN_TWO_RING','SHOULDER_BROAD_CLUSTER_EXTENDS_IN_TWO_RING','SHOULDER_TWO_RING_MIXED_TOPOLOGY'}, r
+          assert r['failures']==[]
+          assert r['target_vertex_total']==21044 and r['shoulder_report_count']==2
+          assert all(s['exact_two_ring_count']>0 for s in r['shoulders'])
+          assert r['rails'] and all(v is False for v in r['rails'].values())
+          assert r['production_activation_allowed'] is False and r['visual_approval_allowed'] is False
+          print('GATE8_SHOULDER_TWO_RING_OK state=%s isolated=%d extended=%d' % (r['diagnostic_state'],r['isolated_broad_endpoint_count'],r['extended_broad_endpoint_count']))
+          PY
+
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-shoulder-two-ring-field-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/artifact-*.json
+            ${{ runner.temp }}/npc_gate_01.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/godot.log
+            ${{ runner.temp }}/godot-import.log
+          retention-days: 14

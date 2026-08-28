@@ -77,7 +77,33 @@ jobs:
       - name: Run fail-closed migration-plan regressions
         working-directory: grand-bruxelles-game
         run: python -m unittest tests/test_corrected_frame_road_cell_migration_plan.py -v
-      - name: Restore historical production crosswalk from evidence base
+      - name: Restore historical impact crosswalk from impact evidence base
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMPACT_HISTORICAL_CROSSWALK="$RUNNER_TEMP/brussels-road-registered-cell-crosswalk-impact-historical.json"
+          git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$IMPACT_HISTORICAL_CROSSWALK"
+          python3 - "$IMPACT_HISTORICAL_CROSSWALK" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.load(open(sys.argv[1]))
+          c=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          expected=c['current_crosswalk']
+          assert d['mapped_road_count']==c['locked_evidence']['accounting']['current_mapped_road_count']==56
+          assert len(d['rows'])==56
+          assert d['destination_readiness']==expected['destination_readiness']
+          assert d['road_semantic_sha256']==expected['road_semantic_sha256']
+          assert d['registered_cell_index_semantic_sha256']==expected['registered_cell_index_semantic_sha256']
+          assert d['road_cell_mapping_authorized'] is False
+          assert d['runtime_mount_authorized'] is False
+          assert d['rendered_geometry_authorized'] is False
+          assert d['collision_authorized'] is False
+          assert d['safe_spawn_authorized'] is False
+          assert d['jouable_promotion_authorized'] is False
+          print('CORRECTED_FRAME_IMPACT_HISTORICAL_CROSSWALK_OK rows=56')
+          PY
+          echo "IMPACT_HISTORICAL_CROSSWALK=$IMPACT_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+      - name: Restore historical production crosswalk from migration evidence base
         shell: bash
         run: |
           set -euo pipefail
@@ -102,6 +128,7 @@ jobs:
           --contract data/qa/osm_road_frame_correction_impact.contract.json
           --repo-root .
           --live-main-sha "$IMPACT_BASE_SHA"
+          --current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/osm-road-frame-impact.json"
       - name: Measure exact historical migration delta
         working-directory: grand-bruxelles-game

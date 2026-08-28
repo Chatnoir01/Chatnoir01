@@ -42,6 +42,10 @@ def main() -> None:
         fail("visibility ownership QA must not authorize visual changes")
     if contract.get("geometry_or_collision_change_authorized") is not False:
         fail("visibility ownership QA must not authorize geometry/collision changes")
+    if contract.get("camera_or_threshold_change_authorized") is not False:
+        fail("visibility ownership QA must not authorize camera/threshold changes")
+    if contract.get("jouable_promotion_authorized") is not False:
+        fail("visibility ownership QA must not authorize JOUABLE promotion")
 
     owners = contract.get("owners")
     if not isinstance(owners, list) or len(owners) != 1:
@@ -52,18 +56,22 @@ def main() -> None:
         "owner_meta": "fonsny_visibility_owner",
         "owner_value": "midi_fonsny_full_entrance_runtime",
         "baseline_store": "_original_visibility",
+        "claim_helper": "_claim_superseded_visibility_ownership",
         "cleanup_helper": "_release_superseded_visibility_ownership",
         "owned_replacement_root": "EntranceSourceBackedFonsnyPorch",
     }
     for key, value in expected.items():
         if owner.get(key) != value:
             fail(f"Fonsny visibility ownership identity drifted: {key}")
-    if owner.get("restore_only_while_still_owned") is not True:
-        fail("owner-aware visibility restore rail missing")
-    if owner.get("later_owner_preserved") is not True:
-        fail("later visibility owner preservation rail missing")
-    if owner.get("bookkeeping_cleared_on_teardown") is not True:
-        fail("visibility bookkeeping teardown rail missing")
+    for rail in (
+        "baseline_capture_on_claim",
+        "reject_preexisting_foreign_owner",
+        "restore_only_while_still_owned",
+        "later_owner_preserved",
+        "bookkeeping_cleared_on_teardown",
+    ):
+        if owner.get(rail) is not True:
+            fail(f"visibility ownership rail missing: {rail}")
 
     source = RUNTIME_PATH.read_text(encoding="utf-8")
     for literal in (
@@ -76,14 +84,39 @@ def main() -> None:
             fail(f"Fonsny visibility ownership runtime identity missing: {literal}")
 
     collect = function_body(source, "_collect_and_validate_superseded")
-    release = function_body(source, "_release_superseded_visibility_ownership")
+    claim = function_body(source, owner["claim_helper"])
+    release = function_body(source, owner["cleanup_helper"])
     exit_body = function_body(source, "_exit_tree")
     owned_release = function_body(source, "_release_owned_replacement")
-    if not collect or "_original_visibility" not in collect or ".visible" not in collect:
-        fail("baseline visibility is not captured before Fonsny replacement")
+
+    if not collect or "_original_visibility.clear()" not in collect:
+        fail("stale Fonsny visibility baseline is not cleared before target discovery")
+    if not claim:
+        fail("Fonsny visibility ownership claim helper missing")
+    for token in (
+        "VISIBILITY_OWNER_META",
+        "VISIBILITY_OWNER_VALUE",
+        "_original_visibility.has(instance_id)",
+        "_original_visibility[instance_id] = node.visible",
+        "node.set_meta(VISIBILITY_OWNER_META, VISIBILITY_OWNER_VALUE)",
+        "node.visible = false",
+    ):
+        if token not in claim:
+            fail(f"baseline visibility is not captured at Fonsny ownership claim: {token}")
+    if 'owner != "" and owner != VISIBILITY_OWNER_VALUE' not in claim:
+        fail("Fonsny visibility claim no longer rejects a pre-existing foreign owner")
+    if "return false" not in claim:
+        fail("Fonsny visibility claim cannot fail closed on ownership conflict")
+
     if not release:
         fail("Fonsny visibility cleanup helper missing")
-    for token in ("VISIBILITY_OWNER_META", "VISIBILITY_OWNER_VALUE", "_original_visibility", ".visible"):
+    for token in (
+        "VISIBILITY_OWNER_META",
+        "VISIBILITY_OWNER_VALUE",
+        "_original_visibility",
+        ".visible",
+        'str(node.get_meta(VISIBILITY_OWNER_META, "")) != VISIBILITY_OWNER_VALUE',
+    ):
         if token not in release:
             fail(f"owner-aware visibility restore incomplete: {token}")
     if "erase_meta" not in release and "remove_meta" not in release:
@@ -99,7 +132,7 @@ def main() -> None:
     if re.search(r"\.visible\s*=\s*true", release):
         fail("unconditional visibility reset reintroduced at Fonsny teardown")
 
-    print("SHARED_ENVIRONMENT_VISIBILITY_OWNERSHIP_OK owners=1 owner=fonsny")
+    print("SHARED_ENVIRONMENT_VISIBILITY_OWNERSHIP_OK owners=1 owner=fonsny capture=claim")
 
 
 if __name__ == "__main__":

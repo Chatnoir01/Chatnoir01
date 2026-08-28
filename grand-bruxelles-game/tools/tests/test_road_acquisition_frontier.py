@@ -73,6 +73,33 @@ def test_real_frontier_is_deterministic_source_locked_and_closed() -> None:
         assert auth[key] is False
 
 
+def test_candidate_source_documents_are_content_addressed() -> None:
+    frontier = build_real()
+    source_documents = frontier["source_document_sha256"]
+    assert isinstance(source_documents, dict) and source_documents
+    for path, digest in source_documents.items():
+        assert isinstance(path, str) and path
+        assert module.is_sha256(digest)
+    for row in frontier["candidates"]:
+        per_candidate = row["source_document_sha256"]
+        assert sorted(per_candidate) == row["source_paths"]
+        assert per_candidate == {path: source_documents[path] for path in row["source_paths"]}
+
+
+def test_rehashed_candidate_source_document_digest_tamper_fails_closed() -> None:
+    frontier = build_real()
+    row = frontier["candidates"][0]
+    source_path = row["source_paths"][0]
+    row["source_document_sha256"][source_path] = "0" * 64
+    rehash(frontier)
+    try:
+        validate_real(frontier)
+    except SystemExit as exc:
+        assert "source document" in str(exc) or "source binding drift" in str(exc)
+    else:
+        raise AssertionError("rehashed source document digest tamper did not fail closed")
+
+
 def test_rehashed_inferred_cell_assignment_fails_closed() -> None:
     frontier = build_real()
     frontier["candidates"][0]["proposed_cell_id"] = "bxl-e147500-n169500-s500"
@@ -128,6 +155,8 @@ def test_opened_runtime_authorization_fails_closed_even_rehashed() -> None:
 
 def main() -> int:
     test_real_frontier_is_deterministic_source_locked_and_closed()
+    test_candidate_source_documents_are_content_addressed()
+    test_rehashed_candidate_source_document_digest_tamper_fails_closed()
     test_rehashed_inferred_cell_assignment_fails_closed()
     test_rehashed_inferred_municipality_assignment_fails_closed()
     test_rehashed_candidate_identity_substitution_fails_closed()

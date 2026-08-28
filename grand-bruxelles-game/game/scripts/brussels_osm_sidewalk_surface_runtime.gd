@@ -9,6 +9,8 @@ const HEIGHT_TOLERANCE := 0.005
 const IXELLES_TARGET_NAME := &"StreetSurfaces_SW"
 const IXELLES_PARENT_NAME := &"OfficialIxellesStreetSurfaces"
 const IXELLES_ROOT_NAME := &"IxellesDirectMicroSlice"
+const MATERIAL_OWNER_META := &"shared_sidewalk_material_owner"
+const MATERIAL_OWNER_VALUE := "brussels_osm_sidewalk_surface_runtime"
 
 var _sidewalks: Array[CSGBox3D] = []
 var _legacy_materials: Dictionary = {}
@@ -39,26 +41,57 @@ func _exit_tree() -> void:
         tree.node_added.disconnect(_on_node_added)
     _release_material_ownership()
 
+func _owns_material_metadata(node: Node) -> bool:
+    return node.has_meta(MATERIAL_OWNER_META) and str(node.get_meta(MATERIAL_OWNER_META, "")) == MATERIAL_OWNER_VALUE
+
+func _has_foreign_material_owner(node: Node) -> bool:
+    return node.has_meta(MATERIAL_OWNER_META) and str(node.get_meta(MATERIAL_OWNER_META, "")) != MATERIAL_OWNER_VALUE
+
+func _claim_generated_material(sidewalk: CSGBox3D) -> bool:
+    if _has_foreign_material_owner(sidewalk):
+        return false
+    _ensure_material()
+    var instance_id := sidewalk.get_instance_id()
+    _owned_materials[instance_id] = _material
+    sidewalk.set_meta(MATERIAL_OWNER_META, MATERIAL_OWNER_VALUE)
+    sidewalk.set_meta("material_family", MATERIAL_FACTORY.MATERIAL_FAMILY)
+    sidewalk.material = _material
+    return true
+
+func _claim_official_material(instance: MeshInstance3D) -> bool:
+    if _has_foreign_material_owner(instance):
+        return false
+    if _official_material == null:
+        _official_material = OFFICIAL_MATERIAL_FACTORY.create_material("sidewalk")
+    var instance_id := instance.get_instance_id()
+    _official_owned_materials[instance_id] = _official_material
+    instance.set_meta(MATERIAL_OWNER_META, MATERIAL_OWNER_VALUE)
+    instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
+    instance.material_override = _official_material
+    return true
+
 func _release_material_ownership() -> void:
     for sidewalk: CSGBox3D in _sidewalks:
         if sidewalk == null or not is_instance_valid(sidewalk):
             continue
         var instance_id := sidewalk.get_instance_id()
         var owned := _owned_materials.get(instance_id) as Material
-        if owned != null and sidewalk.material == owned:
+        if owned != null and sidewalk.material == owned and _owns_material_metadata(sidewalk):
             sidewalk.material = _legacy_materials.get(instance_id) as Material
             if str(sidewalk.get_meta("material_family", "")) == MATERIAL_FACTORY.MATERIAL_FAMILY:
                 sidewalk.remove_meta("material_family")
+            sidewalk.remove_meta(MATERIAL_OWNER_META)
     for raw_id: Variant in _official_sidewalks.keys():
         var instance_id := int(raw_id)
         var instance := _official_sidewalks.get(instance_id) as MeshInstance3D
         if instance == null or not is_instance_valid(instance):
             continue
         var owned := _official_owned_materials.get(instance_id) as Material
-        if owned != null and instance.material_override == owned:
+        if owned != null and instance.material_override == owned and _owns_material_metadata(instance):
             instance.material_override = _official_legacy_materials.get(instance_id) as Material
             if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
                 instance.remove_meta("ground_network_presentation_family")
+            instance.remove_meta(MATERIAL_OWNER_META)
     _sidewalks.clear()
     _legacy_materials.clear()
     _owned_materials.clear()
@@ -131,7 +164,6 @@ func _bind_sidewalk(sidewalk: CSGBox3D) -> bool:
     _original_transforms[instance_id] = sidewalk.global_transform
     _original_sizes[instance_id] = sidewalk.size
     sidewalk.set_meta("environment_role", "generated_osm_sidewalk")
-    sidewalk.set_meta("material_family", MATERIAL_FACTORY.MATERIAL_FAMILY)
     sidewalk.set_meta("placement_provenance", "adjacent_to_existing_osm_road_runtime_convention")
     sidewalk.set_meta("surface_composition_claimed", false)
     sidewalk.set_meta("sidewalk_presence_source_backed", false)
@@ -140,8 +172,7 @@ func _bind_sidewalk(sidewalk: CSGBox3D) -> bool:
     sidewalk.set_meta("curb_height_source_backed", false)
     sidewalk.set_meta("geometry_changed_by_sidewalk_surface_runtime", false)
     if _enhanced_enabled:
-        _owned_materials[instance_id] = _material
-        sidewalk.material = _material
+        _claim_generated_material(sidewalk)
     return true
 
 func _bind_sidewalks_root(roads_root: Node3D) -> void:
@@ -200,11 +231,9 @@ func _register_official_sidewalk(node: Node) -> void:
     _official_sidewalks[instance_id] = instance
     _official_legacy_materials[instance_id] = instance.material_override
     instance.set_meta("ground_network_provider", OFFICIAL_MATERIAL_FACTORY.PROVIDER_URBIS)
-    instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
     instance.set_meta("geometry_changed_by_ground_network_runtime", false)
     if _enhanced_enabled:
-        _official_owned_materials[instance_id] = _official_material
-        instance.material_override = _official_material
+        _claim_official_material(instance)
     print("BRUSSELS_OFFICIAL_SIDEWALK_SURFACE_READY: node=%s provider=UrbIS geometry_changed=false license_claimed=false" % instance.name)
 
 func _set_material_state(enabled: bool) -> void:
@@ -213,12 +242,14 @@ func _set_material_state(enabled: bool) -> void:
             continue
         var instance_id := sidewalk.get_instance_id()
         if enabled:
-            _owned_materials[instance_id] = _material
-            sidewalk.material = _material
+            _claim_generated_material(sidewalk)
         else:
             var owned := _owned_materials.get(instance_id) as Material
-            if owned == null or sidewalk.material == owned:
+            if owned != null and sidewalk.material == owned and _owns_material_metadata(sidewalk):
                 sidewalk.material = _legacy_materials.get(instance_id) as Material
+                if str(sidewalk.get_meta("material_family", "")) == MATERIAL_FACTORY.MATERIAL_FAMILY:
+                    sidewalk.remove_meta("material_family")
+                sidewalk.remove_meta(MATERIAL_OWNER_META)
             _owned_materials.erase(instance_id)
     for raw_id: Variant in _official_sidewalks.keys():
         var instance_id := int(raw_id)
@@ -226,12 +257,14 @@ func _set_material_state(enabled: bool) -> void:
         if instance == null or not is_instance_valid(instance):
             continue
         if enabled:
-            _official_owned_materials[instance_id] = _official_material
-            instance.material_override = _official_material
+            _claim_official_material(instance)
         else:
             var owned := _official_owned_materials.get(instance_id) as Material
-            if owned == null or instance.material_override == owned:
+            if owned != null and instance.material_override == owned and _owns_material_metadata(instance):
                 instance.material_override = _official_legacy_materials.get(instance_id) as Material
+                if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
+                    instance.remove_meta("ground_network_presentation_family")
+                instance.remove_meta(MATERIAL_OWNER_META)
             _official_owned_materials.erase(instance_id)
 
 func set_enhanced_enabled(enabled: bool) -> void:

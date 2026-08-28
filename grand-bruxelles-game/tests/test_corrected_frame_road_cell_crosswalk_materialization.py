@@ -56,7 +56,8 @@ class CorrectedFrameRoadCellCrosswalkMaterializationTest(unittest.TestCase):
         self.assertIn("IMPACT_HISTORICAL_CROSSWALK", workflow)
         self.assertIn("git show \"$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json\"", workflow)
         self.assertIn("--current-crosswalk \"$IMPACT_HISTORICAL_CROSSWALK\"", workflow)
-        self.assertIn("current_mapped_road_count']==56", workflow)
+        self.assertIn("d['mapped_road_count']==56", workflow)
+        self.assertIn("len(d['rows'])==56", workflow)
 
     def test_lock_reproduction_checks_candidate_json_hash(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")

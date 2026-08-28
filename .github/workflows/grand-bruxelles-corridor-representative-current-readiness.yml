@@ -20,7 +20,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Require exact live main and evidence-only rails
+      - name: Require live-main ancestry and evidence-only rails
         shell: bash
         run: |
           set -euo pipefail
@@ -28,8 +28,20 @@ jobs:
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          read -r EVIDENCE_BASE_SHA <<EOF
+          $(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_corridor_representative_current_readiness.contract.json').read_text())
+          print(d['production_base_sha'])
+          PY
+          )
+          EOF
+          git cat-file -e "${EVIDENCE_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$EVIDENCE_BASE_SHA" "$LIVE_MAIN_SHA"
           echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          echo "EVIDENCE_BASE_SHA=$EVIDENCE_BASE_SHA" >> "$GITHUB_ENV"
+          python3 - "$EVIDENCE_BASE_SHA" "$LIVE_MAIN_SHA" <<'PY'
           import json,sys
           from pathlib import Path
           d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_corridor_representative_current_readiness.contract.json').read_text())
@@ -41,12 +53,13 @@ jobs:
           assert all(v is False for v in d['authorization'].values())
           if d['status']=='LOCKED_EVIDENCE_ONLY':
               locked=d['locked_evidence']
+              assert locked['production_base_sha']==sys.argv[1]
               assert len(locked['production_base_sha'])==40
               assert len(locked['measurement_sha256'])==64
               assert len(locked['semantic_sha256'])==64
               assert d['policy']['locked_measurement_sha_is_forensic_to_locked_base'] is True
               assert d['policy']['semantic_lock_survives_clean_live_main_rebuild'] is True
-          print('CORRIDOR_REP_CURRENT_READINESS_LIVE_MAIN_OK',sys.argv[1],d['status'])
+          print('CORRIDOR_REP_CURRENT_READINESS_BASES_OK',f'evidence={sys.argv[1]}',f'live={sys.argv[2]}',d['status'])
           PY
       - name: Run fail-closed regressions
         working-directory: grand-bruxelles-game
@@ -96,11 +109,12 @@ jobs:
               print('RED_FIRST_CORRIDOR_REP_CURRENT_READINESS_NOT_LOCKED',d['semantic_sha256'])
               sys.exit(1)
           locked=c['locked_evidence']
+          assert locked['production_base_sha']==os.environ['EVIDENCE_BASE_SHA']
           assert d['semantic_sha256']==locked['semantic_sha256']
           assert d['accounting']==locked['accounting']
           locked_base=locked['production_base_sha']
           subprocess.run(['git','cat-file','-e',f'{locked_base}^{{commit}}'],check=True)
-          subprocess.run(['git','merge-base','--is-ancestor',locked_base,'HEAD'],check=True)
+          subprocess.run(['git','merge-base','--is-ancestor',locked_base,os.environ['LIVE_MAIN_SHA']],check=True)
           if d['production_base_sha']==locked_base:
               assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['measurement_sha256']
               byte_status='FORENSIC_BYTES_EXACT'

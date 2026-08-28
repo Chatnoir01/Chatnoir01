@@ -1,0 +1,150 @@
+name: Grand Bruxelles Gate-8 Variant01 One-Ring Weight Field
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-one-ring-weight-field-20260828"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-one-ring-weight-field.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_one_ring_weight_field.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_one_ring_weight_field_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  one-ring-field:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      TARGET_SIZE_BYTES: "15580240"
+      GEOMETRY_ARTIFACT_ID: "9696914558"
+      GEOMETRY_ARTIFACT_DIGEST: "sha256:cf3fb477ae4dcb6962d305fd7c4a5ec040d24a1c14f8ba900032eff5da8922b7"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-one-ring-weight-field"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "7367be4875c8ff01774e328ab91807ba325ba209"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-one-ring-weight-field.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_one_ring_weight_field.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_one_ring_weight_field_test.gd' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_one_ring_weight_field.json'))
+          assert d['base_main_sha']=='7367be4875c8ff01774e328ab91807ba325ba209'
+          assert d['candidate_variant']==1
+          assert d['target_artifact']['id']==9470539830
+          assert d['geometry_artifact']['id']==9696914558
+          assert d['geometry_artifact']['expected_edges']==6
+          assert d['geometry_artifact']['expected_weight_divergent_split_endpoints']==0
+          assert d['rails'] and all(v is False for v in d['rails'].values())
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
+
+      - name: Verify immutable target and geometry artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}" > "$RUNNER_TEMP/target-artifact.json"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${GEOMETRY_ARTIFACT_ID}" > "$RUNNER_TEMP/geometry-artifact.json"
+          python3 - "$RUNNER_TEMP/target-artifact.json" "$TARGET_ARTIFACT_DIGEST" "$RUNNER_TEMP/geometry-artifact.json" "$GEOMETRY_ARTIFACT_DIGEST" <<'PY'
+          import json,sys
+          ta=json.load(open(sys.argv[1])); ga=json.load(open(sys.argv[3]))
+          assert not ta['expired'] and ta['id']==9470539830 and ta['digest']==sys.argv[2]
+          assert not ga['expired'] and ga['id']==9696914558 and ga['digest']==sys.argv[4]
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/target.zip"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${GEOMETRY_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/geometry.zip"
+          mkdir -p "$RUNNER_TEMP/target" "$RUNNER_TEMP/geometry" "$PROJECT/assets" "$PROJECT/evidence"
+          unzip -q "$RUNNER_TEMP/target.zip" -d "$RUNNER_TEMP/target"
+          unzip -q "$RUNNER_TEMP/geometry.zip" -d "$RUNNER_TEMP/geometry"
+          TARGET="$(find "$RUNNER_TEMP/target" -type f -name 'npc_gate_01.glb' -print -quit)"
+          GEOMETRY="$(find "$RUNNER_TEMP/geometry" -type f -name 'result.json' -print -quit)"
+          test -n "$TARGET" && test -n "$GEOMETRY"
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          python3 - "$GEOMETRY" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['diagnostic_state']=='TRUE_EDGES_NO_WEIGHT_DIVERGENT_SEAM_SPLITS'
+          assert r['audited_edge_count']==6 and r['triangle_adjacent_edge_count']==6
+          assert r['weight_divergent_split_endpoint_count']==0
+          assert r['failures']==[]
+          PY
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          cp "$GEOMETRY" "$PROJECT/evidence/edge-seam-geometry-result.json"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_one_ring_weight_field.json "$PROJECT/contract.json"
+          sha256sum "$TARGET" | tee "$RUNNER_TEMP/npc_gate_01.sha256"
+
+      - name: Import exact target and measure one-ring field under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_one_ring_weight_field_test.gd "$PROJECT/gate_test.gd"
+          printf '[application]\nconfig/name="Gate8Variant01OneRingWeightField"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT/project.godot"
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import > "$RUNNER_TEMP/godot-import.log" 2>&1
+          timeout 180 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
+          cp "$PROJECT/gate8_variant01_one_ring_weight_field_result.json" "$RUNNER_TEMP/result.json"
+          python3 - "$RUNNER_TEMP/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['diagnostic_state'] in {'ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED','ONE_RING_BROADER_WEIGHT_FIELD_CONFIRMED'}, r
+          assert r['failures']==[], r['failures']
+          assert r['target_vertex_total']==21044
+          assert r['audited_edge_count']==6 and len(r['edges'])==6
+          assert all(e['endpoint_a']['neighbor_count']>0 and e['endpoint_b']['neighbor_count']>0 for e in r['edges'])
+          assert all(e['endpoint_a']['pair_present'] and e['endpoint_b']['pair_present'] for e in r['edges'])
+          assert r['rails'] and all(v is False for v in r['rails'].values())
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          print('GATE8_ONE_RING_WEIGHT_FIELD_OK state=%s all_local_max=%s' % (r['diagnostic_state'], r['all_pair_bilateral_local_maxima']))
+          PY
+
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-one-ring-weight-field-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/target-artifact.json
+            ${{ runner.temp }}/geometry-artifact.json
+            ${{ runner.temp }}/npc_gate_01.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/godot.log
+            ${{ runner.temp }}/godot-import.log
+          retention-days: 14

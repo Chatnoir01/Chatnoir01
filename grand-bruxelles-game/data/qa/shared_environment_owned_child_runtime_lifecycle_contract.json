@@ -1,0 +1,24 @@
+{
+  "schema": "grand-bruxelles-shared-environment-owned-child-runtime-lifecycle-v1",
+  "scope": "shared_environment_owned_child_runtime_lifecycle_only",
+  "central_lifecycle_gate_required": true,
+  "geometry_or_material_change_authorized": false,
+  "owned_child_runtime_teardown_cleanup_required": true,
+  "registered_owned_child_runtime_count": 1,
+  "notes": [
+    "Child runtimes owned by a registered Shared Environment autoload are not production autoloads themselves and therefore require an explicit lifecycle registry.",
+    "Fonsny must restore owned visibility before detaching and freeing only its exact replacement root.",
+    "This contract does not authorize geometry, material, transform, collision, camera, FOV, threshold, or source-placement changes."
+  ],
+  "owned_child_runtimes": [
+    {
+      "path": "game/scripts/midi_fonsny_full_entrance_runtime.gd",
+      "owner_runtime_path": "game/scripts/midi_architectural_concrete_surface_runtime.gd",
+      "owner_accessor": "fonsny_full_entrance_runtime",
+      "owned_root_name": "EntranceSourceBackedFonsnyPorch",
+      "release_helper": "_release_owned_replacement",
+      "teardown_cleanup_required": true,
+      "visibility_cleanup_before_release": true
+    }
+  ]
+}

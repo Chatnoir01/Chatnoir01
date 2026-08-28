@@ -8,7 +8,9 @@
     "runtime_mount_authorized": false,
     "safe_spawn_authorized": false
   },
-  "destination_count": 56,
+  "corrected_frame_candidate_semantic_sha256": "d6fd92ebf0220dbda9dd46da4629ec99f0e0a2839b83ea9dbd40af78dff3eed9",
+  "corrected_frame_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+  "destination_count": 96,
   "destinations": [
     {
       "cell_bbox": [
@@ -22,7 +24,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-3517864",
+      "destination_id": "road-8176386",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -49,60 +51,54 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
-      "road_class": "tertiary",
-      "road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan",
-      "road_osm_id": 3517864,
-      "road_width_m": 9.0,
+      "road_class": "residential",
+      "road_name": "Rue de l'Argonne - Argonnestraat",
+      "road_osm_id": 8176386,
+      "road_width_m": 5.6,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -131.605,
-        -355.432,
-        -120.35,
-        -338.645
+        -631.705,
+        432.621,
+        -556.877,
+        504.522
       ],
-      "source_local_point_count": 5,
+      "source_local_point_count": 9,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "5bf98cbc268912a6f099c15880baae218ebe43bc51c1590024fbc121fe692959",
+      "source_points_sha256": "05b2d5d06172ad25f9745ed482c14412506e276e02795f0d3b21e0591b986081",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
     {
       "cell_bbox": [
-        147500.0,
-        170000.0,
-        148000.0,
-        170500.0
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
       "collision_authorized": false,
       "destination_id": "road-8512036",
-      "grid_cell_id": "E147500_N170000",
+      "grid_cell_id": "E148500_N170500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
-        "21001",
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
       "road_class": "living_street",
-      "road_name": "Rue Saint-Géry - Sint-Goriksstraat",
+      "road_name": "Rue Saint-G\u00e9ry - Sint-Goriksstraat",
       "road_osm_id": 8512036,
       "road_width_m": 5.0,
       "runtime_mount_authorized": false,
@@ -122,33 +118,27 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        170000.0,
-        148000.0,
-        170500.0
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
       "collision_authorized": false,
       "destination_id": "road-8512040",
-      "grid_cell_id": "E147500_N170000",
+      "grid_cell_id": "E148500_N170500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
-        "21001",
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
@@ -174,33 +164,27 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        170000.0,
-        148000.0,
-        170500.0
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
       "collision_authorized": false,
       "destination_id": "road-12357557",
-      "grid_cell_id": "E147500_N170000",
+      "grid_cell_id": "E148500_N170500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
-        "21001",
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
@@ -226,98 +210,120 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
-      "destination_id": "road-13253109",
-      "grid_cell_id": "E147500_N169500",
+      "destination_id": "road-13753314",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
       "road_class": "living_street",
-      "road_name": "Rue d'Anderlecht - Anderlechtsesteenweg",
-      "road_osm_id": 13253109,
+      "road_name": "Rue des Foulons - Voldersstraat",
+      "road_osm_id": 13753314,
       "road_width_m": 5.0,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -322.418,
-        -390.921,
-        -146.872,
-        -362.467
+        -411.213,
+        -102.625,
+        -333.827,
+        -32.683
       ],
-      "source_local_point_count": 14,
+      "source_local_point_count": 7,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "5523a2e70ba2dc7d519eca15a2646f10887a42dc322fba9c91d848370ccd68b4",
+      "source_points_sha256": "2d4b01495b412f8ed6f382586450a8dc7938dd2bcaca9adf0feefcf1a25579de",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
-      "destination_id": "road-13767417",
-      "grid_cell_id": "E147500_N169500",
+      "destination_id": "road-13767328",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "living_street",
+      "road_name": "Rue d'Artois - Artesi\u00ebstraat",
+      "road_osm_id": 13767328,
+      "road_width_m": 5.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -411.213,
+        -155.747,
+        -294.216,
+        -102.625
+      ],
+      "source_local_point_count": 5,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "575345b23a66a0fbbb66ffccb4753b221274febac63f234b4ce38a8e4b8d407d",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-13767417",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -342,40 +348,74 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
-      "destination_id": "road-13767497",
-      "grid_cell_id": "E147500_N169500",
+      "destination_id": "road-13767486",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "living_street",
+      "road_name": "Rue de la Caserne - Kazernestraat",
+      "road_osm_id": 13767486,
+      "road_width_m": 5.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -531.001,
+        -155.447,
+        -294.216,
+        73.126
+      ],
+      "source_local_point_count": 10,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "3785eb1b95d75a89c3fbb088f856f4c582efad24bb37851847daf3d6d7726d93",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-13767497",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -400,40 +440,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-13767759",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -458,40 +486,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-13767897",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -516,40 +532,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-13767921",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -574,40 +578,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-13767970",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -632,40 +624,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-13767977",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -690,40 +670,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-13768108",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -748,40 +716,74 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
-      "destination_id": "road-13768492",
-      "grid_cell_id": "E147500_N169500",
+      "destination_id": "road-13768157",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "tertiary",
+      "road_name": "Rue de Woeringen - Woeringenstraat",
+      "road_osm_id": 13768157,
+      "road_width_m": 7.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -524.675,
+        85.015,
+        -414.777,
+        100.599
+      ],
+      "source_local_point_count": 7,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "f3044fab6dee22268e08615611b0c0acefed5e7200e8f79a3a380334c78cf3d8",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-13768492",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -806,40 +808,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-13768669",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -864,134 +854,18 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
-        148000.0,
-        170000.0
-      ],
-      "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
-      "collision_authorized": false,
-      "destination_id": "road-13839667",
-      "grid_cell_id": "E147500_N169500",
-      "jouable_authorized": false,
-      "municipalities": [
-        {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
-          "inspire_id": "https://databrussels.be/id/municipality/5000074",
-          "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
-        }
-      ],
-      "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
-      ],
-      "readiness": "REGISTERED_NOT_RENDERED",
-      "render_authorized": false,
-      "road_class": "living_street",
-      "road_name": "Place Fontainas - Fontainasplein",
-      "road_osm_id": 13839667,
-      "road_width_m": 5.0,
-      "runtime_mount_authorized": false,
-      "safe_spawn_authorized": false,
-      "source_license": "ODbL-1.0",
-      "source_local_bbox": [
-        -146.872,
-        -373.187,
-        -130.705,
-        -362.556
-      ],
-      "source_local_point_count": 2,
-      "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "67e58b9afd0ae885fc1c7b9eebc91c36112a26f0093b57257ac4d3eebbf1330f",
-      "source_provider": "OpenStreetMap contributors via Overpass API",
-      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
-    },
-    {
-      "cell_bbox": [
-        147500.0,
-        169500.0,
-        148000.0,
-        170000.0
-      ],
-      "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
-      "collision_authorized": false,
-      "destination_id": "road-13839673",
-      "grid_cell_id": "E147500_N169500",
-      "jouable_authorized": false,
-      "municipalities": [
-        {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
-          "inspire_id": "https://databrussels.be/id/municipality/5000074",
-          "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
-        }
-      ],
-      "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
-      ],
-      "readiness": "REGISTERED_NOT_RENDERED",
-      "render_authorized": false,
-      "road_class": "living_street",
-      "road_name": "Place Fontainas - Fontainasplein",
-      "road_osm_id": 13839673,
-      "road_width_m": 5.0,
-      "runtime_mount_authorized": false,
-      "safe_spawn_authorized": false,
-      "source_license": "ODbL-1.0",
-      "source_local_bbox": [
-        -146.872,
-        -407.607,
-        -123.605,
-        -373.187
-      ],
-      "source_local_point_count": 5,
-      "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "d6b8f79e06327906ccfb76f24a853932d9b88d7c7ff7b7d818d72d01ce3d39a4",
-      "source_provider": "OpenStreetMap contributors via Overpass API",
-      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
-    },
-    {
-      "cell_bbox": [
-        148000.0,
-        170000.0,
         148500.0,
-        170500.0
+        170500.0,
+        149000.0,
+        171000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e148000-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
-      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
       "collision_authorized": false,
       "destination_id": "road-13842686",
-      "grid_cell_id": "E148000_N170000",
+      "grid_cell_id": "E148500_N170500",
       "jouable_authorized": false,
       "municipalities": [
         {
@@ -1027,32 +901,84 @@
     {
       "cell_bbox": [
         147500.0,
-        170000.0,
+        169500.0,
         148000.0,
-        170500.0
+        170000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-14391825",
-      "grid_cell_id": "E147500_N170000",
+      "destination_id": "road-13853812",
+      "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
+          "coverage_ratio": 0.3516055345072097,
           "inspire_id": "https://databrussels.be/id/municipality/5000071",
           "niscode": "21001"
         },
         {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de Russie - Ruslandstraat",
+      "road_osm_id": 13853812,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -625.245,
+        581.845,
+        -538.424,
+        651.275
+      ],
+      "source_local_point_count": 8,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "4f700ed8b2b359734af7a072369cf8edcd47acd4970388980c0f8d7d0bcae0e2",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-14391825",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
-        "21001",
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
@@ -1088,7 +1014,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-15497592",
+      "destination_id": "road-14622085",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1115,74 +1041,22 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
-      "road_class": "living_street",
-      "road_name": "Rue de la Grande Île - Groot Eiland",
-      "road_osm_id": 15497592,
-      "road_width_m": 5.0,
+      "road_class": "residential",
+      "road_name": "Rue d'Angleterre - Engelandstraat",
+      "road_osm_id": 14622085,
+      "road_width_m": 5.6,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -131.415,
-        -444.309,
-        -122.445,
-        -407.607
+        -678.359,
+        647.156,
+        -670.809,
+        653.735
       ],
-      "source_local_point_count": 6,
+      "source_local_point_count": 2,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "371211950d5cd943ebb2b385d253aa8d88ed866984f6e3c8461dffa1cb9996c6",
-      "source_provider": "OpenStreetMap contributors via Overpass API",
-      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
-    },
-    {
-      "cell_bbox": [
-        147500.0,
-        170000.0,
-        148000.0,
-        170500.0
-      ],
-      "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
-      "collision_authorized": false,
-      "destination_id": "road-15497818",
-      "grid_cell_id": "E147500_N170000",
-      "jouable_authorized": false,
-      "municipalities": [
-        {
-          "coverage_ratio": 0.8320850629128363,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.16791493708716362,
-          "inspire_id": "https://databrussels.be/id/municipality/5000074",
-          "niscode": "21004"
-        }
-      ],
-      "municipality_niscodes": [
-        "21001",
-        "21004"
-      ],
-      "readiness": "REGISTERED_NOT_RENDERED",
-      "render_authorized": false,
-      "road_class": "living_street",
-      "road_name": "Rue de l'Éclipse - Eclipsstraat",
-      "road_osm_id": 15497818,
-      "road_width_m": 5.0,
-      "runtime_mount_authorized": false,
-      "safe_spawn_authorized": false,
-      "source_license": "ODbL-1.0",
-      "source_local_bbox": [
-        -101.68,
-        -543.863,
-        -39.168,
-        -499.212
-      ],
-      "source_local_point_count": 4,
-      "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "55c19ef54e5fa0305927606b587ad25f49419ab9b50f5e8de057e67650acfa7b",
+      "source_points_sha256": "537f10ad89c60dd923c04f328d0fd0c333d6c08354c9f04e98f53c0c2da6d02b",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
@@ -1198,7 +1072,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-33739273",
+      "destination_id": "road-30681194",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1222,6 +1096,226 @@
         "21001",
         "21004",
         "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Esplanade de l'Europe - Europaesplanade",
+      "road_osm_id": 30681194,
+      "road_width_m": 6.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -844.499,
+        421.801,
+        -678.218,
+        495.939
+      ],
+      "source_local_point_count": 15,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "9eaa7f209dfac70fa3fe6fa4b1a455921f78e27e5713ed7d6791a46c2534aee5",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-30817492",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de l'Argonne - Argonnestraat",
+      "road_osm_id": 30817492,
+      "road_width_m": 6.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -630.587,
+        442.261,
+        -557.762,
+        504.522
+      ],
+      "source_local_point_count": 7,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "e3f855d157b5bfd97370978136a5e573c215935f267202a4e09809c0e4801869",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-30832306",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de l'Argonne - Argonnestraat",
+      "road_osm_id": 30832306,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -737.315,
+        345.825,
+        -665.418,
+        414.209
+      ],
+      "source_local_point_count": 7,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "e482cc4f5e16be18c49cd407c28d4907570c14013c8754d00a56319fa3a0f271",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-30832307",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Boulevard Jamar - Jamarlaan",
+      "road_osm_id": 30832307,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -729.969,
+        345.825,
+        -618.925,
+        361.911
+      ],
+      "source_local_point_count": 6,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "b7b8e88dcae50c7b9fd1c05b9a16541eb5e0fc9caa2b447ad348e992183dc107",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-33739273",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1256,7 +1350,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-40419451",
+      "destination_id": "road-35903015",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1283,22 +1377,22 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
-      "road_class": "residential",
-      "road_name": "Avenue de Stalingrad - Stalingradlaan",
-      "road_osm_id": 40419451,
-      "road_width_m": 5.6,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 35903015,
+      "road_width_m": 9.0,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -202.77,
-        -84.859,
-        -155.758,
-        -25.013
+        -625.245,
+        497.977,
+        -558.845,
+        581.845
       ],
       "source_local_point_count": 5,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "454186219ed26d3e9f663242fbc5e2ab71d8828f72b882824a3bc00a3ee8e3ed",
+      "source_points_sha256": "dac844c00ffc8a8dd0cc6d9d5b65e3ac6004015e515eb8357a3dc03d813a78fc",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
@@ -1314,7 +1408,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-40581330",
+      "destination_id": "road-35903018",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1338,6 +1432,156 @@
         "21001",
         "21004",
         "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Place de la Constitution - Grondwetplein",
+      "road_osm_id": 35903018,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -555.499,
+        442.428,
+        -504.297,
+        507.572
+      ],
+      "source_local_point_count": 6,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "9243f88d07d89b55ccfb794f8275d6978afafd61fcd5a855076599ad28173ed4",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-40414706",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 40414706,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -795.04,
+        653.123,
+        -683.315,
+        790.569
+      ],
+      "source_local_point_count": 8,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "5e4dcbf058b7e2ba574d4b3d7a2d75e3a6c18de6781604f0b1864b2d2e33fb9d",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-40419451",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Avenue de Stalingrad - Stalingradlaan",
+      "road_osm_id": 40419451,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -202.77,
+        -84.859,
+        -155.758,
+        -25.013
+      ],
+      "source_local_point_count": 5,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "454186219ed26d3e9f663242fbc5e2ab71d8828f72b882824a3bc00a3ee8e3ed",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-40581330",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1372,7 +1616,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-40623184",
+      "destination_id": "road-64487751",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1399,22 +1643,22 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
-      "road_class": "tertiary",
-      "road_name": "Place Fontainas - Fontainasplein",
-      "road_osm_id": 40623184,
-      "road_width_m": 7.0,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 64487751,
+      "road_width_m": 9.0,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -113.567,
-        -350.879,
-        -98.159,
-        -339.792
+        -793.409,
+        653.735,
+        -670.809,
+        806.677
       ],
-      "source_local_point_count": 2,
+      "source_local_point_count": 7,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "36b5f850bcfc1d8acf66427b99e37d7f1c385b2020e6184d6380074a0476d029",
+      "source_points_sha256": "987c519c89f13b6d166fc4d53b0dac49953f27fc15abf2bb5ca4d90de60e74fd",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
@@ -1430,7 +1674,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-56670727",
+      "destination_id": "road-68706829",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1457,61 +1701,107 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
-      "road_class": "living_street",
-      "road_name": "Impasse de la Barbe - Baardgang",
-      "road_osm_id": 56670727,
-      "road_width_m": 5.0,
+      "road_class": "residential",
+      "road_name": "Esplanade de l'Europe - Europaesplanade",
+      "road_osm_id": 68706829,
+      "road_width_m": 5.6,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -179.622,
-        -427.122,
-        -130.164,
-        -401.852
+        -636.182,
+        361.911,
+        -618.925,
+        395.195
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "4d29fe8c6ab85d70d599dc8ab764812a5a2d4961991f6e97d3e497f5434e4506",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-108931599",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue d'Angleterre - Engelandstraat",
+      "road_osm_id": 108931599,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -670.809,
+        653.735,
+        -600.178,
+        711.521
       ],
       "source_local_point_count": 3,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "a1b21ba53e6b013412f182502766897751e3eb26791733838fecdb90830b9fcf",
+      "source_points_sha256": "a5cff2835814f36fbf8b8a08ef83c176f422b748e3bbb6d6cb6761620e073915",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-115189241",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1536,40 +1826,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-115189244",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1594,40 +1872,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-122267130",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1662,7 +1928,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-150205000",
+      "destination_id": "road-128872477",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1689,22 +1955,74 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
-      "road_class": "tertiary",
-      "road_name": "Rue des Bogards - Bogaardenstraat",
-      "road_osm_id": 150205000,
-      "road_width_m": 7.0,
+      "road_class": "secondary",
+      "road_name": "Boulevard Jamar - Jamarlaan",
+      "road_osm_id": 128872477,
+      "road_width_m": 8.0,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -4.154,
-        -284.243,
-        67.264,
-        -222.338
+        -780.292,
+        315.98,
+        -613.421,
+        319.331
       ],
-      "source_local_point_count": 6,
+      "source_local_point_count": 7,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "c52c5b7abce809945cd558bb25e36e12b47e0bf8b171a0c24675cad9aea32e9d",
+      "source_points_sha256": "ede98df48a17fb93efba34b442b44faf756a53c8c8d72e6037cb83d08ab95776",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        170000.0,
+        148000.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
+      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "collision_authorized": false,
+      "destination_id": "road-150205016",
+      "grid_cell_id": "E147500_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.8320850629128363,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.16791493708716362,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Boulevard Poincar\u00e9 - Poincar\u00e9laan",
+      "road_osm_id": 150205016,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -621.449,
+        -133.216,
+        -557.509,
+        143.958
+      ],
+      "source_local_point_count": 8,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "625e7dbd2bc4b0480364c08aace43540714086d8fa61c6f2e70679578f0b9d23",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
@@ -1720,7 +2038,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-180154181",
+      "destination_id": "road-180047904",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -1744,6 +2062,52 @@
         "21001",
         "21004",
         "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan",
+      "road_osm_id": 180047904,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -540.062,
+        210.227,
+        -498.807,
+        227.225
+      ],
+      "source_local_point_count": 6,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "738a44cdd42081983d5e9dc78e5880f27c940b0c0de5a72bfd75f5f33f00ef65",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-180154181",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1768,40 +2132,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-189090774",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1826,40 +2178,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-189090776",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -1885,32 +2225,524 @@
     {
       "cell_bbox": [
         147500.0,
-        170000.0,
+        169500.0,
         148000.0,
-        170500.0
+        170000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-356328311",
-      "grid_cell_id": "E147500_N170000",
+      "destination_id": "road-220837908",
+      "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
+          "coverage_ratio": 0.3516055345072097,
           "inspire_id": "https://databrussels.be/id/municipality/5000071",
           "niscode": "21001"
         },
         {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de M\u00e9rode - de M\u00e9rodestraat",
+      "road_osm_id": 220837908,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -538.424,
+        580.72,
+        -484.945,
+        651.275
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "1f83263fae76006981ed75d926e7fe498bb7413278e877748d7a946e9fcfe77b",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-220837909",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de M\u00e9rode - de M\u00e9rodestraat",
+      "road_osm_id": 220837909,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -591.187,
+        651.275,
+        -538.424,
+        718.668
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "d42b09ed38bf116bd92c3b380fad0ec5e519143e58ae9596a1fd9c69ebe5091b",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-220837911",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de Russie - Ruslandstraat",
+      "road_osm_id": 220837911,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -538.424,
+        651.275,
+        -425.096,
+        743.959
+      ],
+      "source_local_point_count": 8,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "592fc69ad13ae607a2ab3c403228844b12945409c8e7318e1e39024f38920560",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-230975692",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Boulevard du Midi - Zuidlaan",
+      "road_osm_id": 230975692,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -524.675,
+        100.599,
+        -498.807,
+        213.411
+      ],
+      "source_local_point_count": 5,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "55f0a1550286904252ef8f363a66ab287c9e154b9f7b886c52c909f1bfe72cb1",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-255459725",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
         "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Place de la Constitution - Grondwetplein",
+      "road_osm_id": 255459725,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -558.845,
+        432.332,
+        -506.813,
+        497.977
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "ec98f15eba2016defa9fb2189a5d91dbc905d11c2e822a37815ba0a25e9525dd",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-256149369",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "secondary",
+      "road_name": "Boulevard Jamar - Jamarlaan",
+      "road_osm_id": 256149369,
+      "road_width_m": 8.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -613.421,
+        317.617,
+        -557.727,
+        318.63
+      ],
+      "source_local_point_count": 6,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "23005e9c00c4134aef42ae527813266c643ad4c04b555019233e56596f6ab7ac",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-256149370",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Avenue de Stalingrad - Stalingradlaan",
+      "road_osm_id": 256149370,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -446.824,
+        125.357,
+        -318.763,
+        266.265
+      ],
+      "source_local_point_count": 9,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "785b5dc4ed23f8764fd1d4503aca696af5736ca0c84299435ddc9d484e89cd62",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-256156910",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de l'Argonne - Argonnestraat",
+      "road_osm_id": 256156910,
+      "road_width_m": 6.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -557.762,
+        504.522,
+        -555.499,
+        507.572
+      ],
+      "source_local_point_count": 2,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "4310f325d9a27f7dcd50b22679ea0be0e15c907d0fbdd6eea41fb4bf15979371",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-288509378",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 288509378,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -678.359,
+        624.736,
+        -659.604,
+        647.156
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "d79350d6a0dd8fe18a3cf487a7101458122b8e872cfdee3c416a5ee01cd3d594",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-356328311",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
@@ -1936,40 +2768,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-359177328",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2004,7 +2824,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-404771016",
+      "destination_id": "road-373585866",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -2031,6 +2851,144 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Esplanade de l'Europe - Europaesplanade",
+      "road_osm_id": 373585866,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -636.182,
+        336.808,
+        -551.155,
+        395.195
+      ],
+      "source_local_point_count": 7,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "42375df79ad27129fdb2a368bef3112e78df7997a436ce60bcfbdc56f3e9aa24",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-397461692",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "tertiary",
+      "road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan",
+      "road_osm_id": 397461692,
+      "road_width_m": 7.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -469.986,
+        90.903,
+        -414.777,
+        175.183
+      ],
+      "source_local_point_count": 3,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "cd920421cfb4d7ddde6089ee1cf2c7bdf21782e12370821fec69c3bee88bab29",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-402788142",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue du Lombard - Lombardstraat",
+      "road_osm_id": 402788142,
+      "road_width_m": 6.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        114.375,
+        -460.885,
+        234.438,
+        -370.761
+      ],
+      "source_local_point_count": 14,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "701682b8c7b9799ab6ccb1bad0aff92444f955dcc7121c84162b50c810b4f098",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-404771016",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
       "road_class": "tertiary",
       "road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan",
       "road_osm_id": 404771016,
@@ -2053,32 +3011,84 @@
     {
       "cell_bbox": [
         147500.0,
-        170000.0,
+        169500.0,
         148000.0,
-        170500.0
+        170000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-411724192",
-      "grid_cell_id": "E147500_N170000",
+      "destination_id": "road-408211693",
+      "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
+          "coverage_ratio": 0.3516055345072097,
           "inspire_id": "https://databrussels.be/id/municipality/5000071",
           "niscode": "21001"
         },
         {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 408211693,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -659.604,
+        581.845,
+        -625.245,
+        624.736
+      ],
+      "source_local_point_count": 3,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "e47dd51dfcf7d37bb49727f05d5a0b965e42a3c96a177e62164fe69b92aa8c26",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-411724192",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
-        "21001",
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
@@ -2114,7 +3124,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-443767346",
+      "destination_id": "road-442601792",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -2138,6 +3148,52 @@
         "21001",
         "21004",
         "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Esplanade de l'Europe - Europaesplanade",
+      "road_osm_id": 442601792,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -665.418,
+        395.195,
+        -636.182,
+        414.209
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "da513be2a50f32897344ad228892b232b098dcda4031a74c1fb5586a4559b988",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-443767346",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2172,7 +3228,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-510202247",
+      "destination_id": "road-474493652",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -2200,21 +3256,21 @@
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
       "road_class": "residential",
-      "road_name": "Rue du Midi - Zuidstraat",
-      "road_osm_id": 510202247,
+      "road_name": "Rue de l'Argonne - Argonnestraat",
+      "road_osm_id": 474493652,
       "road_width_m": 5.6,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -4.154,
-        -345.068,
-        44.841,
-        -284.243
+        -555.499,
+        507.572,
+        -495.32,
+        555.751
       ],
-      "source_local_point_count": 6,
+      "source_local_point_count": 5,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "23aa74050f34255bef5fb0962728135b47c7af89db0cf1bb721ca8fc56eae480",
+      "source_points_sha256": "b37c3346d64cb808ab10487173cfc27b5d603ae659cc5457160c9964a4168019",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
@@ -2230,7 +3286,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-554502918",
+      "destination_id": "road-487501803",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -2254,6 +3310,214 @@
         "21001",
         "21004",
         "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 487501803,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -610.631,
+        507.572,
+        -555.499,
+        577.481
+      ],
+      "source_local_point_count": 3,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "62a81c67d84f3f430c5f9286cacd6abfe1bed3662f90e89d6734f13cd61a8e38",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-487501804",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 487501804,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -670.809,
+        577.481,
+        -610.631,
+        653.735
+      ],
+      "source_local_point_count": 5,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "2fdbd5dfb6a1e835cdcd6040776c47524a18eb59702104769fa9bbde7d2d0cc5",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-487510798",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Boulevard Poincar\u00e9 - Poincar\u00e9laan",
+      "road_osm_id": 487510798,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -547.12,
+        227.225,
+        -532.323,
+        297.279
+      ],
+      "source_local_point_count": 6,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "909bf4411a1c14deeb85cf5d5520e7aa83a65a423cc5299235ec1ebe04c02868",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-510202247",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue du Midi - Zuidstraat",
+      "road_osm_id": 510202247,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -4.154,
+        -345.068,
+        44.841,
+        -284.243
+      ],
+      "source_local_point_count": 6,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "23aa74050f34255bef5fb0962728135b47c7af89db0cf1bb721ca8fc56eae480",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-554502918",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2279,32 +3543,142 @@
     {
       "cell_bbox": [
         147500.0,
-        170000.0,
+        169500.0,
         148000.0,
-        170500.0
+        170000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-591894649",
-      "grid_cell_id": "E147500_N170000",
+      "destination_id": "road-589930179",
+      "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
+          "coverage_ratio": 0.3516055345072097,
           "inspire_id": "https://databrussels.be/id/municipality/5000071",
           "niscode": "21001"
         },
         {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de l'Argonne - Argonnestraat",
+      "road_osm_id": 589930179,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -665.418,
+        414.209,
+        -631.705,
+        432.621
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "b4110e0b173ec6e69e5a073f94ef433bf323c83a9eb171384869ae394e39276c",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-589930180",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de l'Argonne - Argonnestraat",
+      "road_osm_id": 589930180,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -665.418,
+        414.209,
+        -630.587,
+        442.261
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "e65658c3a79a30ed8c5b9a11cd71f4e56b11e03ad4b1c2cb55a27113b8f9570f",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-591894649",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
-        "21001",
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
@@ -2330,18 +3704,18 @@
     },
     {
       "cell_bbox": [
-        148000.0,
-        170000.0,
         148500.0,
-        170500.0
+        170500.0,
+        149000.0,
+        171000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e148000-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
-      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
       "collision_authorized": false,
       "destination_id": "road-684214770",
-      "grid_cell_id": "E148000_N170000",
+      "grid_cell_id": "E148500_N170500",
       "jouable_authorized": false,
       "municipalities": [
         {
@@ -2356,7 +3730,7 @@
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
       "road_class": "living_street",
-      "road_name": "Rue du Marché au Charbon - Kolenmarkt",
+      "road_name": "Rue du March\u00e9 au Charbon - Kolenmarkt",
       "road_osm_id": 684214770,
       "road_width_m": 5.0,
       "runtime_mount_authorized": false,
@@ -2376,40 +3750,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
-        148000.0,
-        170000.0
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
       "collision_authorized": false,
       "destination_id": "road-691649674",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148500_N170500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2434,40 +3796,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-741239063",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2492,40 +3842,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-741239064",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2550,40 +3888,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-771848600",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2608,40 +3934,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-777918556",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2666,40 +3980,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-777918558",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2724,40 +4026,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-777918559",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2783,32 +4073,84 @@
     {
       "cell_bbox": [
         147500.0,
-        170000.0,
+        169500.0,
         148000.0,
-        170500.0
+        170000.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n170000-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
-      "cell_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-860225856",
-      "grid_cell_id": "E147500_N170000",
+      "destination_id": "road-789674409",
+      "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.8320850629128363,
+          "coverage_ratio": 0.3516055345072097,
           "inspire_id": "https://databrussels.be/id/municipality/5000071",
           "niscode": "21001"
         },
         {
-          "coverage_ratio": 0.16791493708716362,
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Boulevard du Midi - Zuidlaan",
+      "road_osm_id": 789674409,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -557.987,
+        323.294,
+        -497.0,
+        408.587
+      ],
+      "source_local_point_count": 7,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "6b2a5dde98f8a7354ebb0899847120fe473d26ce9752ea59c7b67279ea07bb7d",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148500.0,
+        170500.0,
+        149000.0,
+        171000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148500-n170500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148500-n170500-s500.json",
+      "cell_manifest_sha256": "ce3309947aa29fa50cf3c9b11e1a81189bf04682e68576fecd8732a3d2d2dafe",
+      "collision_authorized": false,
+      "destination_id": "road-860225856",
+      "grid_cell_id": "E148500_N170500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
         }
       ],
       "municipality_niscodes": [
-        "21001",
         "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
@@ -2844,7 +4186,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-927669313",
+      "destination_id": "road-869068464",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -2868,6 +4210,110 @@
         "21001",
         "21004",
         "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Boulevard du Midi - Zuidlaan",
+      "road_osm_id": 869068464,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -557.727,
+        297.279,
+        -547.12,
+        317.917
+      ],
+      "source_local_point_count": 3,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "ea10605f14570674651c9be220d7be562dc5280cbbcbacf38103d10de7ed8dce",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e147500-n169500-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "collision_authorized": false,
+      "destination_id": "road-869068465",
+      "grid_cell_id": "E147500_N169500",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 0.3516055345072097,
+          "inspire_id": "https://databrussels.be/id/municipality/5000071",
+          "niscode": "21001"
+        },
+        {
+          "coverage_ratio": 0.002819998976589587,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        },
+        {
+          "coverage_ratio": 0.6455744665162007,
+          "inspire_id": "https://databrussels.be/id/municipality/5000083",
+          "niscode": "21013"
+        }
+      ],
+      "municipality_niscodes": [
+        "21001",
+        "21004",
+        "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Boulevard Poincar\u00e9 - Poincar\u00e9laan",
+      "road_osm_id": 869068465,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -557.987,
+        317.917,
+        -557.727,
+        323.294
+      ],
+      "source_local_point_count": 2,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "26b7291ef6af4c28c6ccb680714de23f5e4705e119bf9a201a74d563836e7652",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-927669313",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2892,40 +4338,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-927699979",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -2950,40 +4384,28 @@
     },
     {
       "cell_bbox": [
-        147500.0,
-        169500.0,
         148000.0,
-        170000.0
+        170000.0,
+        148500.0,
+        170500.0
       ],
       "cell_crs": "EPSG:31370",
-      "cell_id": "bxl-e147500-n169500-s500",
-      "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
-      "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
       "collision_authorized": false,
       "destination_id": "road-964926587",
-      "grid_cell_id": "E147500_N169500",
+      "grid_cell_id": "E148000_N170000",
       "jouable_authorized": false,
       "municipalities": [
         {
-          "coverage_ratio": 0.3516055345072097,
-          "inspire_id": "https://databrussels.be/id/municipality/5000071",
-          "niscode": "21001"
-        },
-        {
-          "coverage_ratio": 0.002819998976589587,
+          "coverage_ratio": 1.0,
           "inspire_id": "https://databrussels.be/id/municipality/5000074",
           "niscode": "21004"
-        },
-        {
-          "coverage_ratio": 0.6455744665162007,
-          "inspire_id": "https://databrussels.be/id/municipality/5000083",
-          "niscode": "21013"
         }
       ],
       "municipality_niscodes": [
-        "21001",
-        "21004",
-        "21013"
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -3018,7 +4440,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-1138687246",
+      "destination_id": "road-977936292",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -3045,22 +4467,114 @@
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
+      "road_class": "primary",
+      "road_name": "Avenue Fonsny - Fonsnylaan",
+      "road_osm_id": 977936292,
+      "road_width_m": 9.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -683.315,
+        647.156,
+        -678.359,
+        653.123
+      ],
+      "source_local_point_count": 4,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "7bf797df9f27ebc32b66c4d2ca01cabb5eb4e9dd98255679728f902389e019d9",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-1084662162",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
       "road_class": "tertiary",
-      "road_name": "Place Fontainas - Fontainasplein",
-      "road_osm_id": 1138687246,
+      "road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan",
+      "road_osm_id": 1084662162,
       "road_width_m": 7.0,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -120.35,
-        -355.432,
-        -113.567,
-        -350.879
+        -385.556,
+        -32.683,
+        -333.827,
+        45.697
       ],
-      "source_local_point_count": 2,
+      "source_local_point_count": 3,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "d6dd96667dd729c082a02101cbb090f7d0b2f02152e183f9de8af1e9b238b3e3",
+      "source_points_sha256": "54d136460886e9d88d73b1eff8a27fd56d11590f60b1daa77c3f28188d05b1a4",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-1084662163",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "tertiary",
+      "road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan",
+      "road_osm_id": 1084662163,
+      "road_width_m": 7.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -414.777,
+        45.697,
+        -385.556,
+        90.903
+      ],
+      "source_local_point_count": 5,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "b0225539f060500d17b1dd2ff8b3b8b54d9081dcc611e4d0b308a4b01218326f",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
@@ -3076,7 +4590,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-1139999310",
+      "destination_id": "road-1085974779",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -3104,21 +4618,159 @@
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
       "road_class": "living_street",
-      "road_name": "Place Fontainas - Fontainasplein",
-      "road_osm_id": 1139999310,
+      "road_name": "Boulevard Jamar - Jamarlaan",
+      "road_osm_id": 1085974779,
       "road_width_m": 5.0,
       "runtime_mount_authorized": false,
       "safe_spawn_authorized": false,
       "source_license": "ODbL-1.0",
       "source_local_bbox": [
-        -130.705,
-        -362.556,
-        -120.35,
-        -355.432
+        -661.481,
+        292.459,
+        -547.12,
+        297.279
       ],
-      "source_local_point_count": 2,
+      "source_local_point_count": 7,
       "source_path": "data/osm/vertical_slice_01.game.json",
-      "source_points_sha256": "041ee77632265a5d30f1c5babc7dd7d52c0a825478bc987c5f1a4bdb92002c5a",
+      "source_points_sha256": "325dfbc58e4e1f9ddf31e29c4080826feaf1f9e5fc34951e440d3a93cd5828de",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-1086948520",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Rue de la Fontaine - Fonteinstraat",
+      "road_osm_id": 1086948520,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -436.301,
+        123.208,
+        -404.465,
+        148.901
+      ],
+      "source_local_point_count": 3,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "986c46a24cf49cd5edc993a881859cc3e937b150da2b0946ee82db21960e17c9",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-1086950827",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Avenue de Stalingrad - Stalingradlaan",
+      "road_osm_id": 1086950827,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -382.512,
+        121.806,
+        -316.176,
+        167.692
+      ],
+      "source_local_point_count": 6,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "219cf2f7ac32c0b487e58b8634f1f4bcbb8f0e0afe4ea9a47c656d4a66e31588",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-1086950828",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Avenue de Stalingrad - Stalingradlaan",
+      "road_osm_id": 1086950828,
+      "road_width_m": 5.6,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -318.763,
+        32.639,
+        -250.205,
+        125.357
+      ],
+      "source_local_point_count": 5,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "12be7c98a8a4b930ecfd038bd81e5ff64fbf2d586242fe3589fbb895b1437277",
       "source_provider": "OpenStreetMap contributors via Overpass API",
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     },
@@ -3134,7 +4786,7 @@
       "cell_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
       "cell_manifest_sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a",
       "collision_authorized": false,
-      "destination_id": "road-1382734012",
+      "destination_id": "road-1109716571",
       "grid_cell_id": "E147500_N169500",
       "jouable_authorized": false,
       "municipalities": [
@@ -3158,6 +4810,52 @@
         "21001",
         "21004",
         "21013"
+      ],
+      "readiness": "REGISTERED_NOT_RENDERED",
+      "render_authorized": false,
+      "road_class": "residential",
+      "road_name": "Esplanade de l'Europe - Europaesplanade",
+      "road_osm_id": 1109716571,
+      "road_width_m": 6.0,
+      "runtime_mount_authorized": false,
+      "safe_spawn_authorized": false,
+      "source_license": "ODbL-1.0",
+      "source_local_bbox": [
+        -678.218,
+        414.209,
+        -665.418,
+        421.801
+      ],
+      "source_local_point_count": 3,
+      "source_path": "data/osm/vertical_slice_01.game.json",
+      "source_points_sha256": "793989b34493e8f8fc6e3ea24596951f8605be279df28357c13aa90025622add",
+      "source_provider": "OpenStreetMap contributors via Overpass API",
+      "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+    },
+    {
+      "cell_bbox": [
+        148000.0,
+        170000.0,
+        148500.0,
+        170500.0
+      ],
+      "cell_crs": "EPSG:31370",
+      "cell_id": "bxl-e148000-n170000-s500",
+      "cell_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "cell_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+      "collision_authorized": false,
+      "destination_id": "road-1382734012",
+      "grid_cell_id": "E148000_N170000",
+      "jouable_authorized": false,
+      "municipalities": [
+        {
+          "coverage_ratio": 1.0,
+          "inspire_id": "https://databrussels.be/id/municipality/5000074",
+          "niscode": "21004"
+        }
+      ],
+      "municipality_niscodes": [
+        "21004"
       ],
       "readiness": "REGISTERED_NOT_RENDERED",
       "render_authorized": false,
@@ -3181,12 +4879,13 @@
       "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
     }
   ],
-  "mapped_cell_count": 3,
+  "mapped_cell_count": 4,
+  "migration_state": "CORRECTED_FRAME_REGISTERED_NOT_RENDERED",
   "registered_cell_index_semantic_sha256": "8dd6b8994160b7a22b83f8be4ce63cfa4b579f724d51b3896c0426782b259187",
-  "road_cell_crosswalk_semantic_sha256": "54f5b91eaff3a010eb22be86f48fc9b9d80d3496658bccc87051e5e532ead6a0",
+  "road_cell_crosswalk_semantic_sha256": "8c95f77f232b283aa067d897e6eca318eee5194a2048a1fd350f60f95fa539f2",
   "road_runtime_catalog_sha256": "7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f",
   "schema": "grand-bruxelles-road-destination-readiness-catalog-v1",
-  "semantic_sha256": "0c16d8c14fe6195e40b58e4b11bbcb0b67a5756f4b4fff8132a0122f9ca98f1e",
+  "semantic_sha256": "6da9a544bc1ae31ee8a58c447eedc5a4da0ad8bd7af4e47303f230cceb61cd59",
   "source_document_count": 1,
   "status": "SOURCE_BACKED_REGISTERED_NOT_RENDERED"
 }

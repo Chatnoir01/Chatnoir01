@@ -1,0 +1,26 @@
+name: Grand Bruxelles OSM Sidewalk Material Ownership
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_sidewalk_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_osm_sidewalk_material_ownership_test.py'
+      - '.github/workflows/grand-bruxelles-osm-sidewalk-material-ownership.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ownership:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact pull-request head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Validate owner-aware sidewalk material lifecycle
+        run: python3 grand-bruxelles-game/game/tests/brussels_osm_sidewalk_material_ownership_test.py

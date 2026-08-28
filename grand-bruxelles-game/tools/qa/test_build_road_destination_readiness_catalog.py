@@ -5,7 +5,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from build_road_destination_readiness_catalog import build_catalog
+from build_road_destination_readiness_catalog import build_catalog, serialize_catalog
 
 
 def write(path: Path, payload: object) -> None:
@@ -111,6 +111,14 @@ def test_green() -> None:
         assert "migration_state" not in catalog
 
 
+def test_serializer_locks_ascii_escaped_unicode_bytes() -> None:
+    rendered = serialize_catalog({"road_name": "Rue de l'Enseignement", "place_name": "Place du Trône"})
+    assert "Enseignement" in rendered
+    assert "Tr\\u00f4ne" in rendered
+    assert "Trône" not in rendered
+    assert rendered.endswith("\n")
+
+
 def test_corrected_frame_wrapper_is_derived_from_locked_contract() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -208,6 +216,7 @@ def test_runtime_probe_contract() -> None:
 
 def main() -> None:
     test_green()
+    test_serializer_locks_ascii_escaped_unicode_bytes()
     test_corrected_frame_wrapper_is_derived_from_locked_contract()
     test_reject_runtime_authorization()
     test_runtime_probe_contract()

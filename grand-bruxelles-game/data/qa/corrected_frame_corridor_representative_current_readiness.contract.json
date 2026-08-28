@@ -21,6 +21,16 @@
     "expected_absent_road_osm_ids": [8176386, 150205016],
     "expected_wrong_cell_road_osm_ids": [8512036, 13767417]
   },
+  "current_corrected_pair_expected": {
+    "representative_count": 4,
+    "present_in_current_readiness_count": 4,
+    "absent_from_current_readiness_count": 0,
+    "present_but_wrong_cell_count": 0,
+    "present_in_target_cell_count": 4,
+    "runtime_probe_eligible_count": 0,
+    "expected_absent_road_osm_ids": [],
+    "expected_wrong_cell_road_osm_ids": []
+  },
   "locked_evidence": {
     "production_base_sha": "2c721444da42b02774a2b76687af6cda16810a0a",
     "workflow_run_id": 33084829827,
@@ -42,7 +52,10 @@
   "policy": {
     "measurement_only": true,
     "historical_readiness_is_not_corrected_frame_readiness": true,
+    "historical_locked_evidence_must_replay_from_evidence_base": true,
+    "current_corrected_pair_measurement_is_separate_from_historical_lock": true,
     "representative_runtime_probe_requires_target_cell_readiness": true,
+    "representative_runtime_probe_requires_render_and_collision": true,
     "locked_measurement_sha_is_forensic_to_locked_base": true,
     "semantic_lock_survives_clean_live_main_rebuild": true,
     "replace_readiness_catalog_authorized": false,

@@ -27,7 +27,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Require exact live-main and closed migration rails
+      - name: Require live-main ancestry and closed migration rails
         shell: bash
         run: |
           set -euo pipefail
@@ -36,8 +36,20 @@ jobs:
           HEAD_SHA="$(git rev-parse HEAD)"
           test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha || github.sha }}"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$HEAD_SHA"
+          read -r EVIDENCE_BASE_SHA <<EOF
+          $(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json').read_text())
+          print(d['production_base_sha'])
+          PY
+          )
+          EOF
+          git cat-file -e "${EVIDENCE_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$EVIDENCE_BASE_SHA" "$LIVE_MAIN_SHA"
           echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          echo "EVIDENCE_BASE_SHA=$EVIDENCE_BASE_SHA" >> "$GITHUB_ENV"
+          python3 - "$EVIDENCE_BASE_SHA" <<'PY'
           import json,sys
           from pathlib import Path
           p=Path('grand-bruxelles-game/data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json')
@@ -57,11 +69,29 @@ jobs:
           assert d['policy']['road_cell_mapping_authorized'] is False
           assert d['policy']['runtime_probe_authorized'] is False
           assert all(v is False for v in d['authorization'].values())
-          print('CORRECTED_FRAME_ATOMIC_PREFLIGHT_LIVE_MAIN_OK',sys.argv[1],d['status'])
+          print('CORRECTED_FRAME_ATOMIC_PREFLIGHT_EVIDENCE_BASE_OK',sys.argv[1],d['status'])
           PY
-          git diff --quiet "$LIVE_MAIN_SHA" -- grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
-          git diff --quiet "$LIVE_MAIN_SHA" -- grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
-          echo "CORRECTED_FRAME_ATOMIC_PRODUCTION_INPUTS_UNCHANGED $LIVE_MAIN_SHA"
+          HISTORICAL_PRODUCTION_CROSSWALK="$RUNNER_TEMP/historical-production-crosswalk.json"
+          HISTORICAL_PRODUCTION_READINESS="$RUNNER_TEMP/historical-production-readiness.json"
+          git show "$EVIDENCE_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$HISTORICAL_PRODUCTION_CROSSWALK"
+          git show "$EVIDENCE_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json" > "$HISTORICAL_PRODUCTION_READINESS"
+          python3 - "$HISTORICAL_PRODUCTION_CROSSWALK" "$HISTORICAL_PRODUCTION_READINESS" <<'PY'
+          import json,sys
+          cw=json.load(open(sys.argv[1])); rd=json.load(open(sys.argv[2]))
+          assert cw['mapped_road_count']==56 and len(cw['rows'])==56
+          assert rd['destination_count']==56 and len(rd['destinations'])==56
+          a={int(r['road_osm_id']):r['cell_id'] for r in cw['rows']}
+          b={int(r['road_osm_id']):r['cell_id'] for r in rd['destinations']}
+          assert a==b and len(a)==56
+          for key in ('road_cell_mapping_authorized','runtime_directory_scan_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'):
+              if key in cw: assert cw[key] is False
+          auth=rd['authorization']
+          for key in ('road_cell_mapping_authorized','runtime_directory_scan_authorized','runtime_mount_authorized','render_authorized','collision_authorized','safe_spawn_authorized','jouable_authorized'):
+              assert auth[key] is False
+          print('CORRECTED_FRAME_ATOMIC_HISTORICAL_PRODUCTION_PAIR_OK mappings=56 destinations=56')
+          PY
+          echo "HISTORICAL_PRODUCTION_CROSSWALK=$HISTORICAL_PRODUCTION_CROSSWALK" >> "$GITHUB_ENV"
+          echo "HISTORICAL_PRODUCTION_READINESS=$HISTORICAL_PRODUCTION_READINESS" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
@@ -114,16 +144,16 @@ jobs:
           echo "READINESS_CANDIDATE=$READINESS" >> "$GITHUB_ENV"
           echo "CORRECTED_FRAME_ATOMIC_ARTIFACTS_RESTORED crosswalk=$CROSSWALK_ID readiness=$READINESS_ID"
 
-      - name: Measure atomic crosswalk-readiness migration pair
+      - name: Replay atomic crosswalk-readiness migration at evidence base
         working-directory: grand-bruxelles-game
         run: >-
           python tools/qa/check_corrected_frame_destination_atomic_migration_preflight.py
           --contract data/qa/corrected_frame_destination_atomic_migration_preflight.contract.json
           --corrected-crosswalk "$CROSSWALK_CANDIDATE"
           --corrected-readiness "$READINESS_CANDIDATE"
-          --production-crosswalk data/provenance/brussels_road_registered_cell_crosswalk.json
-          --production-readiness data/provenance/brussels_road_destination_readiness_catalog.json
-          --production-base-sha "$LIVE_MAIN_SHA"
+          --production-crosswalk "$HISTORICAL_PRODUCTION_CROSSWALK"
+          --production-readiness "$HISTORICAL_PRODUCTION_READINESS"
+          --production-base-sha "$EVIDENCE_BASE_SHA"
           --output "$RUNNER_TEMP/corrected-frame-destination-atomic-migration-preflight.json"
 
       - name: Require exact accounting and zero production authority
@@ -167,7 +197,7 @@ jobs:
           path: ${{ runner.temp }}/corrected-frame-destination-atomic-migration-preflight.json
           if-no-files-found: error
 
-      - name: Enforce content-addressed evidence lock
+      - name: Enforce historical content-addressed evidence lock
         shell: bash
         run: |
           set -euo pipefail
@@ -182,9 +212,10 @@ jobs:
               print('RED_FIRST_CORRECTED_FRAME_ATOMIC_MIGRATION_PREFLIGHT_NOT_LOCKED',measured['semantic_sha256'])
               sys.exit(1)
           locked=contract['locked_evidence']
+          assert measured['production_base_sha']==contract['production_base_sha']==os.environ['EVIDENCE_BASE_SHA']
           assert measured['semantic_sha256']==locked['semantic_sha256']
           assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['measurement_json_sha256']
           assert measured['accounting']==locked['accounting']
           assert all(v is False for v in measured['authorization'].values())
-          print('CORRECTED_FRAME_ATOMIC_MIGRATION_PREFLIGHT_LOCKED_EXACT',measured['semantic_sha256'])
+          print('CORRECTED_FRAME_ATOMIC_MIGRATION_PREFLIGHT_HISTORICAL_LOCKED_EXACT',measured['semantic_sha256'])
           PY

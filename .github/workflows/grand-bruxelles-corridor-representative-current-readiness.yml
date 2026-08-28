@@ -46,25 +46,67 @@ jobs:
           from pathlib import Path
           d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_corridor_representative_current_readiness.contract.json').read_text())
           assert d['production_base_sha']==sys.argv[1]
-          assert d['status'] in {'MEASUREMENT_PENDING','LOCKED_EVIDENCE_ONLY'}
+          assert d['status']=='LOCKED_EVIDENCE_ONLY'
           assert d['source']['license']=='ODbL-1.0'
           assert d['policy']['measurement_only'] is True
+          assert d['policy']['historical_locked_evidence_must_replay_from_evidence_base'] is True
+          assert d['policy']['current_corrected_pair_measurement_is_separate_from_historical_lock'] is True
           assert d['policy']['runtime_probe_authorized'] is False
           assert all(v is False for v in d['authorization'].values())
-          if d['status']=='LOCKED_EVIDENCE_ONLY':
-              locked=d['locked_evidence']
-              assert locked['production_base_sha']==sys.argv[1]
-              assert len(locked['production_base_sha'])==40
-              assert len(locked['measurement_sha256'])==64
-              assert len(locked['semantic_sha256'])==64
-              assert d['policy']['locked_measurement_sha_is_forensic_to_locked_base'] is True
-              assert d['policy']['semantic_lock_survives_clean_live_main_rebuild'] is True
-          print('CORRIDOR_REP_CURRENT_READINESS_BASES_OK',f'evidence={sys.argv[1]}',f'live={sys.argv[2]}',d['status'])
+          locked=d['locked_evidence']
+          assert locked['production_base_sha']==sys.argv[1]
+          assert len(locked['measurement_sha256'])==64
+          assert len(locked['semantic_sha256'])==64
+          print('CORRIDOR_REP_CURRENT_READINESS_BASES_OK',f'evidence={sys.argv[1]}',f'live={sys.argv[2]}')
           PY
+      - name: Restore historical readiness from locked evidence base
+        shell: bash
+        run: |
+          set -euo pipefail
+          HISTORICAL_READINESS="$RUNNER_TEMP/historical-road-destination-readiness.json"
+          git show "$EVIDENCE_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json" > "$HISTORICAL_READINESS"
+          python3 - "$HISTORICAL_READINESS" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d['destination_count']==56
+          assert len(d['destinations'])==56
+          assert all(v is False for v in d['authorization'].values())
+          print('CORRIDOR_REP_HISTORICAL_READINESS_RESTORED destinations=56 runtime=false')
+          PY
+          echo "HISTORICAL_READINESS=$HISTORICAL_READINESS" >> "$GITHUB_ENV"
       - name: Run fail-closed regressions
         working-directory: grand-bruxelles-game
         run: python -m unittest tests/test_corridor_rep_current_readiness.py -v
-      - name: Measure current readiness for corrected-frame representatives
+      - name: Replay locked historical readiness evidence
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/qa/measure_corridor_rep_current_readiness.py
+          --contract data/qa/corrected_frame_corridor_representative_current_readiness.contract.json
+          --representatives data/qa/corrected_frame_corridor_representatives.contract.json
+          --readiness "$HISTORICAL_READINESS"
+          --production-base-sha "$EVIDENCE_BASE_SHA"
+          --expectation-mode historical
+          --output "$RUNNER_TEMP/corridor-representative-historical-readiness.json"
+      - name: Enforce historical content-addressed lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          c=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_corridor_representative_current_readiness.contract.json').read_text())
+          p=Path(os.environ['RUNNER_TEMP'])/'corridor-representative-historical-readiness.json'
+          d=json.loads(p.read_text())
+          locked=c['locked_evidence']
+          assert d['status']=='HOLD_ATOMIC_MIGRATION_BEFORE_RUNTIME_PROBE'
+          assert d['production_base_sha']==locked['production_base_sha']==os.environ['EVIDENCE_BASE_SHA']
+          assert d['semantic_sha256']==locked['semantic_sha256']
+          assert d['accounting']==locked['accounting']
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['measurement_sha256']
+          assert all(v is False for v in d['authorization'].values())
+          print('CORRIDOR_REP_HISTORICAL_READINESS_LOCKED_EXACT',d['semantic_sha256'])
+          PY
+      - name: Measure current corrected-pair representative readiness
         working-directory: grand-bruxelles-game
         run: >-
           python tools/qa/measure_corridor_rep_current_readiness.py
@@ -72,8 +114,9 @@ jobs:
           --representatives data/qa/corrected_frame_corridor_representatives.contract.json
           --readiness data/provenance/brussels_road_destination_readiness_catalog.json
           --production-base-sha "$LIVE_MAIN_SHA"
+          --expectation-mode corrected-pair-current
           --output "$RUNNER_TEMP/corridor-representative-current-readiness.json"
-      - name: Verify migration hold accounting
+      - name: Verify corrected-pair target-cell readiness remains non-runtime
         shell: bash
         run: |
           set -euo pipefail
@@ -81,45 +124,24 @@ jobs:
           import json,os
           from pathlib import Path
           d=json.loads((Path(os.environ['RUNNER_TEMP'])/'corridor-representative-current-readiness.json').read_text())
-          assert d['status']=='HOLD_ATOMIC_MIGRATION_BEFORE_RUNTIME_PROBE'
-          assert d['accounting']['representative_count']==4
-          assert d['accounting']['absent_from_current_readiness_count']==2
-          assert d['accounting']['present_but_wrong_cell_count']==2
-          assert d['accounting']['present_in_target_cell_count']==0
-          assert d['accounting']['runtime_probe_eligible_count']==0
+          a=d['accounting']
+          assert d['status']=='REGISTERED_TARGET_CELLS_HOLD_RENDER_COLLISION'
+          assert a['representative_count']==4
+          assert a['present_in_current_readiness_count']==4
+          assert a['absent_from_current_readiness_count']==0
+          assert a['present_but_wrong_cell_count']==0
+          assert a['present_in_target_cell_count']==4
+          assert a['runtime_probe_eligible_count']==0
+          assert a['expected_absent_road_osm_ids']==[]
+          assert a['expected_wrong_cell_road_osm_ids']==[]
+          assert all(r['state']=='PRESENT_IN_TARGET_CELL_NOT_RENDERED' and r['runtime_probe_eligible'] is False for r in d['representatives'])
           assert all(v is False for v in d['authorization'].values())
-          print('CORRIDOR_REP_RUNTIME_PROBE_HOLD_PROVEN',d['semantic_sha256'])
+          print('CORRIDOR_REP_CURRENT_TARGETS_REGISTERED_NOT_RUNTIME',d['semantic_sha256'])
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: corridor-representative-current-readiness
-          path: ${{ runner.temp }}/corridor-representative-current-readiness.json
+          path: |
+            ${{ runner.temp }}/corridor-representative-historical-readiness.json
+            ${{ runner.temp }}/corridor-representative-current-readiness.json
           if-no-files-found: error
-      - name: Enforce content-addressed lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib,json,os,subprocess,sys
-          from pathlib import Path
-          c=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_corridor_representative_current_readiness.contract.json').read_text())
-          p=Path(os.environ['RUNNER_TEMP'])/'corridor-representative-current-readiness.json'
-          d=json.loads(p.read_text())
-          if c['status']=='MEASUREMENT_PENDING':
-              print('RED_FIRST_CORRIDOR_REP_CURRENT_READINESS_NOT_LOCKED',d['semantic_sha256'])
-              sys.exit(1)
-          locked=c['locked_evidence']
-          assert locked['production_base_sha']==os.environ['EVIDENCE_BASE_SHA']
-          assert d['semantic_sha256']==locked['semantic_sha256']
-          assert d['accounting']==locked['accounting']
-          locked_base=locked['production_base_sha']
-          subprocess.run(['git','cat-file','-e',f'{locked_base}^{{commit}}'],check=True)
-          subprocess.run(['git','merge-base','--is-ancestor',locked_base,os.environ['LIVE_MAIN_SHA']],check=True)
-          if d['production_base_sha']==locked_base:
-              assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['measurement_sha256']
-              byte_status='FORENSIC_BYTES_EXACT'
-          else:
-              assert c['policy']['semantic_lock_survives_clean_live_main_rebuild'] is True
-              byte_status='FORENSIC_BYTES_BASE_BOUND_SEMANTIC_REPLAY_EXACT'
-          print('CORRIDOR_REP_CURRENT_READINESS_LOCKED_EXACT',d['semantic_sha256'],byte_status)
-          PY

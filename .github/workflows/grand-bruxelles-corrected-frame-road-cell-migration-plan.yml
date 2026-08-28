@@ -22,7 +22,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Require exact live-main and closed migration rails
+      - name: Require exact live-main and bind historical migration evidence base
         shell: bash
         run: |
           set -euo pipefail
@@ -30,13 +30,10 @@ jobs:
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
-          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
-          import json,sys
+          MIGRATION_BASE_SHA="$(python3 - <<'PY'
+          import json
           from pathlib import Path
-          p=Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json')
-          d=json.loads(p.read_text())
-          assert d['production_base_sha']==sys.argv[1], (d['production_base_sha'],sys.argv[1])
+          d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
           assert d['status'] in {'MEASUREMENT_PENDING','LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY'}
           assert d['migration_policy']['atomic_rebuild_required'] is True
           assert d['migration_policy']['replace_current_crosswalk_authorized'] is False
@@ -49,8 +46,16 @@ jobs:
               assert isinstance(locked['artifact_id'],int) and locked['artifact_id']>0
               for key in ('artifact_sha256','measurement_json_sha256','semantic_sha256'):
                   assert isinstance(locked[key],str) and len(locked[key])==64
-          print('CORRECTED_FRAME_MIGRATION_LIVE_MAIN_OK',sys.argv[1],d['status'])
+          base=d['production_base_sha']
+          assert isinstance(base,str) and len(base)==40
+          print(base)
           PY
+          )"
+          git cat-file -e "${MIGRATION_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          echo "MIGRATION_BASE_SHA=$MIGRATION_BASE_SHA" >> "$GITHUB_ENV"
+          echo "CORRECTED_FRAME_MIGRATION_CONTINUITY_OK evidence_base=$MIGRATION_BASE_SHA live_main=$LIVE_MAIN_SHA"
       - name: Bind historical impact evidence to audited base
         shell: bash
         run: |
@@ -65,12 +70,57 @@ jobs:
           PY
           )"
           git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
-          git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
+          git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$MIGRATION_BASE_SHA"
+          git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"
           echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
-          echo "CORRECTED_FRAME_MIGRATION_IMPACT_BASE_OK impact_base=$IMPACT_BASE_SHA live_main=$LIVE_MAIN_SHA"
+          echo "CORRECTED_FRAME_MIGRATION_IMPACT_BASE_OK impact_base=$IMPACT_BASE_SHA migration_base=$MIGRATION_BASE_SHA live_main=$LIVE_MAIN_SHA"
       - name: Run fail-closed migration-plan regressions
         working-directory: grand-bruxelles-game
         run: python -m unittest tests/test_corrected_frame_road_cell_migration_plan.py -v
+      - name: Restore historical impact crosswalk from impact evidence base
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMPACT_HISTORICAL_CROSSWALK="$RUNNER_TEMP/brussels-road-registered-cell-crosswalk-impact-historical.json"
+          git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$IMPACT_HISTORICAL_CROSSWALK"
+          python3 - "$IMPACT_HISTORICAL_CROSSWALK" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.load(open(sys.argv[1]))
+          c=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          expected=c['current_crosswalk']
+          assert d['mapped_road_count']==c['locked_evidence']['accounting']['current_mapped_road_count']==56
+          assert len(d['rows'])==56
+          assert d['destination_readiness']==expected['destination_readiness']
+          assert d['road_semantic_sha256']==expected['road_semantic_sha256']
+          assert d['registered_cell_index_semantic_sha256']==expected['registered_cell_index_semantic_sha256']
+          assert d['road_cell_mapping_authorized'] is False
+          assert d['runtime_mount_authorized'] is False
+          assert d['rendered_geometry_authorized'] is False
+          assert d['collision_authorized'] is False
+          assert d['safe_spawn_authorized'] is False
+          assert d['jouable_promotion_authorized'] is False
+          print('CORRECTED_FRAME_IMPACT_HISTORICAL_CROSSWALK_OK rows=56')
+          PY
+          echo "IMPACT_HISTORICAL_CROSSWALK=$IMPACT_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+      - name: Restore historical production crosswalk from migration evidence base
+        shell: bash
+        run: |
+          set -euo pipefail
+          HISTORICAL="$RUNNER_TEMP/brussels-road-registered-cell-crosswalk-historical.json"
+          git show "$MIGRATION_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$HISTORICAL"
+          python3 - "$HISTORICAL" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d['mapped_road_count']==56
+          assert len(d['rows'])==56
+          assert d['road_cell_mapping_authorized'] is False
+          assert d['rendered_geometry_authorized'] is False
+          assert d['collision_authorized'] is False
+          assert d['jouable_promotion_authorized'] is False
+          print('CORRECTED_FRAME_MIGRATION_HISTORICAL_CROSSWALK_OK rows=56')
+          PY
+          echo "HISTORICAL_CROSSWALK=$HISTORICAL" >> "$GITHUB_ENV"
       - name: Recompute locked corrected-frame impact
         working-directory: grand-bruxelles-game
         run: >-
@@ -78,15 +128,17 @@ jobs:
           --contract data/qa/osm_road_frame_correction_impact.contract.json
           --repo-root .
           --live-main-sha "$IMPACT_BASE_SHA"
+          --current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/osm-road-frame-impact.json"
-      - name: Measure exact migration delta
+      - name: Measure exact historical migration delta
         working-directory: grand-bruxelles-game
         run: >-
           python tools/qa/measure_corrected_frame_road_cell_migration_plan.py
           --contract data/qa/corrected_frame_road_cell_migration_plan.contract.json
           --impact "$RUNNER_TEMP/osm-road-frame-impact.json"
           --repo-root .
-          --production-base-sha "$LIVE_MAIN_SHA"
+          --production-base-sha "$MIGRATION_BASE_SHA"
+          --current-crosswalk "$HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
       - name: Verify measured plan remains evidence-only
         shell: bash
@@ -98,6 +150,7 @@ jobs:
           contract=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_cell_migration_plan.contract.json').read_text())
           p=Path(os.environ['RUNNER_TEMP'])/'corrected-frame-road-cell-migration-plan.json'
           d=json.loads(p.read_text())
+          assert d['production_base_sha']==contract['production_base_sha']==os.environ['MIGRATION_BASE_SHA']
           assert d['status']=='MIGRATION_PLAN_EVIDENCE_ONLY'
           assert d['accounting']==contract['expected']
           assert len(d['changed_rows'])==45
@@ -129,6 +182,7 @@ jobs:
               sys.exit(1)
           assert contract['status']=='LOCKED_MIGRATION_PLAN_EVIDENCE_ONLY'
           locked=contract['locked_evidence']
+          assert measured['production_base_sha']==contract['production_base_sha']==os.environ['MIGRATION_BASE_SHA']
           assert measured['semantic_sha256']==locked['semantic_sha256']
           assert measured['accounting']==locked['accounting']==contract['expected']
           assert all(v is False for v in measured['authorization'].values())

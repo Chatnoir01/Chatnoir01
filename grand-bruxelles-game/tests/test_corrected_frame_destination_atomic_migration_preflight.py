@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = ROOT.parent / ".github/workflows/grand-bruxelles-corrected-frame-destination-atomic-migration-preflight.yml"
 sys.path.insert(0, str(ROOT / "tools" / "qa"))
 
 from check_corrected_frame_destination_atomic_migration_preflight import measure  # noqa: E402
@@ -191,6 +192,17 @@ class AtomicMigrationPreflightTests(unittest.TestCase):
         current_readiness["destinations"][1]["cell_id"] = "wrong-cell"
         with self.assertRaisesRegex(RuntimeError, "production crosswalk/readiness are not one-to-one"):
             measure(contract(), crosswalk(), readiness(), production_crosswalk(), current_readiness, BASE_SHA)
+
+    def test_successor_workflow_replays_historical_production_pair(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("EVIDENCE_BASE_SHA", workflow)
+        self.assertIn('git merge-base --is-ancestor "$EVIDENCE_BASE_SHA" "$LIVE_MAIN_SHA"', workflow)
+        self.assertIn('git show "$EVIDENCE_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"', workflow)
+        self.assertIn('git show "$EVIDENCE_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json"', workflow)
+        self.assertIn('--production-crosswalk "$HISTORICAL_PRODUCTION_CROSSWALK"', workflow)
+        self.assertIn('--production-readiness "$HISTORICAL_PRODUCTION_READINESS"', workflow)
+        self.assertIn('--production-base-sha "$EVIDENCE_BASE_SHA"', workflow)
+        self.assertNotIn('git diff --quiet "$LIVE_MAIN_SHA" -- grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json', workflow)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,10 @@ CELL_INDEX_SCHEMA = "grand-bruxelles-registered-cell-manifest-index-v1"
 TARGET_CRS = "EPSG:31370"
 HOLD_STATUS = "HOLD_UNPROVEN_ROAD_TO_LAMBERT72_FRAME"
 BOUND_STATUS = "CROSSWALK_FRAME_EVIDENCE_BOUND"
+CLOSED_CROSSWALK_READINESS = {
+    "ROAD_CELL_CROSSWALK_EVIDENCE_ONLY",
+    "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY",
+}
 
 
 def load_json(path: Path):
@@ -96,7 +100,7 @@ def audit(road_index_path: Path, cell_index_path: Path, crosswalk_path: Path, co
         frame = coverage.get("frame") or {}
         if frame.get("crs") != TARGET_CRS or frame.get("formula") != "E=origin_easting_m+x;N=origin_northing_m-z": raise RuntimeError("coverage Lambert72 frame contract drifted")
         if coverage.get("road_source_sha256") not in doc_shas: raise RuntimeError("coverage source SHA is not bound to runtime road descriptor")
-        if crosswalk.get("schema") != "grand-bruxelles-road-registered-cell-crosswalk-v1" or crosswalk.get("destination_readiness") != "ROAD_CELL_CROSSWALK_EVIDENCE_ONLY": raise RuntimeError("crosswalk readiness widened")
+        if crosswalk.get("schema") != "grand-bruxelles-road-registered-cell-crosswalk-v1" or crosswalk.get("destination_readiness") not in CLOSED_CROSSWALK_READINESS: raise RuntimeError("crosswalk readiness widened")
         _closed(crosswalk, "crosswalk")
         if crosswalk.get("coverage_semantic_sha256") != coverage.get("semantic_sha256") or crosswalk.get("road_semantic_sha256") != coverage.get("road_semantic_sha256"): raise RuntimeError("crosswalk is not bound to reviewed coverage semantics")
         candidate_by_grid = {c.get("grid_cell_id"): c for c in coverage.get("candidates") or []}

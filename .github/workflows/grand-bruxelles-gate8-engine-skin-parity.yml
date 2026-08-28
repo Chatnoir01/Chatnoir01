@@ -86,8 +86,19 @@ jobs:
           cp grand-bruxelles-game/game/tests/gate8_engine_skin_parity_test.gd "$PROJECT/gate_test.gd"
           printf '[application]\nconfig/name="Gate8EngineSkinParity"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT/project.godot"
           timeout 300 "$GODOT" --headless --path "$PROJECT" --import >"$RUNNER_TEMP/godot-import.log" 2>&1
+          set +e
           timeout 180 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
+          GODOT_RC=${PIPESTATUS[0]}
+          set -e
+          test -f "$PROJECT/gate8_engine_skin_parity_result.json"
           cp "$PROJECT/gate8_engine_skin_parity_result.json" "$RUNNER_TEMP/result.json"
+          python3 - "$RUNNER_TEMP/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          print(json.dumps(r,sort_keys=True))
+          assert r.get('diagnostic_state') in ('CPU_ENGINE_SKIN_PARITY_CONFIRMED','CPU_ENGINE_SKIN_PARITY_BLOCKED')
+          PY
+          test "$GODOT_RC" -eq 0
           python3 - "$RUNNER_TEMP/result.json" <<'PY'
           import json,sys
           r=json.load(open(sys.argv[1]))
@@ -98,14 +109,12 @@ jobs:
           assert r['rest_parity']['vertices_compared']==21044
           assert r['pose_parity']['vertices_compared']==21044
           assert r['failures']==[]
-          assert r['diagnostic_state'] in ('CPU_ENGINE_SKIN_PARITY_CONFIRMED','CPU_ENGINE_SKIN_PARITY_BLOCKED')
           if r['diagnostic_state']=='CPU_ENGINE_SKIN_PARITY_CONFIRMED':
               assert r['rest_parity']['max_vertex_error_m'] <= 0.0001
               assert r['pose_parity']['max_vertex_error_m'] <= 0.0001
               assert r['next_safe_axis']=='ISOLATED_REWEIGHT_AB'
           else:
               assert r['next_safe_axis']=='FIX_CPU_SKIN_HARNESS_BEFORE_REWEIGHT'
-          print(json.dumps({'state':r['diagnostic_state'],'rest_max_m':r['rest_parity']['max_vertex_error_m'],'pose_max_m':r['pose_parity']['max_vertex_error_m'],'next':r['next_safe_axis']},sort_keys=True))
           PY
       - name: Require repository clean
         shell: bash

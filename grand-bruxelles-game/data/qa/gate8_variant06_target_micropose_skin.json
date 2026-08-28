@@ -1,0 +1,60 @@
+{
+  "format": "grand-bruxelles-gate8-variant06-target-micropose-skin-v1",
+  "base_main_sha": "4cfd5f2002b8a4df755bc325aecdd4d60e7a156b",
+  "target": {
+    "variant": 6,
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "1e13ebf76ed10dc52b806ef01b79f3a2312a44a96f979ae6b42a0a1b58ecdab8",
+    "size_bytes": 18550852,
+    "bone_count": 53,
+    "skinned_meshes": 8,
+    "skinned_surfaces": 8,
+    "material_surfaces": 8,
+    "vertex_count": 24073
+  },
+  "validated_integrity_prerequisite": {
+    "run_id": 33138610000,
+    "head_sha": "6d51d698779b45f6cf4d68f6a261ec798996b423",
+    "artifact_id": 9673021613,
+    "artifact_digest": "sha256:7772f74a6dd0f49be49769fe1b567e610379de8400c027e87c62c0bd9e9a4aa3",
+    "state": "TARGET06_EXACT_INTEGRITY_READY"
+  },
+  "method": {
+    "measurement": "target_only_controlled_micropose_cpu_skin_space",
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "micropose_degrees": 5.0,
+    "micropose_roles": ["upper_chest", "left_shoulder", "left_upper_arm", "left_forearm", "left_hand", "right_shoulder", "right_upper_arm", "right_forearm", "right_hand"],
+    "axes": ["x", "y", "z"],
+    "signs": [-1, 1],
+    "expected_case_count": 54
+  },
+  "gates": {
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "max_foot_drift_m": 0.000001,
+    "max_rest_position_drift_m": 0.000001,
+    "max_rest_rotation_drift_deg": 0.0001
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "target_skin_modified": false,
+    "target_rest_modified": false,
+    "retarget_rule_changed": false,
+    "threshold_changed": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_witness_authorized": false,
+    "visual_approval_claimed": false,
+    "player_character_reuse_allowed": false,
+    "mixamo_payload_allowed": false
+  },
+  "mechanical_state": "TARGET06_EXACT_INTEGRITY_READY_PENDING_TARGET_ONLY_MICROPOSE"
+}

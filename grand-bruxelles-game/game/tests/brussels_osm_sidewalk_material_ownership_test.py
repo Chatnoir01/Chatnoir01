@@ -40,44 +40,54 @@ def main() -> None:
     if f'const MATERIAL_OWNER_VALUE := "{OWNER_VALUE}"' not in source:
         fail("shared sidewalk material owner identity is not locked")
 
+    foreign_body = function_body(source, "_has_foreign_material_owner")
+    if not foreign_body:
+        fail("foreign material owner detector missing")
+    for token in ("has_meta(MATERIAL_OWNER_META)", "get_meta(MATERIAL_OWNER_META", "MATERIAL_OWNER_VALUE"):
+        if token not in foreign_body:
+            fail(f"foreign material owner detector incomplete: missing {token}")
+
+    owns_body = function_body(source, "_owns_material_metadata")
+    if not owns_body or "get_meta(MATERIAL_OWNER_META" not in owns_body or "MATERIAL_OWNER_VALUE" not in owns_body:
+        fail("owned material metadata identity check missing")
+
     claim_body = function_body(source, "_claim_generated_material")
     if not claim_body:
         fail("generated sidewalk material claim helper missing")
-    required_claim_tokens = (
-        "has_meta(MATERIAL_OWNER_META)",
-        "get_meta(MATERIAL_OWNER_META",
-        "MATERIAL_OWNER_VALUE",
+    for token in (
+        "_has_foreign_material_owner(sidewalk)",
+        "return false",
         "set_meta(MATERIAL_OWNER_META, MATERIAL_OWNER_VALUE)",
         "sidewalk.material = _material",
-    )
-    for token in required_claim_tokens:
+    ):
         if token not in claim_body:
             fail(f"generated material claim is not fail-closed: missing {token}")
-    if "return false" not in claim_body:
-        fail("generated material claim cannot reject a foreign owner")
 
     official_claim_body = function_body(source, "_claim_official_material")
     if not official_claim_body:
         fail("official sidewalk material claim helper missing")
-    for token in required_claim_tokens[:-1]:
+    for token in (
+        "_has_foreign_material_owner(instance)",
+        "return false",
+        "set_meta(MATERIAL_OWNER_META, MATERIAL_OWNER_VALUE)",
+        "instance.material_override = _official_material",
+    ):
         if token not in official_claim_body:
             fail(f"official material claim is not fail-closed: missing {token}")
-    if "instance.material_override = _official_material" not in official_claim_body:
-        fail("official material claim does not install the owned material")
-    if "return false" not in official_claim_body:
-        fail("official material claim cannot reject a foreign owner")
 
     state_body = function_body(source, "_set_material_state")
     if "_claim_generated_material(sidewalk)" not in state_body:
         fail("enhanced re-enable bypasses generated sidewalk owner claim")
     if "_claim_official_material(instance)" not in state_body:
         fail("enhanced re-enable bypasses official sidewalk owner claim")
+    if state_body.count("_owns_material_metadata(") < 2:
+        fail("disable path can restore material without proving current ownership")
 
     release_body = function_body(source, "_release_material_ownership")
-    if "remove_meta(MATERIAL_OWNER_META)" not in release_body:
-        fail("teardown does not release shared sidewalk owner metadata")
-    if "get_meta(MATERIAL_OWNER_META" not in release_body:
-        fail("teardown does not verify owner identity before metadata cleanup")
+    if release_body.count("_owns_material_metadata(") < 2:
+        fail("teardown can restore material without proving current ownership")
+    if release_body.count("remove_meta(MATERIAL_OWNER_META)") < 2:
+        fail("teardown does not release generated and official owner metadata")
 
     print("BRUSSELS_OSM_SIDEWALK_MATERIAL_OWNERSHIP_OK: foreign_owner_preserved=true reenable_owner_aware=true teardown_owner_aware=true")
 

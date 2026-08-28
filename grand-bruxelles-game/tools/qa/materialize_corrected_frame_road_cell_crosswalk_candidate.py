@@ -23,7 +23,13 @@ def _all_false(mapping):
     return isinstance(mapping, dict) and mapping and all(v is False for v in mapping.values())
 
 
-def materialize(contract_path: Path, plan_path: Path, repo_root: Path, production_base_sha: str):
+def materialize(
+    contract_path: Path,
+    plan_path: Path,
+    repo_root: Path,
+    production_base_sha: str,
+    current_crosswalk_path: Path | None = None,
+):
     contract = _load(contract_path)
     assert contract["schema"] == "grand-bruxelles-corrected-frame-road-cell-crosswalk-materialization-contract-v1"
     assert contract["status"] in {"MEASUREMENT_PENDING", "LOCKED_CANDIDATE_EVIDENCE_ONLY"}
@@ -52,7 +58,8 @@ def materialize(contract_path: Path, plan_path: Path, repo_root: Path, productio
     assert candidate_contract["promotion_policy"]["replace_current_crosswalk_authorized"] is False
     assert all(v is False for v in candidate_contract["authorization"].values())
 
-    current = _load(repo_root / source["current_crosswalk_path"])
+    current_path = current_crosswalk_path or (repo_root / source["current_crosswalk_path"])
+    current = _load(current_path)
     assert current["road_cell_mapping_authorized"] is False
     assert current["rendered_geometry_authorized"] is False
     assert current["collision_authorized"] is False
@@ -139,9 +146,16 @@ def main():
     parser.add_argument("--plan", required=True)
     parser.add_argument("--repo-root", required=True)
     parser.add_argument("--production-base-sha", required=True)
+    parser.add_argument("--current-crosswalk")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
-    result = materialize(Path(args.contract), Path(args.plan), Path(args.repo_root), args.production_base_sha)
+    result = materialize(
+        Path(args.contract),
+        Path(args.plan),
+        Path(args.repo_root),
+        args.production_base_sha,
+        Path(args.current_crosswalk) if args.current_crosswalk else None,
+    )
     out = Path(args.output)
     out.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     print(

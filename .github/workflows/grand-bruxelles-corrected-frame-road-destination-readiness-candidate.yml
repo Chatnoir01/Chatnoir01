@@ -93,6 +93,37 @@ jobs:
           echo "CROSSWALK_CANDIDATE=$CANDIDATE" >> "$GITHUB_ENV"
           echo "CORRECTED_FRAME_CROSSWALK_ARTIFACT_RESTORED id=$ARTIFACT_ID"
 
+      - name: Restore immutable historical readiness evidence
+        if: ${{ always() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r ARTIFACT_ID ARTIFACT_SHA CANDIDATE_SHA <<EOF
+          $(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/corrected_frame_road_destination_readiness_candidate.contract.json').read_text())
+          locked=d.get('locked_evidence') or {}
+          print(locked.get('red_first_artifact_id',''),locked.get('red_first_artifact_sha256',''),locked.get('candidate_json_sha256',''))
+          PY
+          )
+          EOF
+          if [ -z "$ARTIFACT_ID" ] || [ -z "$ARTIFACT_SHA" ] || [ -z "$CANDIDATE_SHA" ]; then
+            echo "HISTORICAL_READINESS_EVIDENCE_NOT_LOCKED"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/historical-readiness-evidence"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > "$RUNNER_TEMP/historical-readiness-evidence.zip"
+          echo "${ARTIFACT_SHA}  $RUNNER_TEMP/historical-readiness-evidence.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/historical-readiness-evidence.zip" -d "$RUNNER_TEMP/historical-readiness-evidence"
+          LOCKED_CANDIDATE="$RUNNER_TEMP/historical-readiness-evidence/corrected-frame-road-destination-readiness-candidate.json"
+          test -s "$LOCKED_CANDIDATE"
+          echo "${CANDIDATE_SHA}  $LOCKED_CANDIDATE" | sha256sum --check
+          echo "LOCKED_READINESS_EVIDENCE=$LOCKED_CANDIDATE" >> "$GITHUB_ENV"
+          echo "CORRECTED_FRAME_READINESS_HISTORICAL_EVIDENCE_RESTORED id=$ARTIFACT_ID"
+
       - name: Materialize corrected-frame readiness candidate
         working-directory: grand-bruxelles-game
         run: >-
@@ -103,7 +134,7 @@ jobs:
           --production-base-sha "$LIVE_MAIN_SHA"
           --output "$RUNNER_TEMP/corrected-frame-road-destination-readiness-candidate.json"
 
-      - name: Require candidate accounting and zero runtime authority
+      - name: Require candidate accounting, successor parity and zero runtime authority
         shell: bash
         run: |
           set -euo pipefail
@@ -121,10 +152,22 @@ jobs:
           assert measured['accounting']['no_registered_overlap_count']==expected['no_registered_overlap_count']==42
           assert len(measured['destinations'])==96
           assert len(measured['multicell_hold_rows'])==2
-          assert current['destination_count']==56
-          assert current['semantic_sha256'] != measured['semantic_sha256']
+          assert current['destination_count']==96
+          assert current['mapped_cell_count']==4
           assert all(v is False for v in measured['authorization'].values())
+          assert all(v is False for v in current['authorization'].values())
           by_id={int(row['road_osm_id']):row for row in measured['destinations']}
+          current_by_id={int(row['road_osm_id']):row for row in current['destinations']}
+          assert set(current_by_id)==set(by_id)
+          for road_id,row in by_id.items():
+              current_row=current_by_id[road_id]
+              assert current_row['cell_id']==row['cell_id'], (road_id,current_row['cell_id'],row['cell_id'])
+              assert current_row['readiness']==row['readiness']=='REGISTERED_NOT_RENDERED'
+              assert current_row['render_authorized'] is False
+              assert current_row['collision_authorized'] is False
+              assert current_row['runtime_mount_authorized'] is False
+              assert current_row['safe_spawn_authorized'] is False
+              assert current_row['jouable_authorized'] is False
           for rep in expected['representatives']:
               row=by_id[int(rep['road_osm_id'])]
               assert row['cell_id']==rep['cell_id']
@@ -134,7 +177,7 @@ jobs:
               assert row['runtime_mount_authorized'] is False
               assert row['safe_spawn_authorized'] is False
               assert row['jouable_authorized'] is False
-          print('CORRECTED_FRAME_READINESS_CANDIDATE_MEASURED',measured['semantic_sha256'])
+          print('CORRECTED_FRAME_READINESS_CANDIDATE_SUCCESSOR_PARITY_OK',measured['semantic_sha256'])
           PY
 
       - uses: actions/upload-artifact@v4
@@ -143,7 +186,7 @@ jobs:
           path: ${{ runner.temp }}/corrected-frame-road-destination-readiness-candidate.json
           if-no-files-found: error
 
-      - name: Enforce content-addressed evidence lock
+      - name: Enforce semantic lock and forensic continuity-only drift
         shell: bash
         run: |
           set -euo pipefail
@@ -157,9 +200,21 @@ jobs:
               print('RED_FIRST_CORRECTED_FRAME_READINESS_CANDIDATE_NOT_LOCKED',measured['semantic_sha256'])
               sys.exit(1)
           locked=contract['locked_evidence']
-          assert measured['semantic_sha256']==locked['semantic_sha256']
-          assert hashlib.sha256(p.read_bytes()).hexdigest()==locked['candidate_json_sha256']
-          assert measured['accounting']==locked['accounting']
+          historical_path=os.environ.get('LOCKED_READINESS_EVIDENCE')
+          assert historical_path, 'locked historical readiness evidence was not restored'
+          historical_file=Path(historical_path)
+          historical=json.loads(historical_file.read_text())
+          assert hashlib.sha256(historical_file.read_bytes()).hexdigest()==locked['candidate_json_sha256']
+          assert measured['semantic_sha256']==locked['semantic_sha256']==historical['semantic_sha256']
+          assert measured['accounting']==locked['accounting']==historical['accounting']
+          assert historical['production_base_sha'] != measured['production_base_sha']
+          assert measured['production_base_sha']==contract['production_base_sha']==os.environ['LIVE_MAIN_SHA']
+          normalized_live=dict(measured)
+          normalized_historical=dict(historical)
+          normalized_live.pop('production_base_sha',None)
+          normalized_historical.pop('production_base_sha',None)
+          assert normalized_live==normalized_historical
           assert all(v is False for v in measured['authorization'].values())
-          print('CORRECTED_FRAME_READINESS_CANDIDATE_LOCKED_EXACT',measured['semantic_sha256'])
+          assert all(v is False for v in historical['authorization'].values())
+          print('CORRECTED_FRAME_READINESS_CANDIDATE_FORENSIC_CONTINUITY_OK',measured['semantic_sha256'])
           PY

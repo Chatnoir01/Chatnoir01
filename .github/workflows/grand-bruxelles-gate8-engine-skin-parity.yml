@@ -1,0 +1,125 @@
+name: Grand Bruxelles Gate-8 Engine Skin Parity
+on:
+  push:
+    branches: ["npc/gate8-engine-skin-parity-20260828"]
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-gate8-engine-skin-parity.yml'
+      - 'grand-bruxelles-game/data/qa/gate8_engine_skin_parity.json'
+      - 'grand-bruxelles-game/game/tests/gate8_engine_skin_parity_test.gd'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  engine-skin-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb
+      TARGET_SHA256: 912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9
+      TARGET_SIZE_BYTES: "15580240"
+      GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      PROJECT: /tmp/gate8-engine-skin-parity
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live main, bounded scope and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-engine-skin-parity.yml' \
+            'grand-bruxelles-game/data/qa/gate8_engine_skin_parity.json' \
+            'grand-bruxelles-game/game/tests/gate8_engine_skin_parity_test.gd' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('grand-bruxelles-game/data/qa/gate8_engine_skin_parity.json'))
+          assert d['candidate_variant']==1
+          assert d['base_main_sha']=='c0b75e84d7498c616996216b3f976d8195a6dadd'
+          assert d['controlled_pose']=={'role':'right_shoulder','bone':'clavicle_r','axis':'z','degrees':-5.0}
+          assert d['max_vertex_parity_error_m']==0.0001
+          for k in ('source_animation_used','retarget_applied','target_skin_modified','target_rest_modified','production_authorized','activation_ready','adoption_ready','visual_witness_authorized'):
+              assert d[k] is False,k
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
+      - name: Verify immutable variant01 bytes
+        env: {GH_TOKEN: "${{ github.token }}"}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}" > "$RUNNER_TEMP/artifact.json"
+          python3 - "$RUNNER_TEMP/artifact.json" "$TARGET_ARTIFACT_DIGEST" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1])); assert not p.get('expired',True); assert p.get('digest')==sys.argv[2]
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/gate8.zip"
+          mkdir -p "$RUNNER_TEMP/gate8" "$PROJECT/assets"
+          unzip -q "$RUNNER_TEMP/gate8.zip" -d "$RUNNER_TEMP/gate8"
+          TARGET="$(find "$RUNNER_TEMP/gate8" -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"
+          test "$(find "$RUNNER_TEMP/gate8" -type f -name 'npc_gate_01.glb' | wc -l)" -eq 1
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          sha256sum "$TARGET" | tee "$RUNNER_TEMP/npc_gate_01.sha256"
+      - name: Compare CPU skinning with Godot 4.7.1 baked mesh
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
+          cp grand-bruxelles-game/game/tests/gate8_engine_skin_parity_test.gd "$PROJECT/gate_test.gd"
+          printf '[application]\nconfig/name="Gate8EngineSkinParity"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT/project.godot"
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import >"$RUNNER_TEMP/godot-import.log" 2>&1
+          timeout 180 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
+          cp "$PROJECT/gate8_engine_skin_parity_result.json" "$RUNNER_TEMP/result.json"
+          python3 - "$RUNNER_TEMP/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['engine_version'].startswith('4.7.1')
+          assert r['candidate_variant']==1
+          assert r['test_bone']=='clavicle_r' and r['test_axis']=='z' and r['test_degrees']==-5.0
+          assert r['target_bone_count']==53 and r['skinned_mesh_count']==8 and r['vertex_count']==21044
+          assert r['rest_parity']['vertices_compared']==21044
+          assert r['pose_parity']['vertices_compared']==21044
+          assert r['failures']==[]
+          assert r['diagnostic_state'] in ('CPU_ENGINE_SKIN_PARITY_CONFIRMED','CPU_ENGINE_SKIN_PARITY_BLOCKED')
+          if r['diagnostic_state']=='CPU_ENGINE_SKIN_PARITY_CONFIRMED':
+              assert r['rest_parity']['max_vertex_error_m'] <= 0.0001
+              assert r['pose_parity']['max_vertex_error_m'] <= 0.0001
+              assert r['next_safe_axis']=='ISOLATED_REWEIGHT_AB'
+          else:
+              assert r['next_safe_axis']=='FIX_CPU_SKIN_HARNESS_BEFORE_REWEIGHT'
+          print(json.dumps({'state':r['diagnostic_state'],'rest_max_m':r['rest_parity']['max_vertex_error_m'],'pose_max_m':r['pose_parity']['max_vertex_error_m'],'next':r['next_safe_axis']},sort_keys=True))
+          PY
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-engine-skin-parity-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/artifact.json
+            ${{ runner.temp }}/npc_gate_01.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/godot.log
+            ${{ runner.temp }}/godot-import.log
+          retention-days: 14

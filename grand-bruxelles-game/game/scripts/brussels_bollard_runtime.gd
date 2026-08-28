@@ -23,12 +23,16 @@ func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
+    if not get_tree().node_removed.is_connected(_on_node_removed):
+        get_tree().node_removed.connect(_on_node_removed)
     call_deferred("_schedule_scene_bind")
 
 func _exit_tree() -> void:
     _tearing_down = true
     _scene_bind_scheduled = false
     _disconnect_scene_watch()
+    if is_inside_tree() and get_tree().node_removed.is_connected(_on_node_removed):
+        get_tree().node_removed.disconnect(_on_node_removed)
     _release_owned_root()
     _scene = null
 
@@ -97,6 +101,18 @@ func _on_node_added(node: Node) -> void:
     if node_name == "BrusselsOSM" or node_name == "UrbISMidiExact" or _is_production_scene(node):
         _schedule_scene_bind()
 
+func _on_node_removed(node: Node) -> void:
+    if _tearing_down or _manual_binding or _scene == null or node != _scene:
+        return
+    _release_owned_root()
+    _scene = null
+    _failed = false
+    _ready_complete = false
+    _scene_bind_scheduled = false
+    if is_inside_tree() and not get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.connect(_on_node_added)
+    _schedule_scene_bind()
+
 func bind_scene(scene: Node3D) -> void:
     if _tearing_down:
         return
@@ -140,7 +156,7 @@ func _point_base_position(raw: Variant) -> Variant:
 func _build() -> void:
     if _tearing_down:
         return
-    if _scene == null:
+    if _scene == null or not is_instance_valid(_scene):
         _fail("scene missing during build")
         return
     var data := _load_data()

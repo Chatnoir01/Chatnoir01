@@ -6,11 +6,14 @@ on:
       - 'grand-bruxelles-game/project.godot'
       - 'grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json'
       - 'grand-bruxelles-game/data/qa/shared_environment_visibility_ownership_contract.json'
+      - 'grand-bruxelles-game/data/qa/shared_environment_owned_child_runtime_lifecycle_contract.json'
       - 'grand-bruxelles-game/game/scripts/**'
       - 'grand-bruxelles-game/game/tests/shared_environment_lifecycle_contract_test.py'
       - 'grand-bruxelles-game/game/tests/shared_environment_material_ownership_teardown_test.py'
       - 'grand-bruxelles-game/game/tests/shared_environment_visibility_ownership_contract_test.py'
       - 'grand-bruxelles-game/game/tests/shared_environment_visibility_lifecycle_bridge_test.py'
+      - 'grand-bruxelles-game/game/tests/shared_environment_owned_child_runtime_lifecycle_test.py'
+      - 'grand-bruxelles-game/game/tests/shared_environment_owned_child_lifecycle_bridge_test.py'
       - '.github/workflows/grand-bruxelles-shared-environment-lifecycle-contract.yml'
   workflow_dispatch:
 
@@ -44,3 +47,5 @@ jobs:
           python3 grand-bruxelles-game/game/tests/shared_environment_material_ownership_teardown_test.py
           python3 grand-bruxelles-game/game/tests/shared_environment_visibility_ownership_contract_test.py
           python3 grand-bruxelles-game/game/tests/shared_environment_visibility_lifecycle_bridge_test.py
+          python3 grand-bruxelles-game/game/tests/shared_environment_owned_child_runtime_lifecycle_test.py
+          python3 grand-bruxelles-game/game/tests/shared_environment_owned_child_lifecycle_bridge_test.py

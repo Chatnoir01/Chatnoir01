@@ -2,12 +2,14 @@
   "schema": "grand-bruxelles-shared-environment-owned-child-runtime-lifecycle-v1",
   "scope": "shared_environment_owned_child_runtime_lifecycle_only",
   "dedicated_lifecycle_gate_required": true,
+  "central_lifecycle_gate_required": true,
   "geometry_or_material_change_authorized": false,
   "owned_child_runtime_teardown_cleanup_required": true,
   "registered_owned_child_runtime_count": 1,
   "notes": [
     "Child runtimes owned by a registered Shared Environment autoload are not production autoloads themselves and therefore require an explicit lifecycle registry and dedicated fail-closed gate.",
     "Fonsny must restore owned visibility before detaching and freeing only its exact replacement root.",
+    "The dedicated owned-child lifecycle rail must also remain wired into the central Shared Environment lifecycle gate.",
     "This contract does not authorize geometry, material, transform, collision, camera, FOV, threshold, or source-placement changes."
   ],
   "owned_child_runtimes": [

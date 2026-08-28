@@ -45,8 +45,8 @@ def main() -> None:
         fail("owned child runtime lifecycle schema mismatch")
     if contract.get("scope") != "shared_environment_owned_child_runtime_lifecycle_only":
         fail("owned child runtime lifecycle scope mismatch")
-    if contract.get("central_lifecycle_gate_required") is not True:
-        fail("owned child lifecycle must remain a required Shared Environment gate")
+    if contract.get("dedicated_lifecycle_gate_required") is not True:
+        fail("owned child lifecycle dedicated gate rail missing")
     if contract.get("geometry_or_material_change_authorized") is not False:
         fail("owned child lifecycle contract must not authorize geometry/material changes")
     if contract.get("owned_child_runtime_teardown_cleanup_required") is not True:

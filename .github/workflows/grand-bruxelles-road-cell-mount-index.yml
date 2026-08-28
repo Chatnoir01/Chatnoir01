@@ -1,0 +1,75 @@
+name: Grand Bruxelles Road Cell Mount Index
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - 'grand-bruxelles-game/tools/build_road_cell_mount_index.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_cell_mount_index.py'
+      - '.github/workflows/grand-bruxelles-road-cell-mount-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Run fail-closed regressions
+        run: python3 grand-bruxelles-game/tools/tests/test_road_cell_mount_index.py
+
+      - name: Build deterministic mount index twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          mkdir -p artifacts/road-cell-mount-index
+          python3 tools/build_road_cell_mount_index.py --output artifacts/road-cell-mount-index/index-a.json
+          python3 tools/build_road_cell_mount_index.py --output artifacts/road-cell-mount-index/index-b.json
+          cmp artifacts/road-cell-mount-index/index-a.json artifacts/road-cell-mount-index/index-b.json
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          path = Path('artifacts/road-cell-mount-index/index-a.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          assert data['destination_count'] == 96
+          assert data['cell_count'] == 4
+          assert data['authorized_mount_count'] == 0
+          assert data['authorized_mounts'] == []
+          assert data['runtime_directory_scan_authorized'] is False
+          assert data['deterministic_manifest_lookup_required'] is True
+          assert all(row['mount_authorized'] is False for row in data['road_index'].values())
+          assert all(row['mount_authorized'] is False for row in data['cells'].values())
+          digest = hashlib.sha256(path.read_bytes()).hexdigest()
+          Path('artifacts/road-cell-mount-index/index-file.sha256').write_text(
+              f'{digest}  index-a.json\n', encoding='utf-8'
+          )
+          PY
+          cd artifacts/road-cell-mount-index
+          sha256sum -c index-file.sha256
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 3
+
+      - name: Upload evidence only on success
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-cell-mount-index-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            grand-bruxelles-game/artifacts/road-cell-mount-index/index-a.json
+            grand-bruxelles-game/artifacts/road-cell-mount-index/index-file.sha256
+          if-no-files-found: error
+          retention-days: 14

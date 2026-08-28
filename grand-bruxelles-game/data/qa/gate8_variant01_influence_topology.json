@@ -1,0 +1,44 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-influence-topology-v1",
+  "base_main_sha": "c2494a49b796d31d10bf874215458b75f4299853",
+  "candidate_variant": 1,
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "vertices": 21044
+  },
+  "immutable_baseline": {
+    "artifact_id": 9679245275,
+    "artifact_digest": "sha256:310bf9d8c55f4e97ac1480351b4235e230305ccb959570581c8c2c03046703a5",
+    "diagnostic_state": "TARGET_MICROPOSE_SKIN_BLOCKED",
+    "blocked_case_count": 48,
+    "max_edge_absolute_change_m": 1.13801838085055,
+    "max_edge_stretch_ratio": 95.7437501855126,
+    "min_edge_compression_ratio": 0.0967680461634558
+  },
+  "harness": {
+    "commit": "73feaa653d3d66bbd46cd218576e7d9585161ae2",
+    "path": "grand-bruxelles-game/game/tests/gate8_variant06_target_micropose_skin_test.gd"
+  },
+  "cases": {"degrees": 5.0, "roles": 9, "axes": 3, "count": 54},
+  "gates": {
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "max_foot_drift_m": 0.000001,
+    "max_rest_position_drift_m": 0.000001,
+    "max_rest_rotation_drift_deg": 0.0001
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  }
+}

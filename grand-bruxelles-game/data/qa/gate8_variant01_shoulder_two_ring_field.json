@@ -1,0 +1,48 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-shoulder-two-ring-field-v1",
+  "base_main_sha": "5c378b25d33cff7ce6e3edf5c13055f3c4c3b47d",
+  "candidate_variant": 1,
+  "target_artifact": {
+    "id": 9470539830,
+    "digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "file": "npc_gate_01.glb",
+    "sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "expected_vertex_total": 21044
+  },
+  "one_ring_artifact": {
+    "id": 9698597710,
+    "digest": "sha256:d4717ce3d48200d390e27d7cf403e1d52868e8bd23b030eca9dbd001479d596c",
+    "expected_state": "ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED",
+    "expected_shoulder_edges": 2
+  },
+  "failed_operator_artifact": {
+    "id": 9702006329,
+    "digest": "sha256:b9c5217698c02ac91bbfae9664914170c3fc99594b72de87b16defa5fe12e605",
+    "expected_state": "NOT_SUPERIOR",
+    "expected_operator": "shoulder_coherent_one_ring_consensus",
+    "expected_corrected_vertices": 2
+  },
+  "field_gates": {
+    "coherent_endpoint_max_other_l1": 0.10,
+    "broad_endpoint_min_other_l1": 1.70,
+    "coherent_like_l1": 0.15,
+    "broad_like_l1": 0.15,
+    "weight_sum_tolerance": 0.0002,
+    "require_exact_shoulder_edges": 2,
+    "require_nonempty_exact_two_ring": true
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  },
+  "next_safe_axis_if_isolated_broad_islands": "MAP_SHOULDER_RESIDUAL_WORST_EDGES_AFTER_LOCAL_REWEIGHT",
+  "next_safe_axis_if_broad_cluster_extends": "DESIGN_CLUSTER_AWARE_SHOULDER_REWEIGHT_AB",
+  "next_safe_axis_if_mixed": "SEPARATE_LEFT_RIGHT_SHOULDER_OPERATORS_BEFORE_REWEIGHT"
+}

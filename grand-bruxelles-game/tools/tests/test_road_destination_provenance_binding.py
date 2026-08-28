@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools" / "build_road_destination_provenance_binding.py"
+WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-road-destination-provenance-binding.yml"
 spec = importlib.util.spec_from_file_location("road_provenance_binding", SCRIPT)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
@@ -95,11 +96,25 @@ def test_cell_manifest_byte_drift_fails_closed() -> None:
             raise AssertionError("tampered cell manifest bytes did not fail closed")
 
 
+def test_workflow_publishes_only_verified_complete_evidence() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "- name: Verify provenance binding evidence before upload" in workflow
+    verify = workflow.split("- name: Verify provenance binding evidence before upload", 1)[1]
+    upload = verify.split("- name: Upload provenance binding evidence", 1)[1]
+    assert 'test "$(wc -l < binding-file.sha256)" -eq 1' in verify
+    assert "sha256sum --check binding-file.sha256" in verify
+    assert "test -s binding-a.json" in verify
+    assert "if: success()" in upload
+    assert "if: always()" not in upload
+    assert "if-no-files-found: error" in upload
+
+
 def main() -> int:
     test_real_binding_is_deterministic_and_fail_closed()
     test_tampered_readiness_semantic_fails_closed()
     test_opened_destination_authorization_fails_closed_even_with_rehashed_readiness()
     test_cell_manifest_byte_drift_fails_closed()
+    test_workflow_publishes_only_verified_complete_evidence()
     print("ROAD_PROVENANCE_BINDING_TEST_OK")
     return 0
 

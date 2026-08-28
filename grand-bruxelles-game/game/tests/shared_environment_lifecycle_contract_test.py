@@ -50,6 +50,7 @@ EXPECTED_EXTERNAL_SIGNAL_CLEANUP = {
 }
 EXPECTED_OWNED_ROOTS = {
     "game/scripts/anneessens_midi_sidewalk_runtime.gd": "AnneessensMidiSidewalkKit",
+    "game/scripts/anneessens_osm_furniture_runtime.gd": "AnneessensOsmFurniture",
     "game/scripts/brussels_bollard_runtime.gd": "BrusselsSourceBackedBollards",
     "game/scripts/brussels_street_lamp_runtime.gd": "BrusselsSourceBackedStreetLamps",
     "game/scripts/brussels_corridor_tree_runtime.gd": "BrusselsCorridorTrees",

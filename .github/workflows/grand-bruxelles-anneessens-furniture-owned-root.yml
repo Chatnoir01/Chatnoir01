@@ -1,0 +1,43 @@
+name: Grand Bruxelles Anneessens Furniture Owned Root
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json'
+      - 'grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/anneessens_furniture_owned_root_contract_test.py'
+      - '.github/workflows/grand-bruxelles-anneessens-furniture-owned-root.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  anneessens-furniture-owned-root:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}" || {
+            echo "RED: Anneessens furniture owned-root gate checked out stale/merge ref" >&2
+            echo "actual=$(git rev-parse HEAD) expected=${{ github.event.pull_request.head.sha }}" >&2
+            exit 1
+          }
+          git fetch --no-tags origin main
+          test "$(git merge-base HEAD origin/main)" = "${{ github.event.pull_request.base.sha }}" || {
+            echo "RED: Anneessens furniture owned-root gate ancestry drifted" >&2
+            exit 1
+          }
+      - name: Validate Anneessens furniture owned-root lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/game/tests/anneessens_furniture_owned_root_contract_test.py

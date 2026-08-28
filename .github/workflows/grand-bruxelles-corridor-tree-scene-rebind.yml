@@ -1,0 +1,27 @@
+name: Grand Bruxelles Corridor Tree Scene Rebind
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_corridor_tree_scene_rebind_test.py'
+      - '.github/workflows/grand-bruxelles-corridor-tree-scene-rebind.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scene-rebind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Verify exact pull-request head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Validate corridor tree scene removal and rebind lifecycle
+        run: python3 grand-bruxelles-game/game/tests/brussels_corridor_tree_scene_rebind_test.py

@@ -46,7 +46,7 @@ def main() -> None:
         "_release_owned_root()",
         "_scene = null",
         "_bind_scheduled = false",
-        "node_added.connect(_on_node_added)",
+        "_start_scene_watch()",
         "_schedule_bind()",
     ):
         if token not in handler:

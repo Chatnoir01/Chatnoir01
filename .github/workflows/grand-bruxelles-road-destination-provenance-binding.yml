@@ -1,0 +1,89 @@
+name: Grand Bruxelles Road Destination Provenance Binding
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - 'grand-bruxelles-game/tools/build_road_destination_catalog.py'
+      - 'grand-bruxelles-game/tools/build_road_destination_provenance_binding.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_destination_provenance_binding.py'
+      - '.github/workflows/grand-bruxelles-road-destination-provenance-binding.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-binding:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run fail-closed provenance binding regressions
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tools/tests/test_road_destination_provenance_binding.py
+
+      - name: Build deterministic provenance binding twice
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/road-provenance-binding
+          python3 tools/build_road_destination_provenance_binding.py --output artifacts/road-provenance-binding/binding-a.json
+          python3 tools/build_road_destination_provenance_binding.py --output artifacts/road-provenance-binding/binding-b.json
+          cmp artifacts/road-provenance-binding/binding-a.json artifacts/road-provenance-binding/binding-b.json
+          (
+            cd artifacts/road-provenance-binding
+            sha256sum binding-a.json | tee binding-file.sha256
+          )
+
+      - name: Validate state and authorization accounting
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          binding = json.loads(Path('artifacts/road-provenance-binding/binding-a.json').read_text(encoding='utf-8'))
+          assert binding['format'] == 'grand-bruxelles-road-destination-provenance-binding-v1'
+          assert binding['registered_not_rendered_count'] == 96
+          assert binding['mapped_cell_count'] == 4
+          assert binding['discovered_only_count'] == binding['entry_count'] - 96
+          assert binding['municipality_niscodes']
+          auth = binding['authorization']
+          assert auth['evidence_only'] is True
+          for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
+              assert auth[key] is False, key
+          states = {row['state'] for row in binding['entries'].values()}
+          assert states <= {'DISCOVERED','REGISTERED_NOT_RENDERED'}
+          assert 'REGISTERED_NOT_RENDERED' in states
+          print(
+              'ROAD_PROVENANCE_BINDING_GATE_GREEN: '
+              f"entries={binding['entry_count']} registered={binding['registered_not_rendered_count']} "
+              f"discovered_only={binding['discovered_only_count']} cells={binding['mapped_cell_count']} "
+              f"municipalities={len(binding['municipality_niscodes'])} sha256={binding['binding_sha256']}"
+          )
+          PY
+
+      - name: Verify provenance binding evidence before upload
+        working-directory: grand-bruxelles-game/artifacts/road-provenance-binding
+        run: |
+          set -euo pipefail
+          test -s binding-a.json
+          test -s binding-file.sha256
+          test "$(wc -l < binding-file.sha256)" -eq 1
+          grep -Eq '^[0-9a-f]{64}  binding-a\.json$' binding-file.sha256
+          sha256sum --check binding-file.sha256
+
+      - name: Upload provenance binding evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-road-destination-provenance-binding
+          path: |
+            grand-bruxelles-game/artifacts/road-provenance-binding/binding-a.json
+            grand-bruxelles-game/artifacts/road-provenance-binding/binding-file.sha256
+          if-no-files-found: error

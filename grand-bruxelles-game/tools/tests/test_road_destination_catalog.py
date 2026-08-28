@@ -79,9 +79,64 @@ def test_conflicting_duplicate_fails_closed() -> None:
             raise AssertionError("conflicting duplicate OSM road did not fail closed")
 
 
+def test_catalog_semantic_tamper_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "data" / "osm"
+        write_document(root / "a.game.json", [road(42, "Rue A")])
+        catalog = module.build_catalog(root)
+        tampered = json.loads(json.dumps(catalog))
+        tampered["entries"]["42"]["name"] = "Rue B"
+        try:
+            module.validate_contract(tampered)
+        except SystemExit as exc:
+            assert "catalog SHA256 drift" in str(exc)
+        else:
+            raise AssertionError("semantic catalog tamper did not fail closed")
+
+
+def test_source_path_must_bind_to_locked_document_digest() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "data" / "osm"
+        write_document(root / "a.game.json", [road(42, "Rue A")])
+        catalog = module.build_catalog(root)
+        tampered = json.loads(json.dumps(catalog))
+        entry = tampered["entries"]["42"]
+        entry["source_paths"] = ["data/osm/missing.game.json"]
+        entry["source_file_count"] = 1
+        unsigned = dict(tampered)
+        unsigned.pop("catalog_sha256", None)
+        tampered["catalog_sha256"] = module.sha256_text(module.canonical_json(unsigned))
+        try:
+            module.validate_contract(tampered)
+        except SystemExit as exc:
+            assert "source path missing locked digest" in str(exc)
+        else:
+            raise AssertionError("unbound source path did not fail closed")
+
+
+def test_catalog_must_rebind_to_locked_source_geometry() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "data" / "osm"
+        source_path = root / "a.game.json"
+        write_document(source_path, [road(42, "Rue A")])
+        catalog = module.build_catalog(root)
+        module.validate_source_binding(catalog, root)
+
+        changed = road(42, "Rue A")
+        changed["points"] = [[0.0, 0.0], [20.0, 0.0]]
+        write_document(source_path, [changed])
+        try:
+            module.validate_source_binding(catalog, root)
+        except SystemExit as exc:
+            assert "source binding drift" in str(exc)
+        else:
+            raise AssertionError("source geometry drift did not fail closed")
+
+
 def test_real_slice_contains_shipped_direct_entry_roads() -> None:
     catalog = module.build_catalog(ROOT / "data" / "osm")
     module.validate_contract(catalog)
+    module.validate_source_binding(catalog, ROOT / "data" / "osm")
     print(
         "ROAD_DESTINATION_CATALOG_REAL_COUNT: "
         f"entries={catalog['entry_count']} drivable_records={catalog['drivable_record_count']} "
@@ -89,10 +144,6 @@ def test_real_slice_contains_shipped_direct_entry_roads() -> None:
         f"rejected_drivable={catalog['rejected_drivable_record_count']} "
         f"duplicate_records={catalog['duplicate_record_count']} documents={catalog['compatible_document_count']}"
     )
-    # Live main@2570887 selects 140 drivable source records. The shipped
-    # road-<id> resolver already requires positive id + non-empty name + >=2
-    # valid points, so the deterministic catalog intentionally exposes the one
-    # currently rejected drivable source record instead of silently indexing it.
     assert catalog["drivable_record_count"] >= 140
     assert catalog["eligible_record_count"] >= 139
     assert catalog["entry_count"] >= 139
@@ -111,6 +162,9 @@ def main() -> int:
     test_synthetic_determinism_and_duplicate_coalescing()
     test_drivable_without_lookup_identity_is_rejected_explicitly()
     test_conflicting_duplicate_fails_closed()
+    test_catalog_semantic_tamper_fails_closed()
+    test_source_path_must_bind_to_locked_document_digest()
+    test_catalog_must_rebind_to_locked_source_geometry()
     test_real_slice_contains_shipped_direct_entry_roads()
     print("ROAD_DESTINATION_CATALOG_TEST_OK")
     return 0

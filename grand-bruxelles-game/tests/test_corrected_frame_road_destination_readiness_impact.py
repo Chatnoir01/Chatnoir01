@@ -178,6 +178,18 @@ class CorrectedFrameDestinationImpactTests(unittest.TestCase):
         self.assertIn('--production-base-sha "$MATERIALIZATION_BASE_SHA"', materialize_step)
         self.assertNotIn('--production-base-sha "$LIVE_MAIN_SHA"', materialize_step)
 
+    def test_workflow_locks_semantics_not_continuity_mutable_bytes(self):
+        workflow = (
+            Path(__file__).resolve().parents[2]
+            / ".github/workflows/grand-bruxelles-corrected-frame-road-destination-impact.yml"
+        ).read_text(encoding="utf-8")
+        lock_step = workflow.split("- name: Enforce content-addressed impact lock", 1)[1]
+        self.assertIn("semantic_sha256", lock_step)
+        self.assertIn("locked['accounting']", lock_step)
+        self.assertIn("historical_measurement_bytes_retained_for_forensics", lock_step)
+        self.assertNotIn("assert measurement_sha==locked['measurement_sha256']", lock_step)
+        self.assertIn("production_base_sha", lock_step)
+
 
 if __name__ == "__main__":
     unittest.main()

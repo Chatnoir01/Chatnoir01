@@ -14,6 +14,7 @@ on:
       - 'grand-bruxelles-game/game/tests/shared_environment_visibility_lifecycle_bridge_test.py'
       - 'grand-bruxelles-game/game/tests/shared_environment_owned_child_runtime_lifecycle_test.py'
       - 'grand-bruxelles-game/game/tests/shared_environment_owned_child_lifecycle_bridge_test.py'
+      - 'grand-bruxelles-game/game/tests/shared_environment_sidewalk_material_ownership_lifecycle_bridge_test.py'
       - '.github/workflows/grand-bruxelles-shared-environment-lifecycle-contract.yml'
   workflow_dispatch:
 
@@ -49,3 +50,4 @@ jobs:
           python3 grand-bruxelles-game/game/tests/shared_environment_visibility_lifecycle_bridge_test.py
           python3 grand-bruxelles-game/game/tests/shared_environment_owned_child_runtime_lifecycle_test.py
           python3 grand-bruxelles-game/game/tests/shared_environment_owned_child_lifecycle_bridge_test.py
+          python3 grand-bruxelles-game/game/tests/shared_environment_sidewalk_material_ownership_lifecycle_bridge_test.py

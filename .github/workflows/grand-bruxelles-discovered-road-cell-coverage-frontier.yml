@@ -1,0 +1,43 @@
+name: Grand Bruxelles Discovered Road Cell Coverage Frontier
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/build_discovered_road_cell_coverage_frontier.py'
+      - 'grand-bruxelles-game/tools/build_discovered_road_cell_intersection_evidence.py'
+      - 'grand-bruxelles-game/tools/tests/test_discovered_road_cell_coverage_frontier.py'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - '.github/workflows/grand-bruxelles-discovered-road-cell-coverage-frontier.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python tools/tests/test_discovered_road_cell_coverage_frontier.py
+      - name: Build deterministic frontier twice
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p build/evidence
+          python tools/build_discovered_road_cell_coverage_frontier.py --output build/evidence/discovered-road-cell-coverage-frontier-a.json
+          python tools/build_discovered_road_cell_coverage_frontier.py --output build/evidence/discovered-road-cell-coverage-frontier-b.json
+          cmp build/evidence/discovered-road-cell-coverage-frontier-a.json build/evidence/discovered-road-cell-coverage-frontier-b.json
+          mv build/evidence/discovered-road-cell-coverage-frontier-a.json build/evidence/discovered-road-cell-coverage-frontier.json
+          rm build/evidence/discovered-road-cell-coverage-frontier-b.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discovered-road-cell-coverage-frontier
+          path: grand-bruxelles-game/build/evidence/discovered-road-cell-coverage-frontier.json
+          if-no-files-found: error

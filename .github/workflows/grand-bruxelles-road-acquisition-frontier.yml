@@ -1,0 +1,92 @@
+name: Grand Bruxelles Road Acquisition Frontier
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - 'grand-bruxelles-game/tools/build_road_destination_catalog.py'
+      - 'grand-bruxelles-game/tools/build_road_destination_provenance_binding.py'
+      - 'grand-bruxelles-game/tools/build_road_municipality_coverage_audit.py'
+      - 'grand-bruxelles-game/tools/build_road_acquisition_frontier.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_acquisition_frontier.py'
+      - '.github/workflows/grand-bruxelles-road-acquisition-frontier.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acquisition-frontier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run fail-closed acquisition frontier regressions
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tools/tests/test_road_acquisition_frontier.py
+
+      - name: Build deterministic acquisition frontier twice
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/road-acquisition-frontier
+          python3 tools/build_road_acquisition_frontier.py --output artifacts/road-acquisition-frontier/frontier-a.json
+          python3 tools/build_road_acquisition_frontier.py --output artifacts/road-acquisition-frontier/frontier-b.json
+          cmp artifacts/road-acquisition-frontier/frontier-a.json artifacts/road-acquisition-frontier/frontier-b.json
+          (
+            cd artifacts/road-acquisition-frontier
+            sha256sum frontier-a.json | tee frontier-file.sha256
+          )
+
+      - name: Validate closed acquisition frontier
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          frontier = json.loads(Path('artifacts/road-acquisition-frontier/frontier-a.json').read_text(encoding='utf-8'))
+          assert frontier['format'] == 'grand-bruxelles-road-acquisition-frontier-v1'
+          assert frontier['source_entry_count'] == 139
+          assert frontier['registered_not_rendered_count'] == 96
+          assert frontier['acquisition_candidate_count'] == 43
+          assert frontier['assignment_policy'] == 'NO_INFERENCE_SOURCE_EVIDENCE_REQUIRED'
+          assert frontier['automatic_registration_claimed'] is False
+          assert len(frontier['candidates']) == 43
+          for row in frontier['candidates']:
+              assert row['state'] == 'DISCOVERED'
+              assert row['cell_id'] is None
+              assert row['municipalities'] is None
+              assert row['proposed_cell_id'] is None
+              assert row['proposed_municipality_niscodes'] is None
+          auth = frontier['authorization']
+          assert auth['evidence_only'] is True
+          for key in ('source_registration_authorized','road_cell_mapping_authorized','render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
+              assert auth[key] is False, key
+          print(f"ROAD_ACQUISITION_FRONTIER_GREEN: candidates={frontier['acquisition_candidate_count']} sha256={frontier['frontier_sha256']}")
+          PY
+
+      - name: Verify frontier evidence before upload
+        working-directory: grand-bruxelles-game/artifacts/road-acquisition-frontier
+        run: |
+          set -euo pipefail
+          test -s frontier-a.json
+          test -s frontier-file.sha256
+          test "$(wc -l < frontier-file.sha256)" -eq 1
+          grep -Eq '^[0-9a-f]{64}  frontier-a\.json$' frontier-file.sha256
+          sha256sum --check frontier-file.sha256
+
+      - name: Upload acquisition frontier evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-road-acquisition-frontier
+          path: |
+            grand-bruxelles-game/artifacts/road-acquisition-frontier/frontier-a.json
+            grand-bruxelles-game/artifacts/road-acquisition-frontier/frontier-file.sha256
+          if-no-files-found: error

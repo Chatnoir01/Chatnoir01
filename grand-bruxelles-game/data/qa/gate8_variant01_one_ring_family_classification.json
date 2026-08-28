@@ -1,0 +1,46 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-one-ring-family-classification-v1",
+  "base_main_sha": "18f4ac47a5c5ad54ffe6268298962f3217275b21",
+  "candidate_variant": 1,
+  "source_artifact": {
+    "id": 9698597710,
+    "digest": "sha256:d4717ce3d48200d390e27d7cf403e1d52868e8bd23b030eca9dbd001479d596c",
+    "expected_state": "ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED",
+    "expected_edges": 6,
+    "expected_vertices": 21044,
+    "godot_version": "4.7.1-stable (official)"
+  },
+  "expected_families": {
+    "shoulder": {
+      "edge_count": 2,
+      "signature": "ASYMMETRIC_COHERENT_MATE_CLIFF",
+      "coherent_side_max_other_l1_max": 0.10,
+      "broad_side_max_other_l1_min": 1.70
+    },
+    "forearm": {
+      "edge_count": 2,
+      "signature": "BILATERAL_BROAD_WEIGHT_FIELD",
+      "both_sides_max_other_l1_min": 1.00
+    },
+    "hand": {
+      "edge_count": 2,
+      "signature": "MIXED_NARROW_BROAD_TRANSITION",
+      "narrow_side_max_other_l1_max": 0.20,
+      "broad_side_max_other_l1_min": 0.60
+    }
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "navigation_changed": false,
+    "traffic_changed": false,
+    "environment_changed": false,
+    "combat_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  }
+}

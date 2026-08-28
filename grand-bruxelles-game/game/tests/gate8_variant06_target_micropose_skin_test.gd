@@ -409,8 +409,8 @@ func _synthetic_rigid_edge_regression() -> bool:
     var p := [Vector3.ZERO, Vector3(0.3,0.1,-0.2), Vector3(-0.1,0.4,0.25)]
     var t := Transform3D(Basis(Quaternion(Vector3(0.3,0.7,0.2).normalized(), deg_to_rad(37.0))), Vector3(2,-1,0.5))
     for pair in [[0,1],[1,2],[2,0]]:
-        var before := p[int(pair[0])].distance_to(p[int(pair[1])])
-        var after := (t * p[int(pair[0])]).distance_to(t * p[int(pair[1])])
+        var before: float = p[int(pair[0])].distance_to(p[int(pair[1])])
+        var after: float = (t * p[int(pair[0])]).distance_to(t * p[int(pair[1])])
         if absf(before - after) > 0.00001:
             return false
     return true

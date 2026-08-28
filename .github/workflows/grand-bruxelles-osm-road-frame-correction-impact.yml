@@ -27,20 +27,20 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Require exact live-main ancestry and locked evidence-only rails
+      - name: Require exact live-main ancestry and bind historical impact evidence base
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
-          import json, sys
+          IMPACT_BASE_SHA="$(python3 - <<'PY'
+          import json
           from pathlib import Path
           c=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json").read_text())
           assert c["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-v2"
           assert c["status"] == "LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY"
-          assert c["production_base_sha"] == sys.argv[1], (c["production_base_sha"], sys.argv[1])
           assert c["semantic_identity_policy"]["exclude_continuity_fields"] == ["production_base_sha"]
           assert c["source"]["sha256"] == "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
           assert c["source"]["license"] == "ODbL-1.0"
@@ -52,8 +52,16 @@ jobs:
           assert c["locked_evidence"]["artifact_semantic_sha256"] == "cd24d32e811b57a672988dd0644e932434d1c36e9021eb944d6f8c79b16369fd"
           assert c["locked_evidence"]["stable_semantic_sha256"] == "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62"
           assert all(value is False for value in c["authorization"].values())
-          print("OSM_ROAD_FRAME_IMPACT_LOCK_OK semantic_continuity_split=true rails=closed")
+          base=c["production_base_sha"]
+          assert isinstance(base,str) and len(base)==40
+          print(base)
           PY
+          )"
+          git cat-file -e "${IMPACT_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
+          echo "OSM_ROAD_FRAME_IMPACT_LOCK_OK evidence_base=$IMPACT_BASE_SHA live_main=$LIVE_MAIN_SHA semantic_continuity_split=true rails=closed"
 
       - name: Verify exact road source bytes
         shell: bash
@@ -65,6 +73,34 @@ jobs:
         working-directory: grand-bruxelles-game
         run: python -m unittest tests/test_osm_road_frame_correction_impact.py -v
 
+      - name: Restore historical current crosswalk from impact evidence base
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMPACT_HISTORICAL_CROSSWALK="$RUNNER_TEMP/brussels-road-registered-cell-crosswalk-impact-historical.json"
+          git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$IMPACT_HISTORICAL_CROSSWALK"
+          python3 - "$IMPACT_HISTORICAL_CROSSWALK" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.load(open(sys.argv[1]))
+          c=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          expected=c['current_crosswalk']
+          locked=c['locked_evidence']['accounting']
+          assert d['mapped_road_count']==locked['current_mapped_road_count']==56
+          assert len(d['rows'])==56
+          assert d['destination_readiness']==expected['destination_readiness']
+          assert d['road_semantic_sha256']==expected['road_semantic_sha256']
+          assert d['registered_cell_index_semantic_sha256']==expected['registered_cell_index_semantic_sha256']
+          assert d['road_cell_mapping_authorized'] is False
+          assert d['runtime_mount_authorized'] is False
+          assert d['rendered_geometry_authorized'] is False
+          assert d['collision_authorized'] is False
+          assert d['safe_spawn_authorized'] is False
+          assert d['jouable_promotion_authorized'] is False
+          print('OSM_ROAD_FRAME_IMPACT_HISTORICAL_CROSSWALK_OK rows=56')
+          PY
+          echo "IMPACT_HISTORICAL_CROSSWALK=$IMPACT_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+
       - name: Reproduce corrected-frame impact
         working-directory: grand-bruxelles-game
         shell: bash
@@ -73,7 +109,8 @@ jobs:
           python tools/qa/measure_osm_road_frame_correction_impact.py \
             --contract data/qa/osm_road_frame_correction_impact.contract.json \
             --repo-root . \
-            --live-main-sha "$(git rev-parse origin/main)" \
+            --live-main-sha "$IMPACT_BASE_SHA" \
+            --current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK" \
             --output "$RUNNER_TEMP/osm-road-frame-correction-impact.json"
 
       - name: Assert locked evidence-only result
@@ -81,13 +118,17 @@ jobs:
         run: |
           set -euo pipefail
           python3 - "$RUNNER_TEMP/osm-road-frame-correction-impact.json" <<'PY'
-          import json, sys
+          import json,os,sys
+          from pathlib import Path
           r=json.load(open(sys.argv[1]))
+          c=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
           assert r["schema"] == "grand-bruxelles-osm-road-frame-correction-impact-measurement-v1"
           assert r["status"] == "MEASURED_FRAME_CORRECTION_IMPACT_EVIDENCE_ONLY"
+          assert r["production_base_sha"] == c["production_base_sha"] == os.environ["IMPACT_BASE_SHA"]
           a=r["accounting"]
           assert a["source_road_count"] == 140
           assert a["registered_cell_count"] == 5
+          assert a["current_mapped_road_count"] == 56
           assert a["candidate_unique_mapped_road_count"] == 96
           assert a["candidate_multicell_road_count"] == 2
           assert a["candidate_no_registered_overlap_count"] == 42
@@ -95,7 +136,8 @@ jobs:
           assert a["changed_mapping_count"] == 45
           assert a["newly_mappable_count"] == 51
           assert a["no_longer_mappable_count"] == 11
-          assert r["semantic_sha256"] == "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62"
+          assert a == c["locked_evidence"]["accounting"]
+          assert r["semantic_sha256"] == c["locked_evidence"]["stable_semantic_sha256"] == "2941ea86fd0e2ad524f6f788349aa9745e16809c3343a3fa063eb4b23494ac62"
           assert all(value is False for value in r["authorization"].values())
           print("OSM_ROAD_FRAME_IMPACT_LOCKED_STABLE", a, r["semantic_sha256"])
           PY

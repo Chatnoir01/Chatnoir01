@@ -4,10 +4,12 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ROOT.parent
 CONTRACT = ROOT / "data/qa/corrected_frame_road_cell_migration_plan.contract.json"
 TOOL = ROOT / "tools/qa/measure_corrected_frame_road_cell_migration_plan.py"
 CANDIDATE = ROOT / "data/qa/corrected_frame_road_cell_crosswalk_candidate.contract.json"
 CURRENT = ROOT / "data/provenance/brussels_road_registered_cell_crosswalk.json"
+WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-corrected-frame-road-cell-migration-plan.yml"
 
 
 class CorrectedFrameRoadCellMigrationPlanTest(unittest.TestCase):
@@ -36,7 +38,7 @@ class CorrectedFrameRoadCellMigrationPlanTest(unittest.TestCase):
         self.assertEqual(candidate["semantic_sha256"], "7d8a943297a16cc855e67128b979f3e538193706087df419c9709b1751b53dc1")
         self.assertFalse(candidate["promotion_policy"]["replace_current_crosswalk_authorized"])
         self.assertTrue(all(value is False for value in candidate["authorization"].values()))
-        self.assertEqual(current["mapped_road_count"], 56)
+        self.assertEqual(current["mapped_road_count"], 96)
         self.assertFalse(current["road_cell_mapping_authorized"])
         self.assertFalse(current["rendered_geometry_authorized"])
         self.assertFalse(current["collision_authorized"])
@@ -51,6 +53,20 @@ class CorrectedFrameRoadCellMigrationPlanTest(unittest.TestCase):
         self.assertIn('locked["semantic_sha256"] == output["semantic_sha256"]', text)
         self.assertNotIn('road_cell_mapping_authorized": true', text)
         self.assertNotIn('jouable_promotion_authorized": true', text)
+
+    def test_workflow_replays_historical_plan_at_evidence_base(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn('MIGRATION_BASE_SHA=', text)
+        self.assertIn('IMPACT_BASE_SHA=', text)
+        self.assertIn('IMPACT_HISTORICAL_CROSSWALK=', text)
+        self.assertIn('git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"', text)
+        self.assertIn('git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$MIGRATION_BASE_SHA"', text)
+        self.assertIn('--live-main-sha "$IMPACT_BASE_SHA"', text)
+        self.assertIn('--current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"', text)
+        self.assertIn('--production-base-sha "$MIGRATION_BASE_SHA"', text)
+        self.assertIn('--current-crosswalk "$HISTORICAL_CROSSWALK"', text)
+        self.assertNotIn("assert d['production_base_sha']==sys.argv[1]", text)
+        self.assertNotIn('--production-base-sha "$LIVE_MAIN_SHA"', text)
 
 
 if __name__ == "__main__":

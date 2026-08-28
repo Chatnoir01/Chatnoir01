@@ -4,14 +4,16 @@
   "all_discovered_environment_autoloads_classified": true,
   "nearest_owner_inference_authorized": false,
   "shared_runtime_count": 16,
-  "explicit_exclusion_count": 9,
-  "classified_autoload_count": 25,
+  "explicit_exclusion_count": 11,
+  "classified_autoload_count": 27,
   "notes": [
     "Shared Environment lifecycle ownership comes from the shipped lifecycle contract, never from alias proximity or location guessing.",
     "Exact-location Grand-Place, Bourse and source-backed Anneessens landmark autoloads remain outside Shared Environment and are listed explicitly so a production Environment autoload cannot silently bypass classification.",
     "This contract does not authorize runtime, geometry, material, collision, camera, source or JOUABLE changes."
   ],
   "explicit_exclusions": [
+    {"autoload_name":"GrandPlaceOfficialLod2","path":"game/scripts/grand_place_official_lod2_1655673.gd","owner_scope":"grand_place_exact","reason":"exact_location_owner_outside_shared_environment"},
+    {"autoload_name":"GrandPlaceOfficialLod2Next","path":"game/scripts/grand_place_official_lod2_1786758.gd","owner_scope":"grand_place_exact","reason":"exact_location_owner_outside_shared_environment"},
     {"autoload_name":"GrandPlaceGranitePaving","path":"game/scripts/grand_place_granite_paving.gd","owner_scope":"grand_place_exact","reason":"exact_location_owner_outside_shared_environment"},
     {"autoload_name":"GrandPlaceWhiteStoneSurfaceRuntime","path":"game/scripts/grand_place_white_stone_surface_runtime.gd","owner_scope":"grand_place_exact","reason":"exact_location_owner_outside_shared_environment"},
     {"autoload_name":"GrandPlaceSlateRoofSurfaceRuntime","path":"game/scripts/grand_place_slate_roof_surface_runtime.gd","owner_scope":"grand_place_exact","reason":"exact_location_owner_outside_shared_environment"},

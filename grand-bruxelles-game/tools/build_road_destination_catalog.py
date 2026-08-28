@@ -24,6 +24,17 @@ def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def is_sha256(value: Any) -> bool:
+    text = str(value).strip().lower()
+    return len(text) == 64 and all(ch in "0123456789abcdef" for ch in text)
+
+
+def catalog_semantic_sha256(catalog: dict[str, Any]) -> str:
+    unsigned = dict(catalog)
+    unsigned.pop("catalog_sha256", None)
+    return sha256_text(canonical_json(unsigned))
+
+
 def normalized_points(raw_points: Any) -> list[list[float]]:
     if not isinstance(raw_points, list) or len(raw_points) < 2:
         return []
@@ -163,13 +174,16 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
             "jouable_authorized": False,
         },
     }
-    payload["catalog_sha256"] = sha256_text(canonical_json(payload))
+    payload["catalog_sha256"] = catalog_semantic_sha256(payload)
     return payload
 
 
 def validate_contract(catalog: dict[str, Any]) -> None:
     if catalog.get("format") != FORMAT:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: format drift")
+    if catalog.get("source_format") != SOURCE_FORMAT or catalog.get("source_root") != "data/osm":
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source contract drift")
+
     entries = catalog.get("entries")
     if not isinstance(entries, dict) or len(entries) < 1:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: no eligible source roads")
@@ -178,10 +192,14 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     duplicates = int(catalog.get("duplicate_record_count", -3))
     drivable = int(catalog.get("drivable_record_count", -4))
     rejected = int(catalog.get("rejected_drivable_record_count", -5))
+    compatible_documents = int(catalog.get("compatible_document_count", -6))
+    if entry_count != len(entries):
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: entry count drift")
     if eligible != entry_count + duplicates:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: unique/duplicate accounting drift")
     if drivable != eligible + rejected:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: drivable/rejected accounting drift")
+
     authorization = catalog.get("authorization", {})
     for forbidden in (
         "render_authorized",
@@ -195,6 +213,100 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     if authorization.get("source_lookup_only") is not True:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source_lookup_only missing")
 
+    source_digests = catalog.get("source_document_sha256")
+    if not isinstance(source_digests, dict) or not source_digests:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source document digests missing")
+    if compatible_documents != len(source_digests):
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: compatible document accounting drift")
+    for raw_path, raw_digest in source_digests.items():
+        source_path = str(raw_path).strip()
+        if not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid source document path {source_path!r}")
+        if not is_sha256(raw_digest):
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid source document SHA256 {source_path!r}")
+
+    for raw_osm_id, raw_entry in entries.items():
+        if not isinstance(raw_entry, dict):
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: malformed entry {raw_osm_id!r}")
+        try:
+            osm_id = int(raw_osm_id)
+            entry_osm_id = int(raw_entry.get("osm_id", 0))
+        except (TypeError, ValueError) as exc:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid OSM id {raw_osm_id!r}") from exc
+        if osm_id <= 0 or osm_id != entry_osm_id:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: OSM id key/value drift {raw_osm_id!r}")
+        if raw_entry.get("drivable") is not True:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: indexed road is not drivable {osm_id}")
+        if int(raw_entry.get("point_count", 0)) < 2 or not is_sha256(raw_entry.get("geometry_sha256")):
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid geometry evidence {osm_id}")
+        source_paths = raw_entry.get("source_paths")
+        if not isinstance(source_paths, list) or not source_paths:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source paths missing {osm_id}")
+        normalized_source_paths = [str(path).strip() for path in source_paths]
+        if normalized_source_paths != sorted(set(normalized_source_paths)):
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source paths not deterministic {osm_id}")
+        if int(raw_entry.get("source_file_count", -1)) != len(normalized_source_paths):
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source file count drift {osm_id}")
+        for source_path in normalized_source_paths:
+            if source_path not in source_digests:
+                raise SystemExit(
+                    "ROAD_DESTINATION_CATALOG_FAIL: source path missing locked digest "
+                    f"osm_id={osm_id} source_path={source_path!r}"
+                )
+
+    stored_catalog_sha = str(catalog.get("catalog_sha256", "")).strip().lower()
+    if not is_sha256(stored_catalog_sha):
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: catalog SHA256 invalid")
+    expected_catalog_sha = catalog_semantic_sha256(catalog)
+    if stored_catalog_sha != expected_catalog_sha:
+        raise SystemExit(
+            "ROAD_DESTINATION_CATALOG_FAIL: catalog SHA256 drift "
+            f"stored={stored_catalog_sha} expected={expected_catalog_sha}"
+        )
+
+
+def validate_source_binding(catalog: dict[str, Any], source_root: Path) -> None:
+    """Re-derive the source catalog and fail closed if persisted evidence detached.
+
+    validate_contract() protects internal consistency. This second validation binds
+    that internally consistent catalog back to the current locked source bytes so a
+    recomputed/self-consistent catalog cannot claim stale road geometry or provenance.
+    """
+    validate_contract(catalog)
+    rebuilt = build_catalog(source_root)
+    validate_contract(rebuilt)
+
+    if catalog.get("source_document_sha256") != rebuilt.get("source_document_sha256"):
+        raise SystemExit(
+            "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: source document digest mismatch"
+        )
+
+    accounting_keys = (
+        "road_record_count",
+        "drivable_record_count",
+        "eligible_record_count",
+        "rejected_drivable_record_count",
+        "entry_count",
+        "duplicate_record_count",
+        "compatible_document_count",
+    )
+    for key in accounting_keys:
+        if catalog.get(key) != rebuilt.get(key):
+            raise SystemExit(
+                "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: "
+                f"accounting mismatch key={key} stored={catalog.get(key)!r} rebuilt={rebuilt.get(key)!r}"
+            )
+
+    if catalog.get("entries") != rebuilt.get("entries"):
+        raise SystemExit(
+            "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: road entry/source geometry mismatch"
+        )
+
+    if catalog.get("catalog_sha256") != rebuilt.get("catalog_sha256"):
+        raise SystemExit(
+            "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: catalog semantic SHA mismatch"
+        )
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -204,6 +316,7 @@ def main() -> int:
 
     catalog = build_catalog(args.source_root)
     validate_contract(catalog)
+    validate_source_binding(catalog, args.source_root)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(catalog, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(

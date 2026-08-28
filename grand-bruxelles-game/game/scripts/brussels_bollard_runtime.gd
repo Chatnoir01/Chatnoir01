@@ -236,7 +236,7 @@ func _build() -> void:
         collision.name = "Bollard_%d" % int(point.get("osm_id", 0))
         collision.shape = ASSET.collision_shape()
         collision.position = base_position + Vector3(0.0, ASSET.COLLISION_HEIGHT * 0.5, 0.0)
-        collision.set_meta("osm_id", int(point.get("osm_id", 0))
+        collision.set_meta("osm_id", int(point.get("osm_id", 0)))
         collision.set_meta("source_base_position", base_position)
         _collision_body.add_child(collision)
 

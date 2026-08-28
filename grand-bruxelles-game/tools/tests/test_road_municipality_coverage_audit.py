@@ -104,12 +104,28 @@ def test_rehashed_municipality_internal_accounting_tamper_fails_closed() -> None
         raise AssertionError("rehashed municipality accounting tamper did not fail closed")
 
 
+def test_rehashed_discovered_identity_duplicate_fails_closed() -> None:
+    audit = build_real()
+    road_ids = audit["discovered_unassigned_road_osm_ids"]
+    road_ids[-1] = road_ids[-2]
+    unsigned = dict(audit)
+    unsigned.pop("audit_sha256", None)
+    audit["audit_sha256"] = module.sha256_json(unsigned)
+    try:
+        module.validate_audit(audit)
+    except SystemExit as exc:
+        assert "discovered road identity drift" in str(exc)
+    else:
+        raise AssertionError("rehashed duplicate discovered road id did not fail closed")
+
+
 def main() -> int:
     test_real_audit_is_deterministic_and_closed()
     test_hash_tamper_fails_closed()
     test_false_19_commune_completion_fails_closed_even_rehashed()
     test_opened_runtime_authorization_fails_closed_even_rehashed()
     test_rehashed_municipality_internal_accounting_tamper_fails_closed()
+    test_rehashed_discovered_identity_duplicate_fails_closed()
     print("ROAD_MUNICIPALITY_AUDIT_TEST_OK")
     return 0
 

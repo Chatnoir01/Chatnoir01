@@ -84,8 +84,10 @@ def measure(contract, reps, readiness, production_base_sha, expectation_mode):
       'expected_absent_road_osm_ids':sorted(absent),
       'expected_wrong_cell_road_osm_ids':sorted(wrong)}
     assert accounting==expectation_for(contract,expectation_mode)
-    status='HOLD_ATOMIC_MIGRATION_BEFORE_RUNTIME_PROBE' if expectation_mode=='historical' else 'REGISTERED_TARGET_CELLS_HOLD_RENDER_COLLISION'
-    out={'schema':'grand-bruxelles-corrected-frame-corridor-representative-current-readiness-v1','status':status,'expectation_mode':expectation_mode,'production_base_sha':production_base_sha,'accounting':accounting,'representatives':rows,'authorization':contract['authorization']}
+    if expectation_mode=='historical':
+        out={'schema':'grand-bruxelles-corrected-frame-corridor-representative-current-readiness-v1','status':'HOLD_ATOMIC_MIGRATION_BEFORE_RUNTIME_PROBE','production_base_sha':production_base_sha,'accounting':accounting,'representatives':rows,'authorization':contract['authorization']}
+    else:
+        out={'schema':'grand-bruxelles-corrected-frame-corridor-representative-current-readiness-v1','status':'REGISTERED_TARGET_CELLS_HOLD_RENDER_COLLISION','expectation_mode':'corrected-pair-current','production_base_sha':production_base_sha,'accounting':accounting,'representatives':rows,'authorization':contract['authorization']}
     basis=dict(out); basis.pop('production_base_sha'); out['semantic_sha256']=digest(basis)
     return out
 
@@ -101,6 +103,6 @@ def main():
     a=ap.parse_args()
     out=measure(load(a.contract),load(a.representatives),load(a.readiness),a.production_base_sha,a.expectation_mode)
     Path(a.output).write_text(json.dumps(out,sort_keys=True,indent=2)+'\n',encoding='utf-8')
-    print('CORRIDOR_REP_CURRENT_READINESS_OK',out['expectation_mode'],out['semantic_sha256'])
+    print('CORRIDOR_REP_CURRENT_READINESS_OK',a.expectation_mode,out['semantic_sha256'])
 
 if __name__=='__main__': main()

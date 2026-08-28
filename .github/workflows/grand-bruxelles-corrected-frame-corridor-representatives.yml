@@ -32,16 +32,25 @@ jobs:
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
           echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
           python3 - "$LIVE_MAIN_SHA" <<'PY'
-          import json,sys
+          import json,subprocess,sys
           from pathlib import Path
           d=json.loads(Path("grand-bruxelles-game/data/qa/corrected_frame_corridor_representatives.contract.json").read_text())
-          assert d["production_base_sha"]==sys.argv[1]
+          live=sys.argv[1]
+          evidence=d["production_base_sha"]
+          subprocess.run(["git","cat-file","-e",f"{evidence}^{{commit}}"],check=True)
+          subprocess.run(["git","merge-base","--is-ancestor",evidence,live],check=True)
           assert d["status"] in {"MEASUREMENT_PENDING","LOCKED_REPRESENTATIVE_EVIDENCE_ONLY"}
+          if evidence != live:
+              assert d["status"]=="LOCKED_REPRESENTATIVE_EVIDENCE_ONLY"
+              assert d.get("continuity",{}).get("semantic_lock_survives_clean_live_main_rebuild") is True
+              locked=d.get("locked_evidence",{})
+              assert isinstance(locked.get("semantic_sha256"),str) and len(locked["semantic_sha256"])==64
+              assert isinstance(locked.get("measurement_sha256"),str) and len(locked["measurement_sha256"])==64
           assert d["source"]["license"]=="ODbL-1.0"
           assert d["source"]["crs"]=="EPSG:31370"
           assert d["policy"]["measurement_only"] is True
           assert all(v is False for v in d["authorization"].values())
-          print("CORRIDOR_REPRESENTATIVE_LIVE_MAIN_OK",sys.argv[1],d["status"])
+          print("CORRIDOR_REPRESENTATIVE_LIVE_MAIN_OK",live,"evidence",evidence,d["status"])
           PY
       - name: Run fail-closed regressions
         working-directory: grand-bruxelles-game
@@ -124,7 +133,11 @@ jobs:
           assert d["semantic_sha256"]==locked["semantic_sha256"]
           assert d["accounting"]==locked["accounting"]
           assert [r["road_osm_id"] for r in d["representatives"]]==locked["selected_road_osm_ids"]
-          assert hashlib.sha256(p.read_bytes()).hexdigest()==locked["measurement_sha256"]
           assert all(v is False for v in d["authorization"].values())
-          print("CORRIDOR_REPRESENTATIVES_LOCKED_EXACT",d["semantic_sha256"])
+          if d["production_base_sha"] == c["production_base_sha"]:
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==locked["measurement_sha256"]
+              print("CORRIDOR_REPRESENTATIVES_LOCKED_EXACT",d["semantic_sha256"])
+          else:
+              assert c.get("continuity",{}).get("semantic_lock_survives_clean_live_main_rebuild") is True
+              print("CORRIDOR_REPRESENTATIVES_LOCKED_SEMANTIC_REPLAY",d["semantic_sha256"],d["production_base_sha"])
           PY

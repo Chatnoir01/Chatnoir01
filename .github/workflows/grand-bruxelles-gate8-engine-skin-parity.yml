@@ -84,10 +84,14 @@ jobs:
           chmod +x "$GODOT"
           "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
           cp grand-bruxelles-game/game/tests/gate8_engine_skin_parity_test.gd "$PROJECT/gate_test.gd"
-          printf '[application]\nconfig/name="Gate8EngineSkinParity"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT/project.godot"
+          printf '[application]\nconfig/name="Gate8EngineSkinParity"\n[display]\nwindow/size/viewport_width=640\nwindow/size/viewport_height=360\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT/project.godot"
           timeout 300 "$GODOT" --headless --path "$PROJECT" --import >"$RUNNER_TEMP/godot-import.log" 2>&1
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          fi
           set +e
-          timeout 180 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
+          LIBGL_ALWAYS_SOFTWARE=1 timeout 180 xvfb-run -a "$GODOT" --path "$PROJECT" --display-driver x11 --rendering-method gl_compatibility --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
           GODOT_RC=${PIPESTATUS[0]}
           set -e
           test -f "$PROJECT/gate8_engine_skin_parity_result.json"

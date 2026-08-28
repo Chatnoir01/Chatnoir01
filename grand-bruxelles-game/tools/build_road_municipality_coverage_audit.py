@@ -163,6 +163,37 @@ def validate_audit(audit: dict[str, Any]) -> None:
         raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: municipality accounting drift")
     if [row.get("niscode") for row in municipalities] != audit.get("municipality_niscodes"):
         raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: municipality index drift")
+    seen_nis: set[str] = set()
+    for row in municipalities:
+        if not isinstance(row, dict):
+            raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: malformed municipality row")
+        nis = str(row.get("niscode") or "")
+        if not nis or nis in seen_nis:
+            raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: municipality identity drift")
+        seen_nis.add(nis)
+        if row.get("readiness") != "REGISTERED_NOT_RENDERED":
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality readiness drift {nis}")
+        road_ids = row.get("registered_road_osm_ids")
+        if not isinstance(road_ids, list) or road_ids != sorted(set(road_ids)) or int(row.get("registered_road_count", -1)) != len(road_ids):
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality road accounting drift {nis}")
+        cell_ids = row.get("cell_ids")
+        if not isinstance(cell_ids, list) or not cell_ids or cell_ids != sorted(set(cell_ids)) or int(row.get("cell_count", -1)) != len(cell_ids):
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality cell accounting drift {nis}")
+        inspire_ids = row.get("inspire_ids")
+        if not isinstance(inspire_ids, list) or not inspire_ids or inspire_ids != sorted(set(inspire_ids)) or any(not str(value) for value in inspire_ids):
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality INSPIRE identity drift {nis}")
+        manifest_paths = row.get("cell_manifest_paths")
+        if not isinstance(manifest_paths, list) or not manifest_paths or manifest_paths != sorted(set(manifest_paths)) or any(not str(path).startswith("data/cell_manifests/") for path in manifest_paths):
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality manifest path drift {nis}")
+        manifest_shas = row.get("cell_manifest_sha256")
+        if not isinstance(manifest_shas, list) or not manifest_shas or manifest_shas != sorted(set(manifest_shas)) or any(not is_sha256(value) for value in manifest_shas):
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality manifest sha drift {nis}")
+        try:
+            weighted = float(row.get("weighted_road_coverage"))
+        except (TypeError, ValueError) as exc:
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality weighted coverage drift {nis}") from exc
+        if weighted <= 0.0 or weighted > float(len(road_ids)):
+            raise SystemExit(f"ROAD_MUNICIPALITY_AUDIT_FAIL: municipality weighted coverage drift {nis}")
     if int(audit.get("registered_not_rendered_count", -1)) + int(audit.get("discovered_unassigned_count", -1)) != int(audit.get("source_entry_count", -1)):
         raise SystemExit("ROAD_MUNICIPALITY_AUDIT_FAIL: source state accounting drift")
     auth = audit.get("authorization") or {}

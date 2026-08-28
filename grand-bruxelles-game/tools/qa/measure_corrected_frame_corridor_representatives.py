@@ -30,11 +30,25 @@ def _roads_by_id(source):
     return roads
 
 
+def _validate_live_main_replay(contract, production_base_sha):
+    evidence_base = contract["production_base_sha"]
+    if evidence_base == production_base_sha:
+        return
+    assert contract["status"] == "LOCKED_REPRESENTATIVE_EVIDENCE_ONLY"
+    assert contract.get("continuity", {}).get("semantic_lock_survives_clean_live_main_rebuild") is True
+    locked = contract.get("locked_evidence")
+    assert isinstance(locked, dict)
+    assert isinstance(locked.get("semantic_sha256"), str) and len(locked["semantic_sha256"]) == 64
+    assert isinstance(locked.get("measurement_sha256"), str) and len(locked["measurement_sha256"]) == 64
+    assert locked.get("accounting") == contract["expected"]
+    assert locked.get("selected_road_osm_ids") == [int(t["expected_road_osm_id"]) for t in contract["selection"]["target_cells"]]
+
+
 def measure(contract_path: Path, impact_path: Path, road_source_path: Path, cell_index_path: Path, production_base_sha: str):
     contract = _load(contract_path)
     assert contract["schema"] == "grand-bruxelles-corrected-frame-corridor-representative-contract-v1"
     assert contract["status"] in {"MEASUREMENT_PENDING", "LOCKED_REPRESENTATIVE_EVIDENCE_ONLY"}
-    assert contract["production_base_sha"] == production_base_sha
+    _validate_live_main_replay(contract, production_base_sha)
     assert contract["source"]["provider"] == "OpenStreetMap contributors via Overpass API"
     assert contract["source"]["license"] == "ODbL-1.0"
     assert contract["source"]["crs"] == "EPSG:31370"

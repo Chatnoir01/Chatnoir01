@@ -2,6 +2,7 @@
   "schema": "grand-bruxelles-shared-environment-visibility-ownership-v1",
   "scope": "shared_environment_visibility_ownership_qa_only",
   "visibility_ownership_registry_expected_count": 1,
+  "central_lifecycle_gate_required": true,
   "normal_player_visual_change_authorized": false,
   "geometry_or_collision_change_authorized": false,
   "camera_or_threshold_change_authorized": false,
@@ -11,6 +12,7 @@
     "The exact visibility baseline is captured when the runtime claims visibility ownership, not during target discovery.",
     "A visibility owner must restore the exact captured baseline only while it still owns the visibility state.",
     "A later owner must survive teardown unchanged; unconditional visibility resets are forbidden.",
+    "The dedicated visibility-owner validator is also required from the central Shared Environment lifecycle gate.",
     "This contract records the already-shipped Fonsny lifecycle behavior and authorizes no new art or geometry."
   ],
   "owners": [

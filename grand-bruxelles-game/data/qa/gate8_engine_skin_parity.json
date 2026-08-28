@@ -1,0 +1,31 @@
+{
+  "format": "grand-bruxelles-gate8-engine-skin-parity-v1",
+  "base_main_sha": "c0b75e84d7498c616996216b3f976d8195a6dadd",
+  "candidate_variant": 1,
+  "target_artifact_id": 9470539830,
+  "target_artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+  "target_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+  "target_size_bytes": 15580240,
+  "godot_version": "4.7.1",
+  "controlled_pose": {
+    "role": "right_shoulder",
+    "bone": "clavicle_r",
+    "axis": "z",
+    "degrees": -5.0
+  },
+  "cpu_reference": "validated target-only harness from PR #1422",
+  "engine_reference": "MeshInstance3D.bake_mesh_from_current_skeleton_pose",
+  "max_vertex_parity_error_m": 0.0001,
+  "require_rest_parity": true,
+  "require_pose_parity": true,
+  "source_animation_used": false,
+  "retarget_applied": false,
+  "target_skin_modified": false,
+  "target_rest_modified": false,
+  "production_authorized": false,
+  "activation_ready": false,
+  "adoption_ready": false,
+  "visual_witness_authorized": false,
+  "next_if_green": "ISOLATED_REWEIGHT_AB",
+  "next_if_red": "FIX_CPU_SKIN_HARNESS_BEFORE_REWEIGHT"
+}

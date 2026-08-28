@@ -57,8 +57,14 @@ class CorrectedFrameRoadCellMigrationPlanTest(unittest.TestCase):
     def test_workflow_replays_historical_plan_at_evidence_base(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn('MIGRATION_BASE_SHA=', text)
+        self.assertIn('IMPACT_BASE_SHA=', text)
+        self.assertIn('IMPACT_HISTORICAL_CROSSWALK=', text)
         self.assertIn('git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"', text)
+        self.assertIn('git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$MIGRATION_BASE_SHA"', text)
+        self.assertIn('--live-main-sha "$IMPACT_BASE_SHA"', text)
+        self.assertIn('--current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"', text)
         self.assertIn('--production-base-sha "$MIGRATION_BASE_SHA"', text)
+        self.assertIn('--current-crosswalk "$HISTORICAL_CROSSWALK"', text)
         self.assertNotIn("assert d['production_base_sha']==sys.argv[1]", text)
         self.assertNotIn('--production-base-sha "$LIVE_MAIN_SHA"', text)
 

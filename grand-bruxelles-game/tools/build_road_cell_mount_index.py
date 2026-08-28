@@ -15,6 +15,9 @@ from typing import Any
 
 FORMAT = "grand-bruxelles-road-cell-mount-index-v1"
 READINESS_SCHEMA = "grand-bruxelles-road-destination-readiness-catalog-v1"
+CELL_MANIFEST_FORMAT = "grand-bruxelles-cell-maturity-v1"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CELL_MANIFEST_ROOT = PROJECT_ROOT / "data" / "cell_manifests"
 CLOSED_KEYS = (
     "render_authorized",
     "collision_authorized",
@@ -30,6 +33,10 @@ def canonical_json(value: Any) -> str:
 
 def sha256_json(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def is_sha256(value: Any) -> bool:
@@ -64,7 +71,47 @@ def verify_readiness_semantic(readiness: dict[str, Any]) -> str:
     return stored
 
 
-def build_index(readiness: dict[str, Any]) -> dict[str, Any]:
+def verify_cell_manifest_binding(
+    project_root: Path,
+    *,
+    cell_id: str,
+    grid_cell_id: str,
+    bbox: list[Any],
+    manifest_path: str,
+    manifest_sha: str,
+) -> None:
+    relative = Path(manifest_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: unsafe cell manifest path {cell_id}")
+
+    root = (project_root / "data" / "cell_manifests").resolve()
+    resolved = (project_root / relative).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: cell manifest escaped root {cell_id}") from exc
+    if not resolved.is_file():
+        raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: cell manifest missing {cell_id}")
+
+    actual_sha = sha256_file(resolved)
+    if actual_sha != manifest_sha:
+        raise SystemExit(
+            f"ROAD_CELL_MOUNT_INDEX_FAIL: cell manifest bytes drift {cell_id} "
+            f"stored={manifest_sha} actual={actual_sha}"
+        )
+
+    manifest = load_json(resolved)
+    if manifest.get("format") != CELL_MANIFEST_FORMAT:
+        raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: cell manifest format drift {cell_id}")
+    if manifest.get("cell_id") != cell_id or manifest.get("crs") != "EPSG:31370":
+        raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: cell manifest identity drift {cell_id}")
+    if manifest.get("bbox") != bbox:
+        raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: cell manifest bbox drift {cell_id}")
+    if grid_cell_id != f"E{int(float(bbox[0]))}_N{int(float(bbox[1]))}":
+        raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: grid cell identity drift {cell_id}")
+
+
+def build_index(readiness: dict[str, Any], project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     if readiness.get("schema") != READINESS_SCHEMA:
         raise SystemExit("ROAD_CELL_MOUNT_INDEX_FAIL: readiness schema drift")
     if readiness.get("status") != "SOURCE_BACKED_REGISTERED_NOT_RENDERED":
@@ -93,6 +140,7 @@ def build_index(readiness: dict[str, Any]) -> dict[str, Any]:
     road_index: dict[str, Any] = {}
     cells: dict[str, Any] = {}
     seen_road_ids: set[int] = set()
+    verified_manifests: set[tuple[str, str]] = set()
     for row in destinations:
         if not isinstance(row, dict):
             raise SystemExit("ROAD_CELL_MOUNT_INDEX_FAIL: malformed destination")
@@ -121,6 +169,18 @@ def build_index(readiness: dict[str, Any]) -> dict[str, Any]:
             or len(bbox) != 4
         ):
             raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: cell identity drift {road_id}")
+
+        binding_key = (manifest_path, manifest_sha)
+        if binding_key not in verified_manifests:
+            verify_cell_manifest_binding(
+                project_root,
+                cell_id=cell_id,
+                grid_cell_id=grid_cell_id,
+                bbox=bbox,
+                manifest_path=manifest_path,
+                manifest_sha=manifest_sha,
+            )
+            verified_manifests.add(binding_key)
 
         existing = cells.get(cell_id)
         identity = {

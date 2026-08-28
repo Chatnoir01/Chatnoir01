@@ -1,0 +1,35 @@
+name: Grand Bruxelles Discovered Road Cell Coverage Source Binding
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/build_discovered_road_cell_coverage_frontier.py'
+      - 'grand-bruxelles-game/tools/build_discovered_road_cell_intersection_evidence.py'
+      - 'grand-bruxelles-game/tools/validate_discovered_road_cell_coverage_source_binding.py'
+      - 'grand-bruxelles-game/tools/tests/test_discovered_road_cell_coverage_source_binding.py'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - '.github/workflows/grand-bruxelles-discovered-road-cell-coverage-source-binding.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact head
+        if: github.event_name == 'pull_request'
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Run source-binding regressions
+        working-directory: grand-bruxelles-game
+        run: python tools/tests/test_discovered_road_cell_coverage_source_binding.py

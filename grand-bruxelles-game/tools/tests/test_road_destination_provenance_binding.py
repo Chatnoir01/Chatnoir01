@@ -107,6 +107,9 @@ def test_workflow_publishes_only_verified_complete_evidence() -> None:
     assert "if: success()" in upload
     assert "if: always()" not in upload
     assert "if-no-files-found: error" in upload
+    assert "grand-bruxelles-game/artifacts/road-provenance-binding/binding-a.json" in upload
+    assert "grand-bruxelles-game/artifacts/road-provenance-binding/binding-file.sha256" in upload
+    assert "binding-b.json" not in upload
 
 
 def main() -> int:

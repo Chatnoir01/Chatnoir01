@@ -1,0 +1,123 @@
+name: Grand Bruxelles Gate-8 Variant01 One-Ring Family Classification
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-one-ring-family-classification-20260828"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-one-ring-family-classification.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_one_ring_family_classification.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_one_ring_family_classification.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  classify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SOURCE_ARTIFACT_ID: "9698597710"
+      SOURCE_ARTIFACT_DIGEST: "sha256:d4717ce3d48200d390e27d7cf403e1d52868e8bd23b030eca9dbd001479d596c"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "18f4ac47a5c5ad54ffe6268298962f3217275b21"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-one-ring-family-classification.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_one_ring_family_classification.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_one_ring_family_classification.py' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/qa/gate8_variant01_one_ring_family_classification.json'
+          d=json.load(open(p))
+          assert d['base_main_sha']=='18f4ac47a5c5ad54ffe6268298962f3217275b21'
+          assert d['source_artifact']['id']==9698597710
+          assert d['source_artifact']['expected_state']=='ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED'
+          assert set(d['expected_families'])=={'shoulder','forearm','hand'}
+          assert all(v is False for v in d['rails'].values())
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
+
+      - name: Verify immutable one-ring artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}" > "$RUNNER_TEMP/artifact.json"
+          python3 - "$RUNNER_TEMP/artifact.json" "$SOURCE_ARTIFACT_DIGEST" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          assert not a['expired']
+          assert a['id']==9698597710
+          assert a['digest']==sys.argv[2]
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/source.zip"
+          mkdir -p "$RUNNER_TEMP/source"
+          unzip -q "$RUNNER_TEMP/source.zip" -d "$RUNNER_TEMP/source"
+          test -f "$RUNNER_TEMP/source/result.json"
+          python3 - "$RUNNER_TEMP/source/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['diagnostic_state']=='ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED'
+          assert r['all_pair_bilateral_local_maxima'] is True
+          assert r['audited_edge_count']==6 and len(r['edges'])==6
+          assert r['target_vertex_total']==21044
+          assert r['godot_version']=='4.7.1-stable (official)'
+          assert r['failures']==[]
+          PY
+
+      - name: Classify one-ring families fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/game/tests/gate8_variant01_one_ring_family_classification.py \
+            grand-bruxelles-game/data/qa/gate8_variant01_one_ring_family_classification.json \
+            "$RUNNER_TEMP/source/result.json" \
+            "$RUNNER_TEMP/result.json" | tee "$RUNNER_TEMP/classifier.log"
+          python3 - "$RUNNER_TEMP/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['diagnostic_state']=='ONE_RING_FAMILY_SIGNATURES_CONFIRMED', r
+          assert r['failures']==[]
+          assert r['signature_counts']=={
+            'ASYMMETRIC_COHERENT_MATE_CLIFF':2,
+            'BILATERAL_BROAD_WEIGHT_FIELD':2,
+            'MIXED_NARROW_BROAD_TRANSITION':2,
+          }
+          assert r['next_safe_axis']=='FAMILY_SPECIFIC_AB_SHOULDER_FIRST'
+          assert r['rails'] and all(v is False for v in r['rails'].values())
+          print('GATE8_ONE_RING_FAMILY_CLASSIFICATION_OK')
+          PY
+
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-one-ring-family-classification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/artifact.json
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/classifier.log
+          retention-days: 14

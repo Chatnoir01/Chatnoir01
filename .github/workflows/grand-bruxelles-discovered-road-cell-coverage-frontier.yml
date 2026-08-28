@@ -5,7 +5,9 @@ on:
     paths:
       - 'grand-bruxelles-game/tools/build_discovered_road_cell_coverage_frontier.py'
       - 'grand-bruxelles-game/tools/build_discovered_road_cell_intersection_evidence.py'
+      - 'grand-bruxelles-game/tools/validate_registered_cell_manifest_index.py'
       - 'grand-bruxelles-game/tools/tests/test_discovered_road_cell_coverage_frontier.py'
+      - 'grand-bruxelles-game/tools/tests/test_registered_cell_manifest_index_semantic_hash.py'
       - 'grand-bruxelles-game/data/osm/**'
       - 'grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json'
       - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
@@ -24,6 +26,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify registered cell index semantic integrity
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/validate_registered_cell_manifest_index.py
+          python tools/tests/test_registered_cell_manifest_index_semantic_hash.py
       - name: Run fail-closed regressions
         working-directory: grand-bruxelles-game
         run: python tools/tests/test_discovered_road_cell_coverage_frontier.py

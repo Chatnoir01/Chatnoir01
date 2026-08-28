@@ -10,6 +10,8 @@ EXPECTED = {
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_rail_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_corridor_tree_runtime.gd": "_on_tree_node_removed",
+    "game/scripts/brussels_street_lamp_runtime.gd": "_on_node_removed",
+    "game/scripts/brussels_bollard_runtime.gd": "_on_node_removed",
 }
 
 

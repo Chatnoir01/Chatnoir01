@@ -89,7 +89,31 @@ def main() -> None:
     if release_body.count("remove_meta(MATERIAL_OWNER_META)") < 2:
         fail("teardown does not release generated and official owner metadata")
 
-    print("BRUSSELS_OSM_SIDEWALK_MATERIAL_OWNERSHIP_OK: foreign_owner_preserved=true reenable_owner_aware=true teardown_owner_aware=true")
+    ready_body = function_body(source, "_ready")
+    if "get_tree().node_removed.is_connected(_on_node_removed)" not in ready_body or "get_tree().node_removed.connect(_on_node_removed)" not in ready_body:
+        fail("sidewalk runtime does not subscribe to individual node removal")
+
+    exit_body = function_body(source, "_exit_tree")
+    if "tree.node_removed.is_connected(_on_node_removed)" not in exit_body or "tree.node_removed.disconnect(_on_node_removed)" not in exit_body:
+        fail("sidewalk runtime does not disconnect node removal watcher on teardown")
+
+    removed_body = function_body(source, "_on_node_removed")
+    if not removed_body:
+        fail("individual sidewalk node removal cleanup helper missing")
+    for token in (
+        "_sidewalks.erase(node)",
+        "_legacy_materials.erase(instance_id)",
+        "_owned_materials.erase(instance_id)",
+        "_original_transforms.erase(instance_id)",
+        "_original_sizes.erase(instance_id)",
+        "_official_sidewalks.erase(instance_id)",
+        "_official_legacy_materials.erase(instance_id)",
+        "_official_owned_materials.erase(instance_id)",
+    ):
+        if token not in removed_body:
+            fail(f"individual sidewalk removal leaves stale lifecycle state: missing {token}")
+
+    print("BRUSSELS_OSM_SIDEWALK_MATERIAL_OWNERSHIP_OK: foreign_owner_preserved=true reenable_owner_aware=true teardown_owner_aware=true node_removal_cleanup=true")
 
 
 if __name__ == "__main__":

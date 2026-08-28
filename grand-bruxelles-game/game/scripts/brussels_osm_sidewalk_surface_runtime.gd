@@ -32,6 +32,8 @@ func _ready() -> void:
     _tearing_down = false
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
+    if not get_tree().node_removed.is_connected(_on_node_removed):
+        get_tree().node_removed.connect(_on_node_removed)
     call_deferred("_schedule_sidewalk_bind")
 
 func _exit_tree() -> void:
@@ -39,6 +41,8 @@ func _exit_tree() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+    if tree != null and tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.disconnect(_on_node_removed)
     _release_material_ownership()
 
 func _owns_material_metadata(node: Node) -> bool:
@@ -196,6 +200,21 @@ func _on_node_added(node: Node) -> void:
         return
     if _is_generated_roads_root(node) or _is_generated_sidewalk_child(node):
         _schedule_sidewalk_bind()
+
+func _on_node_removed(node: Node) -> void:
+    if node == null:
+        return
+    var instance_id := node.get_instance_id()
+    if node is CSGBox3D:
+        _sidewalks.erase(node)
+        _legacy_materials.erase(instance_id)
+        _owned_materials.erase(instance_id)
+        _original_transforms.erase(instance_id)
+        _original_sizes.erase(instance_id)
+    if _official_sidewalks.get(instance_id) == node:
+        _official_sidewalks.erase(instance_id)
+        _official_legacy_materials.erase(instance_id)
+        _official_owned_materials.erase(instance_id)
 
 func _scan_existing_official_sidewalks() -> void:
     var ixelles := get_tree().root.find_child(str(IXELLES_TARGET_NAME), true, false)

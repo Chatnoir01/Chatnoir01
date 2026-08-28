@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_PATH = ROOT / "data" / "qa" / "shared_environment_lifecycle_contract.json"
+CONTRACT_PATH = ROOT / "data" / "qa" / "shared_environment_owned_child_runtime_lifecycle_contract.json"
 
 EXPECTED_CHILD = {
     "path": "game/scripts/midi_fonsny_full_entrance_runtime.gd",
@@ -38,7 +38,17 @@ def function_body(source: str, function_name: str) -> str:
 
 
 def main() -> None:
+    if not CONTRACT_PATH.is_file():
+        fail("owned child runtime lifecycle contract missing")
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    if contract.get("schema") != "grand-bruxelles-shared-environment-owned-child-runtime-lifecycle-v1":
+        fail("owned child runtime lifecycle schema mismatch")
+    if contract.get("scope") != "shared_environment_owned_child_runtime_lifecycle_only":
+        fail("owned child runtime lifecycle scope mismatch")
+    if contract.get("central_lifecycle_gate_required") is not True:
+        fail("owned child lifecycle must remain a required Shared Environment gate")
+    if contract.get("geometry_or_material_change_authorized") is not False:
+        fail("owned child lifecycle contract must not authorize geometry/material changes")
     if contract.get("owned_child_runtime_teardown_cleanup_required") is not True:
         fail("owned child runtime teardown lifecycle rail missing")
     if contract.get("registered_owned_child_runtime_count") != 1:

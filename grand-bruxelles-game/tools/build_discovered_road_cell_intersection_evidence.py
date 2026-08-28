@@ -140,6 +140,14 @@ def _cell_rows(root: Path, cells: dict[str, Any]) -> list[dict[str, Any]]:
         manifest = root / manifest_path
         if not manifest.is_file() or sha256_file(manifest) != manifest_sha:
             raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell manifest sha drift")
+        manifest_doc = load_json(manifest)
+        if (
+            manifest_doc.get("format") != "grand-bruxelles-cell-maturity-v1"
+            or manifest_doc.get("cell_id") != entry.get("cell_id")
+            or manifest_doc.get("crs") != TARGET_CRS
+            or manifest_doc.get("bbox") != bbox
+        ):
+            raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell manifest content drift")
         result.append({"cell_id": entry.get("cell_id"), "crs": TARGET_CRS, "bbox": bbox, "manifest_path": manifest_path, "manifest_sha256": manifest_sha})
     return sorted(result, key=lambda row: str(row["cell_id"]))
 

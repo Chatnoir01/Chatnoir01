@@ -70,9 +70,27 @@ jobs:
           git cat-file -e "${MIGRATION_BASE_SHA}^{commit}"
           git merge-base --is-ancestor "$IMPACT_BASE_SHA" "$LIVE_MAIN_SHA"
           git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"
+          IMPACT_HISTORICAL_CROSSWALK="$RUNNER_TEMP/brussels-road-registered-cell-crosswalk-impact-historical.json"
+          git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$IMPACT_HISTORICAL_CROSSWALK"
+          python3 - "$IMPACT_HISTORICAL_CROSSWALK" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=json.load(open(sys.argv[1]))
+          c=json.loads(Path('grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json').read_text())
+          assert d['mapped_road_count']==c['locked_evidence']['accounting']['current_mapped_road_count']==56
+          assert len(d['rows'])==56
+          assert d['road_cell_mapping_authorized'] is False
+          assert d['runtime_mount_authorized'] is False
+          assert d['rendered_geometry_authorized'] is False
+          assert d['collision_authorized'] is False
+          assert d['safe_spawn_authorized'] is False
+          assert d['jouable_promotion_authorized'] is False
+          print('CORRECTED_FRAME_MATERIALIZATION_HISTORICAL_CROSSWALK_OK rows=56')
+          PY
           echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
           echo "MIGRATION_BASE_SHA=$MIGRATION_BASE_SHA" >> "$GITHUB_ENV"
           echo "MIGRATION_SEMANTIC=$MIGRATION_SEMANTIC" >> "$GITHUB_ENV"
+          echo "IMPACT_HISTORICAL_CROSSWALK=$IMPACT_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
       - name: Recompute corrected-frame impact
         working-directory: grand-bruxelles-game
         run: >-
@@ -80,6 +98,7 @@ jobs:
           --contract data/qa/osm_road_frame_correction_impact.contract.json
           --repo-root .
           --live-main-sha "$IMPACT_BASE_SHA"
+          --current-crosswalk "$IMPACT_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/osm-road-frame-impact.json"
       - name: Recompute locked migration plan at historical evidence base
         working-directory: grand-bruxelles-game

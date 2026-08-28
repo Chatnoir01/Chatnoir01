@@ -21,14 +21,17 @@ REQUIRED_EVIDENCE = [
     "locked_cell_manifest_identity",
     "explicit_municipality_provenance",
 ]
-CLOSED_KEYS = (
-    "source_registration_authorized",
-    "road_cell_mapping_authorized",
+UPSTREAM_CLOSED_KEYS = (
     "render_authorized",
     "collision_authorized",
     "runtime_mount_authorized",
     "safe_spawn_authorized",
     "jouable_authorized",
+)
+FRONTIER_CLOSED_KEYS = (
+    "source_registration_authorized",
+    "road_cell_mapping_authorized",
+    *UPSTREAM_CLOSED_KEYS,
 )
 
 
@@ -54,8 +57,8 @@ def load_module(path: Path, name: str):
     return module
 
 
-def require_closed(mapping: dict[str, Any], label: str) -> None:
-    for key in CLOSED_KEYS:
+def require_closed(mapping: dict[str, Any], keys: tuple[str, ...], label: str) -> None:
+    for key in keys:
         if mapping.get(key) is not False:
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: {label} opened {key}")
 
@@ -70,12 +73,12 @@ def _build_frontier_unchecked(
     binding_builder = load_module(binding_builder_path, "road_provenance_binding_frontier")
     binding = binding_builder.build_binding(source_root, readiness, catalog_builder)
     binding_builder.validate_binding(binding)
-    require_closed(binding.get("authorization") or {}, "upstream binding")
+    require_closed(binding.get("authorization") or {}, UPSTREAM_CLOSED_KEYS, "upstream binding")
 
     audit_builder = load_module(municipality_audit_builder_path, "road_municipality_audit_frontier")
     audit = audit_builder.build_audit(source_root, readiness, catalog_builder, binding_builder_path)
     audit_builder.validate_audit(audit)
-    require_closed(audit.get("authorization") or {}, "upstream municipality audit")
+    require_closed(audit.get("authorization") or {}, UPSTREAM_CLOSED_KEYS, "upstream municipality audit")
 
     if audit.get("upstream_binding_sha256") != binding.get("binding_sha256"):
         raise SystemExit("ROAD_ACQUISITION_FRONTIER_FAIL: upstream binding/audit identity drift")
@@ -89,7 +92,7 @@ def _build_frontier_unchecked(
         row = (binding.get("entries") or {}).get(str(road_id))
         if not isinstance(row, dict) or row.get("state") != "DISCOVERED":
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: discovered source binding drift {road_id}")
-        require_closed(row, f"road {road_id}")
+        require_closed(row, UPSTREAM_CLOSED_KEYS, f"road {road_id}")
         if row.get("cell_id") is not None or row.get("municipalities") is not None:
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: discovered road already carries inferred assignment {road_id}")
         geometry_sha = str(row.get("source_geometry_sha256") or "").lower()
@@ -184,7 +187,7 @@ def validate_structure(frontier: dict[str, Any]) -> None:
     auth = frontier.get("authorization") or {}
     if auth.get("evidence_only") is not True:
         raise SystemExit("ROAD_ACQUISITION_FRONTIER_FAIL: evidence-only rail missing")
-    require_closed(auth, "frontier")
+    require_closed(auth, FRONTIER_CLOSED_KEYS, "frontier")
 
     stored = str(frontier.get("frontier_sha256") or "").lower()
     unsigned = dict(frontier)

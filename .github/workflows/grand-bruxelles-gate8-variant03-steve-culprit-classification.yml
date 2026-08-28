@@ -1,0 +1,85 @@
+name: Grand Bruxelles Gate-8 Variant03 Steve Culprit Classification
+on:
+  push:
+    branches: ["npc/gate8-variant03-steve-skin-culprit-20260827"]
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-gate8-variant03-steve-culprit-classification.yml'
+      - '.github/workflows/grand-bruxelles-gate8-variant03-steve-boundary-ab-plan.yml'
+      - '.github/workflows/grand-bruxelles-gate8-variant03-steve-shoulder-ab.yml'
+      - '.github/workflows/grand-bruxelles-gate8-variant03-steve-hand-ab.yml'
+      - 'grand-bruxelles-game/data/qa/gate8_variant03_steve_skin_culprit.json'
+      - 'grand-bruxelles-game/game/tests/gate8_variant03_steve_shoulder_ab_test.gd'
+      - 'grand-bruxelles-game/game/tests/gate8_variant03_steve_hand_ab_test.gd'
+      - 'grand-bruxelles-game/tools/qa/classify_gate8_variant03_steve_skin_culprits.py'
+      - 'grand-bruxelles-game/tools/qa/plan_gate8_variant03_steve_boundary_ab.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  classify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_ARTIFACT_ID: "9661224043"
+      SOURCE_ARTIFACT_DIGEST: sha256:c44b7a008e646cdcbc2b6ef41d37e9586855f45f43d73e193dec0287e3680bca
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live main, bounded Character/NPC scope and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-boundary-ab-plan.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-culprit-classification.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-hand-ab.yml' \
+            '.github/workflows/grand-bruxelles-gate8-variant03-steve-shoulder-ab.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant03_steve_skin_culprit.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant03_steve_hand_ab_test.gd' \
+            'grand-bruxelles-game/game/tests/gate8_variant03_steve_shoulder_ab_test.gd' \
+            'grand-bruxelles-game/tools/qa/classify_gate8_variant03_steve_skin_culprits.py' \
+            'grand-bruxelles-game/tools/qa/plan_gate8_variant03_steve_boundary_ab.py' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' "$LIVE_MAIN" > "$RUNNER_TEMP/live-main.txt"
+      - name: Verify and download immutable culprit artifact
+        env: {GH_TOKEN: "${{ github.token }}"}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}" > "$RUNNER_TEMP/artifact.json"
+          python3 - "$RUNNER_TEMP/artifact.json" "$SOURCE_ARTIFACT_DIGEST" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1])); assert not p.get('expired',True); assert p.get('digest')==sys.argv[2]
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/artifact.zip"
+          unzip -q "$RUNNER_TEMP/artifact.zip" -d "$RUNNER_TEMP/artifact"
+          test -s "$RUNNER_TEMP/artifact/godot-result.json"
+      - name: Classify exact culprit families
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/qa/classify_gate8_variant03_steve_skin_culprits.py "$RUNNER_TEMP/artifact/godot-result.json" "$RUNNER_TEMP/classification.json" | tee "$RUNNER_TEMP/classification.log"
+          grep -q 'MULTIPLE_RIGHT_ARM_SKIN_BOUNDARIES_CONFIRMED' "$RUNNER_TEMP/classification.log"
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant03-steve-culprit-classification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/artifact.json
+            ${{ runner.temp }}/classification.json
+            ${{ runner.temp }}/classification.log
+          retention-days: 14

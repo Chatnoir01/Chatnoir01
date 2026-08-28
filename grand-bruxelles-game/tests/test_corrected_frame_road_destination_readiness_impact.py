@@ -164,31 +164,33 @@ class CorrectedFrameDestinationImpactTests(unittest.TestCase):
                     "b" * 40,
                 )
 
-    def test_workflow_replays_locked_materialization_at_historical_base(self):
+    def test_workflow_replays_locked_materialization_from_historical_crosswalk(self):
         workflow = (
             Path(__file__).resolve().parents[2]
             / ".github/workflows/grand-bruxelles-corrected-frame-road-destination-impact.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("MATERIALIZATION_BASE_SHA", workflow)
-        self.assertIn("materialization['production_base_sha']", workflow)
-        self.assertIn('git merge-base --is-ancestor "$MATERIALIZATION_BASE_SHA" "$LIVE_MAIN_SHA"', workflow)
+        self.assertIn("MATERIALIZATION_EVIDENCE_BASE_SHA", workflow)
+        self.assertIn("materialization['locked_evidence']['production_base_sha']", workflow)
+        self.assertIn('git merge-base --is-ancestor "$sha" "$LIVE_MAIN_SHA"', workflow)
+        self.assertIn('git show "$MATERIALIZATION_EVIDENCE_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"', workflow)
         materialize_step = workflow.split("- name: Materialize locked corrected-frame crosswalk candidate", 1)[1].split(
             "- name: Measure destination readiness impact", 1
         )[0]
-        self.assertIn('--production-base-sha "$MATERIALIZATION_BASE_SHA"', materialize_step)
-        self.assertNotIn('--production-base-sha "$LIVE_MAIN_SHA"', materialize_step)
+        self.assertIn('--production-base-sha "$LIVE_MAIN_SHA"', materialize_step)
+        self.assertIn('--current-crosswalk "$MATERIALIZATION_HISTORICAL_CROSSWALK"', materialize_step)
 
     def test_workflow_locks_semantics_not_continuity_mutable_bytes(self):
         workflow = (
             Path(__file__).resolve().parents[2]
             / ".github/workflows/grand-bruxelles-corrected-frame-road-destination-impact.yml"
         ).read_text(encoding="utf-8")
-        lock_step = workflow.split("- name: Enforce content-addressed impact lock", 1)[1]
+        lock_step = workflow.split("- name: Enforce semantic impact lock with historical bytes retained", 1)[1]
         self.assertIn("semantic_sha256", lock_step)
         self.assertIn("locked['accounting']", lock_step)
         self.assertIn("historical_measurement_bytes_retained_for_forensics", lock_step)
         self.assertNotIn("assert measurement_sha==locked['measurement_sha256']", lock_step)
         self.assertIn("production_base_sha", lock_step)
+        self.assertIn("SEMANTIC_CONTINUITY_OK", lock_step)
 
 
 if __name__ == "__main__":

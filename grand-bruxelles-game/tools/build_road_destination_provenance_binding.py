@@ -96,6 +96,33 @@ def normalize_municipalities(raw: Any, road_id: int) -> list[dict[str, Any]]:
     return result
 
 
+def municipalities_from_manifest_provenance(provenance: Any, road_id: int) -> list[dict[str, Any]]:
+    """Normalize both canonical cell municipality provenance shapes without inference.
+
+    Boundary cells carry the explicit municipality_intersections list. Cells wholly
+    inside one municipality carry the canonical singular municipality fields. Both
+    are authoritative fields already present in the locked cell manifest; no spatial
+    or semantic value is guessed here.
+    """
+    if not isinstance(provenance, dict):
+        raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: missing cell manifest provenance {road_id}")
+    intersections = provenance.get("municipality_intersections")
+    if intersections is not None:
+        return normalize_municipalities(intersections, road_id)
+
+    nis = str(provenance.get("municipality_niscode") or "")
+    inspire = str(provenance.get("municipality_id") or "")
+    try:
+        ratio = float(provenance.get("municipality_coverage_ratio"))
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: invalid singular municipality provenance {road_id}") from exc
+    if not nis or not inspire or abs(ratio - 1.0) > 1e-9:
+        raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: invalid singular municipality provenance {road_id}")
+    return normalize_municipalities(
+        [{"niscode": nis, "inspire_id": inspire, "coverage_ratio": ratio}], road_id
+    )
+
+
 def verify_cell_manifest(project_root: Path, destination: dict[str, Any], road_id: int) -> list[dict[str, Any]]:
     cell_id = str(destination.get("cell_id") or "")
     grid_cell_id = str(destination.get("grid_cell_id") or "")
@@ -118,9 +145,7 @@ def verify_cell_manifest(project_root: Path, destination: dict[str, Any], road_i
         raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: cell manifest CRS drift {road_id}")
     if manifest.get("bbox") != destination.get("cell_bbox"):
         raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: cell manifest bbox drift {road_id}")
-    manifest_municipalities = normalize_municipalities(
-        (manifest.get("provenance") or {}).get("municipality_intersections"), road_id
-    )
+    manifest_municipalities = municipalities_from_manifest_provenance(manifest.get("provenance"), road_id)
     destination_municipalities = normalize_municipalities(destination.get("municipalities"), road_id)
     if manifest_municipalities != destination_municipalities:
         raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: cell municipality provenance drift {road_id}")

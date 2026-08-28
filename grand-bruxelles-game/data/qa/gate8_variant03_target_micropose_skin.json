@@ -1,7 +1,7 @@
 {
   "format": "grand-bruxelles-gate8-variant03-target-micropose-skin-v1",
   "base_main_sha": "2e260db212000912c8dfec9ba349dd11a5b568a3",
-  "state": "PENDING_TARGET_MICROPOSE_MEASUREMENT",
+  "state": "TARGET_MICROPOSE_SKIN_BLOCKED",
   "purpose": "target_only_controlled_micropose_skin_sanity_after_two_source_pairings_failed_skin_space",
   "target": {
     "variant": 3,
@@ -70,6 +70,39 @@
     "max_foot_drift_m": 0.000001,
     "max_rest_position_drift_m": 0.000001,
     "max_rest_rotation_drift_deg": 0.0001
+  },
+  "exact_current_evidence": {
+    "run": 33132917367,
+    "head_sha": "79e03a7b8f0aa90856e3dc18b3d37f515a948348",
+    "artifact_id": 9670949476,
+    "artifact_digest": "sha256:8ab197e8ba4f4780ac822fea7c57c7ac76ed3dc420017a3e6f4e143f1d1894d4",
+    "diagnostic_state": "TARGET_MICROPOSE_SKIN_BLOCKED",
+    "case_count": 54,
+    "blocked_case_count": 52,
+    "max_edge_absolute_change_m": 1.09717407077551,
+    "max_edge_stretch_ratio": 78.8646604509636,
+    "min_edge_compression_ratio": 0.0837286868392186,
+    "max_foot_drift_m": 0.0,
+    "rest_position_drift_m": 0.0,
+    "rest_rotation_drift_deg": 0.0,
+    "worst_case": "right_shoulder_z_minus5deg",
+    "worst_edge": {
+      "surface": "/root/npc_gate_03/npc_gate_03_gate8_export/Skeleton3D/Human_female_sportsuit01_004_gate8_export#0",
+      "surface_index": 0,
+      "triangle": 1438,
+      "edge": "20",
+      "vertex_a": 746,
+      "vertex_b": 401,
+      "rest_length_m": 0.0239012017846107,
+      "posed_length_m": 1.12107527256012,
+      "absolute_edge_length_change_m": 1.09717407077551,
+      "stretch_ratio": 46.9045566270206
+    },
+    "two_green_cases": [
+      "upper_chest_x_minus5deg",
+      "upper_chest_y_minus5deg"
+    ],
+    "next_safe_axis": "REJECT_VARIANT03_DYNAMIC_TARGET_SKIN_OR_REWEIGHT_REQUIRED"
   },
   "rails": {
     "walk_alias_selected": "",

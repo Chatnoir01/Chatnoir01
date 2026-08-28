@@ -1,6 +1,6 @@
 {
   "schema": "grand-bruxelles-grand-place-corrected-road-frame-cell-contract-v1",
-  "status": "RED_FIRST_CORRECTED_FRAME_CELL_PENDING",
+  "status": "LOCKED_CORRECTED_FRAME_CELL_MEASUREMENT",
   "production_base_sha": "88865eb34934f2dfa1efd6677d7906930ec4b3bd",
   "zone": "grand_place",
   "target": {
@@ -29,6 +29,66 @@
     "grid_size_m": 500,
     "road_cell_intersection": "point hits plus Liang-Barsky segment/bbox intersection",
     "frame_adoption": "evidence_only"
+  },
+  "locked_measurement": {
+    "workflow_run_id": 33128511499,
+    "artifact_id": 9669327043,
+    "artifact_zip_sha256": "24e9835fafc390a8f44d926ef0cc7632f13011762edef9892d4071ebd5fb45a7",
+    "artifact_zip_bytes": 2319,
+    "measurement_sha256": "c7dd0292a8c7e0bde3a4f4c63e29665b03bc0db9d500be0d8b9dd8ba59a652fa",
+    "measurement_bytes": 8489,
+    "semantic_sha256": "fc31a2631590ddc89cffff43e7f2df4e93c37f7bd05383fcb0c33a9fc21e2679",
+    "anchor": {
+      "official_grid_cell_id": "E148500_N170500",
+      "official_lambert72": [148852.74417614136, 170704.8857889818],
+      "historical_lambert72": [148187.304228, 170073.824149],
+      "historical_grid_cell_id": "E148000_N170000",
+      "historical_inside_target": false,
+      "corrected_lambert72": [148857.372136, 170700.996688],
+      "corrected_grid_cell_id": "E148500_N170500",
+      "corrected_inside_target": true,
+      "corrected_to_official_delta_m": [4.62796, -3.889101],
+      "corrected_to_official_distance_m": 6.04509
+    },
+    "road_accounting": {
+      "source_road_count": 140,
+      "historical_target_intersecting_road_count": 0,
+      "historical_target_road_ids": [],
+      "corrected_target_intersecting_road_count": 14,
+      "corrected_target_road_ids": [
+        8512036,
+        8512040,
+        12357557,
+        13842686,
+        14391825,
+        40581330,
+        356328311,
+        402788142,
+        411724192,
+        510202247,
+        591894649,
+        684214770,
+        691649674,
+        860225856
+      ]
+    },
+    "representative_hits": {
+      "13842686": {
+        "historical": {"point_hits": 0, "segment_hits": 0},
+        "corrected": {"point_hits": 6, "segment_hits": 5}
+      },
+      "684214770": {
+        "historical": {"point_hits": 0, "segment_hits": 0},
+        "corrected": {"point_hits": 3, "segment_hits": 2}
+      }
+    }
+  },
+  "review_verdict": {
+    "status": "LOCKED_GRAND_PLACE_CELL_IDENTITY_CORRECTED_FRAME_CANDIDATE",
+    "historical_frame_matches_official_grand_place_cell": false,
+    "corrected_frame_candidate_matches_official_grand_place_cell": true,
+    "shared_frame_adoption_decision": "HOLD_SEPARATE_REVIEW_REQUIRED",
+    "reason": "The corrected candidate places the local Grand-Place anchor in the authoritative E148500_N170500 cell within 6.04509 m of the official anchor and moves exactly the 14 previously reconciled duplicate OSM roads into that cell. This lot proves Grand-Place cell identity only and does not authorize shared frame adoption."
   },
   "authorization": {
     "shared_frame_change_authorized": false,

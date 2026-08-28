@@ -8,6 +8,8 @@ extends Node
 
 const IDENTITY_PATH := "res://data/visual/midi_fonsny_full_entrance_identity.json"
 const REPLACEMENT_NAME := "EntranceSourceBackedFonsnyPorch"
+const VISIBILITY_OWNER_META := "fonsny_visibility_owner"
+const VISIBILITY_OWNER_VALUE := "midi_fonsny_full_entrance_runtime"
 const CANOPY_SIZE := Vector3(17.8, 0.48, 25.0)
 const CANOPY_POSITION := Vector3(-7.0, 4.55, 0.0)
 const SUPERSEDED_EXACT := ["EntranceBlueStoneWall", "EntranceGlazing", "EntranceConcreteCanopy", "CanopyMetalEdge"]
@@ -26,6 +28,7 @@ var _replacement_enabled := false
 var _entrance: Node3D
 var _replacement: Node3D
 var _superseded: Array[Node3D] = []
+var _original_visibility: Dictionary = {}
 var _tearing_down := false
 
 func _ready() -> void:
@@ -96,6 +99,9 @@ func _build_when_parent_ready() -> void:
         _release_owned_replacement()
         return
     set_replacement_enabled(true)
+    if _build_failure:
+        _release_owned_replacement()
+        return
     _built = true
     print("MIDI_FONSNY_FULL_ENTRANCE_READY bays=3 canopy_panels=%d polygonal_columns=4 source_urban_id=9423" % [X_CELLS * Z_CELLS])
 
@@ -107,14 +113,13 @@ func _release_owned_replacement() -> void:
             replacement_parent.remove_child(_replacement)
         _replacement.queue_free()
     else:
-        for node in _superseded:
-            if is_instance_valid(node):
-                node.visible = true
+        _release_superseded_visibility_ownership()
     _replacement = null
     _replacement_enabled = false
     _built = false
     _entrance = null
     _superseded.clear()
+    _original_visibility.clear()
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):
@@ -155,6 +160,7 @@ func _identity_allowed(identity: Dictionary) -> bool:
 
 func _collect_and_validate_superseded() -> bool:
     _superseded.clear()
+    _original_visibility.clear()
     for node_name in SUPERSEDED_EXACT:
         var node := _entrance.get_node_or_null(node_name) as Node3D
         if node == null:
@@ -317,13 +323,51 @@ func _build_replacement(blue_stone: Material, dark_glass: Material, concrete: Ma
         _add_polygonal_column(root, column_index, Vector3(-8.05, 2.15, float(column_z[column_index])), concrete)
     return root
 
-func set_replacement_enabled(enabled: bool) -> void:
-    _replacement_enabled = enabled
+func _claim_superseded_visibility_ownership() -> bool:
     for node in _superseded:
-        if is_instance_valid(node):
-            node.visible = not enabled
+        if not is_instance_valid(node):
+            continue
+        var owner := str(node.get_meta(VISIBILITY_OWNER_META, ""))
+        if owner != "" and owner != VISIBILITY_OWNER_VALUE:
+            _release_superseded_visibility_ownership()
+            return false
+        var instance_id := node.get_instance_id()
+        if not _original_visibility.has(instance_id):
+            _original_visibility[instance_id] = node.visible
+        node.set_meta(VISIBILITY_OWNER_META, VISIBILITY_OWNER_VALUE)
+        node.visible = false
+    return true
+
+func _release_superseded_visibility_ownership() -> void:
+    for node in _superseded:
+        if not is_instance_valid(node):
+            continue
+        var instance_id := node.get_instance_id()
+        if not _original_visibility.has(instance_id):
+            continue
+        if str(node.get_meta(VISIBILITY_OWNER_META, "")) != VISIBILITY_OWNER_VALUE:
+            continue
+        if not node.visible:
+            node.visible = bool(_original_visibility.get(instance_id, true))
+        node.remove_meta(VISIBILITY_OWNER_META)
+    _original_visibility.clear()
+
+func set_replacement_enabled(enabled: bool) -> void:
+    if enabled:
+        if not _claim_superseded_visibility_ownership():
+            _replacement_enabled = false
+            if _replacement != null and is_instance_valid(_replacement):
+                _replacement.visible = false
+            _fail("superseded Fonsny visibility already owned by another runtime")
+            return
+        _replacement_enabled = true
+        if _replacement != null and is_instance_valid(_replacement):
+            _replacement.visible = true
+        return
+    _release_superseded_visibility_ownership()
+    _replacement_enabled = false
     if _replacement != null and is_instance_valid(_replacement):
-        _replacement.visible = enabled
+        _replacement.visible = false
 
 func replacement_enabled() -> bool:
     return _replacement_enabled

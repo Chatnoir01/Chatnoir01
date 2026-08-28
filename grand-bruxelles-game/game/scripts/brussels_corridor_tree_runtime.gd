@@ -36,10 +36,14 @@ var _tearing_down := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
+    if not get_tree().node_removed.is_connected(_on_tree_node_removed):
+        get_tree().node_removed.connect(_on_tree_node_removed)
     call_deferred("_start_scene_watch")
 
 func _exit_tree() -> void:
     _tearing_down = true
+    if is_inside_tree() and get_tree().node_removed.is_connected(_on_tree_node_removed):
+        get_tree().node_removed.disconnect(_on_tree_node_removed)
     _disconnect_scene_watch()
     _release_owned_root()
     _scene = null
@@ -66,7 +70,7 @@ func _release_owned_root() -> void:
     _foliage_instance_count = 0
 
 func _process(_delta: float) -> void:
-    if _tearing_down or not _ready_complete or _failed or _scene == null or _source_positions.is_empty():
+    if _tearing_down or not _ready_complete or _failed or not is_instance_valid(_scene) or _source_positions.is_empty():
         return
     var anchor := _player_anchor()
     if not is_finite(anchor.x):
@@ -125,6 +129,15 @@ func _on_tree_node_added(node: Node) -> void:
     if str(node.name) not in ["GeneratedRoads", "UrbISMidiExact", "Player"]:
         return
     _try_bind_scene(_production_scene_from_node(node))
+
+func _on_tree_node_removed(node: Node) -> void:
+    if _tearing_down or _manual_binding or not _ready_complete or node != _scene:
+        return
+    _release_owned_root()
+    _scene = null
+    _ready_complete = false
+    _failed = false
+    call_deferred("_start_scene_watch")
 
 func _start_scene_watch() -> void:
     if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete:
@@ -188,7 +201,7 @@ func _xz_distance(a: Vector3, b: Vector3) -> float:
     return Vector2(a.x - b.x, a.z - b.z).length()
 
 func _player_anchor() -> Vector3:
-    if _scene == null:
+    if not is_instance_valid(_scene):
         return Vector3(INF, INF, INF)
     var player := _scene.get_node_or_null("Player") as Node3D
     if player == null:
@@ -268,7 +281,7 @@ func rebuild_visual_batches_for_anchor(anchor: Vector3) -> void:
 func _build() -> void:
     if _tearing_down:
         return
-    if _scene == null:
+    if not is_instance_valid(_scene):
         _fail("scene missing during build")
         return
     var data := _load_json(DATA_PATH)

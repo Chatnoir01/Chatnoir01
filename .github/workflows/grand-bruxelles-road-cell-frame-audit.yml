@@ -8,6 +8,9 @@ on:
       - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
       - 'grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json'
       - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json'
+      - 'grand-bruxelles-game/data/qa/osm_road_frame_correction_review.contract.json'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json'
       - 'grand-bruxelles-game/tools/qa/road_registered_cell_frame_audit.py'
       - 'grand-bruxelles-game/tools/qa/test_road_registered_cell_frame_audit.py'
       - '.github/workflows/grand-bruxelles-road-cell-frame-audit.yml'
@@ -42,6 +45,27 @@ jobs:
       - name: Run fail-closed frame regressions
         working-directory: grand-bruxelles-game/tools/qa
         run: python test_road_registered_cell_frame_audit.py
+      - name: Verify locked corrected-frame candidate provenance
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          crosswalk=json.loads((root/'data/provenance/brussels_road_registered_cell_crosswalk.json').read_text())
+          materialization=json.loads((root/'data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json').read_text())
+          assert crosswalk['destination_readiness']=='CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY'
+          assert materialization['schema']=='grand-bruxelles-corrected-frame-road-cell-crosswalk-materialization-contract-v1'
+          assert materialization['status']=='LOCKED_CANDIDATE_EVIDENCE_ONLY'
+          locked=materialization['locked_evidence']
+          source=materialization['source']
+          assert crosswalk['corrected_frame_candidate_semantic_sha256']==locked['semantic_sha256']
+          assert crosswalk['corrected_frame_source_sha256']==source['road_source_sha256']
+          assert crosswalk['mapped_road_count']==locked['candidate_unique_mapped_road_count']==96
+          assert len(crosswalk.get('excluded_multicell_road_ids') or [])==locked['candidate_multicell_road_count']==2
+          assert all(v is False for v in materialization['authorization'].values())
+          print(f"CORRECTED_FRAME_LOCKED_CANDIDATE_BOUND_OK semantic={locked['semantic_sha256']} rows={locked['candidate_unique_mapped_road_count']} holds={locked['candidate_multicell_road_count']}")
+          PY
       - name: Measure current road-to-Lambert72 frame readiness
         run: |
           set -euo pipefail
@@ -51,6 +75,7 @@ jobs:
             --cell-index grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
             --crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
             --coverage grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json \
+            --corrected-frame-contract grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json \
             --report "$RUNNER_TEMP/road-cell-frame-audit/report.json" | tee "$RUNNER_TEMP/road-cell-frame-audit/run.log"
           python - <<'PY'
           import hashlib, json, os
@@ -68,6 +93,7 @@ jobs:
           assert r['registered_cell_crs']=='EPSG:31370', r
           assert r['road_cell_crosswalk_present'] is True, r
           assert r['external_coverage_frame_bound'] is True, r
+          assert r['spatial_evidence_basis']=='locked_corrected_source_geometry', r
           assert all(v is False for k,v in r.items() if k.endswith('_authorized')), r
           frames={f['path']:f for f in r['source_frames']}
           for descriptor in documents:
@@ -75,7 +101,7 @@ jobs:
               assert hashlib.sha256((root/path).read_bytes()).hexdigest()==expected
               assert frame['sha256']==expected
               assert frame['origin']=={'lat':50.8419,'lon':4.348}
-          print(f"ROAD_CELL_FRAME_CROSSWALK_BOUND_OK roads={expected_road_count} cells={len(entries)} external_frame=true crosswalk=true runtime=false")
+          print(f"ROAD_CELL_FRAME_CROSSWALK_BOUND_OK roads={expected_road_count} cells={len(entries)} spatial_basis=locked_corrected_source_geometry crosswalk=true runtime=false")
           PY
       - name: Upload coordinate-frame proof
         uses: actions/upload-artifact@v4

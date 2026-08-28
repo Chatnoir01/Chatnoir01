@@ -7,6 +7,8 @@ on:
       - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
       - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
       - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json'
+      - 'grand-bruxelles-game/data/qa/corrected_frame_destination_production_apply.contract.json'
       - 'grand-bruxelles-game/tools/qa/build_road_registered_cell_crosswalk.py'
       - 'grand-bruxelles-game/tools/qa/test_build_road_registered_cell_crosswalk.py'
       - '.github/workflows/grand-bruxelles-road-registered-cell-crosswalk.yml'
@@ -40,64 +42,67 @@ jobs:
       - name: Run road-cell crosswalk regressions
         working-directory: grand-bruxelles-game/tools/qa
         run: python test_build_road_registered_cell_crosswalk.py
-      - name: Regenerate deterministic crosswalk
+      - name: Validate persisted crosswalk lifecycle and semantic identity
+        env:
+          PERSISTED: grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
         run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          p=Path(os.environ['PERSISTED']); raw=p.read_bytes(); d=json.loads(raw)
+          basis=dict(d); embedded=basis.pop('semantic_sha256',None)
+          digest=hashlib.sha256(json.dumps(basis,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          if embedded != digest:
+              raise SystemExit(f'RED: embedded road-cell semantic digest does not match full canonical payload: {embedded} != {digest}')
+          phase=d.get('destination_readiness')
+          if phase == 'ROAD_CELL_CROSSWALK_EVIDENCE_ONLY':
+              print('ROAD_CELL_CROSSWALK_PHASE=legacy semantic='+digest)
+          elif phase == 'CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY':
+              materialization=json.load(open('grand-bruxelles-game/data/qa/corrected_frame_road_cell_crosswalk_materialization.contract.json'))
+              staging=json.load(open('grand-bruxelles-game/data/qa/corrected_frame_destination_production_apply.contract.json'))
+              assert materialization['status']=='LOCKED_CANDIDATE_EVIDENCE_ONLY'
+              assert d['corrected_frame_candidate_semantic_sha256']==materialization['locked_evidence']['semantic_sha256']=='9fca92b20a3a45b8d9d8c8740a3e355cf993d9961797ed5a8e1a13f14989b173'
+              assert d['corrected_frame_source_sha256']==materialization['source']['road_source_sha256']=='899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398'
+              assert staging['status']=='LOCKED_STAGED_PAIR_EVIDENCE_ONLY_V2'
+              assert digest==staging['locked_staged_evidence_v2']['crosswalk_semantic_sha256']=='8c95f77f232b283aa067d897e6eca318eee5194a2048a1fd350f60f95fa539f2'
+              assert d['mapped_road_count']==len(d['rows'])==96
+              assert d['mapped_cell_count']==len({r['cell_id'] for r in d['rows']})==4
+              assert d['excluded_multicell_road_ids']==[256158619,397461693]
+              ids={int(r['road_osm_id']) for r in d['rows']}; assert len(ids)==96 and not ({256158619,397461693}&ids)
+              print('ROAD_CELL_CROSSWALK_PHASE=corrected-frame semantic='+digest+' rows=96 cells=4')
+          else:
+              raise SystemExit(f'RED: unsupported road-cell crosswalk lifecycle phase: {phase!r}')
+          for key,value in d.items():
+              if key.endswith('_authorized') and value is not False:
+                  raise SystemExit(f'RED: crosswalk authorization opened: {key}')
+          print('ROAD_CELL_CROSSWALK_PERSISTED_SEMANTIC_SELF_CONSISTENT raw_sha256='+hashlib.sha256(raw).hexdigest())
+          PY
+      - name: Regenerate legacy deterministic crosswalk only before corrected-frame migration
+        run: |
+          set -euo pipefail
+          PHASE="$(python -c 'import json; print(json.load(open("grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json"))["destination_readiness"])')"
+          if [ "$PHASE" = 'CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY' ]; then
+            echo 'LEGACY_56_3_REGEN_SKIPPED corrected-frame lifecycle is governed by locked materialization + staged-pair replay'
+            exit 0
+          fi
+          test "$PHASE" = 'ROAD_CELL_CROSSWALK_EVIDENCE_ONLY'
           python grand-bruxelles-game/tools/qa/build_road_registered_cell_crosswalk.py \
             --coverage grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json \
             --cells grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
             --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
             --output /tmp/brussels_road_registered_cell_crosswalk.json
-      - name: Upload regenerated crosswalk before lock decision
-        uses: actions/upload-artifact@v4
-        with:
-          name: brussels-road-registered-cell-crosswalk-candidate
-          path: /tmp/brussels_road_registered_cell_crosswalk.json
-          if-no-files-found: error
-          compression-level: 0
-      - name: Require exact persisted semantic lock
-        env:
-          PERSISTED: grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
-          CANDIDATE: /tmp/brussels_road_registered_cell_crosswalk.json
-        run: |
-          set -euo pipefail
           python - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          def semantic_digest(payload):
-              basis = dict(payload)
-              embedded = basis.pop("semantic_sha256", None)
-              digest = hashlib.sha256(
-                  json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-              ).hexdigest()
-              if embedded != digest:
-                  raise SystemExit(
-                      f"RED: embedded road-cell semantic digest does not match full canonical payload: {embedded} != {digest}"
-                  )
+          import hashlib,json
+          p='grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+          c='/tmp/brussels_road_registered_cell_crosswalk.json'
+          def sem(path):
+              d=json.load(open(path)); b=dict(d); embedded=b.pop('semantic_sha256',None)
+              digest=hashlib.sha256(json.dumps(b,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+              assert embedded==digest
               return digest
-
-          persisted_path = Path(os.environ["PERSISTED"])
-          candidate_path = Path(os.environ["CANDIDATE"])
-          persisted_bytes = persisted_path.read_bytes()
-          candidate_bytes = candidate_path.read_bytes()
-          persisted = json.loads(persisted_bytes)
-          candidate = json.loads(candidate_bytes)
-
-          persisted_semantic = semantic_digest(persisted)
-          candidate_semantic = semantic_digest(candidate)
-          if persisted_semantic != candidate_semantic:
-              raise SystemExit(
-                  f"RED: persisted/candidate road-cell semantic drift: {persisted_semantic} != {candidate_semantic}"
-              )
-
-          print(
-              "ROAD_CELL_CROSSWALK_LOCK_SEMANTIC_EXACT "
-              f"semantic_sha256={persisted_semantic} "
-              f"persisted_raw_sha256={hashlib.sha256(persisted_bytes).hexdigest()} "
-              f"candidate_raw_sha256={hashlib.sha256(candidate_bytes).hexdigest()}"
-          )
+          assert sem(p)==sem(c)
+          print('ROAD_CELL_CROSSWALK_LEGACY_LOCK_SEMANTIC_EXACT',sem(p))
           PY
       - name: Validate existing handshake fail-closed rails
         working-directory: grand-bruxelles-game/tools/qa

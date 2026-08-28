@@ -37,12 +37,10 @@ jobs:
       - name: Prove PR readiness gate cannot self-mutate
         run: python grand-bruxelles-game/tests/test_road_readiness_one_shot_no_self_mutation.py
       - name: Regenerate and verify current fail-closed readiness topology
-        env:
-          EXPECTED_RAW_SHA256: 6040021f3cbfc16a752bfcc1e489f6a4a9aad5db0a2d708b07b12ca73d4eb5df
-          EXPECTED_SEMANTIC_SHA256: 0c16d8c14fe6195e40b58e4b11bbcb0b67a5756f4b4fff8132a0122f9ca98f1e
         run: |
           set -euo pipefail
           OUT="$RUNNER_TEMP/brussels_road_destination_readiness_catalog.json"
+          LOCK=grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
           CELL_INDEX=grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json
           CROSSWALK=grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
           python grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py \
@@ -51,22 +49,27 @@ jobs:
             --cell-index "$CELL_INDEX" \
             --crosswalk "$CROSSWALK" \
             --output "$OUT"
-          python - "$OUT" "$CELL_INDEX" "$CROSSWALK" <<'PY'
-          import hashlib,json,os,sys
+          python - "$OUT" "$LOCK" "$CELL_INDEX" "$CROSSWALK" <<'PY'
+          import hashlib,json,sys
           from pathlib import Path
 
           raw=Path(sys.argv[1]).read_bytes()
           out=json.loads(raw)
-          cells=json.loads(Path(sys.argv[2]).read_text())
-          crosswalk=json.loads(Path(sys.argv[3]).read_text())
+          locked=json.loads(Path(sys.argv[2]).read_text())
+          cells=json.loads(Path(sys.argv[3]).read_text())
+          crosswalk=json.loads(Path(sys.argv[4]).read_text())
 
-          assert hashlib.sha256(raw).hexdigest()==os.environ['EXPECTED_RAW_SHA256']
-          assert out['semantic_sha256']==os.environ['EXPECTED_SEMANTIC_SHA256']
-          assert out['status']=='SOURCE_BACKED_REGISTERED_NOT_RENDERED'
-          assert out['destination_count']==crosswalk['mapped_road_count']==56
-          assert out['mapped_cell_count']==crosswalk['mapped_cell_count']==3
-          assert out['registered_cell_index_semantic_sha256']==cells['semantic_sha256']=='8dd6b8994160b7a22b83f8be4ce63cfa4b579f724d51b3896c0426782b259187'
-          assert out['road_cell_crosswalk_semantic_sha256']==crosswalk['semantic_sha256']=='54f5b91eaff3a010eb22be86f48fc9b9d80d3496658bccc87051e5e532ead6a0'
+          PERSISTED_READINESS_SEMANTIC=locked['semantic_sha256']
+          PERSISTED_CROSSWALK_SEMANTIC=crosswalk['semantic_sha256']
+          assert out['semantic_sha256']==PERSISTED_READINESS_SEMANTIC
+          assert out['status']==locked['status']=='SOURCE_BACKED_REGISTERED_NOT_RENDERED'
+          assert out['destination_count']==crosswalk['mapped_road_count']==96
+          assert out['mapped_cell_count']==crosswalk['mapped_cell_count']==4
+          assert out['registered_cell_index_semantic_sha256']==cells['semantic_sha256']
+          assert out['road_cell_crosswalk_semantic_sha256']==PERSISTED_CROSSWALK_SEMANTIC
+          assert locked['road_cell_crosswalk_semantic_sha256']==PERSISTED_CROSSWALK_SEMANTIC
+          assert locked['destination_count']==96
+          assert locked['mapped_cell_count']==4
           assert crosswalk['road_cell_mapping_authorized'] is False
           assert crosswalk['runtime_mount_authorized'] is False
           assert crosswalk['rendered_geometry_authorized'] is False
@@ -74,15 +77,21 @@ jobs:
           assert crosswalk['safe_spawn_authorized'] is False
           assert crosswalk['jouable_promotion_authorized'] is False
           assert all(v is False for v in out['authorization'].values())
+          assert all(v is False for v in locked['authorization'].values())
 
           destination_ids=[row['destination_id'] for row in out['destinations']]
           assert len(destination_ids)==len(set(destination_ids)), 'duplicate destination id'
+          locked_by_id={row['destination_id']:row for row in locked['destinations']}
+          assert set(destination_ids)==set(locked_by_id)
           for row in out['destinations']:
               assert row['readiness']=='REGISTERED_NOT_RENDERED'
+              locked_row=locked_by_id[row['destination_id']]
+              assert locked_row['cell_id']==row['cell_id']
               for key in ['render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized']:
                   assert row[key] is False, (row['destination_id'],key)
+                  assert locked_row[key] is False, (row['destination_id'],key,'locked')
 
-          print('ROAD_READINESS_READ_ONLY_TOPOLOGY_PROVEN raw='+hashlib.sha256(raw).hexdigest()+' semantic='+out['semantic_sha256'])
+          print('ROAD_READINESS_READ_ONLY_TOPOLOGY_PROVEN raw='+hashlib.sha256(raw).hexdigest()+' semantic='+out['semantic_sha256']+' destinations=96 cells=4')
           PY
       - name: Require persisted readiness lock already exact
         run: |

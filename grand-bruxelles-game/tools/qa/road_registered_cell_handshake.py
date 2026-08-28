@@ -29,6 +29,8 @@ ROW_AUTH_KEYS = (
     "jouable_promotion_authorized",
 )
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+LEGACY_CROSSWALK_PHASE = "ROAD_CELL_CROSSWALK_EVIDENCE_ONLY"
+CORRECTED_CROSSWALK_PHASE = "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY"
 
 
 def _load(path: Path):
@@ -100,6 +102,28 @@ def _validate_registered_manifest(cell_index_path: Path, entry):
         raise RuntimeError(f"registered-cell manifest maturity drift: {cell_id}")
 
 
+def _validate_crosswalk_lifecycle(crosswalk):
+    phase = crosswalk.get("destination_readiness")
+    if phase == LEGACY_CROSSWALK_PHASE:
+        return phase, set()
+    if phase != CORRECTED_CROSSWALK_PHASE:
+        raise RuntimeError(f"unsupported road-cell readiness lifecycle: {phase!r}")
+
+    if crosswalk.get("mapping_policy") != "unique_source_coverage_cell_only_corrected_epsg31370":
+        raise RuntimeError("corrected-frame crosswalk mapping policy drift")
+    _require_sha256(crosswalk.get("corrected_frame_source_sha256"), "corrected-frame source")
+    _require_sha256(crosswalk.get("corrected_frame_candidate_semantic_sha256"), "corrected-frame candidate semantic")
+
+    hold = crosswalk.get("excluded_multicell_road_ids")
+    if not isinstance(hold, list) or not hold:
+        raise RuntimeError("corrected-frame multicell HOLD list missing")
+    if any(not isinstance(road_id, int) or road_id <= 0 for road_id in hold):
+        raise RuntimeError("invalid road id in corrected-frame multicell HOLD list")
+    if len(set(hold)) != len(hold):
+        raise RuntimeError("duplicate road id in corrected-frame multicell HOLD list")
+    return phase, set(hold)
+
+
 def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_path: Path):
     road_index_path = Path(road_index_path)
     cell_index_path = Path(cell_index_path)
@@ -154,8 +178,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
 
     if crosswalk.get("schema") != "grand-bruxelles-road-registered-cell-crosswalk-v1":
         raise RuntimeError("unsupported road-cell crosswalk schema")
-    if crosswalk.get("destination_readiness") != "ROAD_CELL_CROSSWALK_EVIDENCE_ONLY":
-        raise RuntimeError("road-cell readiness widened")
+    phase, hold_road_ids = _validate_crosswalk_lifecycle(crosswalk)
     _require_false(crosswalk, (
         "runtime_directory_scan_authorized",
         "runtime_mount_authorized",
@@ -176,6 +199,8 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
         cell_id = row.get("cell_id")
         if road_id not in road_ids:
             raise RuntimeError(f"road is not in deterministic source index: {road_id}")
+        if road_id in hold_road_ids:
+            raise RuntimeError(f"multicell HOLD road leaked into unique mapping: {road_id}")
         if cell_id not in cell_ids:
             raise RuntimeError(f"cell is not in deterministic registered index: {cell_id}")
         if road_id in seen_roads:
@@ -187,11 +212,16 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
         seen_roads.add(road_id)
         mapped_cells.add(cell_id)
 
+    if crosswalk.get("mapped_road_count") not in (None, len(seen_roads)):
+        raise RuntimeError("road-cell mapped road count drift")
+    if crosswalk.get("mapped_cell_count") not in (None, len(mapped_cells)):
+        raise RuntimeError("road-cell mapped cell count drift")
+
     return {
         "mapped_road_count": len(seen_roads),
         "mapped_cell_count": len(mapped_cells),
         "runtime_authorized": False,
-        "destination_readiness": "ROAD_CELL_CROSSWALK_EVIDENCE_ONLY",
+        "destination_readiness": phase,
     }
 
 
@@ -205,7 +235,7 @@ def main():
     print(
         "ROAD_REGISTERED_CELL_HANDSHAKE_OK "
         f"roads={result['mapped_road_count']} cells={result['mapped_cell_count']} "
-        "runtime_authorized=false"
+        f"phase={result['destination_readiness']} runtime_authorized=false"
     )
 
 

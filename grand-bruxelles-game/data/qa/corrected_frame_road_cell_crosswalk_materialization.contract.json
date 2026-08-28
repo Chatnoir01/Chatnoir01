@@ -1,7 +1,7 @@
 {
   "schema": "grand-bruxelles-corrected-frame-road-cell-crosswalk-materialization-contract-v1",
   "status": "LOCKED_CANDIDATE_EVIDENCE_ONLY",
-  "production_base_sha": "b7bf88ce557cd87948363ea726ab4bcd76b35911",
+  "production_base_sha": "a8d2e6d19df32c438c80b2273911bf5e55b788d7",
   "source": {
     "provider": "OpenStreetMap contributors via Overpass API",
     "license": "ODbL-1.0",
@@ -28,7 +28,15 @@
     "newly_mappable_count": 51,
     "no_longer_mappable_count": 11
   },
+  "semantic_identity_policy": {
+    "canonical_json": "sort_keys_compact_utf8",
+    "exclude_continuity_fields": [
+      "production_base_sha"
+    ],
+    "historical_candidate_bytes_retained_for_forensics": true
+  },
   "locked_evidence": {
+    "production_base_sha": "b7bf88ce557cd87948363ea726ab4bcd76b35911",
     "workflow_run_id": 33062220654,
     "artifact_id": 9642195509,
     "artifact_sha256": "a9f5d7f129f5c48b02094bb35d1b06643bcb133e54411483f471268308a1bd63",

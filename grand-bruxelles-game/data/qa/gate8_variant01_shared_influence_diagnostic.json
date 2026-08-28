@@ -1,0 +1,30 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-shared-influence-diagnostic-v1",
+  "base_main_sha": "5d381c13c4dd7bbeeaac435e54be66acc7f370a1",
+  "candidate_variant": 1,
+  "source_topology_artifact": {
+    "id": 9687227295,
+    "digest": "sha256:ded2bc2c9ad7ec250ceb74ca896a24f36241759ffa38e04d4b5372e821b8b8c1",
+    "expected_state": "INFLUENCE_TOPOLOGY_DIAGNOSED",
+    "expected_blocked_cases": 48,
+    "expected_shared_influence_cases": 12
+  },
+  "diagnostic": {
+    "require_bilateral_hand_only": true,
+    "expected_roles": ["left_hand", "right_hand"],
+    "expected_axes_per_side": 6,
+    "min_endpoint_distribution_l1": 0.75,
+    "require_dominant_bone_flip": true,
+    "require_two_shared_bones": true
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  }
+}

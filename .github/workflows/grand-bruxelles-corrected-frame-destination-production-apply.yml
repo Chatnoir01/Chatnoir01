@@ -49,6 +49,10 @@ jobs:
           assert d['policy']['wrapper_semantic_sha_must_recompute'] is True
           assert d['policy']['readiness_crosswalk_semantic_must_match_generated_crosswalk'] is True
           assert d['policy']['red_first_artifact_must_upload_before_lock'] is True
+          if d['status'] == 'LOCKED_STAGED_PAIR_EVIDENCE_ONLY_V2':
+              lock=d['locked_staged_evidence_v2']
+              for key in ('crosswalk_sha256','readiness_sha256','crosswalk_semantic_sha256','readiness_semantic_sha256'):
+                  assert isinstance(lock[key],str) and len(lock[key]) == 64
           PY
 
       - name: Run fail-closed regressions
@@ -139,15 +143,15 @@ jobs:
               print('RED_FIRST_WRAPPER_SEMANTIC_REPAIR_NOT_CONTENT_ADDRESSED',sha('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json'),sha('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json'),cw['semantic_sha256'],rd['semantic_sha256'])
               sys.exit(1)
           lock=d['locked_staged_evidence_v2']
-          assert sha('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json') == lock['generated_crosswalk_sha256']
-          assert sha('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json') == lock['generated_readiness_sha256']
+          assert sha('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json') == lock['crosswalk_sha256']
+          assert sha('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json') == lock['readiness_sha256']
           assert cw['semantic_sha256'] == lock['crosswalk_semantic_sha256']
           assert rd['semantic_sha256'] == lock['readiness_semantic_sha256']
           assert rd['road_cell_crosswalk_semantic_sha256'] == lock['crosswalk_semantic_sha256']
           assert lock['mapping_count'] == 96
           assert lock['destination_count'] == 96
           assert lock['mapped_cell_count'] == 4
-          assert lock['readiness_mapped_cell_count'] == 4
+          assert d['expected']['mapped_cell_count'] == 4
           assert d['policy']['write_production_files_authorized'] is False
           print('LOCKED_STAGED_PAIR_V2_OK production_write_authorized=false',cw['semantic_sha256'],rd['semantic_sha256'])
           PY

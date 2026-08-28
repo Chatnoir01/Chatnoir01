@@ -1,0 +1,45 @@
+{
+  "schema": "grand-bruxelles-grand-place-corrected-road-frame-cell-contract-v1",
+  "status": "RED_FIRST_CORRECTED_FRAME_CELL_PENDING",
+  "production_base_sha": "6440efbd2e868d359d57c50fd4bedd84e7560c82",
+  "zone": "grand_place",
+  "target": {
+    "grid_cell_id": "E148500_N170500",
+    "urbis_cell_id": "bxl-e148500-n170500-s500",
+    "crs": "EPSG:31370",
+    "bbox": [148500.0, 170500.0, 149000.0, 171000.0]
+  },
+  "dependencies": {
+    "road_source_path": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "historical_coverage_path": "data/city_machine/road_cell_coverage_candidates.json",
+    "historical_coverage_semantic_sha256": "8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b",
+    "reconciliation_path": "data/qa/osm_road_extension_e148500_n170500_reconciliation.contract.json",
+    "reconciliation_semantic_sha256": "32f3b83ccedacc98f48cb4824b82a1758e436df87cf6849806340d10b5d0ec8d",
+    "urbis_contract_path": "data/qa/grand_place_correct_urbis_source_cell.contract.json",
+    "official_anchor_epsg31370": [148852.74417614136, 170704.8857889818]
+  },
+  "representative_roads": [
+    {"osm_id": 13842686, "name": "Rue de l'Amigo - Vruntstraat"},
+    {"osm_id": 684214770, "name": "Rue du Marché au Charbon - Kolenmarkt"}
+  ],
+  "measurement_policy": {
+    "purpose": "prove Grand-Place cell identity under the supported corrected road-frame candidate before any shared frame adoption",
+    "local_to_lambert72_formula": "E=origin_easting_m+x;N=origin_northing_m-z",
+    "grid_size_m": 500,
+    "road_cell_intersection": "point hits plus Liang-Barsky segment/bbox intersection",
+    "frame_adoption": "evidence_only"
+  },
+  "authorization": {
+    "shared_frame_change_authorized": false,
+    "source_refresh_authorized": false,
+    "source_merge_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_directory_scan_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

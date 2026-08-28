@@ -1,0 +1,50 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-hand-seam-full-vector-ab-v1",
+  "base_main_sha": "5d381c13c4dd7bbeeaac435e54be66acc7f370a1",
+  "candidate_variant": 1,
+  "target": {
+    "sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "vertices": 21044
+  },
+  "evidence": {
+    "baseline_artifact_id": 9679245275,
+    "baseline_artifact_digest": "sha256:310bf9d8c55f4e97ac1480351b4235e230305ccb959570581c8c2c03046703a5",
+    "topology_artifact_id": 9687227295,
+    "topology_artifact_digest": "sha256:ded2bc2c9ad7ec250ceb74ca896a24f36241759ffa38e04d4b5372e821b8b8c1",
+    "shared_seam_artifact_id": 9691019353,
+    "shared_seam_artifact_digest": "sha256:645685061aee36cd8058ef14bac102bddf78fa0e0e38d785e1f0369c396c85e8",
+    "expected_shared_cases": 12,
+    "expected_unique_edges": 2
+  },
+  "operator": {
+    "kind": "full_vector_endpoint_mean",
+    "scope": "only_two_topology_proven_hand_forearm_seams",
+    "expected_corrected_vertices": 4
+  },
+  "cases": {"degrees": 5.0, "roles": 9, "axes": 3, "count": 54},
+  "gates": {
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "max_foot_drift_m": 0.000001,
+    "max_rest_position_drift_m": 0.000001,
+    "max_rest_rotation_drift_deg": 0.0001
+  },
+  "superiority": {
+    "blocked_case_count": true,
+    "max_edge_change": true,
+    "max_stretch": true,
+    "min_compression": true
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  }
+}

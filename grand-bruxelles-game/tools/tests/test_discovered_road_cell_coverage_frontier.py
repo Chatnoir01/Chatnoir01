@@ -127,6 +127,13 @@ def main() -> int:
         "registered cell manifest maturity drift",
     )
 
+    manifest_gate_opened = json.loads(json.dumps(manifest_doc))
+    manifest_gate_opened["maturity"]["gates"]["runtime_geometry"] = True
+    expect_fail(
+        lambda: tool.validate_registered_cell_manifest_identity(manifest_gate_opened, manifest_row),
+        "registered cell manifest gate opened",
+    )
+
     print("DISCOVERED_ROAD_CELL_COVERAGE_FRONTIER_TEST_GREEN")
     return 0
 

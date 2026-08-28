@@ -1,0 +1,115 @@
+name: Grand Bruxelles Gate-8 Variant01 Worst Edge Coverage
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-worst-edge-coverage-20260828"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-worst-edge-coverage.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_worst_edge_coverage.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_worst_edge_coverage.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TOPOLOGY_ARTIFACT_ID: "9687227295"
+      TOPOLOGY_ARTIFACT_DIGEST: "sha256:ded2bc2c9ad7ec250ceb74ca896a24f36241759ffa38e04d4b5372e821b8b8c1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "3008b7e1399e376c6efeeb32d63fea4aaaa8271c"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-worst-edge-coverage.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_worst_edge_coverage.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_worst_edge_coverage.py' | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          printf '%s\n' "$LIVE_MAIN" > /tmp/live-main.txt
+
+      - name: Verify immutable topology artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TOPOLOGY_ARTIFACT_ID}" > /tmp/artifact.json
+          python3 - <<'PY'
+          import json
+          a=json.load(open('/tmp/artifact.json'))
+          assert not a['expired']
+          assert a['id']==9687227295
+          assert a['digest']=='sha256:ded2bc2c9ad7ec250ceb74ca896a24f36241759ffa38e04d4b5372e821b8b8c1'
+          PY
+          mkdir -p /tmp/topology
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TOPOLOGY_ARTIFACT_ID}/zip" > /tmp/topology.zip
+          unzip -q /tmp/topology.zip -d /tmp/topology
+          python3 - <<'PY'
+          import json,pathlib
+          found=[]
+          for p in pathlib.Path('/tmp/topology').rglob('*.json'):
+              try: d=json.loads(p.read_text())
+              except Exception: continue
+              if d.get('diagnostic_state')=='INFLUENCE_TOPOLOGY_DIAGNOSED' and d.get('blocked_case_count')==48:
+                  found.append((p,d))
+          assert len(found)==1, [str(p) for p,_ in found]
+          pathlib.Path('/tmp/influence-topology-result.json').write_text(json.dumps(found[0][1],indent=2,sort_keys=True))
+          PY
+
+      - name: Map worst-edge coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/game/tests/gate8_variant01_worst_edge_coverage.py \
+            grand-bruxelles-game/data/qa/gate8_variant01_worst_edge_coverage.json \
+            /tmp/influence-topology-result.json /tmp/worst-edge-coverage-result.json | tee /tmp/diagnostic.log
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/worst-edge-coverage-result.json'))
+          assert r['diagnostic_state']=='BLOCKED_WORST_EDGE_COVERAGE_READY'
+          assert r['blocked_case_count']==48
+          assert r['covered_blocked_case_count']==48
+          assert r['coverage_fraction']==1.0
+          assert r['unique_worst_edges']==6
+          assert r['unique_vertices']==12
+          assert r['family_case_counts']=={'forearm':12,'hand':12,'shoulder':24}
+          assert r['edge_case_multiplicities']==[6,6,6,6,12,12]
+          assert r['rails'] and all(v is False for v in r['rails'].values())
+          assert r['next_safe_axis']=='VERIFY_SIX_EDGE_GEOMETRIC_ADJACENCY_AND_SEAM_DUPLICATES_BEFORE_LOCAL_REWEIGHT'
+          assert not r['production_activation_allowed']
+          assert not r['visual_approval_allowed']
+          PY
+
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-worst-edge-coverage-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/live-main.txt
+            /tmp/artifact.json
+            /tmp/influence-topology-result.json
+            /tmp/worst-edge-coverage-result.json
+            /tmp/diagnostic.log
+          retention-days: 14

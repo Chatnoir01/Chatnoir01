@@ -51,17 +51,31 @@ class CorrectedFrameRoadCellCrosswalkMaterializationTest(unittest.TestCase):
         self.assertIn("--production-base-sha \"$MIGRATION_BASE_SHA\"", workflow)
         self.assertNotIn("--production-base-sha \"$LIVE_MAIN_SHA\"\n          --output \"$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json\"", workflow)
 
+    def test_historical_impact_replay_uses_its_56_row_crosswalk(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("IMPACT_HISTORICAL_CROSSWALK", workflow)
+        self.assertIn("git show \"$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json\"", workflow)
+        self.assertIn("--current-crosswalk \"$IMPACT_HISTORICAL_CROSSWALK\"", workflow)
+        self.assertIn("current_mapped_road_count']==56", workflow)
+
     def test_lock_reproduction_checks_candidate_json_hash(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("candidate_json_sha256", workflow)
         self.assertIn("hashlib.sha256", workflow)
 
-    def test_production_crosswalk_remains_untouched_and_non_authorizing(self):
+    def test_branch_crosswalk_is_corrected_frame_pair_but_still_non_authorizing(self):
         current = json.loads(CURRENT.read_text(encoding="utf-8"))
-        self.assertEqual(current["mapped_road_count"], 56)
+        self.assertEqual(current["mapped_road_count"], 96)
+        self.assertEqual(current["mapped_cell_count"], 4)
+        self.assertEqual(len(current["rows"]), 96)
+        self.assertEqual(current["status"], "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY")
+        hold_ids = {256158619, 397461693}
+        self.assertFalse(hold_ids & {int(row["road_osm_id"]) for row in current["rows"]})
         self.assertFalse(current["road_cell_mapping_authorized"])
+        self.assertFalse(current["runtime_mount_authorized"])
         self.assertFalse(current["rendered_geometry_authorized"])
         self.assertFalse(current["collision_authorized"])
+        self.assertFalse(current["safe_spawn_authorized"])
         self.assertFalse(current["jouable_promotion_authorized"])
 
 

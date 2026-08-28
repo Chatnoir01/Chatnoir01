@@ -1,0 +1,33 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-shoulder-operator-split-v1",
+  "base_main_sha": "a2dff976c48e1e566d2eb26bab4ce138d6dfb813",
+  "source_artifact": {
+    "id": 9703527268,
+    "digest": "sha256:8aad3c20aff738d791f9bb0a92394c04b8309ff05964a78f4ca621d2b9637c61",
+    "expected_state": "SHOULDER_TWO_RING_MIXED_TOPOLOGY"
+  },
+  "expected_left": {
+    "broad_vertex": 245,
+    "coherent_vertex": 718,
+    "broad_like_count": 0,
+    "coherent_like_count": 7,
+    "operator_family": "ISOLATED_BROAD_ENDPOINT"
+  },
+  "expected_right": {
+    "broad_vertex": 758,
+    "coherent_vertex": 416,
+    "broad_like_count": 3,
+    "coherent_like_count": 9,
+    "operator_family": "EXTENDED_BROAD_CLUSTER"
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  },
+  "next_safe_axis": "RUN_SEPARATE_LEFT_ISLAND_AND_RIGHT_CLUSTER_MEASUREMENT_AB"
+}

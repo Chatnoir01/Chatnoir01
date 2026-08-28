@@ -1,0 +1,60 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-production-pair-write-review-contract-v1",
+  "status": "LOCKED_ATOMIC_WRITE_APPLICABILITY_EVIDENCE_ONLY",
+  "production_base_sha": "88865eb34934f2dfa1efd6677d7906930ec4b3bd",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "crs": "EPSG:31370"
+  },
+  "staged_pair": {
+    "artifact_id": 9664991653,
+    "artifact_run_id": 33117227791,
+    "artifact_head_sha": "e19da871855b9bdc8a83acce5d1dfe4aa08e7af2",
+    "artifact_sha256": "fbe7a847bdfbd8e3e2d736e06fe63c4e6324233b30c78d49c8ca578e1a386d63",
+    "crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
+    "crosswalk_semantic_sha256": "9fca92b20a3a45b8d9d8c8740a3e355cf993d9961797ed5a8e1a13f14989b173",
+    "readiness_sha256": "95430fb61fb3205fb4f3bd4c59b9720b0feb475ce04f5ede2c7b74d22ec6f040",
+    "readiness_semantic_sha256": "d6fd92ebf0220dbda9dd46da4629ec99f0e0a2839b83ea9dbd40af78dff3eed9",
+    "mapping_count": 96,
+    "destination_count": 96,
+    "mapped_cell_count": 4
+  },
+  "production_expected": {
+    "mapping_count": 56,
+    "destination_count": 56
+  },
+  "migration_expected": {
+    "retained_same_cell": 0,
+    "changed_cell": 45,
+    "new": 51,
+    "removed": 11
+  },
+  "multi_cell_hold_ids": [
+    256158619,
+    397461693
+  ],
+  "locked_evidence": {
+    "run_id": 33124240353,
+    "head_sha": "9bcee8c4fff22aff10b229af20fc98697d837f21",
+    "production_base_sha": "dec964e0b7374e8771a7e6103310751bbdb07483",
+    "byte_identity_policy": "exact_on_evidence_base_semantic_on_descendant_live_main",
+    "artifact_id": 9667697156,
+    "artifact_sha256": "6087149256117a22cf87901dae1718524e639de224f05bf73d4c132368bda0dd",
+    "review_bytes": 1289,
+    "review_sha256": "c80f01894fcc2005b0f87f585bf93f036f222d765632a0194ad89676742aa54e",
+    "review_semantic_sha256": "764f5baad5a7468af5faa2e95eae08227a16d659aa0f44c0b3f9362326b1948b"
+  },
+  "authorization": {
+    "write_production_files_authorized": false,
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_probe_authorized": false,
+    "runtime_mount_authorized": false,
+    "render_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_authorized": false
+  }
+}

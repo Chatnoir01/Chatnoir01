@@ -1,0 +1,90 @@
+name: Grand Bruxelles Corrected Frame Production Pair Write Review
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/corrected_frame_production_pair_write_review.contract.json'
+      - 'grand-bruxelles-game/tools/qa/review_corrected_frame_production_pair_write.py'
+      - 'grand-bruxelles-game/tools/qa/test_review_corrected_frame_production_pair_write.py'
+      - '.github/workflows/grand-bruxelles-corrected-frame-production-pair-write-review.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor origin/main HEAD
+          test "$(git rev-parse origin/main)" = "$(python3 -c 'import json; print(json.load(open("grand-bruxelles-game/data/qa/corrected_frame_production_pair_write_review.contract.json"))["production_base_sha"])')"
+      - name: Run regressions
+        run: python3 grand-bruxelles-game/tools/qa/test_review_corrected_frame_production_pair_write.py
+      - name: Restore locked staged pair artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/staged"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9664991653/zip" -o "$RUNNER_TEMP/staged.zip"
+          echo 'fbe7a847bdfbd8e3e2d736e06fe63c4e6324233b30c78d49c8ca578e1a386d63  '"$RUNNER_TEMP/staged.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/staged.zip" -d "$RUNNER_TEMP/staged"
+          find "$RUNNER_TEMP/staged" -type f -maxdepth 3 -print
+      - name: Locate staged pair and review applicability
+        run: |
+          CROSS="$(find "$RUNNER_TEMP/staged" -type f -name 'brussels_road_registered_cell_crosswalk.json' | head -1)"
+          READY="$(find "$RUNNER_TEMP/staged" -type f -name 'brussels_road_destination_readiness_catalog.json' | head -1)"
+          test -n "$CROSS"; test -n "$READY"
+          echo 'a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039  '"$CROSS" | sha256sum -c -
+          echo '95430fb61fb3205fb4f3bd4c59b9720b0feb475ce04f5ede2c7b74d22ec6f040  '"$READY" | sha256sum -c -
+          python3 grand-bruxelles-game/tools/qa/review_corrected_frame_production_pair_write.py \
+            --contract grand-bruxelles-game/data/qa/corrected_frame_production_pair_write_review.contract.json \
+            --production-crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
+            --production-readiness grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json \
+            --staged-crosswalk "$CROSS" --staged-readiness "$READY" \
+            --output "$RUNNER_TEMP/corrected_frame_production_pair_write_review.json"
+      - name: Assert locked evidence-only receipt
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, subprocess
+          contract_path='grand-bruxelles-game/data/qa/corrected_frame_production_pair_write_review.contract.json'
+          contract=json.load(open(contract_path))
+          p=os.path.join(os.environ['RUNNER_TEMP'],'corrected_frame_production_pair_write_review.json')
+          raw=open(p,'rb').read(); d=json.loads(raw)
+          locked=contract['locked_evidence']
+          assert contract['status']=='LOCKED_ATOMIC_WRITE_APPLICABILITY_EVIDENCE_ONLY'
+          assert d['status']=='ATOMIC_WRITE_APPLICABILITY_PROVEN_EVIDENCE_ONLY'
+          assert d['production']=={'mapping_count':56,'destination_count':56}
+          assert d['candidate']=={'mapping_count':96,'destination_count':96,'mapped_cell_count':4}
+          assert d['migration']['retained_same_cell']==0
+          assert d['migration']['changed_cell']==45
+          assert d['migration']['new']==51
+          assert d['migration']['removed']==11
+          assert d['multi_cell_hold_ids']==[256158619,397461693]
+          assert all(v is False for v in d['authorization'].values())
+          assert d['semantic_sha256']==locked['review_semantic_sha256']
+          evidence_base=locked['production_base_sha']
+          assert re.fullmatch(r'[0-9a-f]{40}',evidence_base)
+          assert locked['byte_identity_policy']=='exact_on_evidence_base_semantic_on_descendant_live_main'
+          subprocess.run(['git','cat-file','-e',f'{evidence_base}^{{commit}}'],check=True)
+          subprocess.run(['git','merge-base','--is-ancestor',evidence_base,'HEAD'],check=True)
+          current_base=contract['production_base_sha']
+          assert d['production_base_sha']==current_base
+          if current_base==evidence_base:
+              assert len(raw)==locked['review_bytes']
+              assert hashlib.sha256(raw).hexdigest()==locked['review_sha256']
+              mode='historical-byte-exact'
+          else:
+              assert current_base!=evidence_base
+              mode='descendant-semantic-exact'
+          print('CORRECTED_FRAME_PRODUCTION_PAIR_WRITE_LOCKED_EXACT',d['semantic_sha256'],mode)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-production-pair-write-review
+          path: ${{ runner.temp }}/corrected_frame_production_pair_write_review.json
+          retention-days: 90

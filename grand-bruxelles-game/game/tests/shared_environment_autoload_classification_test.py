@@ -10,7 +10,7 @@ LIFECYCLE_PATH = ROOT / "data" / "qa" / "shared_environment_lifecycle_contract.j
 CLASSIFICATION_PATH = ROOT / "data" / "qa" / "shared_environment_autoload_classification.json"
 
 AUTOLOAD_RE = re.compile(r'^\s*(?P<name>[A-Za-z0-9_]+)\s*=\s*"\*res://(?P<path>game/scripts/[^"\n]+\.gd)"\s*$', re.MULTILINE)
-MARKERS = ("SurfaceRuntime","PavingRuntime","GranitePaving","FurnitureRuntime","SidewalkRuntime","BollardRuntime","StreetLampRuntime","TreeRuntime","FacadeArticulationRuntime","WindowRhythmRuntime","SchoolHero")
+MARKERS = ("SurfaceRuntime","PavingRuntime","GranitePaving","FurnitureRuntime","SidewalkRuntime","BollardRuntime","StreetLampRuntime","TreeRuntime","FacadeArticulationRuntime","WindowRhythmRuntime","SchoolHero","OfficialLod2")
 
 def fail(message: str) -> None:
     raise AssertionError(message)

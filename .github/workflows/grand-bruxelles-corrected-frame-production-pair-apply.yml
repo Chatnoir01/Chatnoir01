@@ -1,0 +1,69 @@
+name: Grand Bruxelles Corrected Frame Production Pair V2 Verify
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/corrected_frame_production_pair_apply.contract.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - '.github/workflows/grand-bruxelles-corrected-frame-production-pair-apply.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Require exact live main
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE="$(python3 -c 'import json; print(json.load(open("grand-bruxelles-game/data/qa/corrected_frame_production_pair_apply.contract.json"))["production_base_sha"])')"
+          test "$(git rev-parse origin/main)" = "$BASE"
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Restore content-addressed staged pair v2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/staged-v2"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9670810766/zip" \
+            -o "$RUNNER_TEMP/staged-v2.zip"
+          echo '7afdf34b6a85e5e91a10bcede0f961d0258c42bdbecb7979bf7e97bc4217b6bd  '"$RUNNER_TEMP/staged-v2.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/staged-v2.zip" -d "$RUNNER_TEMP/staged-v2"
+          echo 'a6549483059d0f16d3612ee5987faa6fb238aa7760ec592a540ce0b045d7b221  '"$RUNNER_TEMP/staged-v2/brussels_road_registered_cell_crosswalk.json" | sha256sum -c -
+          echo '69972aa9dd3a34974bedc271413544249f0cc55fceb909ca00b5416c031cc4e7  '"$RUNNER_TEMP/staged-v2/brussels_road_destination_readiness_catalog.json" | sha256sum -c -
+      - name: Verify branch pair v2 exact and internally self-consistent
+        run: |
+          set -euo pipefail
+          CONTRACT='grand-bruxelles-game/data/qa/corrected_frame_production_pair_apply.contract.json'
+          CROSS='grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+          READY='grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+          echo 'a6549483059d0f16d3612ee5987faa6fb238aa7760ec592a540ce0b045d7b221  '"$CROSS" | sha256sum -c -
+          echo '69972aa9dd3a34974bedc271413544249f0cc55fceb909ca00b5416c031cc4e7  '"$READY" | sha256sum -c -
+          cmp -s "$CROSS" "$RUNNER_TEMP/staged-v2/brussels_road_registered_cell_crosswalk.json"
+          cmp -s "$READY" "$RUNNER_TEMP/staged-v2/brussels_road_destination_readiness_catalog.json"
+          python3 - <<'PY'
+          import hashlib,json
+          def semantic(d):
+              b=dict(d); b.pop('semantic_sha256',None)
+              return hashlib.sha256(json.dumps(b,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          c=json.load(open('grand-bruxelles-game/data/qa/corrected_frame_production_pair_apply.contract.json'))
+          cw=json.load(open('grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'))
+          rd=json.load(open('grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'))
+          assert c['status']=='APPLIED_BRANCH_PAIR_V2_LOCKED_READ_ONLY'
+          assert all(v is False for v in c['authorization'].values())
+          assert cw['semantic_sha256']==semantic(cw)==c['staged_pair_v2']['crosswalk_semantic_sha256']=='8c95f77f232b283aa067d897e6eca318eee5194a2048a1fd350f60f95fa539f2'
+          assert rd['road_cell_crosswalk_semantic_sha256']==cw['semantic_sha256']
+          assert rd['semantic_sha256']==semantic(rd)==c['staged_pair_v2']['readiness_semantic_sha256']=='6da9a544bc1ae31ee8a58c447eedc5a4da0ad8bd7af4e47303f230cceb61cd59'
+          assert cw['mapped_road_count']==96 and cw['mapped_cell_count']==4 and len(cw['rows'])==96
+          assert rd['destination_count']==96 and rd['mapped_cell_count']==4 and len(rd['destinations'])==96
+          a={int(r['road_osm_id']):r['cell_id'] for r in cw['rows']}; b={int(r['road_osm_id']):r['cell_id'] for r in rd['destinations']}
+          assert a==b and len(a)==96 and not ({256158619,397461693}&set(a))
+          print('CORRECTED_FRAME_PAIR_V2_LOCKED_READ_ONLY_96_96_4')
+          PY

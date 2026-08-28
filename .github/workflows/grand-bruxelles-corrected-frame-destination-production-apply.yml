@@ -41,11 +41,13 @@ jobs:
           p='grand-bruxelles-game/data/qa/corrected_frame_destination_production_apply.contract.json'
           d=json.load(open(p))
           assert d['production_base_sha'] == '${{ github.event.pull_request.base.sha }}'
-          assert d['status'] == 'LOCKED_STAGED_PAIR_EVIDENCE_ONLY'
+          assert d['status'] in ('MEASUREMENT_PENDING_WRAPPER_SEMANTIC_REPAIR','LOCKED_STAGED_PAIR_EVIDENCE_ONLY_V2')
           assert d['policy']['write_production_files_authorized'] is False
           assert d['policy']['runtime_probe_authorized'] is False
           assert d['policy']['jouable_promotion_authorized'] is False
           assert d['policy']['readiness_mapped_cell_count_must_equal_crosswalk'] is True
+          assert d['policy']['wrapper_semantic_sha_must_recompute'] is True
+          assert d['policy']['readiness_crosswalk_semantic_must_match_generated_crosswalk'] is True
           assert d['policy']['red_first_artifact_must_upload_before_lock'] is True
           PY
 
@@ -83,12 +85,15 @@ jobs:
             --out-crosswalk /tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json \
             --out-readiness /tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json
 
-      - name: Verify exact staged accounting and closed rails
+      - name: Verify exact staged accounting, wrapper semantics and closed rails
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json
+          import hashlib,json
+          def canonical_sha(d):
+              b=dict(d); b.pop('semantic_sha256',None)
+              return hashlib.sha256(json.dumps(b,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
           cw=json.load(open('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json'))
           rd=json.load(open('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json'))
           assert cw['mapped_road_count'] == 96
@@ -104,33 +109,45 @@ jobs:
           for rid,cell in reps.items(): assert a[rid] == cell
           assert not ({256158619,397461693} & set(a))
           assert all(r['destination_id']==f"road-{r['road_osm_id']}" and r['readiness']=='REGISTERED_NOT_RENDERED' for r in rd['destinations'])
-          print('CORRECTED_FRAME_STAGED_PAIR_OK mappings=96 destinations=96 cells=4 hold=2 runtime_authorized=false')
+          assert cw['semantic_sha256'] == canonical_sha(cw) == '8c95f77f232b283aa067d897e6eca318eee5194a2048a1fd350f60f95fa539f2'
+          assert rd['road_cell_crosswalk_semantic_sha256'] == cw['semantic_sha256']
+          assert rd['semantic_sha256'] == canonical_sha(rd) == '6da9a544bc1ae31ee8a58c447eedc5a4da0ad8bd7af4e47303f230cceb61cd59'
+          print('CORRECTED_FRAME_STAGED_PAIR_V2_OK mappings=96 destinations=96 cells=4 hold=2 wrapper_semantics_exact runtime_authorized=false')
           PY
           sha256sum /tmp/corrected-frame/staged/*.json | tee /tmp/corrected-frame/staged/SHA256SUMS
 
-      - name: Enforce locked staged output bytes
+      - name: Upload staged production pair evidence before lock decision
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrected-frame-destination-production-pair-v2-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/corrected-frame/staged
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce corrected staged output lock
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib,json
+          import hashlib,json,sys
           p='grand-bruxelles-game/data/qa/corrected_frame_destination_production_apply.contract.json'
-          d=json.load(open(p)); lock=d['locked_staged_evidence']
+          d=json.load(open(p))
           def sha(path): return hashlib.sha256(open(path,'rb').read()).hexdigest()
+          cw=json.load(open('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json'))
+          rd=json.load(open('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json'))
+          if d['status'] == 'MEASUREMENT_PENDING_WRAPPER_SEMANTIC_REPAIR':
+              print('RED_FIRST_WRAPPER_SEMANTIC_REPAIR_NOT_CONTENT_ADDRESSED',sha('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json'),sha('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json'),cw['semantic_sha256'],rd['semantic_sha256'])
+              sys.exit(1)
+          lock=d['locked_staged_evidence_v2']
           assert sha('/tmp/corrected-frame/staged/brussels_road_registered_cell_crosswalk.json') == lock['generated_crosswalk_sha256']
           assert sha('/tmp/corrected-frame/staged/brussels_road_destination_readiness_catalog.json') == lock['generated_readiness_sha256']
+          assert cw['semantic_sha256'] == lock['crosswalk_semantic_sha256']
+          assert rd['semantic_sha256'] == lock['readiness_semantic_sha256']
+          assert rd['road_cell_crosswalk_semantic_sha256'] == lock['crosswalk_semantic_sha256']
           assert lock['mapping_count'] == 96
           assert lock['destination_count'] == 96
           assert lock['mapped_cell_count'] == 4
           assert lock['readiness_mapped_cell_count'] == 4
           assert d['policy']['write_production_files_authorized'] is False
-          print('LOCKED_STAGED_PAIR_OK production_write_authorized=false')
+          print('LOCKED_STAGED_PAIR_V2_OK production_write_authorized=false',cw['semantic_sha256'],rd['semantic_sha256'])
           PY
-
-      - name: Upload staged production pair evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: corrected-frame-destination-production-pair-${{ github.event.pull_request.head.sha || github.sha }}
-          path: /tmp/corrected-frame/staged
-          if-no-files-found: error
-          retention-days: 14

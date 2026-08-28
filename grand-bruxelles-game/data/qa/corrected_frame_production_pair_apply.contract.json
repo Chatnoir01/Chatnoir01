@@ -1,0 +1,68 @@
+{
+  "schema": "grand-bruxelles-corrected-frame-production-pair-apply-contract-v1",
+  "status": "APPLIED_BRANCH_PAIR_V2_LOCKED_READ_ONLY",
+  "production_base_sha": "158ddd8a1066a355b6c762e81069818991a60f22",
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "crs": "EPSG:31370"
+  },
+  "superseded_pair": {
+    "artifact_id": 9664991653,
+    "artifact_sha256": "fbe7a847bdfbd8e3e2d736e06fe63c4e6324233b30c78d49c8ca578e1a386d63",
+    "crosswalk_sha256": "a838c4e19386771491472825b5dc2c742ae18510570cc05070b387bb09e01039",
+    "readiness_sha256": "95430fb61fb3205fb4f3bd4c59b9720b0feb475ce04f5ede2c7b74d22ec6f040",
+    "reason": "production_wrappers_inherited_legacy_semantic_sha_fields_after_96_4_row_replacement",
+    "observed_crosswalk_semantic_sha256": "54f5b91eaff3a010eb22be86f48fc9b9d80d3496658bccc87051e5e532ead6a0",
+    "recomputed_crosswalk_semantic_sha256": "8c95f77f232b283aa067d897e6eca318eee5194a2048a1fd350f60f95fa539f2",
+    "observed_readiness_semantic_sha256": "0c16d8c14fe6195e40b58e4b11bbcb0b67a5756f4b4fff8132a0122f9ca98f1e"
+  },
+  "staged_pair_v2": {
+    "artifact_id": 9670810766,
+    "artifact_run_id": 33132560360,
+    "artifact_head_sha": "6240b65e28446186a8f8387360ce41cd66ac6978",
+    "artifact_sha256": "7afdf34b6a85e5e91a10bcede0f961d0258c42bdbecb7979bf7e97bc4217b6bd",
+    "crosswalk_sha256": "a6549483059d0f16d3612ee5987faa6fb238aa7760ec592a540ce0b045d7b221",
+    "readiness_sha256": "69972aa9dd3a34974bedc271413544249f0cc55fceb909ca00b5416c031cc4e7",
+    "crosswalk_semantic_sha256": "8c95f77f232b283aa067d897e6eca318eee5194a2048a1fd350f60f95fa539f2",
+    "readiness_semantic_sha256": "6da9a544bc1ae31ee8a58c447eedc5a4da0ad8bd7af4e47303f230cceb61cd59",
+    "mapping_count": 96,
+    "destination_count": 96,
+    "mapped_cell_count": 4
+  },
+  "production_before": {
+    "mapping_count": 56,
+    "destination_count": 56
+  },
+  "migration": {
+    "retained_same_cell": 0,
+    "changed_cell": 45,
+    "new": 51,
+    "removed": 11,
+    "multi_cell_hold_ids": [
+      256158619,
+      397461693
+    ]
+  },
+  "repair": {
+    "policy": "atomic-branch-pair-replacement-from-content-addressed-v2-artifact",
+    "require_current_branch_preimage_sha": true,
+    "require_wrapper_semantic_recompute": true,
+    "require_readiness_crosswalk_semantic_binding": true,
+    "retire_workflow_write_permission_after_apply": true,
+    "branch_pair_v2_applied": true
+  },
+  "authorization": {
+    "write_branch_candidate_files_authorized": false,
+    "write_main_authorized": false,
+    "production_frame_update_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_probe_authorized": false,
+    "runtime_mount_authorized": false,
+    "render_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_authorized": false
+  }
+}

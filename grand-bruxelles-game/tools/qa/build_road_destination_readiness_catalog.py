@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
+CORRECTED_FRAME_PHASE = "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY"
+CORRECTED_FRAME_APPLY_CONTRACT = Path("data/qa/corrected_frame_destination_production_apply.contract.json")
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -96,6 +98,69 @@ def point_contract(points: object) -> tuple[int, list[float], str]:
     ys = [p[1] for p in normalized]
     bbox = [min(xs), min(ys), max(xs), max(ys)]
     return len(normalized), bbox, sha256_json(normalized)
+
+
+def corrected_frame_wrapper(root: Path, crosswalk: dict[str, Any], destination_count: int, mapped_cell_count: int) -> dict[str, Any]:
+    phase = str(crosswalk.get("destination_readiness") or "")
+    if phase != CORRECTED_FRAME_PHASE:
+        return {}
+
+    contract_path = (root / CORRECTED_FRAME_APPLY_CONTRACT).resolve()
+    try:
+        contract_path.relative_to(root.resolve())
+    except ValueError as exc:
+        raise RuntimeError("corrected-frame apply contract escapes repository root") from exc
+    if not contract_path.is_file():
+        raise RuntimeError("corrected-frame apply contract missing")
+
+    contract = load_json(contract_path)
+    if contract.get("schema") != "grand-bruxelles-corrected-frame-destination-production-apply-v1":
+        raise RuntimeError("corrected-frame apply contract schema drift")
+    if contract.get("status") != "LOCKED_STAGED_PAIR_EVIDENCE_ONLY_V2":
+        raise RuntimeError("corrected-frame apply contract is not locked V2 evidence")
+
+    source = contract.get("source") or {}
+    source_sha = require_hex64(source.get("road_source_sha256"), "corrected-frame source sha")
+    if source_sha != require_hex64(crosswalk.get("corrected_frame_source_sha256"), "crosswalk corrected-frame source sha"):
+        raise RuntimeError("corrected-frame source identity drift")
+    candidate_semantic = require_hex64(source.get("readiness_semantic_sha256"), "corrected-frame readiness candidate semantic sha")
+
+    expected = contract.get("expected") or {}
+    if int(expected.get("mapping_count", -1)) != int(crosswalk.get("mapped_road_count", -1)):
+        raise RuntimeError("corrected-frame contract mapping accounting drift")
+    if int(expected.get("destination_count", -1)) != destination_count:
+        raise RuntimeError("corrected-frame contract destination accounting drift")
+    if int(expected.get("mapped_cell_count", -1)) != mapped_cell_count:
+        raise RuntimeError("corrected-frame contract mapped-cell accounting drift")
+
+    expected_holds = sorted(int(v) for v in expected.get("multicell_hold_ids") or [])
+    crosswalk_holds = sorted(int(v) for v in crosswalk.get("excluded_multicell_road_ids") or [])
+    if not expected_holds or expected_holds != crosswalk_holds or len(crosswalk_holds) != len(set(crosswalk_holds)):
+        raise RuntimeError("corrected-frame multicell HOLD identity drift")
+    row_ids = {int(row.get("road_osm_id")) for row in crosswalk.get("rows") or []}
+    if row_ids.intersection(crosswalk_holds):
+        raise RuntimeError("corrected-frame multicell HOLD leaked into unique rows")
+
+    require_false(
+        contract.get("authorization") or {},
+        [
+            "production_write_authorized",
+            "production_frame_update_authorized",
+            "road_cell_mapping_authorized",
+            "runtime_probe_authorized",
+            "runtime_mount_authorized",
+            "render_authorized",
+            "collision_authorized",
+            "safe_spawn_authorized",
+            "jouable_authorized",
+        ],
+        "corrected-frame apply contract",
+    )
+    return {
+        "corrected_frame_candidate_semantic_sha256": candidate_semantic,
+        "corrected_frame_source_sha256": source_sha,
+        "migration_state": "CORRECTED_FRAME_REGISTERED_NOT_RENDERED",
+    }
 
 
 def build_catalog(repo_root: Path, road_index_path: Path, cell_index_path: Path, crosswalk_path: Path) -> dict[str, Any]:
@@ -243,11 +308,12 @@ def build_catalog(repo_root: Path, road_index_path: Path, cell_index_path: Path,
         })
 
     destinations.sort(key=lambda item: item["road_osm_id"])
+    mapped_cell_count = len({d["cell_id"] for d in destinations})
     catalog: dict[str, Any] = {
         "schema": "grand-bruxelles-road-destination-readiness-catalog-v1",
         "status": "SOURCE_BACKED_REGISTERED_NOT_RENDERED",
         "destination_count": len(destinations),
-        "mapped_cell_count": len({d["cell_id"] for d in destinations}),
+        "mapped_cell_count": mapped_cell_count,
         "source_document_count": len(road_index.get("documents") or []),
         "road_runtime_catalog_sha256": require_hex64(road_index.get("catalog_sha256"), "road runtime catalog sha"),
         "registered_cell_index_semantic_sha256": cell_semantic,
@@ -263,6 +329,7 @@ def build_catalog(repo_root: Path, road_index_path: Path, cell_index_path: Path,
         },
         "destinations": destinations,
     }
+    catalog.update(corrected_frame_wrapper(root, crosswalk, len(destinations), mapped_cell_count))
     semantic_payload = dict(catalog)
     catalog["semantic_sha256"] = sha256_json(semantic_payload)
     return catalog

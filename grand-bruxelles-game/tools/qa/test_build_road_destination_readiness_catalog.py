@@ -108,6 +108,58 @@ def test_green() -> None:
         assert row["runtime_mount_authorized"] is False
         assert row["safe_spawn_authorized"] is False
         assert row["jouable_authorized"] is False
+        assert "migration_state" not in catalog
+
+
+def test_corrected_frame_wrapper_is_derived_from_locked_contract() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        roads, runtime, cells, crosswalk, manifests = fixture(root)
+        crosswalk_payload = json.loads(crosswalk.read_text())
+        crosswalk_payload["destination_readiness"] = "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY"
+        crosswalk_payload["corrected_frame_source_sha256"] = json.loads(runtime.read_text())["documents"][0]["sha256"]
+        crosswalk_payload["excluded_multicell_road_ids"] = [22]
+        write(crosswalk, crosswalk_payload)
+
+        write(root / "data/qa/corrected_frame_destination_production_apply.contract.json", {
+            "schema": "grand-bruxelles-corrected-frame-destination-production-apply-v1",
+            "status": "LOCKED_STAGED_PAIR_EVIDENCE_ONLY_V2",
+            "source": {
+                "road_source_sha256": crosswalk_payload["corrected_frame_source_sha256"],
+                "readiness_semantic_sha256": "e" * 64,
+            },
+            "expected": {
+                "mapping_count": 1,
+                "destination_count": 1,
+                "mapped_cell_count": 1,
+                "multicell_hold_ids": [22],
+            },
+            "authorization": {
+                "production_write_authorized": False,
+                "production_frame_update_authorized": False,
+                "road_cell_mapping_authorized": False,
+                "runtime_probe_authorized": False,
+                "runtime_mount_authorized": False,
+                "render_authorized": False,
+                "collision_authorized": False,
+                "safe_spawn_authorized": False,
+                "jouable_authorized": False,
+            },
+        })
+        catalog = build_catalog(root, runtime, cells, crosswalk)
+        assert catalog["corrected_frame_source_sha256"] == crosswalk_payload["corrected_frame_source_sha256"]
+        assert catalog["corrected_frame_candidate_semantic_sha256"] == "e" * 64
+        assert catalog["migration_state"] == "CORRECTED_FRAME_REGISTERED_NOT_RENDERED"
+
+        contract = json.loads((root / "data/qa/corrected_frame_destination_production_apply.contract.json").read_text())
+        contract["authorization"]["runtime_probe_authorized"] = True
+        write(root / "data/qa/corrected_frame_destination_production_apply.contract.json", contract)
+        try:
+            build_catalog(root, runtime, cells, crosswalk)
+        except RuntimeError as exc:
+            assert "authorization" in str(exc).lower()
+        else:
+            raise AssertionError("corrected-frame authorization drift must fail closed")
 
 
 def test_reject_runtime_authorization() -> None:
@@ -156,6 +208,7 @@ def test_runtime_probe_contract() -> None:
 
 def main() -> None:
     test_green()
+    test_corrected_frame_wrapper_is_derived_from_locked_contract()
     test_reject_runtime_authorization()
     test_runtime_probe_contract()
     print("ROAD_DESTINATION_READINESS_CATALOG_TESTS_GREEN")

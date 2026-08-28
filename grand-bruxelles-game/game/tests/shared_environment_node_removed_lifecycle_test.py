@@ -9,6 +9,7 @@ EXPECTED = {
     "game/scripts/brussels_osm_road_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_rail_surface_runtime.gd": "_on_node_removed",
+    "game/scripts/brussels_corridor_tree_runtime.gd": "_on_tree_node_removed",
 }
 
 
@@ -68,7 +69,12 @@ def main() -> None:
             fail(f"node_removed watcher not disconnected from _exit_tree: {rel_path}")
         if not handler_body:
             fail(f"node_removed cleanup handler missing: {rel_path}")
-        if ".erase(" not in handler_body and ".clear()" not in handler_body:
+        purges_retained_state = (
+            ".erase(" in handler_body
+            or ".clear()" in handler_body
+            or "_release_owned_root()" in handler_body
+        )
+        if not purges_retained_state:
             fail(f"node_removed handler does not purge retained state: {rel_path}")
 
     unexpected = {

@@ -69,7 +69,7 @@ class CorrectedFrameRoadCellCrosswalkMaterializationTest(unittest.TestCase):
         self.assertEqual(current["mapped_road_count"], 96)
         self.assertEqual(current["mapped_cell_count"], 4)
         self.assertEqual(len(current["rows"]), 96)
-        self.assertEqual(current["status"], "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY")
+        self.assertEqual(current["destination_readiness"], "CORRECTED_FRAME_ROAD_CELL_CROSSWALK_EVIDENCE_ONLY")
         hold_ids = {256158619, 397461693}
         self.assertFalse(hold_ids & {int(row["road_osm_id"]) for row in current["rows"]})
         self.assertFalse(current["road_cell_mapping_authorized"])

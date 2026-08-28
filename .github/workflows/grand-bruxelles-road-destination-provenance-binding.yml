@@ -40,6 +40,7 @@ jobs:
       - name: Validate state and authorization accounting
         working-directory: grand-bruxelles-game
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -64,12 +65,22 @@ jobs:
           )
           PY
 
+      - name: Verify provenance binding evidence before upload
+        working-directory: grand-bruxelles-game/artifacts/road-provenance-binding
+        run: |
+          set -euo pipefail
+          test -s binding-a.json
+          test -s binding-file.sha256
+          test "$(wc -l < binding-file.sha256)" -eq 1
+          grep -Eq '^[0-9a-f]{64}  binding-a\.json$' binding-file.sha256
+          sha256sum --check binding-file.sha256
+
       - name: Upload provenance binding evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: brussels-road-destination-provenance-binding
           path: |
             grand-bruxelles-game/artifacts/road-provenance-binding/binding-a.json
             grand-bruxelles-game/artifacts/road-provenance-binding/binding-file.sha256
-          if-no-files-found: warn
+          if-no-files-found: error

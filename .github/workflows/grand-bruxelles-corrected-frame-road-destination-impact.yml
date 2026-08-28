@@ -76,11 +76,20 @@ jobs:
           git merge-base --is-ancestor "$MIGRATION_BASE_SHA" "$LIVE_MAIN_SHA"
           git merge-base --is-ancestor "$MATERIALIZATION_BASE_SHA" "$LIVE_MAIN_SHA"
           IMPACT_HISTORICAL_CROSSWALK="$RUNNER_TEMP/impact-historical-crosswalk.json"
+          MIGRATION_HISTORICAL_CROSSWALK="$RUNNER_TEMP/migration-historical-crosswalk.json"
+          MATERIALIZATION_HISTORICAL_CROSSWALK="$RUNNER_TEMP/materialization-historical-crosswalk.json"
+          LIVE_MAIN_READINESS="$RUNNER_TEMP/live-main-road-readiness.json"
           git show "$IMPACT_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$IMPACT_HISTORICAL_CROSSWALK"
+          git show "$MIGRATION_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$MIGRATION_HISTORICAL_CROSSWALK"
+          git show "$MATERIALIZATION_BASE_SHA:grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json" > "$MATERIALIZATION_HISTORICAL_CROSSWALK"
+          git show "$LIVE_MAIN_SHA:grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json" > "$LIVE_MAIN_READINESS"
           echo "IMPACT_BASE_SHA=$IMPACT_BASE_SHA" >> "$GITHUB_ENV"
           echo "MIGRATION_BASE_SHA=$MIGRATION_BASE_SHA" >> "$GITHUB_ENV"
           echo "MATERIALIZATION_BASE_SHA=$MATERIALIZATION_BASE_SHA" >> "$GITHUB_ENV"
           echo "IMPACT_HISTORICAL_CROSSWALK=$IMPACT_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+          echo "MIGRATION_HISTORICAL_CROSSWALK=$MIGRATION_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+          echo "MATERIALIZATION_HISTORICAL_CROSSWALK=$MATERIALIZATION_HISTORICAL_CROSSWALK" >> "$GITHUB_ENV"
+          echo "LIVE_MAIN_READINESS=$LIVE_MAIN_READINESS" >> "$GITHUB_ENV"
       - name: Recompute corrected-frame impact
         working-directory: grand-bruxelles-game
         run: >-
@@ -98,6 +107,7 @@ jobs:
           --impact "$RUNNER_TEMP/osm-road-frame-impact.json"
           --repo-root .
           --production-base-sha "$MIGRATION_BASE_SHA"
+          --current-crosswalk "$MIGRATION_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
       - name: Materialize locked corrected-frame crosswalk candidate
         working-directory: grand-bruxelles-game
@@ -107,6 +117,7 @@ jobs:
           --plan "$RUNNER_TEMP/corrected-frame-road-cell-migration-plan.json"
           --repo-root .
           --production-base-sha "$MATERIALIZATION_BASE_SHA"
+          --current-crosswalk "$MATERIALIZATION_HISTORICAL_CROSSWALK"
           --output "$RUNNER_TEMP/corrected-frame-road-cell-crosswalk-candidate.json"
       - name: Measure destination readiness impact
         working-directory: grand-bruxelles-game
@@ -114,7 +125,7 @@ jobs:
           python tools/qa/measure_corrected_frame_road_destination_readiness_impact.py
           --contract data/qa/corrected_frame_road_destination_readiness_impact.contract.json
           --candidate "$RUNNER_TEMP/corrected-frame-road-cell-crosswalk-candidate.json"
-          --readiness data/provenance/brussels_road_destination_readiness_catalog.json
+          --readiness "$LIVE_MAIN_READINESS"
           --production-base-sha "$LIVE_MAIN_SHA"
           --output "$RUNNER_TEMP/corrected-frame-road-destination-impact.json"
       - name: Verify evidence-only impact accounting

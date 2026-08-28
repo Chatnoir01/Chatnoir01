@@ -45,13 +45,14 @@ def main() -> None:
     for token in (
         "_release_owned_root()",
         "_scene = null",
-        "_ready_complete = false",
-        "_start_scene_watch()",
+        "_bind_scheduled = false",
+        "node_added.connect(_on_node_added)",
+        "_schedule_bind()",
     ):
         if token not in handler:
             fail(f"Anneessens-Midi sidewalk scene removal does not restore rebindable state: missing {token}")
 
-    build = function_body(source, "_build")
+    build = function_body(source, "_build_from_existing_osm_roads")
     if "is_instance_valid(_scene)" not in build:
         fail("Anneessens-Midi sidewalk build path does not fail closed on a freed production scene")
 

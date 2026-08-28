@@ -1,0 +1,118 @@
+name: Grand Bruxelles Gate-8 Variant07 Target Integrity
+on:
+  push:
+    branches: ["npc/gate8-variant07-target-integrity-20260828"]
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-gate8-variant07-target-integrity.yml'
+      - 'grand-bruxelles-game/data/qa/gate8_variant07_target_preflight.json'
+      - 'grand-bruxelles-game/game/tests/gate8_variant07_target_integrity_preflight.gd'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  target07-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb
+      TARGET_SHA256: d802dd843a53fb075e8f3e7e7be00c18319ba1898691e5a9508455b7f3df1cdb
+      TARGET_SIZE_BYTES: "14461992"
+      GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      PROJECT: /tmp/gate8-variant07-integrity
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live main, bounded scope and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant07-target-integrity.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant07_target_preflight.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant07_target_integrity_preflight.gd' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('grand-bruxelles-game/data/qa/gate8_variant07_target_preflight.json'))
+          assert d['variant']==7
+          assert d['binary_identity']=={'sha256':'d802dd843a53fb075e8f3e7e7be00c18319ba1898691e5a9508455b7f3df1cdb','size_bytes':14461992}
+          assert d['expected_godot_inventory']=={'skeleton_count':1,'bone_count':53,'skinned_meshes':8,'skinned_surfaces':8,'material_surfaces':8,'vertex_count':22642,'invalid_skeleton_links':0,'missing_material_surfaces':0,'reviewed_role_count':17}
+          for k in ('production_authorized','activation_ready','adoption_ready','retarget_applied','visual_approval_claimed'):
+              assert d[k] is False,k
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
+      - name: Verify immutable artifact and exact variant07 bytes
+        env: {GH_TOKEN: "${{ github.token }}"}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}" > "$RUNNER_TEMP/artifact.json"
+          python3 - "$RUNNER_TEMP/artifact.json" "$TARGET_ARTIFACT_DIGEST" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1])); assert not p.get('expired',True); assert p.get('digest')==sys.argv[2]
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/gate8.zip"
+          mkdir -p "$RUNNER_TEMP/gate8" "$PROJECT/assets"
+          unzip -q "$RUNNER_TEMP/gate8.zip" -d "$RUNNER_TEMP/gate8"
+          TARGET="$(find "$RUNNER_TEMP/gate8" -type f -name 'npc_gate_07.glb' -print -quit)"
+          test -n "$TARGET"
+          test "$(find "$RUNNER_TEMP/gate8" -type f -name 'npc_gate_07.glb' | wc -l)" -eq 1
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          sha256sum "$TARGET" | tee "$RUNNER_TEMP/npc_gate_07.sha256"
+          stat -c '%s' "$TARGET" | tee "$RUNNER_TEMP/npc_gate_07.size"
+          cp "$TARGET" "$PROJECT/assets/npc_gate_07.glb"
+      - name: Import and require exact Godot 4.7.1 inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
+          cp grand-bruxelles-game/game/tests/gate8_variant07_target_integrity_preflight.gd "$PROJECT/gate_test.gd"
+          printf '[application]\nconfig/name="Gate8Variant07Integrity"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT/project.godot"
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import >"$RUNNER_TEMP/godot-import.log" 2>&1
+          timeout 120 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
+          cp "$PROJECT/gate8_variant07_target_integrity.json" "$RUNNER_TEMP/result.json"
+          python3 - "$RUNNER_TEMP/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['state']=='TARGET07_EXACT_INTEGRITY_READY',r
+          expected={'skeleton_count':1,'bone_count':53,'skinned_meshes':8,'skinned_surfaces':8,'material_surfaces':8,'vertex_count':22642,'invalid_skeleton_links':0,'missing_material_surfaces':0}
+          for k,v in expected.items(): assert r[k]==v,(k,r[k],v)
+          assert len(r['required_roles'])==17 and r['failures']==[]
+          assert r['exact_inventory_required'] is True
+          for k in ('production_authorized','activation_ready','adoption_ready','retarget_applied','visual_approval_claimed'):
+              assert r[k] is False,k
+          print('GATE8_VARIANT07_EXACT_INTEGRITY_OK bones=53 meshes=8 surfaces=8 materials=8 vertices=22642 roles=17')
+          PY
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant07-target-integrity-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/artifact.json
+            ${{ runner.temp }}/npc_gate_07.sha256
+            ${{ runner.temp }}/npc_gate_07.size
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/godot.log
+            ${{ runner.temp }}/godot-import.log
+          retention-days: 14

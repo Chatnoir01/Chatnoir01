@@ -1,0 +1,233 @@
+name: Grand Bruxelles Gate-8 Variant01 Reweight A-B
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-reweight-ab-20260828"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-reweight-ab.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_reweight_ab.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_reweight_ab_materialize.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  variant01-reweight-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      TARGET_SIZE_BYTES: "15580240"
+      PARITY_RUN_ID: "33166972645"
+      PARITY_HEAD_SHA: "2c6b8873c080f58ed38d6d706a94d66c4ccd0377"
+      PARITY_ARTIFACT_ID: "9683982565"
+      PARITY_ARTIFACT_DIGEST: "sha256:86cad9d6eaea88b0e91b96882c4d94397b5794714e638c034ef234006d63efe8"
+      BASELINE_ARTIFACT_ID: "9679245275"
+      BASELINE_ARTIFACT_DIGEST: "sha256:310bf9d8c55f4e97ac1480351b4235e230305ccb959570581c8c2c03046703a5"
+      HARNESS_COMMIT_SHA: "73feaa653d3d66bbd46cd218576e7d9585161ae2"
+      HARNESS_PATH: "grand-bruxelles-game/game/tests/gate8_variant06_target_micropose_skin_test.gd"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-v01-reweight-ab"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main, bounded scope and frozen rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          test "$LIVE_MAIN" = "c0b75e84d7498c616996216b3f976d8195a6dadd"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-reweight-ab.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_reweight_ab.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_reweight_ab_materialize.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 - <<'PY'
+          import json
+          m=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_reweight_ab.json'))
+          assert m['base_main_sha']=='c0b75e84d7498c616996216b3f976d8195a6dadd'
+          assert m['candidate_variant']==1
+          assert m['operator']['weight_threshold']==0.05
+          assert m['operator']['canonical_glb_modified'] is False
+          assert m['operator']['skin_resource_modified'] is False
+          assert m['operator']['rest_pose_modified'] is False
+          assert m['cases']=={'degrees':5.0,'roles':9,'axes':3,'count':54}
+          assert m['gates']=={'max_skin_edge_change_m':0.25,'max_skin_stretch_ratio':3.0,'min_skin_compression_ratio':0.25,'max_foot_drift_m':0.000001,'max_rest_position_drift_m':0.000001,'max_rest_rotation_drift_deg':0.0001}
+          assert all(v is False for v in m['rails'].values())
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee /tmp/live-main.txt
+
+      - name: Verify immutable parity, baseline evidence and target bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PARITY_RUN_ID}" > /tmp/parity-run.json
+          python3 - <<'PY'
+          import json,os
+          r=json.load(open('/tmp/parity-run.json'))
+          assert r['status']=='completed' and r['conclusion']=='success' and r['head_sha']==os.environ['PARITY_HEAD_SHA']
+          PY
+          for pair in "$PARITY_ARTIFACT_ID:$PARITY_ARTIFACT_DIGEST" "$BASELINE_ARTIFACT_ID:$BASELINE_ARTIFACT_DIGEST" "$TARGET_ARTIFACT_ID:$TARGET_ARTIFACT_DIGEST"; do
+            ID="${pair%%:*}"; EXPECTED="${pair#*:}"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" > "/tmp/artifact-${ID}.json"
+            python3 - "/tmp/artifact-${ID}.json" "$EXPECTED" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1])); assert not a['expired']; assert a['digest']==sys.argv[2]
+          PY
+          done
+          rm -rf /tmp/baseline-evidence /tmp/target-evidence && mkdir -p /tmp/baseline-evidence /tmp/target-evidence "$PROJECT/assets" "$PROJECT/game/tests"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${BASELINE_ARTIFACT_ID}/zip" > /tmp/baseline.zip
+          unzip -q /tmp/baseline.zip -d /tmp/baseline-evidence
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/target.zip
+          unzip -q /tmp/target.zip -d /tmp/target-evidence
+          TARGET="$(find /tmp/target-evidence -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$TARGET"
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          python3 - <<'PY'
+          import json,pathlib
+          found=[]
+          for p in pathlib.Path('/tmp/baseline-evidence').rglob('*.json'):
+              try: d=json.loads(p.read_text())
+              except Exception: continue
+              if d.get('candidate_variant')==1 and d.get('case_count')==54 and 'case_results' in d: found.append((p,d))
+          assert len(found)==1, [str(x[0]) for x in found]
+          p,d=found[0]
+          assert d['diagnostic_state']=='TARGET_MICROPOSE_SKIN_BLOCKED'
+          assert d['blocked_case_count']==48 and len(d['case_results'])==54 and d['failures']==[]
+          pathlib.Path('/tmp/immutable-baseline-result.json').write_text(json.dumps(d,indent=2,sort_keys=True))
+          print(p)
+          PY
+
+      - name: Materialize baseline and 5-percent prune harnesses from validated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${HARNESS_COMMIT_SHA}^{commit}"
+          git show "${HARNESS_COMMIT_SHA}:${HARNESS_PATH}" > /tmp/validated-harness.gd
+          python3 grand-bruxelles-game/game/tests/gate8_variant01_reweight_ab_materialize.py /tmp/validated-harness.gd "$PROJECT/game/tests/baseline.gd" baseline-result.json 0.0
+          python3 grand-bruxelles-game/game/tests/gate8_variant01_reweight_ab_materialize.py /tmp/validated-harness.gd "$PROJECT/game/tests/prune005.gd" candidate-result.json 0.05
+          grep -q 'MEASUREMENT_PRUNE_WEIGHT := 0.00000000' "$PROJECT/game/tests/baseline.gd"
+          grep -q 'MEASUREMENT_PRUNE_WEIGHT := 0.05000000' "$PROJECT/game/tests/prune005.gd"
+          ! grep -q 'RetargetModifier3D' "$PROJECT/game/tests/baseline.gd"
+          ! grep -q 'RetargetModifier3D' "$PROJECT/game/tests/prune005.gd"
+          sha256sum /tmp/validated-harness.gd "$PROJECT/game/tests/baseline.gd" "$PROJECT/game/tests/prune005.gd" | tee /tmp/harness-sha256.txt
+
+      - name: Install exact Godot 4.7.1 and import target
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01ReweightAB"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          timeout 300s "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee /tmp/import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Measure frozen baseline and isolated prune candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/baseline.gd 2>&1 | tee /tmp/baseline.log
+          cp "$PROJECT/baseline-result.json" /tmp/baseline-result.json
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/prune005.gd 2>&1 | tee /tmp/candidate.log
+          cp "$PROJECT/candidate-result.json" /tmp/candidate-result.json
+
+      - name: Enforce A-B integrity and classify measured superiority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,math,pathlib
+          immutable=json.load(open('/tmp/immutable-baseline-result.json'))
+          base=json.load(open('/tmp/baseline-result.json'))
+          cand=json.load(open('/tmp/candidate-result.json'))
+          for r,threshold in ((base,0.0),(cand,0.05)):
+              assert r['candidate_variant']==1 and r['case_count']==54 and len(r['case_results'])==54
+              assert r['failures']==[] and r['micropose_degrees']==5.0
+              assert r['measurement_weight_prune_threshold']==threshold
+              assert r['measurement_only_weight_operator'] is True and r['canonical_glb_modified'] is False
+              assert r['max_foot_drift_m'] <= 0.000001
+              assert r['rest_drift']['max_position_drift_m'] <= 0.000001
+              assert r['rest_drift']['max_rotation_drift_deg'] <= 0.0001
+          assert base['diagnostic_state']=='TARGET_MICROPOSE_SKIN_BLOCKED'
+          assert base['blocked_case_count']==immutable['blocked_case_count']==48
+          assert base['blocked_cases']==immutable['blocked_cases']
+          for k in ('max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio'):
+              assert math.isclose(float(base[k]),float(immutable[k]),rel_tol=1e-7,abs_tol=1e-7),(k,base[k],immutable[k])
+          candidate_sane = cand['diagnostic_state']=='TARGET_MICROPOSE_SKIN_SANE'
+          strictly_better = (
+              cand['blocked_case_count'] < base['blocked_case_count'] and
+              float(cand['max_edge_absolute_change_m']) < float(base['max_edge_absolute_change_m']) and
+              float(cand['max_edge_stretch_ratio']) < float(base['max_edge_stretch_ratio']) and
+              float(cand['min_edge_compression_ratio']) > float(base['min_edge_compression_ratio'])
+          )
+          state = 'PRUNE_005_ALL_GATES_GREEN' if candidate_sane else ('PRUNE_005_MEASURED_SUPERIORITY' if strictly_better else 'PRUNE_005_NOT_SUPERIOR')
+          result={
+              'format':'grand-bruxelles-gate8-variant01-reweight-ab-result-v1',
+              'diagnostic_state':state,
+              'candidate_variant':1,
+              'operator':'prune_positive_weights_below_0.05_then_renormalize',
+              'canonical_glb_modified':False,
+              'source_animation_used':False,
+              'retarget_applied':False,
+              'baseline':{k:base[k] for k in ('diagnostic_state','blocked_case_count','max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio','worst_case')},
+              'candidate':{k:cand[k] for k in ('diagnostic_state','blocked_case_count','max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio','worst_case')},
+              'strictly_better':strictly_better,
+              'next_safe_axis': 'MATERIALIZE_REWEIGHT_COPY_FOR_ENGINE_PARITY_AND_FULL_54_CASE_RECHECK' if candidate_sane else ('REFINE_REWEIGHT_OPERATOR_WITHOUT_TOUCHING_CANONICAL_TARGET' if strictly_better else 'REJECT_SMALL_WEIGHT_PRUNE_AND_DIAGNOSE_INFLUENCE_TOPOLOGY')
+          }
+          pathlib.Path('/tmp/reweight-ab-result.json').write_text(json.dumps(result,indent=2,sort_keys=True))
+          print(json.dumps(result,sort_keys=True))
+          PY
+
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-reweight-ab-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/live-main.txt
+            /tmp/parity-run.json
+            /tmp/immutable-baseline-result.json
+            /tmp/baseline-result.json
+            /tmp/candidate-result.json
+            /tmp/reweight-ab-result.json
+            /tmp/harness-sha256.txt
+            /tmp/godot-version.txt
+            /tmp/import.log
+            /tmp/baseline.log
+            /tmp/candidate.log
+          retention-days: 14

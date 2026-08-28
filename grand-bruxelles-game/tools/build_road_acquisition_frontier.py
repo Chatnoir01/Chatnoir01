@@ -63,6 +63,21 @@ def require_closed(mapping: dict[str, Any], keys: tuple[str, ...], label: str) -
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: {label} opened {key}")
 
 
+def validate_source_documents(raw: Any, label: str) -> dict[str, str]:
+    if not isinstance(raw, dict) or not raw:
+        raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: missing {label} source documents")
+    normalized: dict[str, str] = {}
+    for raw_path, raw_digest in raw.items():
+        path = str(raw_path or "")
+        digest = str(raw_digest or "").lower()
+        if not path or not is_sha256(digest):
+            raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: invalid {label} source document {path!r}")
+        normalized[path] = digest
+    if list(normalized) != sorted(normalized):
+        normalized = dict(sorted(normalized.items()))
+    return normalized
+
+
 def _build_frontier_unchecked(
     source_root: Path,
     readiness: Path,
@@ -83,6 +98,7 @@ def _build_frontier_unchecked(
     if audit.get("upstream_binding_sha256") != binding.get("binding_sha256"):
         raise SystemExit("ROAD_ACQUISITION_FRONTIER_FAIL: upstream binding/audit identity drift")
 
+    source_documents = validate_source_documents(binding.get("source_document_sha256"), "upstream")
     discovered_ids = audit.get("discovered_unassigned_road_osm_ids")
     if not isinstance(discovered_ids, list):
         raise SystemExit("ROAD_ACQUISITION_FRONTIER_FAIL: missing discovered frontier")
@@ -101,11 +117,16 @@ def _build_frontier_unchecked(
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: missing source geometry identity {road_id}")
         if not isinstance(source_paths, list) or not source_paths or source_paths != sorted(set(source_paths)):
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: source path identity drift {road_id}")
+        missing_paths = [path for path in source_paths if path not in source_documents]
+        if missing_paths:
+            raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: missing source document hash {road_id}: {missing_paths}")
+        candidate_source_documents = {path: source_documents[path] for path in source_paths}
         candidates.append({
             "road_osm_id": int(road_id),
             "name": str(row.get("name") or ""),
             "state": "DISCOVERED",
             "source_paths": source_paths,
+            "source_document_sha256": candidate_source_documents,
             "source_geometry_sha256": geometry_sha,
             "cell_id": None,
             "municipalities": None,
@@ -122,7 +143,7 @@ def _build_frontier_unchecked(
         "upstream_municipality_audit_sha256": audit["audit_sha256"],
         "source_catalog_sha256": binding["source_catalog_sha256"],
         "readiness_catalog_semantic_sha256": binding["readiness_catalog_semantic_sha256"],
-        "source_document_sha256": binding["source_document_sha256"],
+        "source_document_sha256": source_documents,
         "source_entry_count": int(binding["entry_count"]),
         "registered_not_rendered_count": int(binding["registered_not_rendered_count"]),
         "acquisition_candidate_count": len(candidates),
@@ -156,6 +177,7 @@ def validate_structure(frontier: dict[str, Any]) -> None:
     ):
         if not is_sha256(frontier.get(key)):
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: invalid {key}")
+    source_documents = validate_source_documents(frontier.get("source_document_sha256"), "frontier")
     if frontier.get("assignment_policy") != POLICY or frontier.get("automatic_registration_claimed") is not False:
         raise SystemExit("ROAD_ACQUISITION_FRONTIER_FAIL: assignment policy drift")
 
@@ -183,6 +205,10 @@ def validate_structure(frontier: dict[str, Any]) -> None:
         source_paths = row.get("source_paths")
         if not isinstance(source_paths, list) or not source_paths or source_paths != sorted(set(source_paths)):
             raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: source path identity drift {road_id}")
+        per_candidate = validate_source_documents(row.get("source_document_sha256"), f"candidate {road_id}")
+        expected_documents = {path: source_documents[path] for path in source_paths if path in source_documents}
+        if len(expected_documents) != len(source_paths) or per_candidate != expected_documents:
+            raise SystemExit(f"ROAD_ACQUISITION_FRONTIER_FAIL: source document binding drift {road_id}")
 
     auth = frontier.get("authorization") or {}
     if auth.get("evidence_only") is not True:

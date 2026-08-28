@@ -1,0 +1,38 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-worst-edge-coverage-v1",
+  "base_main_sha": "3008b7e1399e376c6efeeb32d63fea4aaaa8271c",
+  "candidate_variant": 1,
+  "target_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+  "source_topology_artifact": {
+    "id": 9687227295,
+    "digest": "sha256:ded2bc2c9ad7ec250ceb74ca896a24f36241759ffa38e04d4b5372e821b8b8c1",
+    "expected_state": "INFLUENCE_TOPOLOGY_DIAGNOSED",
+    "expected_blocked_cases": 48
+  },
+  "expected": {
+    "unique_worst_edges": 6,
+    "unique_vertices": 12,
+    "classification_counts": {
+      "rotated_bone_one_sided": 12,
+      "rotated_bone_weight_discontinuity": 24,
+      "shared_influences": 12
+    },
+    "edge_case_multiplicities": [6, 6, 6, 6, 12, 12],
+    "family_case_counts": {
+      "shoulder": 24,
+      "forearm": 12,
+      "hand": 12
+    },
+    "minimum_coverage_fraction": 1.0
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false,
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "visual_approval_claimed": false
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-reweight-ab-v1",
+  "base_main_sha": "c0b75e84d7498c616996216b3f976d8195a6dadd",
+  "candidate_variant": 1,
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "bone_count": 53,
+    "vertex_count": 21044
+  },
+  "validated_cpu_engine_parity": {
+    "run_id": 33166972645,
+    "head_sha": "2c6b8873c080f58ed38d6d706a94d66c4ccd0377",
+    "artifact_id": 9683982565,
+    "artifact_digest": "sha256:86cad9d6eaea88b0e91b96882c4d94397b5794714e638c034ef234006d63efe8",
+    "state": "CPU_ENGINE_SKIN_PARITY_CONFIRMED",
+    "max_vertex_error_m": 0.0001
+  },
+  "baseline_harness": {
+    "commit": "73feaa653d3d66bbd46cd218576e7d9585161ae2",
+    "path": "grand-bruxelles-game/game/tests/gate8_variant06_target_micropose_skin_test.gd"
+  },
+  "operator": {
+    "kind": "measurement_only_prune_small_positive_influences_then_renormalize",
+    "weight_threshold": 0.05,
+    "canonical_glb_modified": false,
+    "skin_resource_modified": false,
+    "rest_pose_modified": false
+  },
+  "cases": {"degrees": 5.0, "roles": 9, "axes": 3, "count": 54},
+  "gates": {
+    "max_skin_edge_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25,
+    "max_foot_drift_m": 0.000001,
+    "max_rest_position_drift_m": 0.000001,
+    "max_rest_rotation_drift_deg": 0.0001
+  },
+  "rails": {
+    "source_animation_used": false,
+    "retarget_applied": false,
+    "runtime_population_changed": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "visual_witness_authorized": false,
+    "player_character_reuse_allowed": false
+  }
+}

@@ -89,11 +89,27 @@ def test_opened_runtime_authorization_fails_closed_even_rehashed() -> None:
         raise AssertionError("opened runtime authorization did not fail closed")
 
 
+def test_rehashed_municipality_internal_accounting_tamper_fails_closed() -> None:
+    audit = build_real()
+    row = audit["municipalities"][0]
+    row["registered_road_count"] += 1
+    unsigned = dict(audit)
+    unsigned.pop("audit_sha256", None)
+    audit["audit_sha256"] = module.sha256_json(unsigned)
+    try:
+        module.validate_audit(audit)
+    except SystemExit as exc:
+        assert "municipality road accounting drift" in str(exc)
+    else:
+        raise AssertionError("rehashed municipality accounting tamper did not fail closed")
+
+
 def main() -> int:
     test_real_audit_is_deterministic_and_closed()
     test_hash_tamper_fails_closed()
     test_false_19_commune_completion_fails_closed_even_rehashed()
     test_opened_runtime_authorization_fails_closed_even_rehashed()
+    test_rehashed_municipality_internal_accounting_tamper_fails_closed()
     print("ROAD_MUNICIPALITY_AUDIT_TEST_OK")
     return 0
 

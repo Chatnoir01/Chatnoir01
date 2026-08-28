@@ -83,6 +83,12 @@ def validate_registered_cell_manifest_identity(manifest: dict[str, Any], row: di
     maturity = manifest.get("maturity")
     if not isinstance(maturity, dict) or maturity.get("state") != row.get("maturity_state"):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest maturity drift")
+    gates = maturity.get("gates")
+    if not isinstance(gates, dict) or not gates:
+        raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest gate drift")
+    for gate_name, gate_value in gates.items():
+        if not isinstance(gate_name, str) or not gate_name or gate_value is not False:
+            raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest gate opened")
 
 
 def load_registered_cell_ids(cells_path: Path) -> set[str]:

@@ -1,0 +1,92 @@
+name: Grand Bruxelles Road Municipality Coverage Audit
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - 'grand-bruxelles-game/tools/build_road_destination_catalog.py'
+      - 'grand-bruxelles-game/tools/build_road_destination_provenance_binding.py'
+      - 'grand-bruxelles-game/tools/build_road_municipality_coverage_audit.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_municipality_coverage_audit.py'
+      - '.github/workflows/grand-bruxelles-road-municipality-coverage-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  municipality-coverage-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run fail-closed municipality coverage regressions
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tools/tests/test_road_municipality_coverage_audit.py
+
+      - name: Build deterministic municipality audit twice
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/road-municipality-audit
+          python3 tools/build_road_municipality_coverage_audit.py --output artifacts/road-municipality-audit/audit-a.json
+          python3 tools/build_road_municipality_coverage_audit.py --output artifacts/road-municipality-audit/audit-b.json
+          cmp artifacts/road-municipality-audit/audit-a.json artifacts/road-municipality-audit/audit-b.json
+          (
+            cd artifacts/road-municipality-audit
+            sha256sum audit-a.json | tee audit-file.sha256
+          )
+
+      - name: Validate measured frontier and closed rails
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          audit = json.loads(Path('artifacts/road-municipality-audit/audit-a.json').read_text(encoding='utf-8'))
+          assert audit['format'] == 'grand-bruxelles-road-municipality-coverage-audit-v1'
+          assert audit['source_entry_count'] == 139
+          assert audit['registered_not_rendered_count'] == 96
+          assert audit['discovered_unassigned_count'] == 43
+          assert audit['municipality_count_with_registered_evidence'] == 3
+          assert audit['automatic_19_commune_completion_claimed'] is False
+          assert audit['coverage_scope'] == 'registered-evidence-only'
+          auth = audit['authorization']
+          assert auth['evidence_only'] is True
+          assert auth['source_registration_authorized'] is False
+          assert auth['road_cell_mapping_authorized'] is False
+          for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
+              assert auth[key] is False, key
+          print(
+              'ROAD_MUNICIPALITY_FRONTIER_GREEN: '
+              f"entries={audit['source_entry_count']} registered={audit['registered_not_rendered_count']} "
+              f"discovered_unassigned={audit['discovered_unassigned_count']} municipalities={audit['municipality_count_with_registered_evidence']} "
+              f"sha256={audit['audit_sha256']}"
+          )
+          PY
+
+      - name: Verify municipality audit evidence before upload
+        working-directory: grand-bruxelles-game/artifacts/road-municipality-audit
+        run: |
+          set -euo pipefail
+          test -s audit-a.json
+          test -s audit-file.sha256
+          test "$(wc -l < audit-file.sha256)" -eq 1
+          grep -Eq '^[0-9a-f]{64}  audit-a\.json$' audit-file.sha256
+          sha256sum --check audit-file.sha256
+
+      - name: Upload municipality audit evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-road-municipality-coverage-audit
+          path: |
+            grand-bruxelles-game/artifacts/road-municipality-audit/audit-a.json
+            grand-bruxelles-game/artifacts/road-municipality-audit/audit-file.sha256
+          if-no-files-found: error

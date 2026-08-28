@@ -25,6 +25,8 @@ func _ready() -> void:
     _tearing_down = false
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
+    if not get_tree().node_removed.is_connected(_on_node_removed):
+        get_tree().node_removed.connect(_on_node_removed)
     call_deferred("_schedule_rail_bind")
 
 func _exit_tree() -> void:
@@ -32,6 +34,8 @@ func _exit_tree() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+    if tree != null and tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.disconnect(_on_node_removed)
     _release_material_ownership()
 
 func _release_material_ownership() -> void:
@@ -159,6 +163,21 @@ func _on_node_added(node: Node) -> void:
         return
     if _is_generated_rails_root(node) or _is_generated_rail_child(node):
         _schedule_rail_bind()
+
+func _on_node_removed(node: Node) -> void:
+    if node == null or not is_instance_valid(node):
+        return
+    var instance_id := node.get_instance_id()
+    if node is CSGBox3D:
+        _rails.erase(node)
+        _legacy_materials.erase(instance_id)
+        _owned_materials.erase(instance_id)
+        _original_transforms.erase(instance_id)
+        _original_sizes.erase(instance_id)
+    if node is MeshInstance3D:
+        _official_rails.erase(instance_id)
+        _official_legacy_materials.erase(instance_id)
+        _official_owned_materials.erase(instance_id)
 
 func _scan_existing_official_rails() -> void:
     var jette := get_tree().root.find_child("JetteOfficialTramNetwork", true, false)

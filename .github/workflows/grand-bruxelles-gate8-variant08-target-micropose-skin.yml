@@ -1,0 +1,247 @@
+name: Grand Bruxelles Gate-8 Variant08 Target Micropose Skin
+
+on:
+  push:
+    branches: ["npc/gate8-variant08-target-micropose-20260828"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant08-target-micropose-skin.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant08_target_micropose_skin.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant08_micropose_materialize.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  variant08-target-micropose-skin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "f53e1efa7f182dc0f3de34fb523ac19d008aabb0059f01b744eca91500bd2f50"
+      TARGET_GLB_BYTES: "16571584"
+      INTEGRITY_RUN_ID: "33150826309"
+      INTEGRITY_HEAD_SHA: "87ce5fe2980e7ba72364dc98f35f81673327bcec"
+      INTEGRITY_ARTIFACT_ID: "9677634781"
+      INTEGRITY_ARTIFACT_DIGEST: "sha256:c866ad6c37494cce55348308a9e630be4701017e4013a98ca400b4dd2dd1f934"
+      HARNESS_COMMIT_SHA: "73feaa653d3d66bbd46cd218576e7d9585161ae2"
+      HARNESS_PATH: "grand-bruxelles-game/game/tests/gate8_variant06_target_micropose_skin_test.gd"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-v08-target-micropose"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Lock exact-current ancestry, three-file scope and rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          printf 'live_main=%s\nmerge_base=%s\nhead=%s\n' "$LIVE_MAIN" "$MERGE_BASE" "$(git rev-parse HEAD)" | tee /tmp/ancestry.txt
+          test "$MERGE_BASE" = "$LIVE_MAIN" || { echo "RED: variant08 micropose branch is behind live main" >&2; exit 1; }
+          cat > /tmp/expected-scope.txt <<'EOF'
+          .github/workflows/grand-bruxelles-gate8-variant08-target-micropose-skin.yml
+          grand-bruxelles-game/data/qa/gate8_variant08_target_micropose_skin.json
+          grand-bruxelles-game/game/tests/gate8_variant08_micropose_materialize.py
+          EOF
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          sort -o /tmp/expected-scope.txt /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant08_target_micropose_skin.json').read_text())
+          assert m['format']=='grand-bruxelles-gate8-variant08-target-micropose-skin-v1'
+          assert m['base_main_sha']=='1f865d0d8cdfe16b738f935d5f4e8a80b7a5d0bd'
+          t=m['target']
+          assert t['variant']==8 and t['glb_sha256']=='f53e1efa7f182dc0f3de34fb523ac19d008aabb0059f01b744eca91500bd2f50'
+          assert t['size_bytes']==16571584 and t['bone_count']==53 and t['vertex_count']==20729
+          assert t['skinned_meshes']==8 and t['skinned_surfaces']==8 and t['material_surfaces']==8
+          p=m['validated_integrity_prerequisite']
+          assert p['run_id']==33150826309 and p['head_sha']=='87ce5fe2980e7ba72364dc98f35f81673327bcec'
+          assert p['artifact_id']==9677634781 and p['artifact_digest']=='sha256:c866ad6c37494cce55348308a9e630be4701017e4013a98ca400b4dd2dd1f934'
+          assert p['state']=='TARGET08_EXACT_INTEGRITY_READY'
+          h=m['validated_harness_source']
+          assert h['commit_sha']=='73feaa653d3d66bbd46cd218576e7d9585161ae2'
+          assert h['source_variant']==6 and h['source_vertex_count']==24073
+          assert m['method']['source_animation_used'] is False and m['method']['retarget_applied'] is False
+          assert m['method']['expected_case_count']==54
+          assert m['gates']=={'max_skin_edge_change_m':0.25,'max_skin_stretch_ratio':3.0,'min_skin_compression_ratio':0.25,'max_foot_drift_m':0.000001,'max_rest_position_drift_m':0.000001,'max_rest_rotation_drift_deg':0.0001}
+          for key,value in m['rails'].items():
+              if key in ('walk_alias_selected','run_alias_selected'): assert value==''
+              else: assert value is False,key
+          PY
+
+      - name: Verify immutable integrity prerequisite and Gate-8 variant08 bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${INTEGRITY_RUN_ID}" > /tmp/integrity-run.json
+          python3 - <<'PY'
+          import json,os
+          r=json.load(open('/tmp/integrity-run.json'))
+          assert r['status']=='completed' and r['conclusion']=='success'
+          assert r['head_sha']==os.environ['INTEGRITY_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${INTEGRITY_ARTIFACT_ID}" > /tmp/integrity-artifact.json
+          python3 - <<'PY'
+          import json,os
+          a=json.load(open('/tmp/integrity-artifact.json'))
+          assert not a['expired'] and a['digest']==os.environ['INTEGRITY_ARTIFACT_DIGEST']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}" > /tmp/target-artifact.json
+          python3 - <<'PY'
+          import json,os
+          a=json.load(open('/tmp/target-artifact.json'))
+          assert not a['expired'] and a['digest']==os.environ['TARGET_ARTIFACT_DIGEST']
+          PY
+          rm -rf /tmp/gate8-target && mkdir -p /tmp/gate8-target
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          TARGET="$(find /tmp/gate8-target -type f -name npc_gate_08.glb -print -quit)"
+          test -n "$TARGET"
+          test "$(find /tmp/gate8-target -type f -name npc_gate_08.glb | wc -l)" -eq 1
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_GLB_BYTES"
+          cp "$TARGET" /tmp/npc_gate_08.glb
+          sha256sum /tmp/npc_gate_08.glb > /tmp/npc_gate_08.sha256
+
+      - name: Materialize variant08 harness from immutable validated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${HARNESS_COMMIT_SHA}^{commit}"
+          git show "${HARNESS_COMMIT_SHA}:${HARNESS_PATH}" > /tmp/validated-v06-harness.gd
+          python3 grand-bruxelles-game/game/tests/gate8_variant08_micropose_materialize.py /tmp/validated-v06-harness.gd /tmp/gate8_variant08_target_micropose_skin_test.gd
+          grep -q 'const MICROPOSE_DEG := 5.0' /tmp/gate8_variant08_target_micropose_skin_test.gd
+          grep -q 'const EXPECTED_VERTICES := 20729' /tmp/gate8_variant08_target_micropose_skin_test.gd
+          grep -q '"candidate_variant":8' /tmp/gate8_variant08_target_micropose_skin_test.gd
+          ! grep -q 'RetargetModifier3D' /tmp/gate8_variant08_target_micropose_skin_test.gd
+          sha256sum /tmp/validated-v06-harness.gd /tmp/gate8_variant08_target_micropose_skin_test.gd | tee /tmp/harness-sha256.txt
+
+      - name: Install exact Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated target-only project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$PROJECT"
+          mkdir -p "$PROJECT/assets" "$PROJECT/game/tests"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant08TargetMicroposeSkin"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/npc_gate_08.glb "$PROJECT/assets/npc_gate_08.glb"
+          cp /tmp/gate8_variant08_target_micropose_skin_test.gd "$PROJECT/game/tests/"
+          ! grep -q '^\[autoload\]' "$PROJECT/project.godot"
+
+      - name: Import exact target under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee /tmp/import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Measure target-only controlled micropose CPU skin-space
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/gate8_variant08_target_micropose_skin_test.gd 2>&1 | tee /tmp/micropose.log
+          cp "$PROJECT/gate8_variant08_target_micropose_skin_result.json" /tmp/micropose-result.json
+
+      - name: Enforce characterization result without weakening gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/micropose-result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant08-target-micropose-skin-v1'
+          assert r['candidate_variant']==8
+          assert r['measurement']=='target_only_controlled_micropose_cpu_skin_space'
+          assert r['source_animation_used'] is False and r['retarget_applied'] is False
+          assert r['target_skin_modified'] is False and r['target_rest_modified'] is False and r['threshold_changed'] is False
+          assert r['target_bone_count']==53 and r['reviewed_role_count']==22
+          inv=r['skin_inventory']
+          assert inv['skinned_meshes']==8 and inv['skinned_surfaces']==8 and inv['material_surfaces']==8 and inv['vertices']==20729 and inv['invalid_skeleton_links']==0
+          assert r['micropose_degrees']==5.0 and r['micropose_role_count']==9 and r['axis_count']==3 and r['case_count']==54 and len(r['case_results'])==54
+          assert r['triangles_measured_per_case']>0 and r['failures']==[]
+          assert r['max_foot_drift_m'] <= 0.000001
+          assert r['rest_drift']['max_position_drift_m'] <= 0.000001 and r['rest_drift']['max_rotation_drift_deg'] <= 0.0001
+          assert r['max_bind_product_translation_delta_m'] <= 0.00001 and r['max_bind_product_rotation_delta_deg'] <= 0.01
+          for key in ('production_authorized','activation_ready','adoption_ready','runtime_population_changed','visual_witness_authorized','visual_approval_claimed','player_character_reuse_allowed','mixamo_payload_allowed'):
+              assert r[key] is False,key
+          edge=float(r['max_edge_absolute_change_m']); stretch=float(r['max_edge_stretch_ratio']); compression=float(r['min_edge_compression_ratio'])
+          assert all(math.isfinite(x) for x in (edge,stretch,compression))
+          state=r['diagnostic_state']
+          assert state in ('TARGET_MICROPOSE_SKIN_SANE','TARGET_MICROPOSE_SKIN_BLOCKED')
+          if state=='TARGET_MICROPOSE_SKIN_SANE':
+              assert r['blocked_case_count']==0 and r['blocked_cases']==[]
+              assert edge <= 0.25 and stretch <= 3.0 and compression >= 0.25
+              assert r['next_safe_axis']=='SOURCE_TO_TARGET_POSE_AMPLITUDE_OR_REST_FRAME'
+          else:
+              assert r['blocked_case_count']>0
+              assert edge > 0.25 or stretch > 3.0 or compression < 0.25
+              assert r['next_safe_axis']=='REJECT_VARIANT08_DYNAMIC_TARGET_SKIN_OR_REWEIGHT_REQUIRED'
+          Path('/tmp/micropose-summary.txt').write_text('state=%s\ncases=%d\nblocked_cases=%d\nedge_change_m=%.9f\nstretch_ratio=%.9f\ncompression_ratio=%.9f\nmax_foot_drift_m=%.9f\nproduction_authorized=false\nvisual_witness_authorized=false\n' % (state,r['case_count'],r['blocked_case_count'],edge,stretch,compression,float(r['max_foot_drift_m'])))
+          print('GATE8_V08_TARGET_MICROPOSE_RESULT_OK state=%s cases=%d blocked=%d edge=%.6f stretch=%.6f compression=%.6f' % (state,r['case_count'],r['blocked_case_count'],edge,stretch,compression))
+          PY
+          grep -q '^GATE8_VARIANT08_TARGET_MICROPOSE state=' /tmp/micropose.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/micropose.log
+
+      - name: Prove repository untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee /tmp/git-status.txt
+          test ! -s /tmp/git-status.txt
+
+      - name: Upload target-only evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant08-target-micropose-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/ancestry.txt
+            /tmp/expected-scope.txt
+            /tmp/integrity-run.json
+            /tmp/integrity-artifact.json
+            /tmp/target-artifact.json
+            /tmp/npc_gate_08.sha256
+            /tmp/harness-sha256.txt
+            /tmp/godot-version.txt
+            /tmp/import.log
+            /tmp/micropose.log
+            /tmp/micropose-result.json
+            /tmp/micropose-summary.txt
+            /tmp/git-status.txt
+          retention-days: 14

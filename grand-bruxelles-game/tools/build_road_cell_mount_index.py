@@ -17,7 +17,6 @@ FORMAT = "grand-bruxelles-road-cell-mount-index-v1"
 READINESS_SCHEMA = "grand-bruxelles-road-destination-readiness-catalog-v1"
 CELL_MANIFEST_FORMAT = "grand-bruxelles-cell-maturity-v1"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CELL_MANIFEST_ROOT = PROJECT_ROOT / "data" / "cell_manifests"
 CLOSED_KEYS = (
     "render_authorized",
     "collision_authorized",
@@ -140,7 +139,6 @@ def build_index(readiness: dict[str, Any], project_root: Path = PROJECT_ROOT) ->
     road_index: dict[str, Any] = {}
     cells: dict[str, Any] = {}
     seen_road_ids: set[int] = set()
-    verified_manifests: set[tuple[str, str]] = set()
     for row in destinations:
         if not isinstance(row, dict):
             raise SystemExit("ROAD_CELL_MOUNT_INDEX_FAIL: malformed destination")
@@ -170,18 +168,6 @@ def build_index(readiness: dict[str, Any], project_root: Path = PROJECT_ROOT) ->
         ):
             raise SystemExit(f"ROAD_CELL_MOUNT_INDEX_FAIL: cell identity drift {road_id}")
 
-        binding_key = (manifest_path, manifest_sha)
-        if binding_key not in verified_manifests:
-            verify_cell_manifest_binding(
-                project_root,
-                cell_id=cell_id,
-                grid_cell_id=grid_cell_id,
-                bbox=bbox,
-                manifest_path=manifest_path,
-                manifest_sha=manifest_sha,
-            )
-            verified_manifests.add(binding_key)
-
         existing = cells.get(cell_id)
         identity = {
             "cell_id": cell_id,
@@ -192,6 +178,14 @@ def build_index(readiness: dict[str, Any], project_root: Path = PROJECT_ROOT) ->
             "cell_manifest_sha256": manifest_sha,
         }
         if existing is None:
+            verify_cell_manifest_binding(
+                project_root,
+                cell_id=cell_id,
+                grid_cell_id=grid_cell_id,
+                bbox=bbox,
+                manifest_path=manifest_path,
+                manifest_sha=manifest_sha,
+            )
             cells[cell_id] = {
                 **identity,
                 "road_osm_ids": [],

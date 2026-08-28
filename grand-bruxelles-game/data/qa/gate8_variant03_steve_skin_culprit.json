@@ -1,5 +1,5 @@
 {
-  "format": "grand-bruxelles-gate8-variant03-steve-skin-culprit-v3",
+  "format": "grand-bruxelles-gate8-variant03-steve-skin-culprit-v4",
   "base_main_sha": "dec964e0b7374e8771a7e6103310751bbdb07483",
   "source": {
     "name": "Steve NPC1",
@@ -24,6 +24,35 @@
     "artifact_id": 9661224043,
     "artifact_digest": "sha256:c44b7a008e646cdcbc2b6ef41d37e9586855f45f43d73e193dec0287e3680bca",
     "state": "MULTIPLE_RIGHT_ARM_SKIN_BOUNDARIES_CONFIRMED"
+  },
+  "exact_current_evidence": {
+    "main_sha": "88865eb34934f2dfa1efd6677d7906930ec4b3bd",
+    "head_sha": "054b1b5a58c0d4675095ad840a3b7317637b85fd",
+    "classification": {
+      "run": 33128470820,
+      "artifact_id": 9669322297,
+      "artifact_digest": "sha256:d5cc90633991b4e66ab23e5d74559b3e3ba0abffa711345b7cae33ca17ae1efb",
+      "state": "MULTIPLE_RIGHT_ARM_SKIN_BOUNDARIES_CONFIRMED"
+    },
+    "shoulder_ab": {
+      "run": 33128470800,
+      "artifact_id": 9669322973,
+      "artifact_digest": "sha256:767629771cd7e07c7a0f796473d4208dcba2ca795a7cd9f4af7abf83d28b68fb",
+      "state": "SHOULDER_AB_NO_CANDIDATE_WITHIN_GATES",
+      "candidates": []
+    },
+    "hand_ab": {
+      "run": 33128470758,
+      "artifact_id": 9669338986,
+      "artifact_digest": "sha256:2fbd45bde6d3d0510c8cf5d037db8dfbf0c02082dfd1342f5d2f5e2814ea48d9",
+      "state": "HAND_AB_CANDIDATE_IDENTIFIED_SHOULDER_STILL_BLOCKED",
+      "candidates": ["HAND_0"],
+      "diagnostic_only": true,
+      "adoption_authorized": false
+    },
+    "next_safe_axis": "DIFFERENT_SOURCE_SKIN_PAIRING",
+    "visual_witness_authorized": false,
+    "production_authorized": false
   },
   "families": {
     "shoulder_torso": {"sample": 10, "mesh": "Human_female_sportsuit01_004_gate8_export", "triangle": 1438, "vertices": [746,401], "bones": ["spine_03","clavicle_r","upperarm_r"]},

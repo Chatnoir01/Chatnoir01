@@ -80,6 +80,17 @@ def main() -> int:
     inconsistent_cell = resign(inconsistent_cell)
     expect_fail("inconsistent cell identity", lambda: module.build_index(inconsistent_cell))
 
+    # A re-signed readiness document must not be able to forge a cell-manifest
+    # digest. The mount index is only trustworthy when the declared digest is
+    # bound to the actual manifest bytes in the repository.
+    forged_manifest = copy.deepcopy(readiness)
+    forged_cell = forged_manifest["destinations"][0]["cell_id"]
+    for row in forged_manifest["destinations"]:
+        if row["cell_id"] == forged_cell:
+            row["cell_manifest_sha256"] = "1" * 64
+    forged_manifest = resign(forged_manifest)
+    expect_fail("cell manifest bytes drift", lambda: module.build_index(forged_manifest))
+
     corrupted_index = copy.deepcopy(index_a)
     corrupted_index["authorized_mount_count"] = 1
     corrupted_index["authorized_mounts"] = [next(iter(corrupted_index["cells"]))]

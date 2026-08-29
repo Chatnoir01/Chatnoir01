@@ -45,7 +45,7 @@ def _require_integral_number(value: Any, label: str) -> int:
             raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} non-finite drift")
         if not value.is_integer():
             raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} integral-coordinate drift")
-        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} JSON type drift")
+        return int(value)
     raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} JSON type drift")
 
 

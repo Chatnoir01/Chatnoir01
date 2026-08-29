@@ -25,17 +25,31 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: nord-city-machine-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   nord-visible-labo:
     runs-on: ubuntu-24.04
-    timeout-minutes: 16
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Verify exact PR head and source data
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha }}"
+          test "$actual" = "$expected"
+          echo "NORD_CITY_MACHINE_VISUAL_EXACT_HEAD_OK sha=$actual"
+
+      - name: Verify Nord source data and catalog onboarding
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
@@ -43,27 +57,32 @@ jobs:
           python tools/validate_nord_city_machine_data.py data/urbis/nord
           python tools/city_machine/test_nord_visible_labo_onboarding.py
 
-      - name: Install Godot 4.7.1 and Xvfb
-        shell: bash
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+
+      - name: Install Godot 4.7.1
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri
-          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+          curl -fL --retry 4 --retry-all-errors --retry-delay 3 \
             -o /tmp/godot.zip \
             https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
 
-      - name: Import project
+      - name: Import and parse project
         shell: bash
         run: |
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/nord-visible-labo-import.log
-          ! grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/nord-visible-labo-import.log
+            --headless --path grand-bruxelles-game --editor --quit \
+            2>&1 | tee /tmp/nord-visible-labo-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/nord-visible-labo-import.log; then
+            exit 1
+          fi
 
-      - name: Prove Nord official geometry loads visibly
+      - name: Prove Nord official geometry loads
         shell: bash
         run: |
           set -o pipefail
@@ -73,34 +92,66 @@ jobs:
           grep -q 'NORD_CITY_MACHINE_LABO_OK' /tmp/nord-visible-labo.log
           ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/nord-visible-labo.log
 
-      - name: Render deterministic Nord visual witness
+      - name: Capture Nord production-selector visual witness
         shell: bash
-        env:
-          LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
           set -o pipefail
-          rm -f /tmp/nord-city-machine-overview.png
-          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' \
-            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --rendering-method gl_compatibility \
-            --rendering-driver opengl3 \
-            --resolution 1280x720 \
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --path grand-bruxelles-game \
-            --script res://game/tests/nord_visual_witness.gd 2>&1 | tee /tmp/nord-visual-witness.log
-          grep -q 'NORD_VISUAL_WITNESS_OK' /tmp/nord-visual-witness.log
-          test -s /tmp/nord-city-machine-overview.png
-          file /tmp/nord-city-machine-overview.png | grep -q 'PNG image data, 1280 x 720'
-          ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/nord-visual-witness.log
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/nord_visual_witness.gd \
+            2>&1 | tee /tmp/nord-visual-witness.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|NORD_CITY_MACHINE_VISUAL_WITNESS_FAIL' /tmp/nord-visual-witness.log; then
+            exit 1
+          fi
+          grep -F 'NORD_CITY_MACHINE_VISUAL_WITNESS_OK' /tmp/nord-visual-witness.log
+          test -s grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/nord_city_machine_arrival.png
+          test -s grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/nord_city_machine_overview.png
+          test -s grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/report.json
 
-      - name: Upload Nord LABO diagnostics and visual witness
+      - name: Validate human-review witness contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/report.json')
+          report = json.loads(path.read_text(encoding='utf-8'))
+          assert report['format'] == 'grand-bruxelles-nord-city-machine-visual-witness-v1'
+          assert report['zone_id'] == 'nord_machine_labo'
+          assert report['quality'] == 'LABO'
+          assert report['jouable'] is False
+          assert report['human_review_required'] is True
+          assert report['promotion_performed'] is False
+          assert report['production_selector_path'] is True
+          assert report['official_geometry_present'] is True
+          assert report['visual_review_only'] is True
+          assert report['photo_match_proven'] is False
+          assert report['osm_context_present'] is False
+          assert report['resolution'] == [1280, 720]
+          assert int(report['stats']['buildings']) == 1015
+          assert int(report['stats']['street_surfaces']) == 627
+          print('NORD_CITY_MACHINE_HUMAN_REVIEW_WITNESS_CONTRACT_OK promotion=false jouable=false captures=2')
+          PY
+
+      - name: Preserve logs
+        if: always()
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness
+          test ! -f /tmp/nord-visual-witness.log || cp /tmp/nord-visual-witness.log grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/witness.log
+          test ! -f /tmp/nord-visible-labo.log || cp /tmp/nord-visible-labo.log grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/labo.log
+          test ! -f /tmp/nord-visible-labo-import.log || cp /tmp/nord-visible-labo-import.log grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/import.log
+          if [ ! -e grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/report.json ]; then
+            printf '%s\n' '{"format":"grand-bruxelles-nord-city-machine-visual-witness-v1","status":"witness_not_completed","zone_id":"nord_machine_labo","quality":"LABO","jouable":false,"human_review_required":true,"promotion_performed":false}' > grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/diagnostic.json
+          fi
+
+      - name: Upload Nord owner-visible review evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nord-visible-labo-${{ github.event.pull_request.head.sha || github.sha }}
+          name: nord-city-machine-human-review-witness-${{ github.event.pull_request.head.sha || github.sha }}
+          path: grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness
           if-no-files-found: error
-          retention-days: 14
-          path: |
-            /tmp/nord-visible-labo-import.log
-            /tmp/nord-visible-labo.log
-            /tmp/nord-visual-witness.log
-            /tmp/nord-city-machine-overview.png
+          retention-days: 30

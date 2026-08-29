@@ -1,0 +1,29 @@
+name: Grand Bruxelles Registered Cell Index Semantic
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/tools/validate_registered_cell_index_semantics.py'
+      - 'grand-bruxelles-game/tools/tests/test_registered_cell_index_semantics.py'
+      - '.github/workflows/grand-bruxelles-registered-cell-index-semantic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registered-cell-index-semantic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate locked registered-cell semantic identity
+        working-directory: grand-bruxelles-game
+        run: python tools/validate_registered_cell_index_semantics.py
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python tools/tests/test_registered_cell_index_semantics.py

@@ -1,0 +1,119 @@
+name: Grand Bruxelles Gate-8 Source Asset Weight Origin
+
+on:
+  push:
+    branches: ["npc/gate8-source-weight-transfer-9a46212"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  source-asset-weight-origin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_MAIN_SHA: "9a46212297230581e72222f7489d10322bbd2071"
+      SOURCE_RUN_ID: "32552758284"
+      SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+      ASSET_PACK_ARTIFACT_ID: "9710539659"
+      ASSET_PACK_ARTIFACT_DIGEST: "sha256:ce6fe32adf20838b853ef6f3e80f47bee194f21565cf4d35cad8f2c02f2941da"
+      ASSET_PACK_SHA256: "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+      RESULT_PATH: "/tmp/gate8-source-asset-weight-origin/source-asset-weight-origin-result.json"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml' \
+            '.github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml' \
+            '.github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py' | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+
+      - name: Materialize exact pinned CC0 Gate-8 asset pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-source-asset-weight-origin/artifact
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}" > /tmp/gate8-source-asset-weight-origin/artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-source-asset-weight-origin/artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['ASSET_PACK_ARTIFACT_DIGEST']
+          assert int(a['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert a['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}/zip" > /tmp/gate8-source-asset-weight-origin/artifact.zip
+          unzip -q /tmp/gate8-source-asset-weight-origin/artifact.zip -d /tmp/gate8-source-asset-weight-origin/artifact
+          test -s /tmp/gate8-source-asset-weight-origin/artifact/makehuman_gate8_system_assets_cc0.zip
+          echo "${ASSET_PACK_SHA256}  /tmp/gate8-source-asset-weight-origin/artifact/makehuman_gate8_system_assets_cc0.zip" | sha256sum -c -
+
+      - name: Trace sportsuit source weight metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py \
+            /tmp/gate8-source-asset-weight-origin/artifact/makehuman_gate8_system_assets_cc0.zip \
+            "$RESULT_PATH"
+
+      - name: Verify fail-closed source-origin verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['RESULT_PATH']))
+          assert r['format']=='grand-bruxelles-gate8-variant01-source-asset-weight-origin-v1'
+          assert r['diagnostic_state']=='SPORTSUIT_HAS_PROXY_MAPPING_BUT_NO_EXPLICIT_MHW'
+          assert r['next_safe_axis']=='TRACE_PROXY_WEIGHT_INTERPOLATION_IMPLEMENTATION'
+          assert r['asset_zip_sha256']==os.environ['ASSET_PACK_SHA256']
+          assert r['sportsuit_uuid']=='e38d3a5b-718f-41d5-8404-299def30b43f'
+          assert r['sportsuit_basemesh']=='hm08'
+          assert r['sportsuit_proxy_vertex_count']==1797
+          assert r['explicit_mhw_present'] is False
+          assert r['source_edge']==[486,601]
+          assert r['endpoint_proxy_rows']['486']['body_vertices']==[15673,15666,15667]
+          assert r['endpoint_proxy_rows']['601']['body_vertices']==[15947,15583,15871]
+          assert r['license']=='CC0'
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          PY
+
+      - name: Upload source asset weight-origin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-source-asset-weight-origin
+          path: |
+            /tmp/gate8-source-asset-weight-origin/source-asset-weight-origin-result.json
+            /tmp/gate8-source-asset-weight-origin/artifact.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove canonical repository stayed clean
+        run: test -z "$(git status --porcelain)"

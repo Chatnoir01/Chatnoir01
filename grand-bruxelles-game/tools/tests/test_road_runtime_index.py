@@ -109,6 +109,18 @@ def test_runtime_index_json_contract_fails_closed() -> None:
         path_type_drift["documents"][0]["path"] = 42
         assert_contract_rejects(path_type_drift, "JSON type drift source path")
 
+        parent_traversal = copy.deepcopy(index)
+        parent_traversal["documents"][0]["path"] = "data/osm/../shadow.game.json"
+        assert_contract_rejects(parent_traversal, "non-canonical source path")
+
+        dot_segment = copy.deepcopy(index)
+        dot_segment["documents"][0]["path"] = "data/osm/./slice.game.json"
+        assert_contract_rejects(dot_segment, "non-canonical source path")
+
+        backslash_drift = copy.deepcopy(index)
+        backslash_drift["documents"][0]["path"] = "data/osm/sub\\slice.game.json"
+        assert_contract_rejects(backslash_drift, "non-canonical source path")
+
 
 def test_real_slice_matches_catalog_and_contains_lemonnier() -> None:
     source_root = ROOT / "data" / "osm"

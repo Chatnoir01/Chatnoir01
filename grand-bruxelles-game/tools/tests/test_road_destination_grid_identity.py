@@ -110,6 +110,28 @@ def test_string_bbox_coordinate_fails_closed() -> None:
         raise AssertionError("string bbox coordinate was coerced to numeric identity")
 
 
+def test_root_jouable_authorization_true_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    readiness["authorization"]["jouable_authorized"] = True
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "authorization rail drift" in str(exc)
+    else:
+        raise AssertionError("top-level JOUABLE authorization rail could be enabled without failing closed")
+
+
+def test_destination_render_authorization_true_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    readiness["destinations"][0]["render_authorized"] = True
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "destination authorization rail drift" in str(exc)
+    else:
+        raise AssertionError("per-destination render authorization rail could be enabled without failing closed")
+
+
 if __name__ == "__main__":
     test_real_readiness_grid_identity_is_exact()
     test_forged_grid_cell_id_fails_closed()
@@ -119,4 +141,6 @@ if __name__ == "__main__":
     test_string_road_osm_id_fails_closed()
     test_string_destination_count_fails_closed()
     test_string_bbox_coordinate_fails_closed()
+    test_root_jouable_authorization_true_fails_closed()
+    test_destination_render_authorization_true_fails_closed()
     print("ROAD_CELL_GRID_IDENTITY_TEST_OK")

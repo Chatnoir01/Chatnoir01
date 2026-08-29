@@ -95,7 +95,9 @@ def validate_registered_cell_manifest_identity(manifest: dict[str, Any], row: di
     if manifest.get("cell_id") != row.get("cell_id") or manifest.get("crs") != TARGET_CRS:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest identity drift")
     manifest_bbox = manifest.get("bbox")
-    if not isinstance(manifest_bbox, list) or len(manifest_bbox) != 4 or manifest_bbox != row.get("bbox"):
+    if not isinstance(manifest_bbox, list) or len(manifest_bbox) != 4 or any(type(value) is not int for value in manifest_bbox):
+        raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest bbox JSON type drift")
+    if manifest_bbox != row.get("bbox"):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest identity drift")
     maturity = manifest.get("maturity")
     if not isinstance(maturity, dict) or maturity.get("state") != row.get("maturity_state"):
@@ -129,6 +131,7 @@ def load_registered_cell_ids(cells_path: Path) -> set[str]:
     registered_entries = registered.get("entries")
     if not isinstance(registered_entries, list):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell entries drift")
+    registered_count = require_int(registered.get("registered_cell_count"), "registered cell count", minimum=0)
     registered_id_list: list[str] = []
     project_root = Path(__file__).resolve().parents[1]
     manifest_root = (project_root / "data/cell_manifests").resolve()
@@ -149,9 +152,9 @@ def load_registered_cell_ids(cells_path: Path) -> set[str]:
         if row.get("crs") != TARGET_CRS:
             raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell CRS drift")
         bbox = row.get("bbox")
-        if not isinstance(bbox, list) or len(bbox) != 4:
-            raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell bbox drift")
-        east, north = int(bbox[0]), int(bbox[1])
+        if not isinstance(bbox, list) or len(bbox) != 4 or any(type(value) is not int for value in bbox):
+            raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell bbox JSON type drift")
+        east, north = bbox[0], bbox[1]
         if bbox != cell_bbox(east, north) or row["cell_id"] != cell_id(east, north):
             raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell bbox identity drift")
 
@@ -177,7 +180,7 @@ def load_registered_cell_ids(cells_path: Path) -> set[str]:
     registered_ids = set(registered_id_list)
     if len(registered_id_list) != len(registered_ids):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: duplicate registered cell")
-    if len(registered_ids) != int(registered.get("registered_cell_count", -1)):
+    if len(registered_ids) != registered_count:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell accounting drift")
     return registered_ids
 

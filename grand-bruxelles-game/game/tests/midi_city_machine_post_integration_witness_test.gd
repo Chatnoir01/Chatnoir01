@@ -108,9 +108,20 @@ func _run() -> void:
     player.set_process(false)
     player.set_physics_process(false)
     var camera := _camera(current_scene, Vector3(-600.0, 68.0, 610.0), Vector3(-420.0, 6.0, 420.0))
-    var arrival := OUT_DIR + "/playable_candidate_arrival.png"
+    reporter.call("begin_report")
+    await process_frame
+    var review_panel := reporter.get_node_or_null("ReportPanel") as PanelContainer
+    if review_panel == null or not review_panel.visible:
+        _fail("post-integration review panel did not open")
+        return
+    for button_name: String in ["KeepVisualButton", "ImproveVisualButton", "RejectVisualButton", "SendVisualIssueButton"]:
+        if reporter.find_child(button_name, true, false) == null:
+            _fail("review action missing: %s" % button_name)
+            return
+
+    var arrival := OUT_DIR + "/playable_candidate_review_panel.png"
     if not await _capture(arrival):
-        _fail("playable candidate capture failed")
+        _fail("playable candidate review-panel capture failed")
         return
     camera.queue_free()
     await process_frame
@@ -121,6 +132,8 @@ func _run() -> void:
         "stored_quality": "LABO",
         "playable_candidate_mounted": true,
         "post_integration_review_available": true,
+        "review_panel_visible_in_capture": true,
+        "review_actions_present": ["GARDER", "AMELIORER", "REJETER", "SIGNALER"],
         "open_visual_report_created": true,
         "open_visual_report_blocks_advancement": false,
         "hard_geometry_gate_passed": true,
@@ -135,5 +148,5 @@ func _run() -> void:
         return
     handle.store_string(JSON.stringify(report, "  "))
     handle.close()
-    print("MIDI_CITY_MACHINE_POST_INTEGRATION_WITNESS_OK: mounted=true visual_report_blocks=false hard_geometry=true")
+    print("MIDI_CITY_MACHINE_POST_INTEGRATION_WITNESS_OK: mounted=true panel=true visual_report_blocks=false hard_geometry=true")
     quit(0)

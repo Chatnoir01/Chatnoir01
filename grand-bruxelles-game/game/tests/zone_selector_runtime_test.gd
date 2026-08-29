@@ -94,12 +94,13 @@ func _run() -> void:
     if reporter == null:
         _fail("reporter missing")
         return
-    for method_name: String in ["begin_report", "create_report_from_image", "create_report_from_context", "open_report_count"]:
+    for method_name: String in ["begin_report", "create_report_from_image", "create_report_from_context", "open_report_count", "visual_report_count", "blocking_report_count"]:
         if not reporter.has_method(method_name):
             _fail("reporter method missing %s" % method_name)
             return
-    if reporter.get_node_or_null("ReportButton") == null:
-        _fail("SIGNALER button missing")
+    var report_button := reporter.get_node_or_null("ReportButton") as Button
+    if report_button == null or not report_button.text.begins_with("À SIGNALER"):
+        _fail("À SIGNALER button missing")
         return
 
     var sample := Image.create(8, 8, false, Image.FORMAT_RGBA8)
@@ -121,8 +122,11 @@ func _run() -> void:
     var report := report_variant as Dictionary
     var report_zone: Variant = report.get("zone", {})
     var screenshot: Variant = report.get("screenshot", {})
-    if report.get("schema", "") != "grand-bruxelles-player-report-v1" or report.get("status", "") != "open":
+    if report.get("schema", "") != "grand-bruxelles-player-report-v2" or report.get("status", "") != "open":
         _fail("report schema/status invalid")
+        return
+    if str(report.get("kind", "")) != "visual" or bool(report.get("blocking", true)):
+        _fail("visual report lost non-blocking semantics")
         return
     if not report_zone is Dictionary or str((report_zone as Dictionary).get("id", "")) != "anneessens" or report.get("note", "") != "sol trou":
         _fail("report player context invalid")
@@ -130,17 +134,23 @@ func _run() -> void:
     if not screenshot is Dictionary or not str((screenshot as Dictionary).get("data", "")).begins_with("iVBOR"):
         _fail("report screenshot missing")
         return
-    if int(reporter.call("open_report_count", "anneessens")) != 1 or bool(selector.call("can_promote_zone", "anneessens")):
-        _fail("open report did not block LABO promotion")
+    if int(reporter.call("visual_report_count", "anneessens")) != 1:
+        _fail("visual report not counted")
+        return
+    if int(reporter.call("blocking_report_count", "anneessens")) != 0 or int(reporter.call("open_report_count", "anneessens")) != 0:
+        _fail("visual report leaked into hard-blocker count")
+        return
+    if not bool(selector.call("can_promote_zone", "anneessens")):
+        _fail("visual report unexpectedly blocked LABO advancement")
         return
     var screenshot_path := str(report.get("screenshot_file", ""))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(report_path))
     if not screenshot_path.is_empty():
         DirAccess.remove_absolute(ProjectSettings.globalize_path(screenshot_path))
     if not bool(selector.call("can_promote_zone", "anneessens")):
-        _fail("promotion gate stayed blocked after report removal")
+        _fail("promotion gate blocked without hard blocker")
         return
-    print("PLAYER_REPORT_CONTRACT_OK: zone=anneessens note=sol trou screenshot=png promotion_blocked=true")
+    print("PLAYER_REPORT_CONTRACT_OK: zone=anneessens note=sol trou screenshot=png visual_report=soft promotion_blocked=false")
 
     if "capture=1" in OS.get_cmdline_user_args():
         var main := (load("res://game/main.tscn") as PackedScene).instantiate()
@@ -180,6 +190,6 @@ func _run() -> void:
             _fail("report witness save failed")
             return
         print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
-        print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d canonical=7 review_aliases=1 playable=1 lab=7 reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
+        print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720 post_integration=true")
+    print("ZONE_SELECTOR_OK: listed=%d canonical=7 review_aliases=1 playable=1 lab=7 reporting=true visual_reports=soft anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

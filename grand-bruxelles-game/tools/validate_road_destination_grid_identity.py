@@ -8,6 +8,7 @@ not authorize runtime mounting, rendering, collision, safe spawn, or JOUABLE.
 from __future__ import annotations
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -21,11 +22,12 @@ def fail(message: str) -> None:
 
 
 def _number(value: Any, label: str) -> float:
-    if isinstance(value, bool):
+    # Coordinates are identity-bearing JSON numbers. Never normalize strings,
+    # booleans, nulls, or other coercible values into spatial identity.
+    if type(value) not in (int, float):
         fail(f"invalid {label}")
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
+    number = float(value)
+    if not math.isfinite(number):
         fail(f"invalid {label}")
     if not number.is_integer():
         fail(f"non-integral {label}")
@@ -78,7 +80,8 @@ def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
     destinations = readiness.get("destinations")
     if not isinstance(destinations, list):
         fail("destinations must be a list")
-    if int(readiness.get("destination_count", -1)) != len(destinations):
+    destination_count = readiness.get("destination_count")
+    if type(destination_count) is not int or destination_count != len(destinations):
         fail("destination accounting drift")
 
     road_ids: set[int] = set()

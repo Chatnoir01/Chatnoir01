@@ -47,6 +47,13 @@ def validate_source_binding(frontier: dict[str, Any], source_path: Path, frame_p
     if frontier.get("candidate_cells") != canonical_frontier.get("candidate_cells"):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_SOURCE_BINDING_FAIL: candidate-cell source binding drift")
 
+    # Fail closed on the complete canonical document, not only selected source-derived
+    # fields. validate_structure intentionally validates invariants rather than acting as
+    # a closed JSON schema, so an injected extension could otherwise be re-signed and
+    # survive the partial comparisons above.
+    if builder.canonical_json(frontier) != builder.canonical_json(canonical_frontier):
+        raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_SOURCE_BINDING_FAIL: frontier source binding drift")
+
 
 def main() -> int:
     import argparse

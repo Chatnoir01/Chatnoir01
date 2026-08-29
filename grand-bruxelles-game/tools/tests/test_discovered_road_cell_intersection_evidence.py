@@ -70,9 +70,6 @@ def main() -> int:
         tampered["evidence_sha256"] = tool.sha256_json({k: v for k, v in tampered.items() if k != "evidence_sha256"})
         expect_fail(lambda: tool.validate_evidence(tampered, SOURCE, FRAME, CELLS), "source binding drift")
 
-    # The registered-cell index must not be able to redefine the spatial identity
-    # of immutable manifest bytes. The builder uses index bboxes for intersection
-    # math, so both cell_id and bbox must agree with the referenced manifest.
     cell_index = json.loads(CELLS.read_text(encoding="utf-8"))
     tampered_cells = json.loads(json.dumps(cell_index))
     tampered_cells["entries"][0]["bbox"][0] += 1.0
@@ -82,12 +79,17 @@ def main() -> int:
     tampered_cells["entries"][0]["cell_id"] = "bxl-e000000-n000000-s500"
     expect_fail(lambda: tool._cell_rows(ROOT, tampered_cells), "cell manifest content drift")
 
-    # A prefix-only manifest path check is not confinement. An index entry must
-    # never escape data/cell_manifests through '..' even if the resulting file
-    # exists and its SHA is otherwise valid.
     tampered_cells = json.loads(json.dumps(cell_index))
     tampered_cells["entries"][0]["manifest_path"] = "data/cell_manifests/../../qa/osm_road_frame_correction_impact.contract.json"
     expect_fail(lambda: tool._cell_rows(ROOT, tampered_cells), "cell manifest path drift")
+
+    # Source road identity must be one-to-one. A dict comprehension silently
+    # overwrites duplicate OSM ids and can make intersection evidence depend on
+    # source row order rather than an exact source identity.
+    source_doc = json.loads(SOURCE.read_text(encoding="utf-8"))
+    duplicate_source = json.loads(json.dumps(source_doc))
+    duplicate_source["roads"].append(json.loads(json.dumps(duplicate_source["roads"][0])))
+    expect_fail(lambda: tool._source_road_index(duplicate_source), "duplicate source road osm_id")
 
     print("DISCOVERED_ROAD_CELL_INTERSECTION_EVIDENCE_TEST_GREEN")
     return 0

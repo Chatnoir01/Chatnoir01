@@ -7,19 +7,23 @@ on:
       - 'grand-bruxelles-game/data/urbis/laeken_jette/**'
       - 'grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json'
       - 'grand-bruxelles-game/game/zones/laeken_jette/atomium_heysel_district_runtime.gd'
+      - 'grand-bruxelles-game/game/zones/laeken_jette/atomium_heysel_direct_spawn_bootstrap.gd'
+      - 'grand-bruxelles-game/project.godot'
       - '.github/workflows/grand-bruxelles-atomium-heysel-runtime-slice.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-runtime-slice:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout PR
+      - name: Checkout PR branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Build exact DTM-bounded runtime slice
         working-directory: grand-bruxelles-game
@@ -33,7 +37,6 @@ jobs:
           python3 - <<'PY'
           import json
           import pathlib
-          import sys
 
           root = pathlib.Path(__import__('os').environ['RUNNER_TEMP']) / 'atomium_heysel_runtime'
           manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
@@ -43,7 +46,6 @@ jobs:
               if count <= 0:
                   raise SystemExit(f'{required}: compact runtime is empty')
           total = int(manifest['runtime_total_bytes'])
-          # Guard against accidentally repackaging the whole 14+ MB phase-1 set.
           if total >= 8_000_000:
               raise SystemExit(f'compact runtime budget exceeded: {total} bytes')
           print(json.dumps({name: row['runtime_feature_count'] for name, row in layers.items()}, sort_keys=True))
@@ -64,7 +66,27 @@ jobs:
               raise SystemExit('compact Heysel runtime must not be excluded from Web')
           PY
 
-      - name: Upload compact runtime for review/commit
+      - name: Stage verified compact runtime in repository
+        run: |
+          rm -rf grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime
+          mkdir -p grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime
+          cp "$RUNNER_TEMP"/atomium_heysel_runtime/*.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime/
+
+      - name: Commit verified compact runtime to same-repo PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if git diff --quiet -- grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime; then
+            echo 'Compact Heysel runtime already deterministic and current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime
+          git commit -m 'data(atomium): ship bounded Heysel runtime slice'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Upload compact runtime for review
         uses: actions/upload-artifact@v4
         with:
           name: atomium-heysel-runtime-slice

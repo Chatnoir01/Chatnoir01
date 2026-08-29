@@ -6,6 +6,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml"
+      - ".github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py"
   workflow_dispatch:
 
 permissions:
@@ -30,7 +32,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Require exact live main and one-file Character/NPC scope
+      - name: Require exact live main and bounded Character/NPC scope
         shell: bash
         run: |
           set -euo pipefail
@@ -38,7 +40,10 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
           git diff --name-only origin/main...HEAD | sort > /tmp/actual.txt
-          printf '%s\n' '.github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml' > /tmp/expected.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml' \
+            '.github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py' | sort > /tmp/expected.txt
           diff -u /tmp/expected.txt /tmp/actual.txt
 
       - name: Pin exact predecessor transform evidence

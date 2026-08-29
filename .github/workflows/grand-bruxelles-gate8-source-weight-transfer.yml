@@ -6,7 +6,9 @@ on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml"
+      - ".github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml"
       - ".github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py"
       - "grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py"
   workflow_dispatch:
 
@@ -47,10 +49,14 @@ jobs:
           git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
           printf '%s\n' \
             '.github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml' \
+            '.github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml' \
             '.github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py' \
             'grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py' | sort > /tmp/expected-scope.txt
           diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
-          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py
+          python3 -m py_compile \
+            grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py \
+            grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py
 
       - name: Materialize exact source generator
         env:
@@ -138,13 +144,14 @@ jobs:
           python3 - <<'PY'
           import json, os
           r=json.load(open(os.environ['GATE8_WEIGHT_TRANSFER_RESULT']))
-          assert r['format']=='grand-bruxelles-gate8-variant01-source-weight-transfer-v1'
+          assert r['format']=='grand-bruxelles-gate8-variant01-source-weight-transfer-v2'
           assert r['generated_glb_sha256']==os.environ['TARGET_SHA256']
           assert r['generated_glb_size_bytes']==15580240
           assert r['generated_seed']==53756543
           assert r['prepared_native_edge']==[486,601]
           assert r['prepared_edge_weight_l1'] >= 1.7
           assert r['position_tolerance_m']==0.0001
+          assert r['weight_tolerance_l1']==0.0001
           assert r['cliff_threshold_l1']==1.7
           assert r['canonical_asset_mutation'] is False
           assert r['canonical_generator_mutation'] is False
@@ -152,7 +159,9 @@ jobs:
           assert r['production_activation_allowed'] is False
           assert r['visual_approval_allowed'] is False
           assert r['diagnostic_state'] in {
-            'SOURCE_SPORTSUIT_WEIGHT_CLIFF_ALREADY_PRESENT',
+            'SOURCE_SPORTSUIT_WEIGHTS_MATCH_POSITIVE_NORMALIZED_PROXY_INTERPOLATION',
+            'SOURCE_SPORTSUIT_WEIGHTS_MATCH_LINEAR_PROXY_INTERPOLATION',
+            'SOURCE_SPORTSUIT_WEIGHTS_NOT_EXPLAINED_BY_MHCLO_LINEAR_INTERPOLATION',
             'WEIGHT_CLIFF_INTRODUCED_BY_EXPORT_COPY',
             'WEIGHT_CLIFF_INTRODUCED_DURING_TARGET_BAKE',
             'WEIGHT_CLIFF_INTRODUCED_DURING_HELPER_BAKE',
@@ -160,6 +169,14 @@ jobs:
             'SOURCE_WEIGHT_TRANSFER_STAGE_NOT_IDENTIFIED',
           }
           assert len(r['transfers']) >= 3
+          if r['proxy_interpolation'] is not None:
+              p=r['proxy_interpolation']
+              assert p['body_vertex_count']==19158
+              assert p['sportsuit_vertex_count']==1797
+              assert set(p['endpoint_records'])=={'486','601'}
+              assert p['observed_endpoint_cliff_l1'] >= 1.7
+              assert p['endpoint_records']['486']['body_inputs'][0]['vertex']==15673
+              assert p['endpoint_records']['601']['body_inputs'][0]['vertex']==15947
           print('GATE8_SOURCE_WEIGHT_TRANSFER_OK', r['diagnostic_state'], r['next_safe_axis'])
           PY
 

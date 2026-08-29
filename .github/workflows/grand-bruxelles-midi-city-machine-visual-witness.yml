@@ -80,7 +80,7 @@ jobs:
             exit 1
           fi
           grep -F "MIDI_CITY_MACHINE_POST_INTEGRATION_WITNESS_OK" /tmp/midi-city-machine-visual.log
-          test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/playable_candidate_arrival.png
+          test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/playable_candidate_review_panel.png
           test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/report.json
 
       - name: Validate post-integration review contract
@@ -96,13 +96,15 @@ jobs:
           assert report['stored_quality'] == 'LABO'
           assert report['playable_candidate_mounted'] is True
           assert report['post_integration_review_available'] is True
+          assert report['review_panel_visible_in_capture'] is True
+          assert report['review_actions_present'] == ['GARDER', 'AMELIORER', 'REJETER', 'SIGNALER']
           assert report['open_visual_report_created'] is True
           assert report['open_visual_report_blocks_advancement'] is False
           assert report['hard_geometry_gate_passed'] is True
           assert report['resolution'] == [1280, 720]
           assert int(report['stats'].get('buildings', 0)) > 0
           assert int(report['stats'].get('street_surfaces', 0)) > 0
-          print('MIDI_CITY_MACHINE_POST_INTEGRATION_CONTRACT_OK mounted=true visual_report_blocks=false hard_geometry=true')
+          print('MIDI_CITY_MACHINE_POST_INTEGRATION_CONTRACT_OK mounted=true panel=true visual_report_blocks=false hard_geometry=true')
           PY
 
       - name: Preserve logs

@@ -34,19 +34,8 @@ func _process(_delta: float) -> void:
     if _tearing_down or not is_inside_tree():
         return
     if not is_instance_valid(_scene):
-        _reset()
         _start_watching()
         return
-    if not _manual_binding:
-        var tree: SceneTree = get_tree()
-        if tree == null:
-            return
-        var current := tree.current_scene
-        if current is Node3D and current != _scene and _is_production_scene(current as Node3D):
-            _reset()
-            _start_watching()
-            call_deferred("_try_bind")
-            return
     if not is_instance_valid(_player):
         _player = _scene.get_node_or_null("Player") as Node3D
     if is_instance_valid(_root) and is_instance_valid(_player):
@@ -60,12 +49,17 @@ func _start_watching() -> void:
         return
     if not tree.node_added.is_connected(_on_tree_node_added):
         tree.node_added.connect(_on_tree_node_added)
+    if not tree.node_removed.is_connected(_on_tree_node_removed):
+        tree.node_removed.connect(_on_tree_node_removed)
     _watching_tree = true
 
 func _stop_watching() -> void:
     var tree: SceneTree = get_tree()
-    if tree != null and tree.node_added.is_connected(_on_tree_node_added):
-        tree.node_added.disconnect(_on_tree_node_added)
+    if tree != null:
+        if tree.node_added.is_connected(_on_tree_node_added):
+            tree.node_added.disconnect(_on_tree_node_added)
+        if tree.node_removed.is_connected(_on_tree_node_removed):
+            tree.node_removed.disconnect(_on_tree_node_removed)
     _watching_tree = false
 
 func _release_owned_root() -> void:
@@ -84,6 +78,13 @@ func _on_tree_node_added(node: Node) -> void:
     var node_name := str(node.name)
     if node_name not in ["Main", "BrusselsOSM", "UrbISMidiExact", "Player"]:
         return
+    call_deferred("_try_bind")
+
+func _on_tree_node_removed(node: Node) -> void:
+    if _tearing_down or not is_inside_tree() or _manual_binding or not is_instance_valid(_scene) or node != _scene:
+        return
+    _reset()
+    _start_watching()
     call_deferred("_try_bind")
 
 func _is_production_scene(candidate: Node3D) -> bool:

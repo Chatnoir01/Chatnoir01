@@ -38,15 +38,14 @@ def _require_int(value: Any, label: str, *, minimum: int | None = None) -> int:
 
 
 def _require_integral_number(value: Any, label: str) -> int:
-    if type(value) is int:
-        return value
-    if type(value) is float:
-        if not math.isfinite(value):
-            raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} non-finite drift")
-        if not value.is_integer():
-            raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} integral-coordinate drift")
-        return int(value)
-    raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} JSON type drift")
+    if type(value) not in {int, float}:
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} JSON type drift")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} non-finite drift")
+    if not numeric.is_integer():
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} integral-coordinate drift")
+    return int(numeric)
 
 
 def _validate_entry_identity(row: Any) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,10 +48,25 @@ def rehash(frontier: dict) -> None:
     frontier["frontier_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def write_temp_json(directory: str, name: str, value: dict) -> Path:
+    path = Path(directory) / name
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 def main() -> int:
     builder = load(BUILDER, "road_cell_frontier_builder")
     frontier = builder.build_frontier(SOURCE, FRAME, CELLS)
     strict_validate(frontier)
+
+    canonical_cells = json.loads(CELLS.read_text(encoding="utf-8"))
+    with tempfile.TemporaryDirectory() as tmp:
+        count_string = json.loads(json.dumps(canonical_cells))
+        count_string["registered_cell_count"] = str(count_string["registered_cell_count"])
+        expect_fail(
+            lambda: builder.load_registered_cell_ids(write_temp_json(tmp, "count-string.json", count_string)),
+            "registered cell count JSON type drift",
+        )
 
     global_size_string = json.loads(json.dumps(frontier))
     global_size_string["cell_size_m"] = str(global_size_string["cell_size_m"])

@@ -129,6 +129,7 @@ def load_registered_cell_ids(cells_path: Path) -> set[str]:
     registered_entries = registered.get("entries")
     if not isinstance(registered_entries, list):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell entries drift")
+    registered_count = require_int(registered.get("registered_cell_count"), "registered cell count", minimum=0)
     registered_id_list: list[str] = []
     project_root = Path(__file__).resolve().parents[1]
     manifest_root = (project_root / "data/cell_manifests").resolve()
@@ -177,7 +178,7 @@ def load_registered_cell_ids(cells_path: Path) -> set[str]:
     registered_ids = set(registered_id_list)
     if len(registered_id_list) != len(registered_ids):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: duplicate registered cell")
-    if len(registered_ids) != int(registered.get("registered_cell_count", -1)):
+    if len(registered_ids) != registered_count:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell accounting drift")
     return registered_ids
 

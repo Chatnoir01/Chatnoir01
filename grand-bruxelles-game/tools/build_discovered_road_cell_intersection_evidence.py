@@ -129,15 +129,20 @@ def _cell_rows(root: Path, cells: dict[str, Any]) -> list[dict[str, Any]]:
     entries = cells.get("entries") or []
     if len(entries) != int(cells.get("registered_cell_count", -1)):
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell accounting drift")
+    manifest_root = (root / "data/cell_manifests").resolve()
     for entry in entries:
         if entry.get("crs") != TARGET_CRS:
             raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell CRS drift")
         bbox = entry.get("bbox")
         manifest_path = str(entry.get("manifest_path") or "")
         manifest_sha = str(entry.get("manifest_sha256") or "").lower()
-        if not isinstance(bbox, list) or len(bbox) != 4 or not manifest_path.startswith("data/cell_manifests/") or not is_sha256(manifest_sha):
+        if not isinstance(bbox, list) or len(bbox) != 4 or not manifest_path.startswith("data/cell_manifests/") or Path(manifest_path).is_absolute() or not is_sha256(manifest_sha):
             raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell manifest identity drift")
-        manifest = root / manifest_path
+        manifest = (root / manifest_path).resolve()
+        try:
+            manifest.relative_to(manifest_root)
+        except ValueError as exc:
+            raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell manifest path drift") from exc
         if not manifest.is_file() or sha256_file(manifest) != manifest_sha:
             raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell manifest sha drift")
         manifest_doc = load_json(manifest)

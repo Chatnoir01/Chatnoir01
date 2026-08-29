@@ -140,7 +140,6 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _manual_binding = manual
     _scene = scene
     _player = player
-    _stop_watching()
     _build_once()
 
 func _reset() -> void:

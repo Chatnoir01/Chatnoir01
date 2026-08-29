@@ -1,0 +1,217 @@
+name: Grand Bruxelles Gate-8 Variant01 GLB Weight Trace
+
+on:
+  push:
+    branches: ["npc/gate8-v01-gltf-weight-trace-rebuild-20260829"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-gltf-weight-trace.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_gltf_weight_trace_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  gltf-weight-trace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      BASE_MAIN_SHA: "45b4dbf54d40ee1cf5bb8191fc25d1cca70c7db1"
+      SOURCE_RUN_ID: "32552758284"
+      SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+      ASSET_PACK_ARTIFACT_ID: "9710539659"
+      ASSET_PACK_ARTIFACT_DIGEST: "sha256:ce6fe32adf20838b853ef6f3e80f47bee194f21565cf4d35cad8f2c02f2941da"
+      ASSET_PACK_SHA256: "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+      ASSET_PACK_SIZE_BYTES: "81255948"
+      PRIOR_ARTIFACT_ID: "9713849514"
+      PRIOR_ARTIFACT_DIGEST: "sha256:868e25e33d9e318de836731a55c62041dea93def4d0aa4140d3f371f1aa1faf9"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GATE8_SOURCE_DIR: "/tmp/gate8-source"
+      GATE8_GLTF_TRACE_RESULT: "/tmp/gate8-gltf-trace/gltf-weight-trace-result.json"
+      HOME: "/tmp/grand-bruxelles-blender-home"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-gltf-weight-trace.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_gltf_weight_trace_probe.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_gltf_weight_trace_probe.py
+
+      - name: Pin prior pre-export evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-gltf-trace/prior
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PRIOR_ARTIFACT_ID}" > /tmp/gate8-gltf-trace/prior-artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-gltf-trace/prior-artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['PRIOR_ARTIFACT_DIGEST']
+          assert a['workflow_run']['head_sha']=='c9cf07bc8876ee598bce8392bc3718bd97c833a4'
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PRIOR_ARTIFACT_ID}/zip" > /tmp/gate8-gltf-trace/prior.zip
+          unzip -q /tmp/gate8-gltf-trace/prior.zip -d /tmp/gate8-gltf-trace/prior
+          python3 - <<'PY'
+          import json
+          p='/tmp/gate8-gltf-trace/prior/preexport-weight-origin-result.json'
+          r=json.load(open(p))
+          assert r['diagnostic_state']=='PRE_EXPORT_TARGET_EDGE_NOT_REPRODUCED'
+          assert r['generated_glb_sha256']=='912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9'
+          sports=[o for o in r['preexport']['objects'] if 'female_sportsuit01' in o['object']]
+          assert len(sports)==1
+          assert sports[0]['target_a_candidates']==[637]
+          assert sports[0]['target_b_candidates']==[601]
+          assert sports[0]['cliff_edge_count_ge_1_7']==9
+          PY
+
+      - name: Materialize exact source generator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE8_SOURCE_DIR" /tmp/gate8-gltf-trace
+          for path in \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py \
+            grand-bruxelles-game/tools/fetch_mpfb_2017.py
+          do
+            out="$GATE8_SOURCE_DIR/$(basename "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${SOURCE_HEAD_SHA}" --jq .content | tr -d '\n' | base64 -d > "$out"
+            test -s "$out"
+          done
+          grep -F 'bpy.ops.export_scene.gltf' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_glbs.py"
+
+      - name: Download exact Gate-8 source asset pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}" > /tmp/gate8-gltf-trace/asset-artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-gltf-trace/asset-artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['ASSET_PACK_ARTIFACT_DIGEST']
+          assert int(a['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert a['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}/zip" > /tmp/gate8-gltf-trace/asset.zip
+          mkdir -p /tmp/gate8-gltf-trace/asset
+          unzip -q /tmp/gate8-gltf-trace/asset.zip -d /tmp/gate8-gltf-trace/asset
+          PACK="$(find /tmp/gate8-gltf-trace/asset -type f -name 'makehuman_gate8_system_assets_cc0.zip' -print -quit)"
+          test -n "$PACK"
+          test "$(stat -c '%s' "$PACK")" = "$ASSET_PACK_SIZE_BYTES"
+          test "$(sha256sum "$PACK" | awk '{print $1}')" = "$ASSET_PACK_SHA256"
+          printf '%s\n' "$PACK" > /tmp/gate8-gltf-trace/asset-pack-path.txt
+
+      - name: Acquire Blender 4.2.23 and MPFB 2.0.17
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/gb-blender /tmp/gate8-gltf-trace/blender-extensions
+          ARCHIVE=blender-4.2.23-linux-x64.tar.xz
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/${ARCHIVE}" -o "/tmp/${ARCHIVE}"
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/blender-4.2.23.sha256" -o /tmp/blender.sha256
+          grep " ${ARCHIVE}$" /tmp/blender.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum --check blender-linux.sha256)
+          tar -xJf "/tmp/${ARCHIVE}" -C /tmp/gb-blender
+          BLENDER_BIN="$(find /tmp/gb-blender -mindepth 2 -maxdepth 2 -type f -name blender -perm -111 | head -n 1)"
+          "$BLENDER_BIN" --version | tee /tmp/gate8-gltf-trace/blender-version.txt
+          grep -q '^Blender 4\.2\.23' /tmp/gate8-gltf-trace/blender-version.txt
+          printf '%s\n' "$BLENDER_BIN" > /tmp/gate8-gltf-trace/blender-bin.txt
+          python3 "$GATE8_SOURCE_DIR/fetch_mpfb_2017.py" --output /tmp/gate8-gltf-trace/mpfb.zip --manifest /tmp/gate8-gltf-trace/mpfb.manifest.json --retries 3 | tee /tmp/gate8-gltf-trace/mpfb-fetch.log
+          grep -q '^MPFB_2017_FETCH_OK ' /tmp/gate8-gltf-trace/mpfb-fetch.log
+          "$BLENDER_BIN" --background --command extension repo-add gb_ci --name "Grand Bruxelles CI" --directory /tmp/gate8-gltf-trace/blender-extensions --clear-all
+          "$BLENDER_BIN" --background --command extension install-file --repo gb_ci --enable /tmp/gate8-gltf-trace/mpfb.zip | tee /tmp/gate8-gltf-trace/mpfb-install.txt
+
+      - name: Regenerate exact GLB and trace serialized skin topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/gate8-gltf-trace/blender-bin.txt)"
+          PACK="$(cat /tmp/gate8-gltf-trace/asset-pack-path.txt)"
+          mkdir -p /tmp/gate8-gltf-trace/glbs
+          "$BLENDER_BIN" --background --offline-mode \
+            --python grand-bruxelles-game/game/tests/gate8_variant01_gltf_weight_trace_probe.py \
+            -- --asset-pack "$PACK" --output-dir /tmp/gate8-gltf-trace/glbs \
+            | tee /tmp/gate8-gltf-trace/probe.log
+          test -s "$GATE8_GLTF_TRACE_RESULT"
+          test "$(sha256sum /tmp/gate8-gltf-trace/glbs/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_SHA256"
+          cat "$GATE8_GLTF_TRACE_RESULT"
+
+      - name: Verify fail-closed GLB trace verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['GATE8_GLTF_TRACE_RESULT']))
+          assert r['format']=='grand-bruxelles-gate8-variant01-gltf-weight-trace-result-v1'
+          assert r['generated_glb_sha256']==os.environ['TARGET_SHA256']
+          assert r['generated_glb_size_bytes']==15580240
+          assert r['generated_seed']==53756543
+          assert r['prior_preexport_artifact_id']==9713849514
+          assert r['prior_preexport_state']=='PRE_EXPORT_TARGET_EDGE_NOT_REPRODUCED'
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          state=r['diagnostic_state']
+          assert state in {'GLTF_TARGET_WEIGHT_EDGE_REPRODUCED','GLTF_TARGET_PROFILES_PRESENT_NOT_ADJACENT','GLTF_TARGET_PROFILE_MAPPING_NOT_FOUND'}, state
+          records=r['trace']['mesh_primitive_records']
+          assert records, 'sportsuit primitive not found'
+          if state=='GLTF_TARGET_WEIGHT_EDGE_REPRODUCED':
+              assert r['trace']['adjacent_matching_profile_pairs']
+              assert r['next_safe_axis']=='MAP_GLTF_EDGE_BACK_TO_PREPARED_LOOP_SPLITS'
+          elif state=='GLTF_TARGET_PROFILES_PRESENT_NOT_ADJACENT':
+              assert r['trace']['matching_profile_pairs']
+              assert not r['trace']['adjacent_matching_profile_pairs']
+              assert r['next_safe_axis']=='TRACE_GODOT_IMPORT_VERTEX_TOPOLOGY_TRANSFORMATION'
+          else:
+              assert not r['trace']['matching_profile_pairs']
+              assert r['next_safe_axis']=='TRACE_GLTF_SKIN_WEIGHT_QUANTIZATION_OR_JOINT_REMAP'
+          print('GLTF_WEIGHT_TRACE_OK', state, r['next_safe_axis'])
+          PY
+
+      - name: Upload GLB trace evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-gltf-weight-trace
+          path: |
+            /tmp/gate8-gltf-trace/gltf-weight-trace-result.json
+            /tmp/gate8-gltf-trace/probe.log
+            /tmp/gate8-gltf-trace/prior-artifact.json
+            /tmp/gate8-gltf-trace/asset-artifact.json
+            /tmp/gate8-gltf-trace/blender-version.txt
+            /tmp/gate8-gltf-trace/mpfb.manifest.json
+            /tmp/gate8-gltf-trace/mpfb-fetch.log
+            /tmp/gate8-gltf-trace/mpfb-install.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove canonical repository stayed clean
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"

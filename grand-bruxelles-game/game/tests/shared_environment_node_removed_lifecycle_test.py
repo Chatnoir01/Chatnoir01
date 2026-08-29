@@ -12,10 +12,14 @@ EXPECTED = {
     "game/scripts/brussels_corridor_tree_runtime.gd": "_on_tree_node_removed",
     "game/scripts/brussels_street_lamp_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_bollard_runtime.gd": "_on_node_removed",
+    "game/scripts/anneessens_midi_sidewalk_runtime.gd": "_on_tree_node_removed",
 }
 STREET_FURNITURE_REBIND = {
     "game/scripts/brussels_street_lamp_runtime.gd",
     "game/scripts/brussels_bollard_runtime.gd",
+}
+SCENE_BOUND_REBIND = {
+    "game/scripts/anneessens_midi_sidewalk_runtime.gd",
 }
 
 
@@ -96,6 +100,19 @@ def main() -> None:
             if "is_instance_valid(_scene)" not in build_body:
                 fail(f"street-furniture build path does not fail closed on freed scene: {rel_path}")
 
+        if rel_path in SCENE_BOUND_REBIND:
+            for token in (
+                "_scene = null",
+                "_bind_scheduled = false",
+                "_start_scene_watch()",
+                "_schedule_bind()",
+            ):
+                if token not in handler_body:
+                    fail(f"scene-bound node_removed handler is not rebindable: {rel_path} missing {token}")
+            build_body = function_body(source, "_build_from_existing_osm_roads")
+            if "is_instance_valid(_scene)" not in build_body:
+                fail(f"scene-bound build path does not fail closed on freed scene: {rel_path}")
+
     unexpected = {
         entry.get("path")
         for entry in runtimes
@@ -106,7 +123,8 @@ def main() -> None:
 
     print(
         "SHARED_ENVIRONMENT_NODE_REMOVED_LIFECYCLE_OK: "
-        f"runtimes={len(EXPECTED)} watcher_cleanup=locked retained_state_cleanup=locked street_furniture_rebind=locked"
+        f"runtimes={len(EXPECTED)} watcher_cleanup=locked retained_state_cleanup=locked "
+        f"street_furniture_rebind=locked scene_bound_rebind=locked"
     )
 
 

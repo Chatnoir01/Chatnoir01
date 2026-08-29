@@ -69,6 +69,12 @@ def _require_positive_int(value: Any, label: str) -> int:
     return value
 
 
+def _require_nonnegative_int(value: Any, label: str) -> int:
+    if type(value) is not int or value < 0:
+        raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: {label} JSON type drift")
+    return value
+
+
 def segment_intersects_rect(p0: list[float], p1: list[float], bbox: list[float]) -> bool:
     x0, y0 = float(p0[0]), float(p0[1])
     x1, y1 = float(p1[0]), float(p1[1])
@@ -162,15 +168,17 @@ def _locked_frame(source_path: Path, frame_path: Path, cell_index_path: Path):
     ):
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame review source drift")
     candidate_frame = review.get("candidate_frame") or {}
+    candidate_east = _require_finite_number(candidate_frame.get("origin_easting_m"), "frame origin")
+    candidate_north = _require_finite_number(candidate_frame.get("origin_northing_m"), "frame origin")
+    east = _require_finite_number(desc.get("origin_easting_m"), "frame origin")
+    north = _require_finite_number(desc.get("origin_northing_m"), "frame origin")
     if (
         candidate_frame.get("crs") != TARGET_CRS
         or candidate_frame.get("formula") != FRAME_FORMULA
-        or float(candidate_frame.get("origin_easting_m")) != float(desc.get("origin_easting_m"))
-        or float(candidate_frame.get("origin_northing_m")) != float(desc.get("origin_northing_m"))
+        or candidate_east != east
+        or candidate_north != north
     ):
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame review candidate drift")
-    east = float(desc.get("origin_easting_m"))
-    north = float(desc.get("origin_northing_m"))
 
     cells_desc = frame.get("registered_cell_index") or {}
     cells = load_json(cell_index_path)
@@ -178,7 +186,9 @@ def _locked_frame(source_path: Path, frame_path: Path, cell_index_path: Path):
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell index drift")
     require_closed(cells, "cell index")
     cell_semantic_sha = _validate_cell_index_semantic(root, cells)
-    if cells_desc.get("semantic_sha256") != cell_semantic_sha or int(cells_desc.get("registered_cell_count", -1)) != int(cells.get("registered_cell_count", -2)):
+    frame_cell_count = _require_nonnegative_int(cells_desc.get("registered_cell_count"), "registered cell count")
+    index_cell_count = _require_nonnegative_int(cells.get("registered_cell_count"), "registered cell count")
+    if cells_desc.get("semantic_sha256") != cell_semantic_sha or frame_cell_count != index_cell_count:
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame/cell semantic drift")
     return frame, cells, east, north
 
@@ -186,7 +196,8 @@ def _locked_frame(source_path: Path, frame_path: Path, cell_index_path: Path):
 def _cell_rows(root: Path, cells: dict[str, Any]) -> list[dict[str, Any]]:
     result = []
     entries = cells.get("entries") or []
-    if len(entries) != int(cells.get("registered_cell_count", -1)):
+    registered_cell_count = _require_nonnegative_int(cells.get("registered_cell_count"), "registered cell count")
+    if len(entries) != registered_cell_count:
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell accounting drift")
     manifest_root = (root / "data/cell_manifests").resolve()
     for entry in entries:

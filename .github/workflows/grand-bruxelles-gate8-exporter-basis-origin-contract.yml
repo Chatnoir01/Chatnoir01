@@ -2,7 +2,7 @@ name: Grand Bruxelles Gate-8 Exporter Basis Origin Contract
 
 on:
   push:
-    branches: ["npc/gate8-source-weight-transfer-6fac71f"]
+    branches: ["npc/gate8-source-weight-transfer-49c62bb"]
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml"
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      BASE_MAIN_SHA: "6fac71f5560ae30031a19600f41358406625783f"
+      BASE_MAIN_SHA: "49c62bbce71b1461da948777339e0f4d7cd101d6"
       PREDECESSOR_ARTIFACT_ID: "9716790016"
       PREDECESSOR_ARTIFACT_DIGEST: "sha256:dabac0cd924b9f79daafa6035ac29fa9fe7e0bd47e2822da2ce9df3cb1006c9f"
       PREDECESSOR_HEAD_SHA: "31dda5561602e49245d6cb772b3fcfc235d5c904"

@@ -103,6 +103,22 @@
       ]
     },
     {
+      "id": "central",
+      "label": "Bruxelles-Central / Brussel-Centraal",
+      "quality": "LABO_BRUT",
+      "mode": "script_zone",
+      "script": "res://game/zones/central/central_station_labo.gd",
+      "spawn": [
+        647.68,
+        1.05,
+        -374.0
+      ],
+      "requires": [
+        "res://game/zones/central/central_station_labo.gd",
+        "res://data/visual/central_station_identity.json"
+      ]
+    },
+    {
       "id": "ixelles",
       "label": "Ixelles",
       "quality": "LABO",

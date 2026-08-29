@@ -31,6 +31,14 @@ def sha256_json(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
+def require_int(value: Any, label: str, *, minimum: int | None = None) -> int:
+    if type(value) is not int:
+        raise SystemExit(f"DISCOVERED_ROAD_CELL_COVERAGE_FAIL: {label} JSON type drift")
+    if minimum is not None and value < minimum:
+        raise SystemExit(f"DISCOVERED_ROAD_CELL_COVERAGE_FAIL: {label} value drift")
+    return value
+
+
 def load_module(path: Path, name: str):
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
@@ -261,7 +269,10 @@ def _build_unchecked(source_path: Path, frame_path: Path, cells_path: Path) -> d
 
 
 def validate_structure(frontier: dict[str, Any]) -> None:
-    if frontier.get("format") != FORMAT or frontier.get("crs") != TARGET_CRS or int(frontier.get("cell_size_m", -1)) != CELL_SIZE_M:
+    if frontier.get("format") != FORMAT or frontier.get("crs") != TARGET_CRS:
+        raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: format/CRS/grid drift")
+    cell_size = require_int(frontier.get("cell_size_m"), "cell_size_m")
+    if cell_size != CELL_SIZE_M:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: format/CRS/grid drift")
     for key in (
         "candidate_manifest_creation_authorized", "cell_registration_authorized", "municipality_inference_authorized",
@@ -270,24 +281,35 @@ def validate_structure(frontier: dict[str, Any]) -> None:
     ):
         if frontier.get(key) is not False:
             raise SystemExit(f"DISCOVERED_ROAD_CELL_COVERAGE_FAIL: authorization opened: {key}")
+    source_count = require_int(frontier.get("source_zero_intersection_road_count"), "source_zero_intersection_road_count", minimum=0)
     ids = frontier.get("source_zero_intersection_road_osm_ids")
-    if not isinstance(ids, list) or any(not isinstance(rid, int) or rid <= 0 for rid in ids) or ids != sorted(set(ids)) or len(ids) != int(frontier.get("source_zero_intersection_road_count", -1)):
+    if not isinstance(ids, list) or any(type(rid) is not int or rid <= 0 for rid in ids) or ids != sorted(set(ids)) or len(ids) != source_count:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: source road identity drift")
     source_id_set = set(ids)
+    candidate_count = require_int(frontier.get("candidate_cell_count"), "candidate_cell_count", minimum=0)
     rows = frontier.get("candidate_cells")
-    if not isinstance(rows, list) or len(rows) != int(frontier.get("candidate_cell_count", -1)):
+    if not isinstance(rows, list) or len(rows) != candidate_count:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate cell accounting drift")
+    if any(not isinstance(row, dict) for row in rows):
+        raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate cell object drift")
     cell_ids = [row.get("cell_id") for row in rows]
     if cell_ids != sorted(set(cell_ids)):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate cell identity/order drift")
     for row in rows:
         bbox = row.get("bbox")
         roads = row.get("road_osm_ids")
-        if row.get("crs") != TARGET_CRS or int(row.get("cell_size_m", -1)) != CELL_SIZE_M:
+        if row.get("crs") != TARGET_CRS:
             raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate cell CRS/size drift")
-        if not isinstance(bbox, list) or len(bbox) != 4 or cell_id(int(bbox[0]), int(bbox[1])) != row.get("cell_id") or bbox != cell_bbox(int(bbox[0]), int(bbox[1])):
+        row_size = require_int(row.get("cell_size_m"), "candidate cell_size_m")
+        if row_size != CELL_SIZE_M:
+            raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate cell CRS/size drift")
+        if not isinstance(bbox, list) or len(bbox) != 4 or any(type(value) is not int for value in bbox):
+            raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate bbox JSON type drift")
+        east, north = bbox[0], bbox[1]
+        if cell_id(east, north) != row.get("cell_id") or bbox != cell_bbox(east, north):
             raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate cell bbox identity drift")
-        if not isinstance(roads, list) or any(not isinstance(rid, int) or rid <= 0 for rid in roads) or roads != sorted(set(roads)) or len(roads) != int(row.get("road_count", -1)):
+        road_count = require_int(row.get("road_count"), "candidate road_count", minimum=0)
+        if not isinstance(roads, list) or any(type(rid) is not int or rid <= 0 for rid in roads) or roads != sorted(set(roads)) or len(roads) != road_count:
             raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate road accounting drift")
         if not set(roads).issubset(source_id_set):
             raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate road outside zero-intersection set")
@@ -295,9 +317,12 @@ def validate_structure(frontier: dict[str, Any]) -> None:
             raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: candidate registration leaked")
     covered = sorted({rid for row in rows for rid in row["road_osm_ids"]})
     uncovered = sorted(source_id_set - set(covered))
-    if len(covered) != int(frontier.get("covered_zero_intersection_road_count", -1)) or uncovered != frontier.get("uncovered_zero_intersection_road_osm_ids") or len(uncovered) != int(frontier.get("uncovered_zero_intersection_road_count", -1)):
+    covered_count = require_int(frontier.get("covered_zero_intersection_road_count"), "covered_zero_intersection_road_count", minimum=0)
+    uncovered_count = require_int(frontier.get("uncovered_zero_intersection_road_count"), "uncovered_zero_intersection_road_count", minimum=0)
+    if len(covered) != covered_count or uncovered != frontier.get("uncovered_zero_intersection_road_osm_ids") or len(uncovered) != uncovered_count:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: coverage accounting drift")
-    if int(frontier.get("registered_cell_overlap_count", -1)) != 0:
+    overlap_count = require_int(frontier.get("registered_cell_overlap_count"), "registered_cell_overlap_count", minimum=0)
+    if overlap_count != 0:
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell overlap")
     unsigned = dict(frontier)
     stored = unsigned.pop("frontier_sha256", None)

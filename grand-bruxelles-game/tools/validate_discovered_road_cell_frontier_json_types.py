@@ -96,9 +96,6 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     if not isinstance(frontier, dict):
         fail("frontier object drift")
 
-    # Classify authorization-envelope drift before the broader top-level schema
-    # check so dedicated authorization regressions retain a stable, specific
-    # failure contract while arbitrary non-rail fields still fail closed below.
     authorization_keys = {key for key in frontier if key.endswith("_authorized")}
     if authorization_keys != set(AUTHORIZATION_FIELDS):
         fail("authorization rail set drift")
@@ -127,6 +124,9 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     )
     if source_ids != sorted(set(source_ids)):
         fail("source road_osm_id order/uniqueness drift")
+    if len(source_ids) != frontier["source_zero_intersection_road_count"]:
+        fail("source road accounting drift")
+    source_id_set = set(source_ids)
 
     uncovered_ids = require_int_list(
         frontier.get("uncovered_zero_intersection_road_osm_ids"),
@@ -135,6 +135,8 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     )
     if uncovered_ids != sorted(set(uncovered_ids)):
         fail("uncovered road_osm_id order/uniqueness drift")
+    if not set(uncovered_ids).issubset(source_id_set):
+        fail("uncovered road outside source set")
 
     rows = frontier.get("candidate_cells")
     if not isinstance(rows, list):
@@ -143,6 +145,7 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
         fail("candidate cell accounting drift")
 
     seen_cell_ids: list[str] = []
+    covered_id_set: set[int] = set()
     for row in rows:
         if not isinstance(row, dict):
             fail("candidate cell object drift")
@@ -173,6 +176,10 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
             fail("candidate road accounting drift")
         if roads != sorted(set(roads)):
             fail("candidate road_osm_id order/uniqueness drift")
+        road_set = set(roads)
+        if not road_set.issubset(source_id_set):
+            fail("candidate road outside source set")
+        covered_id_set.update(road_set)
 
         if row.get("registered") is not False or row.get("source_registration_ready") is not False:
             fail("candidate readiness drift")
@@ -184,6 +191,18 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
 
     if seen_cell_ids != sorted(set(seen_cell_ids)):
         fail("candidate cell order/uniqueness drift")
+
+    uncovered_id_set = set(uncovered_ids)
+    if covered_id_set & uncovered_id_set:
+        fail("covered/uncovered road overlap drift")
+    if covered_id_set | uncovered_id_set != source_id_set:
+        fail("source road coverage accounting drift")
+    if len(covered_id_set) != frontier["covered_zero_intersection_road_count"]:
+        fail("covered road accounting drift")
+    if len(uncovered_id_set) != frontier["uncovered_zero_intersection_road_count"]:
+        fail("uncovered road accounting drift")
+    if frontier["registered_cell_overlap_count"] != 0:
+        fail("registered cell overlap accounting drift")
 
     stored = require_sha256(frontier.get("frontier_sha256"), "frontier sha")
     unsigned = dict(frontier)

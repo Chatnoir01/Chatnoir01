@@ -1,0 +1,163 @@
+name: Grand Bruxelles Gate-8 Shoulder Pose Field Contract
+
+on:
+  push:
+    branches: ["npc/gate8-shoulder-pose-field-467fb1d"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-shoulder-pose-field-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  shoulder-pose-field:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_MAIN_SHA: "467fb1d694c21e253a8582e0563beb8f09785982"
+      SOURCE_RUN_ID: "33270713349"
+      SOURCE_HEAD_SHA: "9defe931b0b51b3582c1e555ff80992f64f311fc"
+      SOURCE_ARTIFACT_ID: "9720026708"
+      SOURCE_ARTIFACT_DIGEST: "sha256:70ecea6e85c9a44d742f437dc8c1a1e00b6fb4a2b41c5b12f51d0b9e23b7fe71"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and one-file Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          test "$(git diff --name-only origin/main...HEAD)" = '.github/workflows/grand-bruxelles-gate8-shoulder-pose-field-contract.yml'
+
+      - name: Download immutable reviewed rematch evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-pose-field
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}" > /tmp/gate8-pose-field/meta.json
+          python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/gate8-pose-field/meta.json'))
+          assert not m['expired']
+          assert m['digest']==os.environ['SOURCE_ARTIFACT_DIGEST']
+          assert int(m['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert m['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > /tmp/gate8-pose-field/evidence.zip
+          unzip -q /tmp/gate8-pose-field/evidence.zip -d /tmp/gate8-pose-field/evidence
+          test -s /tmp/gate8-pose-field/evidence/result.json
+
+      - name: Measure deterministic shoulder pose-field discontinuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math
+
+          src=json.load(open('/tmp/gate8-pose-field/evidence/result.json'))
+          assert src['format']=='grand-bruxelles-gate8-variant01-mhclo-rematch-v2'
+          assert src['mpfb_release']=='2.0.17'
+          assert src['mpfb_release_commit']=='80919fa'
+          assert src['algorithm']=='VertexMatch'
+
+          # Deterministic mechanical stress pose. This is deliberately a blend-field
+          # diagnostic only: it does not claim final posed geometry or visual approval.
+          degrees={
+              'upperarm_r':35.0,
+              'clavicle_r':12.0,
+              'spine_03':4.0,
+              'spine_02':2.0,
+              'spine_01':0.0,
+          }
+
+          def rotz(deg):
+              a=math.radians(deg); c=math.cos(a); s=math.sin(a)
+              return ((c,-s,0.0),(s,c,0.0),(0.0,0.0,1.0))
+
+          ident=((1.0,0.0,0.0),(0.0,1.0,0.0),(0.0,0.0,1.0))
+
+          def blend(weights):
+              out=[[0.0]*3 for _ in range(3)]
+              total=0.0
+              for bone,w in weights.items():
+                  w=float(w); total += w
+                  m=rotz(degrees[bone]) if bone in degrees else ident
+                  for i in range(3):
+                      for j in range(3):
+                          out[i][j]+=w*m[i][j]
+              if total < 1.0:
+                  residual=1.0-total
+                  for i in range(3): out[i][i]+=residual
+              return out
+
+          def frob_delta(a,b):
+              return math.sqrt(sum((a[i][j]-b[i][j])**2 for i in range(3) for j in range(3)))
+
+          records=src['records']
+          measured=[]
+          for edge in src['local_edges']:
+              a,b=map(str,edge['edge'])
+              stored=frob_delta(blend(records[a]['stored_mpfb_deform_weights']), blend(records[b]['stored_mpfb_deform_weights']))
+              rematched=frob_delta(blend(records[a]['rematched_mpfb_deform_weights']), blend(records[b]['rematched_mpfb_deform_weights']))
+              measured.append({'edge':[int(a),int(b)],'stored_pose_field_delta':stored,'rematched_pose_field_delta':rematched})
+
+          by_edge={tuple(x['edge']):x for x in measured}
+          expected={
+              (486,601):(0.6904713157224935,0.021638156444504904),
+              (599,601):(0.6695350289445311,0.1494561829044704),
+              (601,615):(0.6785194082154761,0.05295402890302719),
+          }
+          for edge,(stored_expected,rematched_expected) in expected.items():
+              rec=by_edge[edge]
+              assert math.isclose(rec['stored_pose_field_delta'],stored_expected,rel_tol=0.0,abs_tol=1e-12)
+              assert math.isclose(rec['rematched_pose_field_delta'],rematched_expected,rel_tol=0.0,abs_tol=1e-12)
+              assert rec['rematched_pose_field_delta'] < rec['stored_pose_field_delta']
+
+          assert by_edge[(486,601)]['stored_pose_field_delta']/by_edge[(486,601)]['rematched_pose_field_delta'] > 31.9
+          assert by_edge[(599,601)]['stored_pose_field_delta']/by_edge[(599,601)]['rematched_pose_field_delta'] > 4.47
+          assert by_edge[(601,615)]['stored_pose_field_delta']/by_edge[(601,615)]['rematched_pose_field_delta'] > 12.8
+
+          out={
+              'format':'grand-bruxelles-gate8-variant01-shoulder-pose-field-v1',
+              'source_artifact_id':9720026708,
+              'source_head_sha':'9defe931b0b51b3582c1e555ff80992f64f311fc',
+              'pose_degrees':degrees,
+              'local_edges':measured,
+              'critical_edges':{
+                  '486-601':by_edge[(486,601)],
+                  '599-601':by_edge[(599,601)],
+                  '601-615':by_edge[(601,615)],
+              },
+              'diagnostic_state':'REMATCH_REDUCES_DETERMINISTIC_SHOULDER_BLEND_FIELD_DISCONTINUITY',
+              'next_safe_axis':'RUN_REAL_POSED_GEOMETRY_EDGE_STRETCH_COMPARISON',
+              'canonical_asset_mutation':False,
+              'canonical_mhclo_mutation':False,
+              'runtime_npc_mutation':False,
+              'production_activation_allowed':False,
+              'visual_approval_allowed':False,
+          }
+          open('/tmp/gate8-pose-field/result.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print('GATE8_SHOULDER_POSE_FIELD_OK', out['diagnostic_state'])
+          PY
+
+      - name: Upload pose-field evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-shoulder-pose-field-v1
+          path: /tmp/gate8-pose-field/result.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"

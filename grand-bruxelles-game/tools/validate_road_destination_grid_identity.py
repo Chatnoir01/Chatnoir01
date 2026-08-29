@@ -2,7 +2,8 @@
 """Fail-closed canonical identity check for registered road destination cells.
 
 This verifier is evidence-only. It binds the redundant grid_cell_id carried by the
-road readiness catalog to the exact canonical cell_id and EPSG:31370 bbox. It does
+road readiness catalog to the exact canonical cell_id and EPSG:31370 bbox, and
+proves that the catalog remains on the existing closed authorization rails. It does
 not authorize runtime mounting, rendering, collision, safe spawn, or JOUABLE.
 """
 from __future__ import annotations
@@ -15,6 +16,26 @@ from typing import Any
 
 CELL_ID_RE = re.compile(r"^bxl-e(-?\d+)-n(-?\d+)-s(\d+)$")
 EXPECTED_CRS = "EPSG:31370"
+ROOT_AUTHORIZATION_RAILS = frozenset(
+    {
+        "collision_authorized",
+        "jouable_authorized",
+        "render_authorized",
+        "road_cell_mapping_authorized",
+        "runtime_directory_scan_authorized",
+        "runtime_mount_authorized",
+        "safe_spawn_authorized",
+    }
+)
+DESTINATION_AUTHORIZATION_RAILS = frozenset(
+    {
+        "collision_authorized",
+        "jouable_authorized",
+        "render_authorized",
+        "runtime_mount_authorized",
+        "safe_spawn_authorized",
+    }
+)
 
 
 def fail(message: str) -> None:
@@ -42,6 +63,23 @@ def _road_id(value: Any) -> int:
     return value
 
 
+def _require_closed_authorization(
+    payload: Any,
+    expected_keys: frozenset[str],
+    label: str,
+) -> None:
+    if not isinstance(payload, dict):
+        fail(f"{label} authorization rail drift: object required")
+    actual_keys = frozenset(payload)
+    if actual_keys != expected_keys:
+        missing = sorted(expected_keys - actual_keys)
+        unknown = sorted(actual_keys - expected_keys)
+        fail(f"{label} authorization rail drift: missing={missing} unknown={unknown}")
+    for key in sorted(expected_keys):
+        if payload.get(key) is not False:
+            fail(f"{label} authorization rail drift: {key} must remain false")
+
+
 def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     road_id = _road_id(destination.get("road_osm_id"))
     if destination.get("destination_id") != f"road-{road_id}":
@@ -50,6 +88,12 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
         fail(f"readiness drift {road_id}")
     if destination.get("cell_crs") != EXPECTED_CRS:
         fail(f"cell CRS drift {road_id}")
+
+    _require_closed_authorization(
+        {key: destination.get(key) for key in DESTINATION_AUTHORIZATION_RAILS},
+        DESTINATION_AUTHORIZATION_RAILS,
+        "destination",
+    )
 
     cell_id = str(destination.get("cell_id") or "")
     match = CELL_ID_RE.fullmatch(cell_id)
@@ -80,6 +124,12 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
 
 
 def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
+    _require_closed_authorization(
+        readiness.get("authorization"),
+        ROOT_AUTHORIZATION_RAILS,
+        "authorization",
+    )
+
     destinations = readiness.get("destinations")
     if not isinstance(destinations, list):
         fail("destinations must be a list")

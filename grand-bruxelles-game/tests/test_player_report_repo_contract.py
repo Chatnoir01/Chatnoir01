@@ -13,7 +13,8 @@ SCHEMA_PATH = REPORT_ROOT / "player-report-v1.schema.json"
 FIXTURE_PATH = REPORT_ROOT / "fixtures" / "anneessens-open-example.gbreport.json"
 RUNTIME_PATH = ROOT / "game" / "scripts" / "player_issue_report_runtime.gd"
 CONTINUITY_PATH = ROOT / "tools" / "continuity" / "continuity.py"
-EXPECTED_SCHEMA = "grand-bruxelles-player-report-v1"
+LEGACY_SCHEMA = "grand-bruxelles-player-report-v1"
+RUNTIME_SCHEMA = "grand-bruxelles-player-report-v2"
 
 
 def _load_continuity_module():
@@ -29,9 +30,11 @@ def test_player_report_repo_contract() -> None:
     assert (REPORT_ROOT / "archive" / ".gitkeep").exists()
     assert (REPORT_ROOT / "README.md").exists()
 
+    # The repo-owned schema/fixture remains the legacy interchange contract so
+    # continuity tooling keeps reading existing tickets without migration loss.
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    assert schema["$id"] == EXPECTED_SCHEMA
-    assert schema["properties"]["schema"]["const"] == EXPECTED_SCHEMA
+    assert schema["$id"] == LEGACY_SCHEMA
+    assert schema["properties"]["schema"]["const"] == LEGACY_SCHEMA
     required = set(schema["required"])
     assert {"schema", "id", "status", "zone", "player_position", "note", "captured_unix"} <= required
     assert schema["properties"]["player_position"]["minItems"] == 3
@@ -40,14 +43,25 @@ def test_player_report_repo_contract() -> None:
     assert "build" in schema["properties"]
     assert "sha" in schema["properties"]["build"]["properties"]
 
+    # Runtime writes the richer v2 post-integration ticket while preserving v1
+    # read compatibility. Visual findings are explicitly soft; hard blockers
+    # remain distinguishable through report_blocks_playable().
     runtime = RUNTIME_PATH.read_text(encoding="utf-8")
-    assert f'const SCHEMA := "{EXPECTED_SCHEMA}"' in runtime
+    assert f'const SCHEMA := "{RUNTIME_SCHEMA}"' in runtime
+    assert f'const LEGACY_SCHEMA := "{LEGACY_SCHEMA}"' in runtime
     assert 'const REPORT_DIR := "user://player_reports/open"' in runtime
+    assert '"kind": "visual"' in runtime
+    assert '"blocking": false' in runtime
+    assert "report_blocks_playable" in runtime
     assert '"player_position"' in runtime
     assert '"captured_unix"' in runtime
+    assert '"camera"' in runtime
+    assert '"look_target"' in runtime
+    for action in ("GARDER", "AMELIORER", "REJETER"):
+        assert f'"{action}"' in runtime
 
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert fixture["schema"] == EXPECTED_SCHEMA
+    assert fixture["schema"] == LEGACY_SCHEMA
     assert fixture["status"] == "open"
     assert fixture["zone"]["id"] == "anneessens"
     assert len(fixture["player_position"]) == 3
@@ -56,7 +70,7 @@ def test_player_report_repo_contract() -> None:
     assert fixture["build"]["source"] == "synthetic_test_fixture"
 
     continuity = _load_continuity_module()
-    assert continuity.REPORT_SCHEMA == EXPECTED_SCHEMA
+    assert continuity.REPORT_SCHEMA == LEGACY_SCHEMA
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / FIXTURE_PATH.name
         shutil.copyfile(FIXTURE_PATH, target)
@@ -68,4 +82,8 @@ def test_player_report_repo_contract() -> None:
 
 if __name__ == "__main__":
     test_player_report_repo_contract()
-    print("PLAYER_REPORT_REPO_CONTRACT_OK schema=grand-bruxelles-player-report-v1 fixture=anneessens-open-example")
+    print(
+        "PLAYER_REPORT_REPO_CONTRACT_OK "
+        "runtime=v2 legacy=v1 visual_reports=SOFT hard_blockers=SUPPORTED "
+        "fixture=anneessens-open-example"
+    )

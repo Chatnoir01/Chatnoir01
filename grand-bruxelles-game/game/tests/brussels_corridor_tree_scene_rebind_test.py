@@ -50,7 +50,18 @@ def main() -> None:
     if "is_instance_valid(_scene)" not in process_body:
         fail("corridor tree per-frame path does not fail closed on a freed production scene")
 
-    print("BRUSSELS_CORRIDOR_TREE_SCENE_REBIND_OK: scene_removal_cleanup=true rebind=true stale_scene_guard=true")
+    node_added = function_body(source, "_on_tree_node_added")
+    if 'call_deferred("_try_bind_scene"' not in node_added:
+        fail("corridor tree node_added path can build synchronously while production parents are still setting up children")
+    if "_try_bind_scene(_production_scene_from_node(node))" in node_added:
+        fail("corridor tree node_added path still performs synchronous scene binding")
+
+    try_bind = function_body(source, "_try_bind_scene")
+    for token in ("_tearing_down", "not is_inside_tree()", "_ready_complete"):
+        if token not in try_bind:
+            fail(f"deferred corridor tree bind is missing teardown/idempotence guard: {token}")
+
+    print("BRUSSELS_CORRIDOR_TREE_SCENE_REBIND_OK: scene_removal_cleanup=true rebind=true stale_scene_guard=true node_added_reentrant_safe=true")
 
 
 if __name__ == "__main__":

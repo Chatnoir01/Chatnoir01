@@ -42,8 +42,10 @@ def main() -> None:
     if len(entries) != 1:
         fail("facade articulation lifecycle entry missing or duplicated")
     entry = entries[0]
-    if entry.get("external_signal_terminal_cleanup_required") is not True:
-        fail("facade articulation terminal signal cleanup contract missing")
+    if entry.get("external_signal_teardown_cleanup_required") is not True:
+        fail("facade articulation teardown signal cleanup contract missing")
+    if entry.get("external_signal_terminal_cleanup_required") is not False:
+        fail("facade articulation scene-rebind signal retention must be explicit")
     if entry.get("external_signal_name") != SIGNAL_NAME:
         fail("facade articulation external signal identity drifted")
     if entry.get("external_signal_cleanup_helper") != HELPER_NAME:
@@ -54,20 +56,22 @@ def main() -> None:
     if SIGNAL_NAME not in helper or "disconnect(" not in helper:
         fail("facade articulation cleanup helper no longer disconnects base signal")
 
+    exit_body = function_body(source, "_exit_tree")
+    if HELPER_NAME + "()" not in exit_body:
+        fail("facade articulation teardown no longer disconnects base signal")
+
     apply_body = function_body(source, "_try_apply")
     ready_index = apply_body.find("_ready_complete = true")
     cleanup_index = apply_body.find(f"{HELPER_NAME}()")
     if ready_index < 0:
         fail("facade articulation terminal ready marker missing")
-    if cleanup_index < 0:
-        fail("facade articulation terminal external-signal cleanup call missing")
-    if cleanup_index < ready_index:
-        fail("facade articulation external signal is cleaned before terminal success")
+    if cleanup_index >= 0:
+        fail("facade articulation external signal must stay connected after terminal success for scene rebind")
 
     print(
         "SHARED_ENVIRONMENT_EXTERNAL_SIGNAL_TERMINAL_CLEANUP_OK: "
         "runtime=BrusselsOsmFacadeArticulationRuntime "
-        "signal=facade_surface_ready terminal_cleanup=true"
+        "signal=facade_surface_ready terminal_cleanup=false teardown_cleanup=true scene_rebind_retained=true"
     )
 
 

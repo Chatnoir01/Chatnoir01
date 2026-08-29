@@ -6,6 +6,7 @@ const MATERIAL_FACTORY := preload("res://game/scripts/brussels_osm_facade_surfac
 const EXPECTED_MAX_PALETTE := 6
 
 var _buildings: Array[CSGPolygon3D] = []
+var _buildings_root: Node3D = null
 var _legacy_materials: Dictionary = {}
 var _owned_materials: Dictionary = {}
 var _original_transforms: Dictionary = {}
@@ -22,16 +23,35 @@ var _tearing_down := false
 func _ready() -> void:
     _tearing_down = false
     process_mode = Node.PROCESS_MODE_ALWAYS
-    var tree := get_tree()
-    if tree != null and not tree.node_added.is_connected(_on_node_added):
-        tree.node_added.connect(_on_node_added)
+    _start_watching()
     _schedule_apply()
 
 func _exit_tree() -> void:
     _tearing_down = true
     _bind_scheduled = false
-    _disconnect_mount_listener()
+    _stop_watching()
     _release_material_ownership()
+    _buildings_root = null
+
+func _start_watching() -> void:
+    if _tearing_down or not is_inside_tree():
+        return
+    var tree := get_tree()
+    if tree == null:
+        return
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+    if not tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.connect(_on_node_removed)
+
+func _stop_watching() -> void:
+    var tree := get_tree()
+    if tree == null:
+        return
+    if tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+    if tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.disconnect(_on_node_removed)
 
 func _palette_key(material: Material) -> String:
     if material is StandardMaterial3D:
@@ -76,16 +96,23 @@ func _on_node_added(node: Node) -> void:
     if _valid_buildings_root(node):
         _schedule_apply()
 
+func _on_node_removed(node: Node) -> void:
+    if _tearing_down or not is_inside_tree() or _failed:
+        return
+    if _buildings_root == null or node != _buildings_root:
+        return
+    _release_material_ownership()
+    _buildings_root = null
+    _ready_complete = false
+    _bind_scheduled = false
+    _start_watching()
+    call_deferred("_try_apply")
+
 func _schedule_apply() -> void:
     if _tearing_down or not is_inside_tree() or _bind_scheduled or _ready_complete or _failed:
         return
     _bind_scheduled = true
     call_deferred("_try_apply")
-
-func _disconnect_mount_listener() -> void:
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
 
 func _release_material_ownership() -> void:
     for building: CSGPolygon3D in _buildings:
@@ -122,7 +149,7 @@ func _fail(message: String) -> void:
     push_error("Brussels OSM facade surface runtime: %s" % message)
     _failed = true
     _ready_complete = true
-    _disconnect_mount_listener()
+    _stop_watching()
 
 func _try_apply() -> void:
     _bind_scheduled = false
@@ -161,11 +188,11 @@ func _try_apply() -> void:
         _fail("unexpected legacy palette expansion (%d)" % _materials.size())
         return
 
+    _buildings_root = buildings_root
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
-    _disconnect_mount_listener()
     facade_surface_ready.emit()
-    print("BRUSSELS_OSM_FACADE_SURFACE_READY: buildings=%d materials=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false material_identity_claimed=false event_driven=true" % [_buildings.size(), _materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
+    print("BRUSSELS_OSM_FACADE_SURFACE_READY: buildings=%d materials=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false material_identity_claimed=false event_driven=true scene_rebindable=true" % [_buildings.size(), _materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
 
 func _set_material_state(enabled: bool) -> void:
     if _tearing_down or not is_inside_tree():

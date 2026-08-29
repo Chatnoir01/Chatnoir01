@@ -14,10 +14,14 @@ EXPECTED = {
     "game/scripts/brussels_bollard_runtime.gd": "_on_node_removed",
     "game/scripts/anneessens_osm_furniture_runtime.gd": "_on_tree_node_removed",
     "game/scripts/brussels_base_ground_surface_runtime.gd": "_on_node_removed",
+    "game/scripts/brussels_osm_facade_surface_runtime.gd": "_on_node_removed",
+    "game/scripts/brussels_osm_facade_articulation_runtime.gd": "_on_node_removed",
 }
 HELPER_WATCHERS = {
     "game/scripts/anneessens_osm_furniture_runtime.gd",
     "game/scripts/brussels_base_ground_surface_runtime.gd",
+    "game/scripts/brussels_osm_facade_surface_runtime.gd",
+    "game/scripts/brussels_osm_facade_articulation_runtime.gd",
 }
 HELPER_REBIND_TOKENS = {
     "game/scripts/anneessens_osm_furniture_runtime.gd": (
@@ -32,6 +36,21 @@ HELPER_REBIND_TOKENS = {
         "_awaiting_main = true",
         "_start_watching()",
         'call_deferred("_bind_existing_main")',
+    ),
+    "game/scripts/brussels_osm_facade_surface_runtime.gd": (
+        "_release_material_ownership()",
+        "_buildings_root = null",
+        "_ready_complete = false",
+        "_start_watching()",
+        'call_deferred("_try_apply")',
+    ),
+    "game/scripts/brussels_osm_facade_articulation_runtime.gd": (
+        "_release_material_ownership()",
+        "_buildings_root = null",
+        "_ready_complete = false",
+        "_start_watching()",
+        "_connect_base_runtime()",
+        'call_deferred("_try_apply")',
     ),
 }
 STREET_FURNITURE_REBIND = {

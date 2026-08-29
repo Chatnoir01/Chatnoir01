@@ -77,6 +77,31 @@ def test_opened_destination_authorization_fails_closed_even_with_rehashed_readin
             raise AssertionError("opened render authorization did not fail closed")
 
 
+def test_rehashed_readiness_identity_types_fail_closed() -> None:
+    source_root = ROOT / "data" / "osm"
+    readiness_path = ROOT / "data" / "provenance" / "brussels_road_destination_readiness_catalog.json"
+    catalog_builder = ROOT / "tools" / "build_road_destination_catalog.py"
+    mutations = (
+        ("destination_count", lambda payload: payload.__setitem__("destination_count", str(payload["destination_count"]))),
+        ("road_osm_id", lambda payload: payload["destinations"][0].__setitem__("road_osm_id", str(payload["destinations"][0]["road_osm_id"]))),
+    )
+    for label, mutate in mutations:
+        with tempfile.TemporaryDirectory() as tmp:
+            changed_path = Path(tmp) / f"readiness-{label}.json"
+            changed = json.loads(readiness_path.read_text(encoding="utf-8"))
+            mutate(changed)
+            unsigned = dict(changed)
+            unsigned.pop("semantic_sha256", None)
+            changed["semantic_sha256"] = module.sha256_json(unsigned)
+            changed_path.write_text(json.dumps(changed), encoding="utf-8")
+            try:
+                module.build_binding(source_root, changed_path, catalog_builder)
+            except SystemExit as exc:
+                assert "JSON type drift" in str(exc)
+            else:
+                raise AssertionError(f"rehashed readiness {label} string coercion did not fail closed")
+
+
 def test_cell_manifest_byte_drift_fails_closed() -> None:
     readiness_path = ROOT / "data" / "provenance" / "brussels_road_destination_readiness_catalog.json"
     readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
@@ -135,6 +160,7 @@ def main() -> int:
     test_real_binding_is_deterministic_and_fail_closed()
     test_tampered_readiness_semantic_fails_closed()
     test_opened_destination_authorization_fails_closed_even_with_rehashed_readiness()
+    test_rehashed_readiness_identity_types_fail_closed()
     test_cell_manifest_byte_drift_fails_closed()
     test_cell_manifest_path_cannot_escape_canonical_directory()
     test_workflow_publishes_only_verified_complete_evidence()

@@ -1,0 +1,172 @@
+name: Grand Bruxelles Gate-8 Shoulder Pose Tradeoff Contract
+
+on:
+  push:
+    branches: ["npc/gate8-shoulder-pose-tradeoff-be72af3"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-shoulder-pose-tradeoff-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  shoulder-pose-tradeoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_MAIN_SHA: "be72af36bd19256c65d991ef4e3517dff49530cd"
+      SOURCE_RUN_ID: "33275580600"
+      SOURCE_HEAD_SHA: "8ae00cf374534d6f3c221495066907da4ee42ae2"
+      SOURCE_ARTIFACT_ID: "9721388247"
+      SOURCE_ARTIFACT_DIGEST: "sha256:ce53ac39951f8b55717dd0a8c1209562517ce66b87d69246f39d700133b942bf"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and one-file Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          test "$(git diff --name-only origin/main...HEAD)" = '.github/workflows/grand-bruxelles-gate8-shoulder-pose-tradeoff-contract.yml'
+
+      - name: Download immutable exact-head pose-field evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-pose-tradeoff
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}" > /tmp/gate8-pose-tradeoff/meta.json
+          python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/gate8-pose-tradeoff/meta.json'))
+          assert not m['expired']
+          assert m['digest']==os.environ['SOURCE_ARTIFACT_DIGEST']
+          assert int(m['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert m['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > /tmp/gate8-pose-tradeoff/evidence.zip
+          unzip -q /tmp/gate8-pose-tradeoff/evidence.zip -d /tmp/gate8-pose-tradeoff/evidence
+          test -s /tmp/gate8-pose-tradeoff/evidence/result.json
+
+      - name: Measure one-ring improvement/regression tradeoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, statistics
+
+          src=json.load(open('/tmp/gate8-pose-tradeoff/evidence/result.json'))
+          assert src['format']=='grand-bruxelles-gate8-variant01-shoulder-pose-field-v1'
+          assert src['diagnostic_state']=='REMATCH_REDUCES_DETERMINISTIC_SHOULDER_BLEND_FIELD_DISCONTINUITY'
+          assert src['next_safe_axis']=='RUN_REAL_POSED_GEOMETRY_EDGE_STRETCH_COMPARISON'
+          assert src['canonical_asset_mutation'] is False
+          assert src['canonical_mhclo_mutation'] is False
+          assert src['runtime_npc_mutation'] is False
+          assert src['production_activation_allowed'] is False
+          assert src['visual_approval_allowed'] is False
+
+          expected_pose={
+              'upperarm_r':35.0,
+              'clavicle_r':12.0,
+              'spine_03':4.0,
+              'spine_02':2.0,
+              'spine_01':0.0,
+          }
+          assert src['pose_degrees']==expected_pose
+
+          edges={tuple(x['edge']):x for x in src['local_edges']}
+          expected_edges={(377,486),(379,486),(486,601),(486,864),(378,601),(599,601),(601,615)}
+          assert set(edges)==expected_edges
+
+          critical={(486,601),(599,601),(601,615)}
+          controls=expected_edges-critical
+
+          expected={
+              (486,601):(0.6904713157224935,0.021638156444504904),
+              (599,601):(0.6695350289445312,0.1494561829044704),
+              (601,615):(0.6785194082154762,0.05295402890302719),
+              (377,486):(0.005580603555426234,0.04751303266816041),
+              (379,486):(0.0018629733182051898,0.037155343772500384),
+              (486,864):(0.0018807244460922743,0.04114256579003507),
+              (378,601):(0.011770957174466308,0.0526631083636563),
+          }
+          for edge,(s_exp,r_exp) in expected.items():
+              rec=edges[edge]
+              assert math.isclose(rec['stored_pose_field_delta'],s_exp,rel_tol=0.0,abs_tol=1e-12)
+              assert math.isclose(rec['rematched_pose_field_delta'],r_exp,rel_tol=0.0,abs_tol=1e-12)
+
+          crit_stored=[edges[e]['stored_pose_field_delta'] for e in critical]
+          crit_rematch=[edges[e]['rematched_pose_field_delta'] for e in critical]
+          ctl_stored=[edges[e]['stored_pose_field_delta'] for e in controls]
+          ctl_rematch=[edges[e]['rematched_pose_field_delta'] for e in controls]
+          all_stored=[edges[e]['stored_pose_field_delta'] for e in expected_edges]
+          all_rematch=[edges[e]['rematched_pose_field_delta'] for e in expected_edges]
+
+          crit_mean_stored=statistics.mean(crit_stored)
+          crit_mean_rematch=statistics.mean(crit_rematch)
+          ctl_mean_stored=statistics.mean(ctl_stored)
+          ctl_mean_rematch=statistics.mean(ctl_rematch)
+          all_mean_stored=statistics.mean(all_stored)
+          all_mean_rematch=statistics.mean(all_rematch)
+
+          assert math.isclose(crit_mean_stored,0.6795085842941669,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(crit_mean_rematch,0.07468278941733417,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(ctl_mean_stored,0.005273814623547502,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(ctl_mean_rematch,0.04461851264858804,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(all_mean_stored,0.29423157305381303,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(all_mean_rematch,0.05750320269233638,rel_tol=0.0,abs_tol=1e-12)
+
+          assert crit_mean_rematch < crit_mean_stored * 0.12
+          assert all_mean_rematch < all_mean_stored * 0.20
+          assert all(edges[e]['rematched_pose_field_delta'] > edges[e]['stored_pose_field_delta'] for e in controls)
+          assert max(ctl_rematch) < 0.053
+          assert max(crit_rematch) < 0.150
+
+          out={
+              'format':'grand-bruxelles-gate8-variant01-shoulder-pose-tradeoff-v1',
+              'source_artifact_id':9721388247,
+              'source_head_sha':'8ae00cf374534d6f3c221495066907da4ee42ae2',
+              'pose_degrees':expected_pose,
+              'critical_edge_count':len(critical),
+              'control_edge_count':len(controls),
+              'critical_mean_stored':crit_mean_stored,
+              'critical_mean_rematched':crit_mean_rematch,
+              'control_mean_stored':ctl_mean_stored,
+              'control_mean_rematched':ctl_mean_rematch,
+              'all_edge_mean_stored':all_mean_stored,
+              'all_edge_mean_rematched':all_mean_rematch,
+              'critical_max_rematched':max(crit_rematch),
+              'control_max_rematched':max(ctl_rematch),
+              'control_edges_regressed':sum(edges[e]['rematched_pose_field_delta'] > edges[e]['stored_pose_field_delta'] for e in controls),
+              'diagnostic_state':'REMATCH_FIXES_CLIFFS_BUT_INCREASES_SMOOTH_CONTROL_EDGE_POSE_DELTA',
+              'next_safe_axis':'RUN_REAL_POSED_GEOMETRY_EDGE_STRETCH_AND_INVERSION_COMPARISON',
+              'canonical_asset_mutation':False,
+              'canonical_mhclo_mutation':False,
+              'runtime_npc_mutation':False,
+              'production_activation_allowed':False,
+              'visual_approval_allowed':False,
+          }
+          open('/tmp/gate8-pose-tradeoff/result.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print('GATE8_SHOULDER_POSE_TRADEOFF_OK',out['diagnostic_state'])
+          PY
+
+      - name: Upload pose tradeoff evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-shoulder-pose-tradeoff-v1
+          path: /tmp/gate8-pose-tradeoff/result.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"

@@ -1,0 +1,274 @@
+name: Grand Bruxelles Gate-8 Variant01 Split Shoulder A-B
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-split-shoulder-ab-20260829"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-split-shoulder-ab.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_split_shoulder_ab.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_split_shoulder_ab_materialize.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  split-shoulder-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      TARGET_SIZE_BYTES: "15580240"
+      BASELINE_ARTIFACT_ID: "9679245275"
+      BASELINE_ARTIFACT_DIGEST: "sha256:310bf9d8c55f4e97ac1480351b4235e230305ccb959570581c8c2c03046703a5"
+      ONE_RING_ARTIFACT_ID: "9698597710"
+      ONE_RING_ARTIFACT_DIGEST: "sha256:d4717ce3d48200d390e27d7cf403e1d52868e8bd23b030eca9dbd001479d596c"
+      TWO_RING_ARTIFACT_ID: "9703527268"
+      TWO_RING_ARTIFACT_DIGEST: "sha256:8aad3c20aff738d791f9bb0a92394c04b8309ff05964a78f4ca621d2b9637c61"
+      HARNESS_COMMIT_SHA: "73feaa653d3d66bbd46cd218576e7d9585161ae2"
+      HARNESS_PATH: "grand-bruxelles-game/game/tests/gate8_variant06_target_micropose_skin_test.gd"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-v01-split-shoulder-ab"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main bounded scope and frozen rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "a2dff976c48e1e566d2eb26bab4ce138d6dfb813"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-split-shoulder-ab.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_split_shoulder_ab.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_split_shoulder_ab_materialize.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 - <<'PY'
+          import json
+          m=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_split_shoulder_ab.json'))
+          assert m['base_main_sha']=='a2dff976c48e1e566d2eb26bab4ce138d6dfb813'
+          assert m['candidate_variant']==1 and m['target']['vertices']==21044
+          assert m['left']['operator_family']=='ISOLATED_BROAD_ENDPOINT'
+          assert m['left']['broad_vertex']==245 and m['left']['coherent_vertex']==718
+          assert m['right']['operator_family']=='EXTENDED_BROAD_CLUSTER'
+          assert sorted(m['right']['cluster_vertices'])==sorted([758,1510,259,1511])
+          assert m['cases']=={'degrees':5.0,'roles':9,'axes':3,'count':54}
+          assert all(v is False for v in m['rails'].values())
+          assert all(v is True for v in m['local_superiority'].values())
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee /tmp/live-main.txt
+
+      - name: Verify immutable evidence and target bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in \
+            "$TARGET_ARTIFACT_ID|$TARGET_ARTIFACT_DIGEST" \
+            "$BASELINE_ARTIFACT_ID|$BASELINE_ARTIFACT_DIGEST" \
+            "$ONE_RING_ARTIFACT_ID|$ONE_RING_ARTIFACT_DIGEST" \
+            "$TWO_RING_ARTIFACT_ID|$TWO_RING_ARTIFACT_DIGEST"; do
+            ID="${pair%%|*}"; EXPECTED="${pair#*|}"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" > "/tmp/artifact-${ID}.json"
+            python3 - "/tmp/artifact-${ID}.json" "$EXPECTED" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1])); assert not a['expired']; assert a['digest']==sys.argv[2]
+          PY
+          done
+          rm -rf /tmp/target-evidence /tmp/baseline-evidence /tmp/one-ring-evidence /tmp/two-ring-evidence "$PROJECT"
+          mkdir -p /tmp/target-evidence /tmp/baseline-evidence /tmp/one-ring-evidence /tmp/two-ring-evidence "$PROJECT/assets" "$PROJECT/game/tests"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/target.zip
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${BASELINE_ARTIFACT_ID}/zip" > /tmp/baseline.zip
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ONE_RING_ARTIFACT_ID}/zip" > /tmp/one-ring.zip
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TWO_RING_ARTIFACT_ID}/zip" > /tmp/two-ring.zip
+          unzip -q /tmp/target.zip -d /tmp/target-evidence
+          unzip -q /tmp/baseline.zip -d /tmp/baseline-evidence
+          unzip -q /tmp/one-ring.zip -d /tmp/one-ring-evidence
+          unzip -q /tmp/two-ring.zip -d /tmp/two-ring-evidence
+          TARGET="$(find /tmp/target-evidence -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$TARGET"
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          python3 - <<'PY'
+          import json,pathlib
+          def find_one(root,pred):
+              found=[]
+              for p in pathlib.Path(root).rglob('*.json'):
+                  try:d=json.loads(p.read_text())
+                  except Exception:continue
+                  if pred(d):found.append((p,d))
+              assert len(found)==1, [(str(p),d.get('diagnostic_state')) for p,d in found]
+              return found[0][1]
+          b=find_one('/tmp/baseline-evidence',lambda d:d.get('candidate_variant')==1 and d.get('case_count')==54 and d.get('diagnostic_state')=='TARGET_MICROPOSE_SKIN_BLOCKED')
+          assert b['blocked_case_count']==48 and b['failures']==[]
+          pathlib.Path('/tmp/immutable-baseline-result.json').write_text(json.dumps(b,indent=2,sort_keys=True))
+          o=find_one('/tmp/one-ring-evidence',lambda d:d.get('diagnostic_state')=='ONE_RING_LOCAL_WEIGHT_CLIFFS_CONFIRMED')
+          assert o['audited_edge_count']==6 and o['failures']==[]
+          pathlib.Path('/tmp/one-ring-result.json').write_text(json.dumps(o,indent=2,sort_keys=True))
+          t=find_one('/tmp/two-ring-evidence',lambda d:d.get('diagnostic_state')=='SHOULDER_TWO_RING_MIXED_TOPOLOGY')
+          assert t['isolated_broad_endpoint_count']==1 and t['extended_broad_endpoint_count']==1 and t['failures']==[]
+          right=[x for x in t['shoulders'] if int(x['broad_vertex'])==758][0]
+          assert sorted(int(x['vertex']) for x in right['two_ring'] if x['classification']=='broad_like')==sorted([1510,259,1511])
+          pathlib.Path('/tmp/two-ring-result.json').write_text(json.dumps(t,indent=2,sort_keys=True))
+          PY
+
+      - name: Materialize baseline and separate shoulder candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${HARNESS_COMMIT_SHA}^{commit}"
+          git show "${HARNESS_COMMIT_SHA}:${HARNESS_PATH}" > /tmp/validated-harness.gd
+          python3 grand-bruxelles-game/game/tests/gate8_variant01_split_shoulder_ab_materialize.py \
+            /tmp/validated-harness.gd \
+            grand-bruxelles-game/data/qa/gate8_variant01_split_shoulder_ab.json \
+            /tmp/one-ring-result.json /tmp/two-ring-result.json \
+            "$PROJECT/game/tests/baseline.gd" "$PROJECT/game/tests/left.gd" "$PROJECT/game/tests/right.gd" | tee /tmp/materialize-summary.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/materialize-summary.json'))
+          assert r['operator']=='split_shoulder_topology_aware'
+          assert r['left_corrected_vertex_count']==1
+          assert r['right_corrected_vertex_count']==4
+          assert r['report']['left']['corrected_vertices']==[245]
+          assert sorted(r['report']['right']['corrected_vertices'])==sorted([758,1510,259,1511])
+          PY
+          ! grep -q 'RetargetModifier3D' "$PROJECT/game/tests/baseline.gd"
+          ! grep -q 'RetargetModifier3D' "$PROJECT/game/tests/left.gd"
+          ! grep -q 'RetargetModifier3D' "$PROJECT/game/tests/right.gd"
+          sha256sum /tmp/validated-harness.gd "$PROJECT/game/tests/"*.gd | tee /tmp/harness-sha256.txt
+
+      - name: Install exact Godot 4.7.1 and import target
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01SplitShoulderAB"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          timeout 300s "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee /tmp/import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Replay baseline and measure left and right independently
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/baseline.gd 2>&1 | tee /tmp/baseline.log
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/left.gd 2>&1 | tee /tmp/left.log
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/right.gd 2>&1 | tee /tmp/right.log
+          cp "$PROJECT/baseline-result.json" /tmp/baseline-result.json
+          cp "$PROJECT/left-result.json" /tmp/left-result.json
+          cp "$PROJECT/right-result.json" /tmp/right-result.json
+
+      - name: Enforce immutable replay and classify local superiority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,math,pathlib
+          imm=json.load(open('/tmp/immutable-baseline-result.json'))
+          b=json.load(open('/tmp/baseline-result.json'))
+          left=json.load(open('/tmp/left-result.json'))
+          right=json.load(open('/tmp/right-result.json'))
+          m=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_split_shoulder_ab.json'))
+          assert b['candidate_variant']==1 and b['case_count']==54 and b['blocked_case_count']==48 and b['failures']==[]
+          assert b['blocked_cases']==imm['blocked_cases']
+          for k in ('max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio'):
+              assert math.isclose(float(b[k]),float(imm[k]),rel_tol=0.0,abs_tol=1e-9),(k,b[k],imm[k])
+          assert left.get('left_isolated_shoulder_candidate') is True and left.get('candidate_corrected_vertex_count')==1 and left['failures']==[]
+          assert right.get('right_cluster_shoulder_candidate') is True and right.get('candidate_corrected_vertex_count')==4 and right['failures']==[]
+          def role_summary(doc,role):
+              xs=[x for x in doc['case_results'] if x['role']==role]
+              assert len(xs)==6
+              return {
+                'blocked_case_count':sum(not x['within_gates'] for x in xs),
+                'max_edge_absolute_change_m':max(float(x['max_edge_absolute_change_m']) for x in xs),
+                'max_edge_stretch_ratio':max(float(x['max_edge_stretch_ratio']) for x in xs),
+                'min_edge_compression_ratio':min(float(x['min_edge_compression_ratio']) for x in xs),
+              }
+          def classify(side,doc):
+              role=m[side]['role']
+              base=role_summary(b,role); cand=role_summary(doc,role)
+              improved={
+                'blocked_case_count':cand['blocked_case_count'] < base['blocked_case_count'],
+                'max_edge_absolute_change_m':cand['max_edge_absolute_change_m'] < base['max_edge_absolute_change_m'],
+                'max_edge_stretch_ratio':cand['max_edge_stretch_ratio'] < base['max_edge_stretch_ratio'],
+                'min_edge_compression_ratio':cand['min_edge_compression_ratio'] > base['min_edge_compression_ratio'],
+              }
+              gates=m['gates']
+              all_green=(cand['blocked_case_count']==0 and cand['max_edge_absolute_change_m']<=gates['max_skin_edge_change_m'] and cand['max_edge_stretch_ratio']<=gates['max_skin_stretch_ratio'] and cand['min_edge_compression_ratio']>=gates['min_skin_compression_ratio'])
+              state='ALL_LOCAL_GATES_GREEN' if all_green else ('LOCAL_MEASURED_SUPERIORITY' if all(improved.values()) else 'LOCAL_NOT_SUPERIOR')
+              return {'role':role,'state':state,'baseline':base,'candidate':cand,'improved':improved}
+          l=classify('left',left); r=classify('right',right)
+          # Cross-side isolation: an operator on one shoulder may not perturb the opposite shoulder's six cases.
+          for candidate,role in ((left,m['right']['role']),(right,m['left']['role'])):
+              a=role_summary(b,role); c=role_summary(candidate,role)
+              for k in a:
+                  if isinstance(a[k],int): assert a[k]==c[k],(role,k,a[k],c[k])
+                  else: assert math.isclose(a[k],c[k],rel_tol=0.0,abs_tol=1e-9),(role,k,a[k],c[k])
+          if l['state']=='LOCAL_NOT_SUPERIOR' and r['state']=='LOCAL_NOT_SUPERIOR': overall='BOTH_OPERATORS_REJECTED'
+          elif l['state']!='LOCAL_NOT_SUPERIOR' and r['state']!='LOCAL_NOT_SUPERIOR': overall='BOTH_OPERATORS_LOCALLY_SUPERIOR'
+          elif l['state']!='LOCAL_NOT_SUPERIOR': overall='LEFT_ONLY_LOCALLY_SUPERIOR'
+          else: overall='RIGHT_ONLY_LOCALLY_SUPERIOR'
+          result={
+            'diagnostic_state':overall,
+            'candidate_variant':1,
+            'left':l,'right':r,
+            'global_baseline':{k:b[k] for k in ('blocked_case_count','max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio')},
+            'global_left':{k:left[k] for k in ('blocked_case_count','max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio')},
+            'global_right':{k:right[k] for k in ('blocked_case_count','max_edge_absolute_change_m','max_edge_stretch_ratio','min_edge_compression_ratio')},
+            'production_activation_allowed':False,
+            'visual_approval_allowed':False,
+            'next_safe_axis':'MATERIALIZE_ONLY_LOCALLY_SUPERIOR_OPERATOR_IN_SEPARATE_COPY' if overall!='BOTH_OPERATORS_REJECTED' else 'REJECT_BOTH_AND_MAP_RESIDUAL_SHOULDER_WEIGHT_FIELD'
+          }
+          pathlib.Path('/tmp/split-shoulder-ab-result.json').write_text(json.dumps(result,indent=2,sort_keys=True))
+          print(json.dumps(result,indent=2,sort_keys=True))
+          PY
+
+      - name: Require repository clean
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-split-shoulder-ab-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/live-main.txt
+            /tmp/godot-version.txt
+            /tmp/import.log
+            /tmp/materialize-summary.json
+            /tmp/harness-sha256.txt
+            /tmp/baseline-result.json
+            /tmp/left-result.json
+            /tmp/right-result.json
+            /tmp/split-shoulder-ab-result.json
+            /tmp/artifact-9470539830.json
+            /tmp/artifact-9679245275.json
+            /tmp/artifact-9698597710.json
+            /tmp/artifact-9703527268.json
+          retention-days: 14

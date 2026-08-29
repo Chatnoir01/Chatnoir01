@@ -133,13 +133,14 @@ jobs:
           test -s "$GATE8_REMATCH_RESULT"
           cat "$GATE8_REMATCH_RESULT"
 
-      - name: Validate rematch evidence envelope and fail-closed rails
+      - name: Validate reviewed rematch evidence contract and fail-closed rails
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os
+          import json, math, os
           r=json.load(open(os.environ['GATE8_REMATCH_RESULT']))
+          focus=[377,378,379,486,599,601,615,864]
           assert r['format']=='grand-bruxelles-gate8-variant01-mhclo-rematch-v1'
           assert r['mpfb_release']=='2.0.17'
           assert r['mpfb_release_commit']=='80919fa'
@@ -148,13 +149,35 @@ jobs:
           assert r['sportsuit_vertex_count']==1797
           assert r['body_vertex_count']==19158
           assert r['body_edge_count']==37364
-          assert r['focus_vertices']==[377,378,379,486,599,601,615,864]
-          assert set(r['records'])=={'377','378','379','486','599','601','615','864'}
-          assert r['diagnostic_state'] in {
-            'CURRENT_MPF_B_VERTEXMATCH_CANNOT_REMATCH_601_IN_EFFECTIVE_SOURCE_CONTEXT',
-            'CURRENT_MPF_B_VERTEXMATCH_REPRODUCES_STORED_601_SUPPORT',
-            'CURRENT_MPF_B_VERTEXMATCH_SELECTS_DIFFERENT_601_SUPPORT',
-          }
+          assert r['focus_vertices']==focus
+          assert r['successful_rematches']==focus
+          assert r['changed_support_vertices']==focus
+          assert set(r['records'])=={str(v) for v in focus}
+          assert r['diagnostic_state']=='CURRENT_MPF_B_VERTEXMATCH_SELECTS_DIFFERENT_601_SUPPORT'
+          assert r['next_safe_axis']=='EVALUATE_REMATCH_GEOMETRY_AND_WEIGHT_CONTINUITY'
+          for vertex in focus:
+              record=r['records'][str(vertex)]
+              assert record['rematch_success'] is True
+              assert record['final_strategy']=='SIMPLE_FACE'
+              assert record['focus_vertex_group_selected']=='upperarm_r'
+              assert record['same_support_exact_order'] is False
+              assert record['same_support_set'] is False
+              assert record['rematched_internal_hops_max'] <= 2
+              assert record['stored_internal_hops_max'] <= 2
+          r486=r['records']['486']
+          r601=r['records']['601']
+          assert r486['stored']['verts']==[15673,15666,15667]
+          assert r486['rematched']['verts']==[15681,15682,15653]
+          assert r601['stored']['verts']==[15947,15583,15871]
+          assert r601['rematched']['verts']==[1635,1629,1639]
+          assert math.isclose(r486['stored']['offset_norm'],0.1320987997674468,rel_tol=0,abs_tol=1e-12)
+          assert math.isclose(r486['rematched']['offset_norm'],0.004590544059914293,rel_tol=0,abs_tol=1e-12)
+          assert math.isclose(r601['stored']['offset_norm'],0.2871224083905678,rel_tol=0,abs_tol=1e-12)
+          assert math.isclose(r601['rematched']['offset_norm'],0.0069202532410868175,rel_tol=0,abs_tol=1e-12)
+          assert r486['rematched']['offset_norm'] < r486['stored']['offset_norm'] / 20.0
+          assert r601['rematched']['offset_norm'] < r601['stored']['offset_norm'] / 20.0
+          assert r486['rematched_to_anchor_486_hops_min']==4
+          assert r486['rematched_to_original_601_hops_min']==6
           assert r['canonical_asset_mutation'] is False
           assert r['canonical_mhclo_mutation'] is False
           assert r['canonical_generator_mutation'] is False
@@ -163,14 +186,14 @@ jobs:
           assert r['retarget_applied'] is False
           assert r['production_activation_allowed'] is False
           assert r['visual_approval_allowed'] is False
-          print('GATE8_MHCLO_REMATCH_MEASURED', r['diagnostic_state'], r['next_safe_axis'])
+          print('GATE8_MHCLO_REMATCH_CONTRACT_LOCKED', r['diagnostic_state'], r['next_safe_axis'])
           PY
 
-      - name: Upload red-first rematch evidence
+      - name: Upload reviewed rematch evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gate8-mhclo-rematch-red-first
+          name: gate8-mhclo-rematch-reviewed
           path: |
             /tmp/gate8-mhclo-rematch/result.json
             /tmp/gate8-mhclo-rematch/probe.log
@@ -179,21 +202,8 @@ jobs:
             /tmp/gate8-mhclo-rematch/mpfb.manifest.json
             /tmp/gate8-mhclo-rematch/mpfb-fetch.log
             /tmp/gate8-mhclo-rematch/mpfb-install.txt
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
 
       - name: Prove repository stayed clean
         run: test -z "$(git status --porcelain)"
-
-      - name: Fail closed until measured rematch verdict is reviewed
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, os
-          r=json.load(open(os.environ['GATE8_REMATCH_RESULT']))
-          raise SystemExit(
-              'RED_FIRST_UNREVIEWED_MHCLO_REMATCH: '
-              + r['diagnostic_state'] + ' -> ' + r['next_safe_axis']
-          )
-          PY

@@ -14,12 +14,14 @@
     "consensus_neighbor_l1_max": 0.10
   },
   "left": {
+    "role": "left_shoulder",
     "broad_vertex": 245,
     "coherent_vertex": 718,
     "operator_family": "ISOLATED_BROAD_ENDPOINT",
     "expected_corrected_vertices": 1
   },
   "right": {
+    "role": "right_shoulder",
     "broad_vertex": 758,
     "coherent_vertex": 416,
     "operator_family": "EXTENDED_BROAD_CLUSTER",
@@ -35,7 +37,7 @@
     "max_rest_position_drift_m": 0.000001,
     "max_rest_rotation_drift_deg": 0.0001
   },
-  "superiority": {
+  "local_superiority": {
     "blocked_case_count_must_decrease": true,
     "max_edge_change_must_decrease": true,
     "max_stretch_must_decrease": true,

@@ -26,8 +26,18 @@ OBJECT_FRAGMENT = "female_sportsuit01"
 PREPARED_ENDPOINTS = (486, 601)
 HM08_VERTEX_COUNT = 19158
 PROXY_ROWS = {
+    377: {"body_vertices": [15673, 15918, 15917], "barycentric": [0.71752, 0.17271, 0.10978]},
+    378: {"body_vertices": [15947, 15583, 15871], "barycentric": [0.48277, 0.38490, 0.13233]},
+    379: {"body_vertices": [15702, 15673, 15674], "barycentric": [0.01498, 0.38313, 0.60189]},
     486: {"body_vertices": [15673, 15666, 15667], "barycentric": [1.07592, -0.01267, -0.06324]},
+    599: {"body_vertices": [15917, 15666, 15673], "barycentric": [0.34706, 0.32672, 0.32622]},
     601: {"body_vertices": [15947, 15583, 15871], "barycentric": [0.22473, 0.62788, 0.14739]},
+    615: {"body_vertices": [15666, 15667, 15674], "barycentric": [0.48600, 0.22476, 0.28924]},
+    864: {"body_vertices": [15702, 15673, 15674], "barycentric": [0.49398, 0.53367, -0.02765]},
+}
+FOCAL_NEIGHBORS = {
+    486: [377, 379, 601, 864],
+    601: [378, 486, 599, 615],
 }
 POSITION_TOL = 1e-4
 WEIGHT_TOL = 1e-4
@@ -132,6 +142,7 @@ def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
     body = find_hm08(root)
     rig = find_effective_rig(root, sportsuit)
     rig_bones = {str(bone.name) for bone in rig.data.bones}
+    sportsuit_edges = {tuple(sorted((int(edge.vertices[0]), int(edge.vertices[1])))) for edge in sportsuit.data.edges}
     endpoint_records: dict[str, Any] = {}
     for endpoint, proxy in PROXY_ROWS.items():
         observed = weights(sportsuit, sportsuit.data.vertices[endpoint])
@@ -174,6 +185,39 @@ def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
     max_mpfb_residual = max(record["mpfb_to_observed_l1"] for record in endpoint_records.values())
     amplified_beyond_source_cross_max = mpfb_cliff > cross_max + WEIGHT_TOL
 
+    neighborhood: dict[str, Any] = {}
+    for focal, neighbors in FOCAL_NEIGHBORS.items():
+        focal_record = endpoint_records[str(focal)]
+        edge_records = []
+        for neighbor in neighbors:
+            pair = tuple(sorted((focal, neighbor)))
+            if pair not in sportsuit_edges:
+                raise RuntimeError(f"expected source native edge missing: {focal}<->{neighbor}")
+            neighbor_record = endpoint_records[str(neighbor)]
+            observed_l1 = l1(focal_record["observed_weights"], neighbor_record["observed_weights"])
+            interpolated_l1 = l1(
+                focal_record["mpfb_interpolated_weights"],
+                neighbor_record["mpfb_interpolated_weights"],
+            )
+            edge_records.append(
+                {
+                    "neighbor": int(neighbor),
+                    "native_edge": True,
+                    "observed_weight_l1": observed_l1,
+                    "mpfb_interpolated_weight_l1": interpolated_l1,
+                    "observed_is_cliff": observed_l1 >= CLIFF_L1,
+                    "mpfb_interpolated_is_cliff": interpolated_l1 >= CLIFF_L1,
+                }
+            )
+        neighborhood[str(focal)] = {
+            "neighbors": edge_records,
+            "native_degree": len(edge_records),
+            "observed_cliff_neighbor_count": sum(1 for record in edge_records if record["observed_is_cliff"]),
+            "mpfb_cliff_neighbor_count": sum(1 for record in edge_records if record["mpfb_interpolated_is_cliff"]),
+            "observed_neighbor_l1_min": min(record["observed_weight_l1"] for record in edge_records),
+            "observed_neighbor_l1_max": max(record["observed_weight_l1"] for record in edge_records),
+        }
+
     if max_mpfb_residual <= WEIGHT_TOL and cross_min >= CLIFF_L1 and not amplified_beyond_source_cross_max:
         state = "SOURCE_SPORTSUIT_CLIFF_INHERITED_FROM_HM08_INPUT_REGIONS"
         next_axis = "TRACE_MHCLO_NATIVE_EDGE_SOURCE_REGION_MAPPING"
@@ -206,6 +250,7 @@ def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
         "body_input_cross_endpoint_min_l1": cross_min,
         "body_input_cross_endpoint_max_l1": cross_max,
         "mpfb_cliff_amplified_beyond_source_cross_max": amplified_beyond_source_cross_max,
+        "native_edge_neighborhood": neighborhood,
     }
 
 

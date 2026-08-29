@@ -8,6 +8,7 @@ on:
       - 'grand-bruxelles-game/tools/build_road_destination_catalog.py'
       - 'grand-bruxelles-game/tools/build_road_runtime_index.py'
       - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog_json_contract.py'
       - 'grand-bruxelles-game/tools/tests/test_road_runtime_index.py'
       - '.github/workflows/grand-bruxelles-road-destination-catalog.yml'
   workflow_dispatch:
@@ -27,6 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/tests/test_road_destination_catalog.py
+          python3 tools/tests/test_road_destination_catalog_json_contract.py
           python3 tools/tests/test_road_runtime_index.py
 
       - name: Build deterministic catalog and runtime index twice

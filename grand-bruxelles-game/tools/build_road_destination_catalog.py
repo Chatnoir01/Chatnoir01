@@ -15,6 +15,41 @@ from typing import Any
 
 FORMAT = "grand-bruxelles-road-destination-catalog-v1"
 SOURCE_FORMAT = "grand-bruxelles-osm-v1"
+CATALOG_FIELDS = frozenset({
+    "format",
+    "source_format",
+    "source_root",
+    "road_record_count",
+    "drivable_record_count",
+    "eligible_record_count",
+    "rejected_drivable_record_count",
+    "entry_count",
+    "duplicate_record_count",
+    "compatible_document_count",
+    "source_document_sha256",
+    "entries",
+    "authorization",
+    "catalog_sha256",
+})
+ENTRY_FIELDS = frozenset({
+    "osm_id",
+    "name",
+    "class",
+    "width",
+    "drivable",
+    "point_count",
+    "geometry_sha256",
+    "source_paths",
+    "source_file_count",
+})
+AUTHORIZATION_FIELDS = frozenset({
+    "source_lookup_only",
+    "render_authorized",
+    "collision_authorized",
+    "runtime_mount_authorized",
+    "safe_spawn_authorized",
+    "jouable_authorized",
+})
 
 
 def canonical_json(value: Any) -> str:
@@ -26,8 +61,7 @@ def sha256_text(value: str) -> str:
 
 
 def is_sha256(value: Any) -> bool:
-    text = str(value).strip().lower()
-    return len(text) == 64 and all(ch in "0123456789abcdef" for ch in text)
+    return type(value) is str and len(value) == 64 and all(ch in "0123456789abcdef" for ch in value)
 
 
 def catalog_semantic_sha256(catalog: dict[str, Any]) -> str:
@@ -44,6 +78,20 @@ def require_source_number(value: Any, label: str) -> float:
     if not math.isfinite(number):
         raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-finite source number {label}")
     return number
+
+
+def require_json_int(value: Any, label: str, *, minimum: int | None = None) -> int:
+    if type(value) is not int:
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: JSON type drift {label}")
+    if minimum is not None and value < minimum:
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid integer {label}={value}")
+    return value
+
+
+def require_json_string(value: Any, label: str) -> str:
+    if type(value) is not str:
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: JSON type drift {label}")
+    return value
 
 
 def normalized_points(raw_points: Any) -> list[list[float]]:
@@ -190,6 +238,8 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
 
 
 def validate_contract(catalog: dict[str, Any]) -> None:
+    if type(catalog) is not dict or set(catalog) != CATALOG_FIELDS:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: catalog field set drift")
     if catalog.get("format") != FORMAT:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: format drift")
     if catalog.get("source_format") != SOURCE_FORMAT or catalog.get("source_root") != "data/osm":
@@ -198,12 +248,13 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     entries = catalog.get("entries")
     if not isinstance(entries, dict) or len(entries) < 1:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: no eligible source roads")
-    eligible = int(catalog.get("eligible_record_count", -1))
-    entry_count = int(catalog.get("entry_count", -2))
-    duplicates = int(catalog.get("duplicate_record_count", -3))
-    drivable = int(catalog.get("drivable_record_count", -4))
-    rejected = int(catalog.get("rejected_drivable_record_count", -5))
-    compatible_documents = int(catalog.get("compatible_document_count", -6))
+    eligible = require_json_int(catalog.get("eligible_record_count"), "eligible_record_count", minimum=0)
+    entry_count = require_json_int(catalog.get("entry_count"), "entry_count", minimum=0)
+    duplicates = require_json_int(catalog.get("duplicate_record_count"), "duplicate_record_count", minimum=0)
+    drivable = require_json_int(catalog.get("drivable_record_count"), "drivable_record_count", minimum=0)
+    rejected = require_json_int(catalog.get("rejected_drivable_record_count"), "rejected_drivable_record_count", minimum=0)
+    compatible_documents = require_json_int(catalog.get("compatible_document_count"), "compatible_document_count", minimum=0)
+    require_json_int(catalog.get("road_record_count"), "road_record_count", minimum=0)
     if entry_count != len(entries):
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: entry count drift")
     if eligible != entry_count + duplicates:
@@ -211,7 +262,9 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     if drivable != eligible + rejected:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: drivable/rejected accounting drift")
 
-    authorization = catalog.get("authorization", {})
+    authorization = catalog.get("authorization")
+    if type(authorization) is not dict or set(authorization) != AUTHORIZATION_FIELDS:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: authorization field set drift")
     for forbidden in (
         "render_authorized",
         "collision_authorized",
@@ -230,33 +283,49 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     if compatible_documents != len(source_digests):
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: compatible document accounting drift")
     for raw_path, raw_digest in source_digests.items():
-        source_path = str(raw_path).strip()
+        source_path = require_json_string(raw_path, "source document path").strip()
+        if source_path != raw_path:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source document path whitespace drift {raw_path!r}")
         if not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid source document path {source_path!r}")
+        if type(raw_digest) is not str:
+            raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: JSON type drift source document SHA256")
         if not is_sha256(raw_digest):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid source document SHA256 {source_path!r}")
 
     for raw_osm_id, raw_entry in entries.items():
+        if type(raw_osm_id) is not str or not raw_osm_id.isdigit():
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid OSM id {raw_osm_id!r}")
+        osm_id = int(raw_osm_id)
         if not isinstance(raw_entry, dict):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: malformed entry {raw_osm_id!r}")
-        try:
-            osm_id = int(raw_osm_id)
-            entry_osm_id = int(raw_entry.get("osm_id", 0))
-        except (TypeError, ValueError) as exc:
-            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid OSM id {raw_osm_id!r}") from exc
+        if set(raw_entry) != ENTRY_FIELDS:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: entry field set drift {raw_osm_id!r}")
+        entry_osm_id = require_json_int(raw_entry.get("osm_id"), "entry osm_id", minimum=1)
         if osm_id <= 0 or osm_id != entry_osm_id:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: OSM id key/value drift {raw_osm_id!r}")
         if raw_entry.get("drivable") is not True:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: indexed road is not drivable {osm_id}")
-        if int(raw_entry.get("point_count", 0)) < 2 or not is_sha256(raw_entry.get("geometry_sha256")):
+        point_count = require_json_int(raw_entry.get("point_count"), "point_count", minimum=2)
+        del point_count
+        geometry_sha256 = raw_entry.get("geometry_sha256")
+        if type(geometry_sha256) is not str:
+            raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: JSON type drift geometry_sha256")
+        if not is_sha256(geometry_sha256):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid geometry evidence {osm_id}")
         source_paths = raw_entry.get("source_paths")
         if not isinstance(source_paths, list) or not source_paths:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source paths missing {osm_id}")
-        normalized_source_paths = [str(path).strip() for path in source_paths]
+        normalized_source_paths: list[str] = []
+        for path in source_paths:
+            source_path = require_json_string(path, "source path").strip()
+            if source_path != path:
+                raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source path whitespace drift {osm_id}")
+            normalized_source_paths.append(source_path)
         if normalized_source_paths != sorted(set(normalized_source_paths)):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source paths not deterministic {osm_id}")
-        if int(raw_entry.get("source_file_count", -1)) != len(normalized_source_paths):
+        source_file_count = require_json_int(raw_entry.get("source_file_count"), "source_file_count", minimum=1)
+        if source_file_count != len(normalized_source_paths):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source file count drift {osm_id}")
         for source_path in normalized_source_paths:
             if source_path not in source_digests:
@@ -265,7 +334,9 @@ def validate_contract(catalog: dict[str, Any]) -> None:
                     f"osm_id={osm_id} source_path={source_path!r}"
                 )
 
-    stored_catalog_sha = str(catalog.get("catalog_sha256", "")).strip().lower()
+    stored_catalog_sha = catalog.get("catalog_sha256")
+    if type(stored_catalog_sha) is not str:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: JSON type drift catalog SHA256")
     if not is_sha256(stored_catalog_sha):
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: catalog SHA256 invalid")
     expected_catalog_sha = catalog_semantic_sha256(catalog)

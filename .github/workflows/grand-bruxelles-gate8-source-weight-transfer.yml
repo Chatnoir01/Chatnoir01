@@ -2,7 +2,7 @@ name: Grand Bruxelles Gate-8 Source Weight Transfer
 
 on:
   push:
-    branches: ["npc/gate8-source-weight-transfer-49c62bb"]
+    branches: ["npc/gate8-source-weight-transfer-1872686"]
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml"
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      BASE_MAIN_SHA: "49c62bbce71b1461da948777339e0f4d7cd101d6"
+      BASE_MAIN_SHA: "187268667697915a2ffc899015592c3c6d6ae5a5"
       SOURCE_RUN_ID: "32552758284"
       SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
       ASSET_PACK_ARTIFACT_ID: "9710539659"
@@ -163,7 +163,6 @@ jobs:
           assert len(r['transfers']) >= 3
           assert all(t['positions_resolved'] for t in r['transfers'])
           assert all(t['mapped_edge_is_cliff'] for t in r['transfers'])
-          assert all(t['weight_delta_to_prepared_l1']==0.0 for t in [] ) if False else True
           p=r['proxy_interpolation']
           assert p is not None
           assert p['diagnostic_state']=='SOURCE_SPORTSUIT_CLIFF_INHERITED_FROM_HM08_INPUT_REGIONS'

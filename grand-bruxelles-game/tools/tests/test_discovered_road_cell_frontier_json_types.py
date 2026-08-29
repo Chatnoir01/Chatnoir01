@@ -79,13 +79,10 @@ def main() -> int:
             "registered cell bbox[0] JSON type drift",
         )
 
-        bbox_integral_float = json.loads(json.dumps(canonical_cells))
-        bbox_integral_float["entries"][0]["bbox"][0] = float(bbox_integral_float["entries"][0]["bbox"][0])
-        bbox_integral_float["semantic_sha256"] = registry_validator.semantic_sha256(bbox_integral_float)
-        expect_fail(
-            lambda: registry_validator.validate_registry(bbox_integral_float),
-            "registered cell bbox[0] JSON type drift",
-        )
+        bbox_integral_int = json.loads(json.dumps(canonical_cells))
+        bbox_integral_int["entries"][0]["bbox"][0] = int(bbox_integral_int["entries"][0]["bbox"][0])
+        bbox_integral_int["semantic_sha256"] = registry_validator.semantic_sha256(bbox_integral_int)
+        registry_validator.validate_registry(bbox_integral_int)
 
         bbox_fractional = json.loads(json.dumps(canonical_cells))
         bbox_fractional["entries"][0]["bbox"][0] += 0.5

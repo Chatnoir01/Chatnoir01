@@ -79,6 +79,26 @@ def test_conflicting_duplicate_fails_closed() -> None:
             raise AssertionError("conflicting duplicate OSM road did not fail closed")
 
 
+def test_source_json_numeric_identity_types_fail_closed() -> None:
+    mutations = (
+        ("osm_id", lambda payload: payload.__setitem__("osm_id", str(payload["osm_id"]))),
+        ("point_x", lambda payload: payload["points"][0].__setitem__(0, str(payload["points"][0][0]))),
+        ("width", lambda payload: payload.__setitem__("width", str(payload["width"]))),
+    )
+    for label, mutate in mutations:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "data" / "osm"
+            changed = road(42, "Rue A")
+            mutate(changed)
+            write_document(root / f"{label}.game.json", [changed])
+            try:
+                module.build_catalog(root)
+            except SystemExit as exc:
+                assert "source JSON type drift" in str(exc)
+            else:
+                raise AssertionError(f"numeric-string source {label} was normalized instead of rejected")
+
+
 def test_catalog_semantic_tamper_fails_closed() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "data" / "osm"
@@ -162,6 +182,7 @@ def main() -> int:
     test_synthetic_determinism_and_duplicate_coalescing()
     test_drivable_without_lookup_identity_is_rejected_explicitly()
     test_conflicting_duplicate_fails_closed()
+    test_source_json_numeric_identity_types_fail_closed()
     test_catalog_semantic_tamper_fails_closed()
     test_source_path_must_bind_to_locked_document_digest()
     test_catalog_must_rebind_to_locked_source_geometry()

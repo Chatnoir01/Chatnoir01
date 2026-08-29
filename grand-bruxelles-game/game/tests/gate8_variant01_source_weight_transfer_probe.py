@@ -137,12 +137,38 @@ def mpfb_interpolate(body_inputs: list[dict[str, Any]], rig_bones: set[str]) -> 
     return ({bone: value for bone, value in averaged.items() if value > MPFB_WEIGHT_CUTOFF}, coefficient_sum)
 
 
+def shortest_hops(adjacency: list[set[int]], start: int, goal: int) -> int:
+    if start == goal:
+        return 0
+    seen = {start}
+    frontier = [start]
+    depth = 0
+    while frontier:
+        depth += 1
+        next_frontier: list[int] = []
+        for vertex in frontier:
+            for neighbor in adjacency[vertex]:
+                if neighbor == goal:
+                    return depth
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    next_frontier.append(neighbor)
+        frontier = next_frontier
+    return -1
+
+
 def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
     sportsuit = find_sportsuit(root)
     body = find_hm08(root)
     rig = find_effective_rig(root, sportsuit)
     rig_bones = {str(bone.name) for bone in rig.data.bones}
     sportsuit_edges = {tuple(sorted((int(edge.vertices[0]), int(edge.vertices[1])))) for edge in sportsuit.data.edges}
+    body_edges = {tuple(sorted((int(edge.vertices[0]), int(edge.vertices[1])))) for edge in body.data.edges}
+    body_adjacency: list[set[int]] = [set() for _ in body.data.vertices]
+    for a, b in body_edges:
+        body_adjacency[a].add(b)
+        body_adjacency[b].add(a)
+
     endpoint_records: dict[str, Any] = {}
     for endpoint, proxy in PROXY_ROWS.items():
         observed = weights(sportsuit, sportsuit.data.vertices[endpoint])
@@ -153,6 +179,7 @@ def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
                 {
                     "vertex": int(body_vertex),
                     "coefficient": float(coefficient),
+                    "local_xyz": tuple(float(v) for v in body.data.vertices[body_vertex].co),
                     "weights": source,
                     "mpfb_eligible_weights": mpfb_eligible_weights(source, rig_bones),
                 }
@@ -173,17 +200,52 @@ def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
     cross_pairs: list[dict[str, Any]] = []
     for source_a in a["body_inputs"]:
         for source_b in b["body_inputs"]:
+            va, vb = int(source_a["vertex"]), int(source_b["vertex"])
             cross_pairs.append(
                 {
-                    "endpoint_a_body_vertex": int(source_a["vertex"]),
-                    "endpoint_b_body_vertex": int(source_b["vertex"]),
+                    "endpoint_a_body_vertex": va,
+                    "endpoint_b_body_vertex": vb,
                     "deform_weight_l1": l1(source_a["mpfb_eligible_weights"], source_b["mpfb_eligible_weights"]),
+                    "body_native_edge": tuple(sorted((va, vb))) in body_edges,
+                    "body_topology_hops": shortest_hops(body_adjacency, va, vb),
+                    "body_local_distance_m": math.dist(source_a["local_xyz"], source_b["local_xyz"]),
                 }
             )
     cross_min = min(record["deform_weight_l1"] for record in cross_pairs)
     cross_max = max(record["deform_weight_l1"] for record in cross_pairs)
     max_mpfb_residual = max(record["mpfb_to_observed_l1"] for record in endpoint_records.values())
     amplified_beyond_source_cross_max = mpfb_cliff > cross_max + WEIGHT_TOL
+
+    def internal_topology(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for i, source_a in enumerate(records):
+            for source_b in records[i + 1:]:
+                va, vb = int(source_a["vertex"]), int(source_b["vertex"])
+                out.append(
+                    {
+                        "body_vertex_a": va,
+                        "body_vertex_b": vb,
+                        "deform_weight_l1": l1(source_a["mpfb_eligible_weights"], source_b["mpfb_eligible_weights"]),
+                        "body_native_edge": tuple(sorted((va, vb))) in body_edges,
+                        "body_topology_hops": shortest_hops(body_adjacency, va, vb),
+                        "body_local_distance_m": math.dist(source_a["local_xyz"], source_b["local_xyz"]),
+                    }
+                )
+        return out
+
+    topology_hops = [int(record["body_topology_hops"]) for record in cross_pairs]
+    topology_distances = [float(record["body_local_distance_m"]) for record in cross_pairs]
+    body_topology_trace = {
+        "body_edge_count": len(body_edges),
+        "cross_endpoint_pairs": cross_pairs,
+        "cross_endpoint_native_edge_count": sum(1 for record in cross_pairs if record["body_native_edge"]),
+        "cross_endpoint_topology_hops_min": min(topology_hops),
+        "cross_endpoint_topology_hops_max": max(topology_hops),
+        "cross_endpoint_local_distance_m_min": min(topology_distances),
+        "cross_endpoint_local_distance_m_max": max(topology_distances),
+        "endpoint_486_internal_pairs": internal_topology(a["body_inputs"]),
+        "endpoint_601_internal_pairs": internal_topology(b["body_inputs"]),
+    }
 
     neighborhood: dict[str, Any] = {}
     for focal, neighbors in FOCAL_NEIGHBORS.items():
@@ -251,6 +313,7 @@ def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
         "body_input_cross_endpoint_max_l1": cross_max,
         "mpfb_cliff_amplified_beyond_source_cross_max": amplified_beyond_source_cross_max,
         "native_edge_neighborhood": neighborhood,
+        "body_topology_trace": body_topology_trace,
     }
 
 
@@ -410,7 +473,7 @@ def main() -> None:
                     ("SOURCE_WEIGHT_TRANSFER_STAGE_NOT_IDENTIFIED", "STOP_AND_INSPECT_WEIGHT_TRANSFER"),
                 )
         result = {
-            "format": "grand-bruxelles-gate8-variant01-source-weight-transfer-v2",
+            "format": "grand-bruxelles-gate8-variant01-source-weight-transfer-v3",
             "diagnostic_state": state,
             "next_safe_axis": next_axis,
             "generated_glb_sha256": digest,

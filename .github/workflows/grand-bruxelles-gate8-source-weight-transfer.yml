@@ -137,14 +137,14 @@ jobs:
           test "$(sha256sum /tmp/gate8-weight-transfer/glbs/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_SHA256"
           cat "$GATE8_WEIGHT_TRANSFER_RESULT"
 
-      - name: Verify inherited hm08 source-region and native-neighborhood contract
+      - name: Verify inherited hm08 source-region topology contract
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json, os
           r=json.load(open(os.environ['GATE8_WEIGHT_TRANSFER_RESULT']))
-          assert r['format']=='grand-bruxelles-gate8-variant01-source-weight-transfer-v2'
+          assert r['format']=='grand-bruxelles-gate8-variant01-source-weight-transfer-v3'
           assert r['generated_glb_sha256']==os.environ['TARGET_SHA256']
           assert r['generated_glb_size_bytes']==15580240
           assert r['generated_seed']==53756543
@@ -176,6 +176,12 @@ jobs:
           assert p['body_vertex_count']==19158
           assert p['sportsuit_vertex_count']==1797
           assert set(p['endpoint_records'])=={'377','378','379','486','599','601','615','864'}
+          expected_focal_inputs={
+              '486':[15673,15666,15667],
+              '601':[15947,15583,15871],
+          }
+          for endpoint, expected in expected_focal_inputs.items():
+              assert [int(x['vertex']) for x in p['endpoint_records'][endpoint]['body_inputs']]==expected
           assert p['observed_endpoint_cliff_l1'] >= 1.7
           assert p['mpfb_interpolated_endpoint_cliff_l1'] >= 1.7
           assert p['max_mpfb_to_observed_l1'] <= 1e-4
@@ -183,8 +189,6 @@ jobs:
           assert p['body_input_cross_endpoint_min_l1'] >= 1.7
           assert p['body_input_cross_endpoint_max_l1'] >= p['body_input_cross_endpoint_min_l1']
           assert p['mpfb_cliff_amplified_beyond_source_cross_max'] is False
-          assert p['endpoint_records']['486']['body_inputs'][0]['vertex']==15673
-          assert p['endpoint_records']['601']['body_inputs'][0]['vertex']==15947
           for endpoint in p['endpoint_records'].values():
               assert endpoint['mpfb_to_observed_l1'] <= 1e-4
           n=p['native_edge_neighborhood']
@@ -204,10 +208,30 @@ jobs:
           assert by601[486]['observed_is_cliff'] is True
           assert by601[599]['observed_is_cliff'] is True
           assert by601[615]['observed_is_cliff'] is True
+          topology=p['body_topology_trace']
+          assert topology['body_edge_count']==37364
+          cross=topology['cross_endpoint_pairs']
+          assert len(cross)==9
+          assert topology['cross_endpoint_native_edge_count']==0
+          assert topology['cross_endpoint_topology_hops_min']==5
+          assert topology['cross_endpoint_topology_hops_max']==8
+          assert abs(topology['cross_endpoint_local_distance_m_min']-0.0354172971683533) <= 1e-6
+          assert abs(topology['cross_endpoint_local_distance_m_max']-0.058911465523372154) <= 1e-6
+          assert all(record['body_native_edge'] is False for record in cross)
+          assert all(5 <= int(record['body_topology_hops']) <= 8 for record in cross)
+          assert all(float(record['body_local_distance_m']) >= 0.035 for record in cross)
+          assert all(float(record['deform_weight_l1']) >= 1.7 for record in cross)
+          for key in ('endpoint_486_internal_pairs','endpoint_601_internal_pairs'):
+              internal=topology[key]
+              assert len(internal)==3
+              assert sum(1 for record in internal if record['body_native_edge'])==2
+              assert max(int(record['body_topology_hops']) for record in internal)==2
+              assert max(float(record['body_local_distance_m']) for record in internal) < 0.034
+              assert max(float(record['deform_weight_l1']) for record in internal) < 0.14
           for t in r['transfers']:
               assert t['endpoint_a']['weight_delta_to_prepared_l1']==0.0
               assert t['endpoint_b']['weight_delta_to_prepared_l1']==0.0
-          print('GATE8_SOURCE_WEIGHT_TRANSFER_OK', r['diagnostic_state'], r['next_safe_axis'])
+          print('GATE8_SOURCE_WEIGHT_TRANSFER_OK', r['diagnostic_state'], r['next_safe_axis'], 'cross_hops=5..8', 'cross_native_edges=0')
           PY
 
       - name: Upload source weight-transfer evidence

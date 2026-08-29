@@ -15,6 +15,22 @@ from typing import Any
 FORMAT = "grand-bruxelles-road-runtime-index-v1"
 TOOLS_DIR = Path(__file__).resolve().parent
 CATALOG_SCRIPT = TOOLS_DIR / "build_road_destination_catalog.py"
+INDEX_FIELDS = frozenset({
+    "authorization",
+    "catalog_sha256",
+    "documents",
+    "format",
+    "source_lookup_only",
+})
+AUTHORIZATION_FIELDS = frozenset({
+    "collision_authorized",
+    "jouable_authorized",
+    "render_authorized",
+    "runtime_mount_authorized",
+    "safe_spawn_authorized",
+    "source_lookup_only",
+})
+DOCUMENT_FIELDS = frozenset({"path", "road_ids", "sha256"})
 
 _spec = importlib.util.spec_from_file_location("road_destination_catalog", CATALOG_SCRIPT)
 if _spec is None or _spec.loader is None:
@@ -32,6 +48,27 @@ AUTHORIZATION = {
 }
 
 
+def require_json_string(value: Any, label: str) -> str:
+    if type(value) is not str:
+        raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: JSON type drift {label}")
+    return value
+
+
+def require_json_int(value: Any, label: str, *, minimum: int | None = None) -> int:
+    if type(value) is not int:
+        raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: JSON type drift {label}")
+    if minimum is not None and value < minimum:
+        raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: invalid integer {label}={value}")
+    return value
+
+
+def require_sha256(value: Any, label: str) -> str:
+    text = require_json_string(value, label)
+    if len(text) != 64 or any(ch not in "0123456789abcdef" for ch in text):
+        raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: invalid SHA256 {label}")
+    return text
+
+
 def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
     _catalog_module.validate_contract(catalog)
 
@@ -45,12 +82,11 @@ def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
     road_ids_by_path: dict[str, list[int]] = {}
     seen_road_ids: set[int] = set()
     for raw_osm_id, raw_entry in entries.items():
+        if type(raw_osm_id) is not str or not raw_osm_id.isdigit():
+            raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: invalid catalog OSM id key {raw_osm_id!r}")
+        osm_id = int(raw_osm_id)
         if not isinstance(raw_entry, dict):
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: malformed catalog entry {raw_osm_id!r}")
-        try:
-            osm_id = int(raw_osm_id)
-        except (TypeError, ValueError) as exc:
-            raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: invalid OSM id {raw_osm_id!r}") from exc
         if osm_id <= 0 or osm_id in seen_road_ids:
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: duplicate/invalid OSM id {osm_id}")
         seen_road_ids.add(osm_id)
@@ -61,8 +97,8 @@ def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
                 "ROAD_RUNTIME_INDEX_FAIL: eligible road must resolve to exactly one runtime source document: "
                 f"osm_id={osm_id} source_paths={source_paths!r}"
             )
-        source_path = str(source_paths[0]).strip()
-        if not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
+        source_path = require_json_string(source_paths[0], f"source path osm_id={osm_id}")
+        if source_path != source_path.strip() or not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
             raise SystemExit(
                 f"ROAD_RUNTIME_INDEX_FAIL: source path outside data/osm runtime contract: {source_path!r}"
             )
@@ -70,11 +106,7 @@ def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
 
     documents: list[dict[str, Any]] = []
     for source_path in sorted(road_ids_by_path):
-        source_sha = str(source_digests.get(source_path, "")).strip().lower()
-        if len(source_sha) != 64 or any(ch not in "0123456789abcdef" for ch in source_sha):
-            raise SystemExit(
-                f"ROAD_RUNTIME_INDEX_FAIL: invalid/missing SHA256 for runtime source {source_path!r}"
-            )
+        source_sha = require_sha256(source_digests.get(source_path), f"runtime source {source_path!r}")
         documents.append(
             {
                 "path": source_path,
@@ -83,9 +115,10 @@ def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    catalog_sha = require_sha256(catalog.get("catalog_sha256"), "catalog_sha256")
     payload: dict[str, Any] = {
         "authorization": dict(AUTHORIZATION),
-        "catalog_sha256": str(catalog.get("catalog_sha256", "")).strip().lower(),
+        "catalog_sha256": catalog_sha,
         "documents": documents,
         "format": FORMAT,
         "source_lookup_only": True,
@@ -95,17 +128,19 @@ def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_contract(index: dict[str, Any]) -> None:
+    if type(index) is not dict or set(index) != INDEX_FIELDS:
+        raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: field set drift")
     if index.get("format") != FORMAT:
         raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: format drift")
     if index.get("source_lookup_only") is not True:
         raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: source_lookup_only missing")
 
-    catalog_sha = str(index.get("catalog_sha256", "")).strip().lower()
-    if len(catalog_sha) != 64 or any(ch not in "0123456789abcdef" for ch in catalog_sha):
-        raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: catalog SHA256 invalid")
+    require_sha256(index.get("catalog_sha256"), "catalog_sha256")
 
     authorization = index.get("authorization")
-    if not isinstance(authorization, dict) or authorization.get("source_lookup_only") is not True:
+    if type(authorization) is not dict or set(authorization) != AUTHORIZATION_FIELDS:
+        raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: authorization field set drift")
+    if authorization.get("source_lookup_only") is not True:
         raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: source-only authorization rail missing")
     for forbidden in (
         "render_authorized",
@@ -123,27 +158,28 @@ def validate_contract(index: dict[str, Any]) -> None:
 
     seen_paths: set[str] = set()
     seen_road_ids: set[int] = set()
+    previous_path: str | None = None
     for descriptor in documents:
-        if not isinstance(descriptor, dict):
-            raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: malformed source descriptor")
-        source_path = str(descriptor.get("path", "")).strip()
-        source_sha = str(descriptor.get("sha256", "")).strip().lower()
+        if type(descriptor) is not dict or set(descriptor) != DOCUMENT_FIELDS:
+            raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: descriptor field set drift")
+        source_path = require_json_string(descriptor.get("path"), "source path")
+        source_sha = require_sha256(descriptor.get("sha256"), f"source {source_path!r}")
         road_ids = descriptor.get("road_ids")
-        if source_path in seen_paths or not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
+        if source_path != source_path.strip() or source_path in seen_paths or not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: duplicate/invalid source path {source_path!r}")
+        if previous_path is not None and source_path <= previous_path:
+            raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: source descriptors are not strictly sorted")
+        previous_path = source_path
         seen_paths.add(source_path)
-        if len(source_sha) != 64 or any(ch not in "0123456789abcdef" for ch in source_sha):
+        if not source_sha:
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: invalid SHA256 for {source_path!r}")
         if not isinstance(road_ids, list) or not road_ids:
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: no road ids for {source_path!r}")
         if road_ids != sorted(road_ids):
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: road ids are not sorted for {source_path!r}")
         for raw_osm_id in road_ids:
-            try:
-                osm_id = int(raw_osm_id)
-            except (TypeError, ValueError) as exc:
-                raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: invalid road id {raw_osm_id!r}") from exc
-            if osm_id <= 0 or osm_id in seen_road_ids:
+            osm_id = require_json_int(raw_osm_id, "road id", minimum=1)
+            if osm_id in seen_road_ids:
                 raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: duplicate/invalid road id {osm_id}")
             seen_road_ids.add(osm_id)
 

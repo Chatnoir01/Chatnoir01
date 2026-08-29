@@ -62,7 +62,7 @@ jobs:
           cp /tmp/gate8-source-neighborhood/artifact/source-weight-transfer-result.json "$RESULT_PATH"
           test -s "$RESULT_PATH"
 
-      - name: Verify exact inherited source-neighborhood contract
+      - name: Verify exact inherited source-neighborhood and hm08 topology contract
         shell: bash
         run: |
           set -euo pipefail
@@ -101,6 +101,12 @@ jobs:
           assert p['mpfb_interpolated_endpoint_cliff_l1'] >= 1.7
           assert p['body_input_cross_endpoint_min_l1'] >= 1.7
           assert p['mpfb_cliff_amplified_beyond_source_cross_max'] is False
+          expected_focal_inputs={
+              '486':[15673,15666,15667],
+              '601':[15947,15583,15871],
+          }
+          for endpoint, expected in expected_focal_inputs.items():
+              assert [int(x['vertex']) for x in p['endpoint_records'][endpoint]['body_inputs']]==expected
 
           n=p['native_edge_neighborhood']
           assert set(n)=={'486','601'}
@@ -129,9 +135,31 @@ jobs:
                   assert edge['native_edge'] is True
                   assert abs(edge['observed_weight_l1']-edge['mpfb_interpolated_weight_l1']) <= 1e-4
 
+          topology=p['body_topology_trace']
+          assert topology['body_edge_count']==37364
+          cross=topology['cross_endpoint_pairs']
+          assert len(cross)==9
+          assert topology['cross_endpoint_native_edge_count']==0
+          assert topology['cross_endpoint_topology_hops_min']==5
+          assert topology['cross_endpoint_topology_hops_max']==8
+          assert abs(topology['cross_endpoint_local_distance_m_min']-0.0354172971683533) <= 1e-6
+          assert abs(topology['cross_endpoint_local_distance_m_max']-0.058911465523372154) <= 1e-6
+          assert all(record['body_native_edge'] is False for record in cross)
+          assert all(5 <= int(record['body_topology_hops']) <= 8 for record in cross)
+          assert all(float(record['body_local_distance_m']) >= 0.035 for record in cross)
+          assert all(float(record['deform_weight_l1']) >= 1.7 for record in cross)
+          for key in ('endpoint_486_internal_pairs','endpoint_601_internal_pairs'):
+              internal=topology[key]
+              assert len(internal)==3
+              assert sum(1 for record in internal if record['body_native_edge'])==2
+              assert max(int(record['body_topology_hops']) for record in internal)==2
+              assert max(float(record['body_local_distance_m']) for record in internal) < 0.034
+              assert max(float(record['deform_weight_l1']) for record in internal) < 0.14
+
           print('GATE8_SOURCE_NEIGHBORHOOD_OK',
                 '486_cliffs=',n['486']['observed_cliff_neighbor_count'],
                 '601_cliffs=',n['601']['observed_cliff_neighbor_count'],
+                'cross_hops=5..8', 'cross_native_edges=0',
                 'next=',r['next_safe_axis'])
           PY
 

@@ -128,7 +128,9 @@ func _on_tree_node_added(node: Node) -> void:
         return
     if str(node.name) not in ["GeneratedRoads", "UrbISMidiExact", "Player"]:
         return
-    _try_bind_scene(_production_scene_from_node(node))
+    var candidate := _production_scene_from_node(node)
+    if candidate != null:
+        call_deferred("_try_bind_scene", candidate)
 
 func _on_tree_node_removed(node: Node) -> void:
     if _tearing_down or _manual_binding or not _ready_complete or node != _scene:

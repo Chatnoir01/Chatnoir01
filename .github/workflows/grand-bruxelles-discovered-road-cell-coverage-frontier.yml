@@ -45,6 +45,8 @@ jobs:
           python tools/build_discovered_road_cell_coverage_frontier.py --output build/evidence/discovered-road-cell-coverage-frontier-a.json
           python tools/build_discovered_road_cell_coverage_frontier.py --output build/evidence/discovered-road-cell-coverage-frontier-b.json
           cmp build/evidence/discovered-road-cell-coverage-frontier-a.json build/evidence/discovered-road-cell-coverage-frontier-b.json
+          python tools/validate_discovered_road_cell_frontier_json_types.py build/evidence/discovered-road-cell-coverage-frontier-a.json
+          python tools/validate_discovered_road_cell_frontier_json_types.py build/evidence/discovered-road-cell-coverage-frontier-b.json
           mv build/evidence/discovered-road-cell-coverage-frontier-a.json build/evidence/discovered-road-cell-coverage-frontier.json
           rm build/evidence/discovered-road-cell-coverage-frontier-b.json
       - uses: actions/upload-artifact@v4

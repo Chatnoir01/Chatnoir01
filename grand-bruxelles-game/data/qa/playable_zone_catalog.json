@@ -1,6 +1,6 @@
 {
   "schema": "grand-bruxelles-playable-zone-catalog-v2",
-  "policy": "LABO v2 is a truth contract, not a promise of finish. Stored qualities are JOUABLE, LABO, or LABO_BRUT. LABO_REPORT is derived at runtime whenever an OPEN player report exists. JOUABLE is human-promoted only. A zone is listable only after its minimum listing gates are satisfied; runtime eligibility enforcement is owned by the selector.",
+  "policy": "LABO v2 is a truth contract, not a promise of finish. Stored qualities are JOUABLE, LABO, or LABO_BRUT. Player visual reports are post-integration feedback and never block playable advancement by themselves. JOUABLE may advance after the hard listing/runtime gates are satisfied; only genuine hard blockers stop advancement. A zone is listable only after its minimum listing gates are satisfied; runtime eligibility enforcement is owned by the selector.",
   "quality_model": {
     "stored": [
       "JOUABLE",
@@ -11,9 +11,12 @@
       "LABO_REPORT",
       "NON_LISTE"
     ],
-    "jouable_requires_human_promotion": true,
-    "open_player_report_blocks_jouable": true,
-    "report_badge": "LABO_REPORT"
+    "jouable_requires_human_promotion": false,
+    "open_player_report_blocks_jouable": false,
+    "hard_blocker_blocks_jouable": true,
+    "report_badge": "LABO_REPORT",
+    "visual_review_flow": "PLAYABLE_CANDIDATE -> GARDER|AMELIORER|REJETER",
+    "visual_findings_are_post_integration": true
   },
   "listing_contract": {
     "requires_resources": true,

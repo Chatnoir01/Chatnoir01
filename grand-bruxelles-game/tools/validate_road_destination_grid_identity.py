@@ -89,8 +89,13 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     if destination.get("cell_crs") != EXPECTED_CRS:
         fail(f"cell CRS drift {road_id}")
 
+    destination_authorization = {
+        key: value
+        for key, value in destination.items()
+        if key.endswith("_authorized")
+    }
     _require_closed_authorization(
-        {key: destination.get(key) for key in DESTINATION_AUTHORIZATION_RAILS},
+        destination_authorization,
         DESTINATION_AUTHORIZATION_RAILS,
         "destination",
     )

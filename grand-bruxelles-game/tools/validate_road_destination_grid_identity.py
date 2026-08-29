@@ -32,13 +32,16 @@ def _number(value: Any, label: str) -> float:
     return number
 
 
+def _road_id(value: Any) -> int:
+    # OSM IDs are canonical JSON integers. Never normalize booleans, numeric
+    # strings, floats, or other coercible values into an identity.
+    if type(value) is not int or value <= 0:
+        fail("invalid road identity")
+    return value
+
+
 def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
-    try:
-        road_id = int(destination.get("road_osm_id", 0))
-    except (TypeError, ValueError):
-        fail("invalid road identity")
-    if road_id <= 0:
-        fail("invalid road identity")
+    road_id = _road_id(destination.get("road_osm_id"))
     if destination.get("destination_id") != f"road-{road_id}":
         fail(f"destination identity drift {road_id}")
     if destination.get("readiness") != "REGISTERED_NOT_RENDERED":
@@ -84,10 +87,7 @@ def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
     for raw in destinations:
         if not isinstance(raw, dict):
             fail("malformed destination")
-        try:
-            road_id = int(raw.get("road_osm_id", 0))
-        except (TypeError, ValueError):
-            fail("invalid road identity")
+        road_id = _road_id(raw.get("road_osm_id"))
         if road_id in road_ids:
             fail(f"duplicate road identity {road_id}")
         road_ids.add(road_id)

@@ -82,6 +82,13 @@ def main() -> int:
     tampered_cells["entries"][0]["cell_id"] = "bxl-e000000-n000000-s500"
     expect_fail(lambda: tool._cell_rows(ROOT, tampered_cells), "cell manifest content drift")
 
+    # A prefix-only manifest path check is not confinement. An index entry must
+    # never escape data/cell_manifests through '..' even if the resulting file
+    # exists and its SHA is otherwise valid.
+    tampered_cells = json.loads(json.dumps(cell_index))
+    tampered_cells["entries"][0]["manifest_path"] = "data/cell_manifests/../../qa/osm_road_frame_correction_impact.contract.json"
+    expect_fail(lambda: tool._cell_rows(ROOT, tampered_cells), "cell manifest path drift")
+
     print("DISCOVERED_ROAD_CELL_INTERSECTION_EVIDENCE_TEST_GREEN")
     return 0
 

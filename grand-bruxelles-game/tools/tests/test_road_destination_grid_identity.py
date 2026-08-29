@@ -48,8 +48,36 @@ def test_cell_id_bbox_disagreement_fails_closed() -> None:
         raise AssertionError("cell_id/bbox disagreement did not fail closed")
 
 
+def test_boolean_road_osm_id_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    destination = readiness["destinations"][0]
+    destination["road_osm_id"] = True
+    destination["destination_id"] = "road-1"
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "invalid road identity" in str(exc)
+    else:
+        raise AssertionError("boolean road_osm_id was coerced to integer identity")
+
+
+def test_string_road_osm_id_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    destination = readiness["destinations"][0]
+    destination["road_osm_id"] = "001"
+    destination["destination_id"] = "road-1"
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "invalid road identity" in str(exc)
+    else:
+        raise AssertionError("string road_osm_id was coerced to integer identity")
+
+
 if __name__ == "__main__":
     test_real_readiness_grid_identity_is_exact()
     test_forged_grid_cell_id_fails_closed()
     test_cell_id_bbox_disagreement_fails_closed()
+    test_boolean_road_osm_id_fails_closed()
+    test_string_road_osm_id_fails_closed()
     print("ROAD_CELL_GRID_IDENTITY_TEST_OK")

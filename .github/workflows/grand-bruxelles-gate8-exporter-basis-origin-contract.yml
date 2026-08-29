@@ -1,0 +1,142 @@
+name: Grand Bruxelles Gate-8 Exporter Basis Origin Contract
+
+on:
+  push:
+    branches: ["npc/gate8-source-weight-transfer-6fac71f"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml"
+      - ".github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml"
+      - ".github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exporter-basis-origin-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_MAIN_SHA: "6fac71f5560ae30031a19600f41358406625783f"
+      PREDECESSOR_ARTIFACT_ID: "9716790016"
+      PREDECESSOR_ARTIFACT_DIGEST: "sha256:dabac0cd924b9f79daafa6035ac29fa9fe7e0bd47e2822da2ce9df3cb1006c9f"
+      PREDECESSOR_HEAD_SHA: "31dda5561602e49245d6cb772b3fcfc235d5c904"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      RESULT_PATH: "/tmp/gate8-basis-origin/exporter-basis-origin-result.json"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml' \
+            '.github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml' \
+            '.github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py' | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+
+      - name: Pin exact predecessor transform evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-basis-origin/predecessor
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PREDECESSOR_ARTIFACT_ID}" > /tmp/gate8-basis-origin/predecessor-artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-basis-origin/predecessor-artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['PREDECESSOR_ARTIFACT_DIGEST']
+          assert a['workflow_run']['head_sha']==os.environ['PREDECESSOR_HEAD_SHA']
+          assert int(a['workflow_run']['id'])==33259305760
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PREDECESSOR_ARTIFACT_ID}/zip" > /tmp/gate8-basis-origin/predecessor.zip
+          unzip -q /tmp/gate8-basis-origin/predecessor.zip -d /tmp/gate8-basis-origin/predecessor
+          test -s /tmp/gate8-basis-origin/predecessor/node-transform-result.json
+
+      - name: Resolve exporter mesh basis/origin mathematically
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, os
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8-basis-origin/predecessor/node-transform-result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-node-transform-trace-v1'
+          assert r['generated_glb_sha256']==os.environ['TARGET_SHA256']
+          assert r['generated_glb_size_bytes']==15580240
+          assert r['generated_seed']==53756543
+          assert r['diagnostic_state']=='COMMON_RIGID_OFFSET_CONFIRMED_BUT_NODE_TRANSFORM_NOT_APPLIED'
+          assert r['next_safe_axis']=='TRACE_EXPORTER_MESH_BASIS_ORIGIN'
+          snap, trace = r['snapshot'], r['trace']
+          records=trace['endpoint_records']
+          assert [x['gltf_vertex'] for x in records]==[538,681]
+          assert [x['prepared_vertex'] for x in records]==[486,601]
+          blender_world_y=float(snap['matrix_world'][2][3])
+          node_world_y=float(trace['node_world_matrix'][1][3])
+          expected=node_world_y-blender_world_y
+          proofs=[]
+          for rec in records:
+              pv=str(rec['prepared_vertex']); local=snap['vertices'][pv]['local_yup']; world=snap['vertices'][pv]['world_yup']; raw=rec['gltf_raw']
+              raw_local=[float(raw[i])-float(local[i]) for i in range(3)]
+              raw_world=[float(raw[i])-float(world[i]) for i in range(3)]
+              assert abs(raw_local[0])<=1e-6 and abs(raw_local[2])<=1e-6 and abs(raw_local[1]-node_world_y)<=1e-6
+              assert abs(raw_world[0])<=1e-6 and abs(raw_world[2])<=1e-6 and abs(raw_world[1]-expected)<=1e-6
+              assert abs(float(rec['raw_distance'])-abs(expected))<=1e-6
+              proofs.append({'gltf_vertex':rec['gltf_vertex'],'prepared_vertex':rec['prepared_vertex'],'serialized_minus_prepared_world_yup_m':raw_world})
+          assert math.dist(proofs[0]['serialized_minus_prepared_world_yup_m'], proofs[1]['serialized_minus_prepared_world_yup_m']) <= 1e-9
+          out={'format':'grand-bruxelles-gate8-exporter-basis-origin-contract-v1','diagnostic_state':'EXPORTER_MESH_BASIS_ORIGIN_EXPLAINS_RESIDUAL','next_safe_axis':'MEASURE_SOURCE_WEIGHT_TRANSFER_BEFORE_EXPORT','target_glb_sha256':r['generated_glb_sha256'],'serialized_edge':[538,681],'prepared_native_edge':[486,601],'explained_common_residual_y_m':expected,'observed_prior_raw_residual_m':float(records[0]['raw_distance']),'endpoint_origin_proofs':proofs,'canonical_asset_mutation':False,'canonical_generator_mutation':False,'runtime_npc_mutation':False,'production_activation_allowed':False,'visual_approval_allowed':False}
+          p=Path(os.environ['RESULT_PATH']); p.parent.mkdir(parents=True,exist_ok=True); p.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print('GATE8_EXPORTER_BASIS_ORIGIN_OK', expected, out['next_safe_axis'])
+          PY
+
+      - name: Verify fail-closed scientific verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['RESULT_PATH']))
+          assert r['diagnostic_state']=='EXPORTER_MESH_BASIS_ORIGIN_EXPLAINS_RESIDUAL'
+          assert r['next_safe_axis']=='MEASURE_SOURCE_WEIGHT_TRANSFER_BEFORE_EXPORT'
+          assert r['target_glb_sha256']==os.environ['TARGET_SHA256']
+          assert r['serialized_edge']==[538,681]
+          assert r['prepared_native_edge']==[486,601]
+          assert len(r['endpoint_origin_proofs'])==2
+          assert abs(r['explained_common_residual_y_m']-r['observed_prior_raw_residual_m']) <= 1e-6
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          PY
+
+      - name: Upload exporter basis/origin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-exporter-basis-origin-contract
+          path: |
+            /tmp/gate8-basis-origin/exporter-basis-origin-result.json
+            /tmp/gate8-basis-origin/predecessor-artifact.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove canonical repository stayed clean
+        run: test -z "$(git status --porcelain)"

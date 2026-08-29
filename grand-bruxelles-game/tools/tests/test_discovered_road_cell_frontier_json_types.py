@@ -97,6 +97,14 @@ def main() -> int:
     rehash(cell_identity)
     expect_fail(lambda: strict_validate(cell_identity), "candidate cell identity drift")
 
+    grid_alignment = json.loads(json.dumps(frontier))
+    grid_row = grid_alignment["candidate_cells"][0]
+    grid_row["bbox"] = [value + 1 for value in grid_row["bbox"]]
+    east, north = grid_row["bbox"][0], grid_row["bbox"][1]
+    grid_row["cell_id"] = f"bxl-e{east}-n{north}-s500"
+    rehash(grid_alignment)
+    expect_fail(lambda: strict_validate(grid_alignment), "candidate bbox grid alignment drift")
+
     candidate_manifest = json.loads(json.dumps(frontier))
     candidate_manifest["candidate_cells"][0]["manifest_path"] = "data/cell_manifests/unreviewed.json"
     rehash(candidate_manifest)

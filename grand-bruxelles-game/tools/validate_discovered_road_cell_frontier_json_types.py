@@ -160,6 +160,8 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
         east, north, east_max, north_max = bbox
         if east_max != east + CELL_SIZE_M or north_max != north + CELL_SIZE_M:
             fail("candidate bbox grid drift")
+        if east % CELL_SIZE_M != 0 or north % CELL_SIZE_M != 0:
+            fail("candidate bbox grid alignment drift")
         expected_cell_id = f"bxl-e{east}-n{north}-s{CELL_SIZE_M}"
         if row.get("cell_id") != expected_cell_id:
             fail("candidate cell identity drift")

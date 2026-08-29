@@ -1,0 +1,49 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-right-cluster-boundary-one-ring-contract-v1",
+  "base_main_sha": "d6584506da0e2a203325fb90312ed211e38f054d",
+  "candidate_variant": 1,
+  "target_artifact": {
+    "id": 9470539830,
+    "digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "expected_vertex_total": 21044
+  },
+  "residual_artifact": {
+    "id": 9706869599,
+    "digest": "sha256:86ec04ee33287a30ec93220a658cc5491aca94396b94b9d1eeb80f21143db9c9",
+    "expected_state": "RIGHT_CLUSTER_OPERATOR_CREATES_ADJACENT_RESIDUAL_FAILURE",
+    "expected_worst_edge": [417, 1510],
+    "expected_modified_vertex": 1510
+  },
+  "right_cluster": {
+    "surface": "Icosphere.007#0",
+    "modified_vertices": [259, 758, 1510, 1511],
+    "coherent_anchor": 416,
+    "new_worst_outside_vertex": 417
+  },
+  "gates": {
+    "require_modified_vertex_count": 4,
+    "require_new_worst_edge_on_boundary": true,
+    "require_nonempty_boundary_edges": true,
+    "require_all_cluster_vertices_in_surface": true,
+    "require_weight_sum_tolerance": 0.001,
+    "high_l1_threshold": 0.75
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_rest_modified": false,
+    "runtime_npc_modified": false,
+    "navigation_modified": false,
+    "traffic_modified": false,
+    "geography_modified": false,
+    "shared_environment_modified": false,
+    "combat_modified": false,
+    "retarget_enabled": false,
+    "production_activation_allowed": false,
+    "visual_approval_allowed": false
+  },
+  "next_safe_axis_if_boundary_cliff_confirmed": "DESIGN_RIGHT_CLUSTER_BOUNDARY_PRESERVING_AB_ONLY",
+  "next_safe_axis_if_boundary_field_broad": "MAP_RIGHT_CLUSTER_TWO_RING_BOUNDARY_BEFORE_REWEIGHT",
+  "next_safe_axis_if_topology_drift": "STOP_AND_REHYDRATE_RIGHT_CLUSTER_TOPOLOGY"
+}

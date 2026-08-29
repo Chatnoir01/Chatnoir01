@@ -68,6 +68,13 @@ def main() -> int:
             "registered cell count JSON type drift",
         )
 
+        bbox_float = json.loads(json.dumps(canonical_cells))
+        bbox_float["entries"][0]["bbox"][0] = float(bbox_float["entries"][0]["bbox"][0])
+        expect_fail(
+            lambda: builder.load_registered_cell_ids(write_temp_json(tmp, "bbox-float.json", bbox_float)),
+            "registered cell bbox JSON type drift",
+        )
+
     global_size_string = json.loads(json.dumps(frontier))
     global_size_string["cell_size_m"] = str(global_size_string["cell_size_m"])
     rehash(global_size_string)

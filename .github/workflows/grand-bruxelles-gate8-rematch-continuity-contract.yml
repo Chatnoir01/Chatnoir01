@@ -63,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, math
+          import json, math, statistics
           r=json.load(open('/tmp/gate8-rematch/evidence/result.json'))
           assert r['format']=='grand-bruxelles-gate8-variant01-mhclo-rematch-v2'
           assert r['mpfb_release']=='2.0.17'
@@ -96,6 +96,35 @@ jobs:
               assert math.isclose(e['stored_mpfb_l1'],stored,rel_tol=0.0,abs_tol=1e-12)
               assert math.isclose(e['rematched_mpfb_l1'],rematched,rel_tol=0.0,abs_tol=1e-12)
               assert e['rematched_mpfb_l1'] < 1.7
+
+          expected_geometry={
+            377:(0.1778314536295534,0.015655720280885844),
+            378:(0.18265321924346145,0.00983302703029739),
+            379:(0.09399557117226322,0.01455974388823859),
+            486:(0.1320987997674468,0.004590544059914293),
+            599:(0.20297652105600786,0.01596701980332174),
+            601:(0.2871224083905678,0.0069202532410868175),
+            615:(0.1273765967515226,0.018708917628051023),
+            864:(0.09590149321048135,0.0012763714299139609),
+          }
+          improvement=[]
+          for vertex,(stored_offset,rematched_offset) in expected_geometry.items():
+              rec=r['records'][str(vertex)]
+              assert rec['rematch_success'] is True
+              assert rec['same_support_set'] is False
+              assert math.isclose(rec['stored']['offset_norm'],stored_offset,rel_tol=0.0,abs_tol=1e-12)
+              assert math.isclose(rec['rematched']['offset_norm'],rematched_offset,rel_tol=0.0,abs_tol=1e-12)
+              assert rematched_offset < stored_offset
+              improvement.append(stored_offset/rematched_offset)
+          assert min(improvement) > 6.45
+          assert statistics.median(improvement) > 15.64
+          assert max(rec['rematched']['offset_norm'] for rec in r['records'].values()) < 0.01871
+
+          rematched_l1=[e['rematched_mpfb_l1'] for e in r['local_edges']]
+          assert max(rematched_l1) == 0.45460682401382485
+          assert math.isclose(statistics.mean(rematched_l1),0.20637493905000476,rel_tol=0.0,abs_tol=1e-12)
+          assert all(value < r['cliff_threshold_l1'] for value in rematched_l1)
+
           rec486=r['records']['486']; rec601=r['records']['601']
           assert rec486['stored']['verts']==[15673,15666,15667]
           assert rec486['rematched']['verts']==[15681,15682,15653]
@@ -111,7 +140,7 @@ jobs:
             'canonical_asset_mutation','canonical_mhclo_mutation','canonical_generator_mutation',
             'runtime_npc_mutation','reweight_applied','retarget_applied',
             'production_activation_allowed','visual_approval_allowed'))
-          print('GATE8_REMATCH_CONTINUITY_REVIEWED_OK stored_cliffs=3 rematched_cliffs=0')
+          print('GATE8_REMATCH_CONTINUITY_REVIEWED_OK stored_cliffs=3 rematched_cliffs=0 min_geometry_gain_gt=6.45 max_rematched_l1=0.45460682401382485')
           PY
 
       - name: Prove repository stayed clean

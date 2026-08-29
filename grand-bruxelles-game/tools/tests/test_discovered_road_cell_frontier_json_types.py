@@ -178,6 +178,20 @@ def main() -> int:
     rehash(candidate_membership)
     expect_fail(lambda: strict_validate(candidate_membership), "candidate road outside source set")
 
+    road_cell_binding = json.loads(json.dumps(frontier))
+    source_row = next(row for row in road_cell_binding["candidate_cells"] if row["road_osm_ids"])
+    moved_road = source_row["road_osm_ids"][0]
+    target_row = next(
+        row for row in road_cell_binding["candidate_cells"]
+        if row is not source_row and moved_road not in row["road_osm_ids"]
+    )
+    source_row["road_osm_ids"].remove(moved_road)
+    source_row["road_count"] = len(source_row["road_osm_ids"])
+    target_row["road_osm_ids"] = sorted(target_row["road_osm_ids"] + [moved_road])
+    target_row["road_count"] = len(target_row["road_osm_ids"])
+    rehash(road_cell_binding)
+    expect_fail(lambda: strict_validate(road_cell_binding), "candidate road/cell source geometry binding drift")
+
     source_evidence_binding = json.loads(json.dumps(frontier))
     source_evidence_binding["source_intersection_evidence_sha256"] = "0" * 64
     rehash(source_evidence_binding)

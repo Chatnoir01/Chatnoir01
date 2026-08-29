@@ -22,7 +22,17 @@ def test_scene_replacement_is_not_polled_from_process() -> None:
     source = _source()
     process_body = _function_body(source, "func _process(_delta: float) -> void:")
     assert "current_scene" not in process_body
-    assert "_reset()" not in process_body
+
+
+def test_invalid_scene_fallback_clears_state_and_retries_binding() -> None:
+    source = _source()
+    process_body = _function_body(source, "func _process(_delta: float) -> void:")
+    invalid_scene_block = process_body.split("if not is_instance_valid(_scene):", 1)[1].split(
+        "\n    if not is_instance_valid(_player):", 1
+    )[0]
+    assert "_reset()" in invalid_scene_block
+    assert "_start_watching()" in invalid_scene_block
+    assert 'call_deferred("_try_bind")' in invalid_scene_block
 
 
 def test_node_removed_path_releases_owned_state_and_rearms_binding() -> None:

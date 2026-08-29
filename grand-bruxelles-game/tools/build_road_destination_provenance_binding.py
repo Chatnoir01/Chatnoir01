@@ -130,7 +130,10 @@ def verify_cell_manifest(project_root: Path, destination: dict[str, Any], road_i
     cell_manifest_sha = str(destination.get("cell_manifest_sha256") or "").lower()
     if not cell_id or not grid_cell_id or not cell_manifest_path.startswith("data/cell_manifests/") or not is_sha256(cell_manifest_sha):
         raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: cell provenance drift {road_id}")
-    manifest_path = project_root / cell_manifest_path
+    canonical_manifest_root = (project_root / "data" / "cell_manifests").resolve()
+    manifest_path = (project_root / cell_manifest_path).resolve()
+    if canonical_manifest_root not in manifest_path.parents:
+        raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: cell manifest path escapes canonical cell manifest directory {road_id}")
     if not manifest_path.is_file():
         raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: missing cell manifest {road_id}")
     actual_sha = sha256_file(manifest_path)

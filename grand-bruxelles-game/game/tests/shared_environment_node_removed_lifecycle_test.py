@@ -12,6 +12,27 @@ EXPECTED = {
     "game/scripts/brussels_corridor_tree_runtime.gd": "_on_tree_node_removed",
     "game/scripts/brussels_street_lamp_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_bollard_runtime.gd": "_on_node_removed",
+    "game/scripts/anneessens_osm_furniture_runtime.gd": "_on_tree_node_removed",
+    "game/scripts/brussels_base_ground_surface_runtime.gd": "_on_node_removed",
+}
+HELPER_WATCHERS = {
+    "game/scripts/anneessens_osm_furniture_runtime.gd",
+    "game/scripts/brussels_base_ground_surface_runtime.gd",
+}
+HELPER_REBIND_TOKENS = {
+    "game/scripts/anneessens_osm_furniture_runtime.gd": (
+        "_reset()",
+        "_start_watching()",
+        'call_deferred("_try_bind")',
+    ),
+    "game/scripts/brussels_base_ground_surface_runtime.gd": (
+        "_release_material_ownership()",
+        "_ready_complete = false",
+        "_failed = false",
+        "_awaiting_main = true",
+        "_start_watching()",
+        'call_deferred("_bind_existing_main")',
+    ),
 }
 STREET_FURNITURE_REBIND = {
     "game/scripts/brussels_street_lamp_runtime.gd",
@@ -69,19 +90,39 @@ def main() -> None:
         ready_body = function_body(source, "_ready")
         exit_body = function_body(source, "_exit_tree")
         handler_body = function_body(source, handler)
-        if f"node_removed.connect({handler})" not in ready_body:
-            fail(f"node_removed watcher not connected from _ready: {rel_path}")
-        if f"node_removed.disconnect({handler})" not in exit_body:
-            fail(f"node_removed watcher not disconnected from _exit_tree: {rel_path}")
+
+        if rel_path in HELPER_WATCHERS:
+            start_body = function_body(source, "_start_watching")
+            stop_body = function_body(source, "_stop_watching")
+            if "_start_watching()" not in ready_body:
+                fail(f"node_removed watcher helper not armed from _ready: {rel_path}")
+            if "_stop_watching()" not in exit_body:
+                fail(f"node_removed watcher helper not stopped from _exit_tree: {rel_path}")
+            if f"node_removed.connect({handler})" not in start_body:
+                fail(f"node_removed watcher not connected from helper: {rel_path}")
+            if f"node_removed.disconnect({handler})" not in stop_body:
+                fail(f"node_removed watcher not disconnected from helper: {rel_path}")
+        else:
+            if f"node_removed.connect({handler})" not in ready_body:
+                fail(f"node_removed watcher not connected from _ready: {rel_path}")
+            if f"node_removed.disconnect({handler})" not in exit_body:
+                fail(f"node_removed watcher not disconnected from _exit_tree: {rel_path}")
+
         if not handler_body:
             fail(f"node_removed cleanup handler missing: {rel_path}")
         purges_retained_state = (
             ".erase(" in handler_body
             or ".clear()" in handler_body
             or "_release_owned_root()" in handler_body
+            or "_reset()" in handler_body
+            or "_release_material_ownership()" in handler_body
         )
         if not purges_retained_state:
             fail(f"node_removed handler does not purge retained state: {rel_path}")
+
+        for token in HELPER_REBIND_TOKENS.get(rel_path, ()):
+            if token not in handler_body:
+                fail(f"helper-watcher node_removed handler is not rebindable: {rel_path} missing {token}")
 
         if rel_path in STREET_FURNITURE_REBIND:
             for token in (
@@ -106,7 +147,7 @@ def main() -> None:
 
     print(
         "SHARED_ENVIRONMENT_NODE_REMOVED_LIFECYCLE_OK: "
-        f"runtimes={len(EXPECTED)} watcher_cleanup=locked retained_state_cleanup=locked street_furniture_rebind=locked"
+        f"runtimes={len(EXPECTED)} watcher_cleanup=locked retained_state_cleanup=locked helper_watchers={len(HELPER_WATCHERS)} street_furniture_rebind=locked"
     )
 
 

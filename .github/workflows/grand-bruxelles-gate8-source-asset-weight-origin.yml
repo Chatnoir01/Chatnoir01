@@ -2,7 +2,7 @@ name: Grand Bruxelles Gate-8 Source Asset Weight Origin
 
 on:
   push:
-    branches: ["npc/gate8-source-weight-transfer-49c62bb"]
+    branches: ["npc/gate8-source-weight-transfer-1872686"]
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml"
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      BASE_MAIN_SHA: "49c62bbce71b1461da948777339e0f4d7cd101d6"
+      BASE_MAIN_SHA: "187268667697915a2ffc899015592c3c6d6ae5a5"
       SOURCE_RUN_ID: "32552758284"
       SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
       ASSET_PACK_ARTIFACT_ID: "9710539659"

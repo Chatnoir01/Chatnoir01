@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +58,12 @@ CANDIDATE_FIELDS = {
     "source_registration_ready",
 }
 
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "data/osm/vertical_slice_01.game.json"
+FRAME = ROOT / "data/qa/osm_road_frame_correction_impact.contract.json"
+CELLS = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
+INTERSECTION_BUILDER = ROOT / "tools/build_discovered_road_cell_intersection_evidence.py"
+
 
 def fail(message: str) -> None:
     raise SystemExit(f"DISCOVERED_ROAD_CELL_FRONTIER_JSON_TYPES_FAIL: {message}")
@@ -92,6 +100,24 @@ def require_int_list(value: Any, label: str, *, positive: bool = False) -> list[
     return value
 
 
+def load_module(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        fail(f"cannot load canonical source evidence builder: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@lru_cache(maxsize=1)
+def canonical_source_intersection_evidence_sha256() -> str:
+    evidence_mod = load_module(INTERSECTION_BUILDER, "frontier_source_intersection_evidence")
+    evidence = evidence_mod.build_evidence(SOURCE, FRAME, CELLS)
+    if not isinstance(evidence, dict):
+        fail("canonical source intersection evidence object drift")
+    return require_sha256(evidence.get("evidence_sha256"), "canonical source intersection evidence sha")
+
+
 def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     if not isinstance(frontier, dict):
         fail("frontier object drift")
@@ -104,7 +130,12 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     if frontier.get("format") != FORMAT or frontier.get("crs") != TARGET_CRS:
         fail("format/CRS drift")
 
-    require_sha256(frontier.get("source_intersection_evidence_sha256"), "source intersection evidence sha")
+    source_evidence_sha = require_sha256(
+        frontier.get("source_intersection_evidence_sha256"),
+        "source intersection evidence sha",
+    )
+    if source_evidence_sha != canonical_source_intersection_evidence_sha256():
+        fail("source intersection evidence binding drift")
 
     for field in AUTHORIZATION_FIELDS:
         if frontier.get(field) is not False:

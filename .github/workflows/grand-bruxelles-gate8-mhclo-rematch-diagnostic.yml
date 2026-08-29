@@ -1,0 +1,199 @@
+name: Grand Bruxelles Gate-8 MHCLO Rematch Diagnostic
+
+on:
+  push:
+    branches: ["npc/gate8-mhclo-rematch-7c0ce9c"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-mhclo-rematch-diagnostic.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_mhclo_rematch_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mhclo-rematch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      BASE_MAIN_SHA: "7c0ce9c5bd77b29e2ffe2ce337e061ad6d95768b"
+      SOURCE_RUN_ID: "32552758284"
+      SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+      ASSET_PACK_ARTIFACT_ID: "9710539659"
+      ASSET_PACK_ARTIFACT_DIGEST: "sha256:ce6fe32adf20838b853ef6f3e80f47bee194f21565cf4d35cad8f2c02f2941da"
+      ASSET_PACK_SHA256: "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+      ASSET_PACK_SIZE_BYTES: "81255948"
+      GATE8_SOURCE_DIR: "/tmp/gate8-source"
+      GATE8_REMATCH_RESULT: "/tmp/gate8-mhclo-rematch/result.json"
+      HOME: "/tmp/grand-bruxelles-blender-home"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and two-file Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-mhclo-rematch-diagnostic.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_mhclo_rematch_probe.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_mhclo_rematch_probe.py
+
+      - name: Materialize exact pinned source generator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE8_SOURCE_DIR" /tmp/gate8-mhclo-rematch
+          for path in \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py \
+            grand-bruxelles-game/tools/fetch_mpfb_2017.py
+          do
+            out="$GATE8_SOURCE_DIR/$(basename "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${SOURCE_HEAD_SHA}" --jq .content | tr -d '\n' | base64 -d > "$out"
+            test -s "$out"
+          done
+          grep -q 'ExportService.create_character_copy' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_export_ready_glbs.py"
+
+      - name: Download exact CC0 Gate-8 source asset pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}" > /tmp/gate8-mhclo-rematch/asset-artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-mhclo-rematch/asset-artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['ASSET_PACK_ARTIFACT_DIGEST']
+          assert int(a['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert a['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}/zip" > /tmp/gate8-mhclo-rematch/asset.zip
+          mkdir -p /tmp/gate8-mhclo-rematch/asset
+          unzip -q /tmp/gate8-mhclo-rematch/asset.zip -d /tmp/gate8-mhclo-rematch/asset
+          PACK="$(find /tmp/gate8-mhclo-rematch/asset -type f -name 'makehuman_gate8_system_assets_cc0.zip' -print -quit)"
+          test -n "$PACK"
+          test "$(stat -c '%s' "$PACK")" = "$ASSET_PACK_SIZE_BYTES"
+          test "$(sha256sum "$PACK" | awk '{print $1}')" = "$ASSET_PACK_SHA256"
+          printf '%s\n' "$PACK" > /tmp/gate8-mhclo-rematch/asset-pack-path.txt
+
+      - name: Acquire Blender 4.2.23 and exact MPFB 2.0.17
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/gb-blender /tmp/gate8-mhclo-rematch/blender-extensions
+          ARCHIVE=blender-4.2.23-linux-x64.tar.xz
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/${ARCHIVE}" -o "/tmp/${ARCHIVE}"
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/blender-4.2.23.sha256" -o /tmp/blender.sha256
+          grep " ${ARCHIVE}$" /tmp/blender.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum --check blender-linux.sha256)
+          tar -xJf "/tmp/${ARCHIVE}" -C /tmp/gb-blender
+          BLENDER_BIN="$(find /tmp/gb-blender -mindepth 2 -maxdepth 2 -type f -name blender -perm -111 | head -n 1)"
+          "$BLENDER_BIN" --version | tee /tmp/gate8-mhclo-rematch/blender-version.txt
+          grep -q '^Blender 4\.2\.23' /tmp/gate8-mhclo-rematch/blender-version.txt
+          printf '%s\n' "$BLENDER_BIN" > /tmp/gate8-mhclo-rematch/blender-bin.txt
+          python3 "$GATE8_SOURCE_DIR/fetch_mpfb_2017.py" \
+            --output /tmp/gate8-mhclo-rematch/mpfb.zip \
+            --manifest /tmp/gate8-mhclo-rematch/mpfb.manifest.json \
+            --retries 3 | tee /tmp/gate8-mhclo-rematch/mpfb-fetch.log
+          grep -q '^MPFB_2017_FETCH_OK ' /tmp/gate8-mhclo-rematch/mpfb-fetch.log
+          "$BLENDER_BIN" --background --command extension repo-add gb_ci \
+            --name "Grand Bruxelles CI" \
+            --directory /tmp/gate8-mhclo-rematch/blender-extensions \
+            --clear-all
+          "$BLENDER_BIN" --background --command extension install-file \
+            --repo gb_ci --enable /tmp/gate8-mhclo-rematch/mpfb.zip \
+            | tee /tmp/gate8-mhclo-rematch/mpfb-install.txt
+
+      - name: Regenerate exact source and replay MPFB VertexMatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/gate8-mhclo-rematch/blender-bin.txt)"
+          PACK="$(cat /tmp/gate8-mhclo-rematch/asset-pack-path.txt)"
+          mkdir -p /tmp/gate8-mhclo-rematch/out
+          "$BLENDER_BIN" --background --offline-mode \
+            --python grand-bruxelles-game/game/tests/gate8_variant01_mhclo_rematch_probe.py \
+            -- --asset-pack "$PACK" --output-dir /tmp/gate8-mhclo-rematch/out \
+            | tee /tmp/gate8-mhclo-rematch/probe.log
+          test -s "$GATE8_REMATCH_RESULT"
+          cat "$GATE8_REMATCH_RESULT"
+
+      - name: Validate rematch evidence envelope and fail-closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['GATE8_REMATCH_RESULT']))
+          assert r['format']=='grand-bruxelles-gate8-variant01-mhclo-rematch-v1'
+          assert r['mpfb_release']=='2.0.17'
+          assert r['mpfb_release_commit']=='80919fa'
+          assert r['algorithm']=='VertexMatch'
+          assert r['algorithm_order']==['EXACT','RIGID_GROUP','SIMPLE_FACE','EXTENDED_FACE']
+          assert r['sportsuit_vertex_count']==1797
+          assert r['body_vertex_count']==19158
+          assert r['body_edge_count']==37364
+          assert r['focus_vertices']==[377,378,379,486,599,601,615,864]
+          assert set(r['records'])=={'377','378','379','486','599','601','615','864'}
+          assert r['diagnostic_state'] in {
+            'CURRENT_MPF_B_VERTEXMATCH_CANNOT_REMATCH_601_IN_EFFECTIVE_SOURCE_CONTEXT',
+            'CURRENT_MPF_B_VERTEXMATCH_REPRODUCES_STORED_601_SUPPORT',
+            'CURRENT_MPF_B_VERTEXMATCH_SELECTS_DIFFERENT_601_SUPPORT',
+          }
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_mhclo_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          assert r['reweight_applied'] is False
+          assert r['retarget_applied'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          print('GATE8_MHCLO_REMATCH_MEASURED', r['diagnostic_state'], r['next_safe_axis'])
+          PY
+
+      - name: Upload red-first rematch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-mhclo-rematch-red-first
+          path: |
+            /tmp/gate8-mhclo-rematch/result.json
+            /tmp/gate8-mhclo-rematch/probe.log
+            /tmp/gate8-mhclo-rematch/asset-artifact.json
+            /tmp/gate8-mhclo-rematch/blender-version.txt
+            /tmp/gate8-mhclo-rematch/mpfb.manifest.json
+            /tmp/gate8-mhclo-rematch/mpfb-fetch.log
+            /tmp/gate8-mhclo-rematch/mpfb-install.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"
+
+      - name: Fail closed until measured rematch verdict is reviewed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['GATE8_REMATCH_RESULT']))
+          raise SystemExit(
+              'RED_FIRST_UNREVIEWED_MHCLO_REMATCH: '
+              + r['diagnostic_state'] + ' -> ' + r['next_safe_axis']
+          )
+          PY

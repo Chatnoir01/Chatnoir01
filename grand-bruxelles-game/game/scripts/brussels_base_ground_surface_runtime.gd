@@ -9,6 +9,7 @@ const EXPECTED_POSITION := Vector3(0.0, -0.23, 0.0)
 const EXPECTED_SIZE := Vector3(1800.0, 0.4, 1800.0)
 const GEOMETRY_TOLERANCE := 0.0001
 
+var _main: Node = null
 var _ground: CSGBox3D = null
 var _legacy_material: Material = null
 var _enhanced_material: ShaderMaterial = null
@@ -22,24 +23,41 @@ var _tearing_down := false
 func _ready() -> void:
     _tearing_down = false
     _awaiting_main = true
-    var tree := get_tree()
-    if not tree.node_added.is_connected(_on_node_added):
-        tree.node_added.connect(_on_node_added)
+    _start_watching()
     call_deferred("_bind_existing_main")
 
 func _exit_tree() -> void:
     _tearing_down = true
     _awaiting_main = false
     _bind_in_progress = false
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
+    _stop_watching()
     _release_material_ownership()
+
+func _start_watching() -> void:
+    if _tearing_down or not is_inside_tree():
+        return
+    var tree := get_tree()
+    if tree == null:
+        return
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+    if not tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.connect(_on_node_removed)
+
+func _stop_watching() -> void:
+    var tree := get_tree()
+    if tree == null:
+        return
+    if tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+    if tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.disconnect(_on_node_removed)
 
 func _release_material_ownership() -> void:
     if _ground != null and is_instance_valid(_ground):
         if _ground.material == _enhanced_material:
             _ground.material = _legacy_material
+    _main = null
     _ground = null
     _legacy_material = null
     _enhanced_material = null
@@ -166,6 +184,19 @@ func _on_node_added(node: Node) -> void:
         return
     call_deferred("_try_bind_main", main)
 
+func _on_node_removed(node: Node) -> void:
+    if _tearing_down or not is_inside_tree() or not _ready_complete:
+        return
+    if node != _ground and node != _main:
+        return
+    _release_material_ownership()
+    _ready_complete = false
+    _failed = false
+    _awaiting_main = true
+    _bind_in_progress = false
+    _start_watching()
+    call_deferred("_bind_existing_main")
+
 func _try_bind_main(main: Node) -> void:
     if _tearing_down or not is_inside_tree() or _ready_complete or _failed or _bind_in_progress:
         return
@@ -180,6 +211,7 @@ func _try_bind_main(main: Node) -> void:
         _fail_binding("production Ground missing or wrong type")
         return
 
+    _main = main
     _ground = ground_candidate as CSGBox3D
     if not _vectors_match(_ground.position, EXPECTED_POSITION):
         _fail_binding("Ground position drifted; refusing presentation mutation")
@@ -209,9 +241,6 @@ func _fail_binding(message: String) -> void:
 func _finish_waiting() -> void:
     _awaiting_main = false
     _bind_in_progress = false
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
 
 func _set_material_state(enabled: bool) -> void:
     if _tearing_down or not is_inside_tree():

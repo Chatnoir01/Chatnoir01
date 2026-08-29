@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -35,42 +36,52 @@ def catalog_semantic_sha256(catalog: dict[str, Any]) -> str:
     return sha256_text(canonical_json(unsigned))
 
 
+def require_source_number(value: Any, label: str) -> float:
+    """Accept JSON numbers only; never normalize numeric strings or booleans."""
+    if type(value) not in (int, float):
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift {label}")
+    number = float(value)
+    if not math.isfinite(number):
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-finite source number {label}")
+    return number
+
+
 def normalized_points(raw_points: Any) -> list[list[float]]:
     if not isinstance(raw_points, list) or len(raw_points) < 2:
         return []
     points: list[list[float]] = []
-    for pair in raw_points:
+    for index, pair in enumerate(raw_points):
         if not isinstance(pair, list) or len(pair) < 2:
             return []
-        try:
-            x = float(pair[0])
-            z = float(pair[1])
-        except (TypeError, ValueError):
-            return []
-        if not (abs(x) < float("inf") and abs(z) < float("inf")):
-            return []
+        x = require_source_number(pair[0], f"points[{index}][0]")
+        z = require_source_number(pair[1], f"points[{index}][1]")
         points.append([x, z])
     return points
 
 
 def road_signature(road: dict[str, Any]) -> dict[str, Any] | None:
-    try:
-        osm_id = int(road.get("osm_id", 0))
-    except (TypeError, ValueError):
-        return None
-    name = str(road.get("name", "")).strip()
+    raw_osm_id = road.get("osm_id")
+    if type(raw_osm_id) is not int:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift osm_id")
+    osm_id = raw_osm_id
+
+    raw_name = road.get("name", "")
+    raw_class = road.get("class", "")
+    if type(raw_name) is not str:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift name")
+    if type(raw_class) is not str:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift class")
+    name = raw_name.strip()
+    road_class = raw_class.strip()
     drivable = road.get("drivable") is True
     points = normalized_points(road.get("points"))
     if osm_id <= 0 or not name or not drivable or len(points) < 2:
         return None
-    try:
-        width = float(road.get("width", 0.0))
-    except (TypeError, ValueError):
-        width = 0.0
+    width = require_source_number(road.get("width"), "width")
     return {
         "osm_id": osm_id,
         "name": name,
-        "class": str(road.get("class", "")).strip(),
+        "class": road_class,
         "width": width,
         "drivable": True,
         "points": points,
@@ -120,7 +131,7 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
                     rejected_drivable_record_count += 1
                 continue
             eligible_record_count += 1
-            osm_id = int(signature["osm_id"])
+            osm_id = signature["osm_id"]
             geometry_sha256 = sha256_text(canonical_json(signature["points"]))
             semantic = {
                 "osm_id": osm_id,

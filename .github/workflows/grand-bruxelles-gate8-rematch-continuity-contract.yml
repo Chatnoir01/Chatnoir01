@@ -1,0 +1,118 @@
+name: Grand Bruxelles Gate-8 Rematch Continuity Contract
+
+on:
+  push:
+    branches: ["npc/gate8-rematch-continuity-b358de6"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-rematch-continuity-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  continuity-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_MAIN_SHA: "b358de686c9c0e145e0e8698f14c1319810e4cb3"
+      SOURCE_RUN_ID: "33270713349"
+      SOURCE_HEAD_SHA: "9defe931b0b51b3582c1e555ff80992f64f311fc"
+      SOURCE_ARTIFACT_ID: "9720026708"
+      SOURCE_ARTIFACT_DIGEST: "sha256:70ecea6e85c9a44d742f437dc8c1a1e00b6fb4a2b41c5b12f51d0b9e23b7fe71"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and one-file QA scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          test "$(git diff --name-only origin/main...HEAD)" = '.github/workflows/grand-bruxelles-gate8-rematch-continuity-contract.yml'
+
+      - name: Download reviewed exact-head v2 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-rematch
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}" > /tmp/gate8-rematch/meta.json
+          python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/gate8-rematch/meta.json'))
+          assert not m['expired']
+          assert m['digest']==os.environ['SOURCE_ARTIFACT_DIGEST']
+          assert int(m['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert m['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > /tmp/gate8-rematch/evidence.zip
+          unzip -q /tmp/gate8-rematch/evidence.zip -d /tmp/gate8-rematch/evidence
+          test -s /tmp/gate8-rematch/evidence/result.json
+
+      - name: Lock measured rematch geometry and weight continuity fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math
+          r=json.load(open('/tmp/gate8-rematch/evidence/result.json'))
+          assert r['format']=='grand-bruxelles-gate8-variant01-mhclo-rematch-v2'
+          assert r['mpfb_release']=='2.0.17'
+          assert r['mpfb_release_commit']=='80919fa'
+          assert r['algorithm']=='VertexMatch'
+          assert r['diagnostic_state']=='CURRENT_MPF_B_VERTEXMATCH_SELECTS_DIFFERENT_601_SUPPORT'
+          assert r['next_safe_axis']=='EVALUATE_REMATCH_GEOMETRY_AND_WEIGHT_CONTINUITY'
+          s=r['continuity_summary']
+          assert s=={
+            'edge_count':7,
+            'observed_cliff_count':3,
+            'rematched_cliff_count':0,
+            'rematched_edge_count':7,
+            'rematched_helpergeometry_support_count':3,
+            'rematched_helpergeometry_support_vertices':[15653,15681,15682],
+            'stored_cliff_count':3,
+            'stored_helpergeometry_support_count':10,
+            'stored_helpergeometry_support_vertices':[15583,15666,15667,15673,15674,15702,15871,15917,15918,15947],
+          }
+          expected={
+            (486,601):(1.8260908517903451,0.13739661082999563),
+            (599,601):(1.8041543159908895,0.45460682401382485),
+            (601,615):(1.8065090170680218,0.327934061981548),
+          }
+          edges={tuple(e['edge']):e for e in r['local_edges']}
+          for edge,(stored,rematched) in expected.items():
+              e=edges[edge]
+              assert e['stored_is_cliff'] is True
+              assert e['rematched_is_cliff'] is False
+              assert math.isclose(e['stored_mpfb_l1'],stored,rel_tol=0.0,abs_tol=1e-12)
+              assert math.isclose(e['rematched_mpfb_l1'],rematched,rel_tol=0.0,abs_tol=1e-12)
+              assert e['rematched_mpfb_l1'] < 1.7
+          rec486=r['records']['486']; rec601=r['records']['601']
+          assert rec486['stored']['verts']==[15673,15666,15667]
+          assert rec486['rematched']['verts']==[15681,15682,15653]
+          assert rec601['stored']['verts']==[15947,15583,15871]
+          assert rec601['rematched']['verts']==[1635,1629,1639]
+          assert rec486['final_strategy']==rec601['final_strategy']=='SIMPLE_FACE'
+          assert rec486['focus_vertex_group_selected']==rec601['focus_vertex_group_selected']=='upperarm_r'
+          assert rec486['rematched_reconstruction_residual']==0.0
+          assert rec601['rematched_reconstruction_residual']==0.0
+          assert rec486['rematched']['offset_norm'] < rec486['stored']['offset_norm']/20.0
+          assert rec601['rematched']['offset_norm'] < rec601['stored']['offset_norm']/20.0
+          assert all(r[k] is False for k in (
+            'canonical_asset_mutation','canonical_mhclo_mutation','canonical_generator_mutation',
+            'runtime_npc_mutation','reweight_applied','retarget_applied',
+            'production_activation_allowed','visual_approval_allowed'))
+          print('GATE8_REMATCH_CONTINUITY_REVIEWED_OK stored_cliffs=3 rematched_cliffs=0')
+          PY
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"

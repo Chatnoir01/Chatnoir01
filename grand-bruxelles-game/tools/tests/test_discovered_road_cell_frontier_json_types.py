@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -39,6 +40,13 @@ def strict_validate(frontier: dict) -> None:
     builder.validate_structure(frontier)
 
 
+def rehash(frontier: dict) -> None:
+    unsigned = dict(frontier)
+    unsigned.pop("frontier_sha256", None)
+    canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    frontier["frontier_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def main() -> int:
     builder = load(BUILDER, "road_cell_frontier_builder")
     frontier = builder.build_frontier(SOURCE, FRAME, CELLS)
@@ -63,6 +71,30 @@ def main() -> int:
     candidate_road_id_string = json.loads(json.dumps(frontier))
     candidate_road_id_string["candidate_cells"][0]["road_osm_ids"][0] = str(candidate_road_id_string["candidate_cells"][0]["road_osm_ids"][0])
     expect_fail(lambda: strict_validate(candidate_road_id_string), "candidate road_osm_id JSON type drift")
+
+    authorization_string = json.loads(json.dumps(frontier))
+    authorization_string["runtime_mount_authorized"] = "false"
+    rehash(authorization_string)
+    expect_fail(lambda: strict_validate(authorization_string), "authorization rail drift")
+
+    unknown_authorization = json.loads(json.dumps(frontier))
+    unknown_authorization["experimental_runtime_authorized"] = False
+    rehash(unknown_authorization)
+    expect_fail(lambda: strict_validate(unknown_authorization), "authorization rail set drift")
+
+    cell_identity = json.loads(json.dumps(frontier))
+    cell_identity["candidate_cells"][0]["cell_id"] = "bxl-e000000-n000000-s500"
+    rehash(cell_identity)
+    expect_fail(lambda: strict_validate(cell_identity), "candidate cell identity drift")
+
+    candidate_manifest = json.loads(json.dumps(frontier))
+    candidate_manifest["candidate_cells"][0]["manifest_path"] = "data/cell_manifests/unreviewed.json"
+    rehash(candidate_manifest)
+    expect_fail(lambda: strict_validate(candidate_manifest), "candidate manifest readiness drift")
+
+    digest_drift = json.loads(json.dumps(frontier))
+    digest_drift["frontier_sha256"] = "0" * 64
+    expect_fail(lambda: strict_validate(digest_drift), "frontier sha drift")
 
     print("DISCOVERED_ROAD_CELL_FRONTIER_JSON_TYPES_TEST_GREEN")
     return 0

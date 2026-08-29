@@ -1,0 +1,122 @@
+name: Grand Bruxelles Midi Civilian Vehicle Style Mix
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_civilian_vehicle_style_mix_runtime.gd"
+      - "grand-bruxelles-game/data/runtime/modules/midi_civilian_vehicle_style_mix.json"
+      - "grand-bruxelles-game/game/tests/midi_civilian_vehicle_style_mix_test.gd"
+      - "grand-bruxelles-game/game/scripts/civilian_vehicle_visual.gd"
+      - "grand-bruxelles-game/game/scripts/midi_urban_life.gd"
+      - "grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_ab_compare_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-civilian-vehicle-style-mix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-civilian-vehicle-style-mix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-style-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-style-import.log; then exit 1; fi
+      - name: Validate deterministic Midi body-style mix
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/midi_civilian_vehicle_style_mix_test.gd 2>&1 | tee /tmp/midi-style-test.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_CIVILIAN_VEHICLE_STYLE_MIX_FAIL" /tmp/midi-style-test.log; then exit 1; fi
+          grep -F "MIDI_CIVILIAN_VEHICLE_STYLE_MIX_OK" /tmp/midi-style-test.log
+
+  prove-visible-midi-style-mix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - name: Checkout head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import base and head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/base-import.log /tmp/head-import.log; then exit 1; fi
+      - name: Capture full-frame BEFORE and AFTER
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- /tmp/midi-style-before.png 2>&1 | tee /tmp/base-capture.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- /tmp/midi-style-after.png 2>&1 | tee /tmp/head-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_CAPTURE_FAIL" /tmp/base-capture.log /tmp/head-capture.log; then exit 1; fi
+          grep -q "MIDI_AMBIENT_VEHICLE_CAPTURE_OK" /tmp/base-capture.log
+          grep -q "MIDI_AMBIENT_VEHICLE_CAPTURE_OK" /tmp/head-capture.log
+          test -f /tmp/midi-style-before.png
+          test -f /tmp/midi-style-after.png
+      - name: Measure normal-player-frame visual delta
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path head/grand-bruxelles-game \
+            --script res://game/tests/midi_ambient_vehicle_visual_ab_compare_test.gd -- \
+            /tmp/midi-style-before.png /tmp/midi-style-after.png 2>&1 | tee /tmp/midi-style-ab.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_AB_FAIL" /tmp/midi-style-ab.log; then exit 1; fi
+          grep -q "MIDI_AMBIENT_VEHICLE_AB_OK" /tmp/midi-style-ab.log
+      - name: Stage owner-review evidence
+        if: always()
+        run: |
+          mkdir -p head/grand-bruxelles-game/artifacts/qa/midi_civilian_vehicle_style_mix
+          cp /tmp/midi-style-before.png head/grand-bruxelles-game/artifacts/qa/midi_civilian_vehicle_style_mix/before.png 2>/dev/null || true
+          cp /tmp/midi-style-after.png head/grand-bruxelles-game/artifacts/qa/midi_civilian_vehicle_style_mix/after.png 2>/dev/null || true
+          cp /tmp/midi-style-ab.log head/grand-bruxelles-game/artifacts/qa/midi_civilian_vehicle_style_mix/metrics.log 2>/dev/null || true
+      - name: Upload owner-review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-civilian-vehicle-style-mix-ab
+          path: head/grand-bruxelles-game/artifacts/qa/midi_civilian_vehicle_style_mix
+          if-no-files-found: warn

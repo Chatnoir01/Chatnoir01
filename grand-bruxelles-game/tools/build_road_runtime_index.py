@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 FORMAT = "grand-bruxelles-road-runtime-index-v1"
@@ -69,6 +69,22 @@ def require_sha256(value: Any, label: str) -> str:
     return text
 
 
+def require_runtime_source_path(value: Any, label: str) -> str:
+    source_path = require_json_string(value, label)
+    parsed = PurePosixPath(source_path)
+    if (
+        source_path != source_path.strip()
+        or "\\" in source_path
+        or parsed.is_absolute()
+        or parsed.parts[:2] != ("data", "osm")
+        or any(part in ("", ".", "..") for part in parsed.parts)
+        or parsed.as_posix() != source_path
+        or parsed.suffixes[-2:] != [".game", ".json"]
+    ):
+        raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: non-canonical source path {source_path!r}")
+    return source_path
+
+
 def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
     _catalog_module.validate_contract(catalog)
 
@@ -97,11 +113,7 @@ def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
                 "ROAD_RUNTIME_INDEX_FAIL: eligible road must resolve to exactly one runtime source document: "
                 f"osm_id={osm_id} source_paths={source_paths!r}"
             )
-        source_path = require_json_string(source_paths[0], f"source path osm_id={osm_id}")
-        if source_path != source_path.strip() or not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
-            raise SystemExit(
-                f"ROAD_RUNTIME_INDEX_FAIL: source path outside data/osm runtime contract: {source_path!r}"
-            )
+        source_path = require_runtime_source_path(source_paths[0], f"source path osm_id={osm_id}")
         road_ids_by_path.setdefault(source_path, []).append(osm_id)
 
     documents: list[dict[str, Any]] = []
@@ -162,17 +174,15 @@ def validate_contract(index: dict[str, Any]) -> None:
     for descriptor in documents:
         if type(descriptor) is not dict or set(descriptor) != DOCUMENT_FIELDS:
             raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: descriptor field set drift")
-        source_path = require_json_string(descriptor.get("path"), "source path")
-        source_sha = require_sha256(descriptor.get("sha256"), f"source {source_path!r}")
+        source_path = require_runtime_source_path(descriptor.get("path"), "source path")
+        require_sha256(descriptor.get("sha256"), f"source {source_path!r}")
         road_ids = descriptor.get("road_ids")
-        if source_path != source_path.strip() or source_path in seen_paths or not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
+        if source_path in seen_paths:
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: duplicate/invalid source path {source_path!r}")
         if previous_path is not None and source_path <= previous_path:
             raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: source descriptors are not strictly sorted")
         previous_path = source_path
         seen_paths.add(source_path)
-        if not source_sha:
-            raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: invalid SHA256 for {source_path!r}")
         if not isinstance(road_ids, list) or not road_ids:
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: no road ids for {source_path!r}")
         if road_ids != sorted(road_ids):

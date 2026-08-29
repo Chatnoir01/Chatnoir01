@@ -1,0 +1,27 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-residual-shoulder-topology-v1",
+  "base_main_sha": "cc834a7db81286cb8df042a985ef8b65697169b8",
+  "candidate_variant": 1,
+  "target_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+  "split_ab_artifact": {
+    "id": 9705913271,
+    "digest": "sha256:f502fed9576650dac3cfd19b5547f14d28c53ba51bd047270cf2deea3897dd18"
+  },
+  "expected": {
+    "diagnostic_state": "BOTH_OPERATORS_REJECTED",
+    "baseline_worst_edge": [416, 758],
+    "left_worst_edge": [416, 758],
+    "right_worst_edge": [417, 1510],
+    "right_modified_cluster": [259, 758, 1510, 1511],
+    "left_state": "LOCAL_NOT_SUPERIOR",
+    "right_state": "LOCAL_NOT_SUPERIOR",
+    "right_stretch_regression_min_ratio": 1.4
+  },
+  "rails": {
+    "canonical_asset_modified": false,
+    "runtime_population_changed": false,
+    "retarget_applied": false,
+    "production_activation_allowed": false,
+    "visual_approval_allowed": false
+  }
+}

@@ -1,0 +1,109 @@
+name: Grand Bruxelles Gate-8 Source Cliff Contract
+
+on:
+  push:
+    branches: ["npc/gate8-source-cliff-contract-20e5ce3"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-source-cliff-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  source-cliff-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      BASE_MAIN_SHA: "20e5ce39bd81048725ee820043df9761bf9c8bd1"
+      SOURCE_MAP_ARTIFACT_ID: "9714716721"
+      SOURCE_MAP_ARTIFACT_DIGEST: "sha256:385c93e6ba1447459107dbbe5eec8f7d14b88a8afeb77b9d4e75aab69ad76826"
+      SOURCE_MAP_HEAD_SHA: "a89f7c50371094f83e59d7ab809955396eb9e930"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded NPC QA scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual.txt
+          printf '%s\n' '.github/workflows/grand-bruxelles-gate8-source-cliff-contract.yml' | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+
+      - name: Download immutable source-map evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-contract/evidence
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_MAP_ARTIFACT_ID}" > /tmp/gate8-contract/artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-contract/artifact.json'))
+          assert not a['expired'], a
+          assert a['digest']==os.environ['SOURCE_MAP_ARTIFACT_DIGEST'], a['digest']
+          assert a['workflow_run']['head_sha']==os.environ['SOURCE_MAP_HEAD_SHA'], a['workflow_run']['head_sha']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_MAP_ARTIFACT_ID}/zip" > /tmp/gate8-contract/evidence.zip
+          unzip -q /tmp/gate8-contract/evidence.zip -d /tmp/gate8-contract/evidence
+          test -s /tmp/gate8-contract/evidence/export-source-map-result.json
+
+      - name: Enforce serialized shoulder source-cliff contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          p='/tmp/gate8-contract/evidence/export-source-map-result.json'
+          r=json.load(open(p))
+          assert r['generated_glb_sha256']==os.environ['TARGET_SHA256']
+          assert r['generated_glb_size_bytes']==15580240
+          assert r['generated_seed']==53756543
+          assert r['prepared_vertex_count']==1797
+          assert r['prepared_edge_count']==3518
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          sm=r['source_map']
+          assert sm['diagnostic_state']=='SERIALIZED_EDGE_POSITION_MAPPING_UNRESOLVED'
+          assert sm['next_safe_axis']=='TRACE_GLTF_NODE_TRANSFORMS_AND_MESH_COORDINATES'
+          cs=sm['candidates']
+          assert len(cs)==1, len(cs)
+          c=cs[0]
+          assert c['gltf_edge']==[538,681], c['gltf_edge']
+          assert c['prepared_edge']==[486,601], c['prepared_edge']
+          assert c['prepared_pair_is_native_edge'] is True
+          assert abs(c['a_map']['position_distance']-0.0043631792068481445) < 1e-9
+          assert abs(c['b_map']['position_distance']-0.0043631792068481445) < 1e-9
+          assert c['a_map']['coordinate_scheme']=='world_yup'
+          assert c['b_map']['coordinate_scheme']=='world_yup'
+          assert c['a_map']['top4_to_a_l1'] < 0.0001
+          assert c['b_map']['top4_to_b_l1'] < 0.0001
+          assert c['a_map']['full_influence_count'] <= 4
+          assert c['b_map']['full_influence_count'] <= 4
+          print('GATE8_SOURCE_CLIFF_CONTRACT_OK', c['gltf_edge'], c['prepared_edge'], c['a_map']['position_distance'])
+          PY
+
+      - name: Upload contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-source-cliff-contract
+          path: |
+            /tmp/gate8-contract/artifact.json
+            /tmp/gate8-contract/evidence/export-source-map-result.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"

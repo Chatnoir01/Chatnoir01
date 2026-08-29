@@ -1,0 +1,45 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-right-boundary-preserving-line-search-v1",
+  "base_main_sha": "bd9f1c056dfbc2bf619e6a5d2d117210dc4b1686",
+  "candidate_variant": 1,
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "expected_vertex_total": 21044
+  },
+  "boundary_evidence": {
+    "artifact_id": 9707725625,
+    "artifact_digest": "sha256:0b029fa36e202fdb1863f45d85093660bf08d0ebc39a9480727be520c748849d",
+    "expected_state": "RIGHT_CLUSTER_BOUNDARY_WEIGHT_CLIFF_CONFIRMED",
+    "expected_boundary_edge_count": 18,
+    "expected_high_candidate_l1_count": 10
+  },
+  "surface": "/root/npc_gate_01/npc_gate_01_gate8_export/Skeleton3D/Human_female_sportsuit01_gate8_export#0",
+  "cluster_vertices": [259, 758, 1510, 1511],
+  "coherent_anchor": 416,
+  "consensus_neighbor_l1_max": 0.10,
+  "target_edge": [416, 758],
+  "line_search": {
+    "alpha_step": 0.01,
+    "minimum_useful_alpha": 0.05,
+    "boundary_l1_worsening_tolerance": 0.000001,
+    "minimum_target_edge_improvement": 0.001
+  },
+  "rails": {
+    "canonical_glb_modified": false,
+    "skin_rest_modified": false,
+    "runtime_npc_modified": false,
+    "navigation_modified": false,
+    "traffic_modified": false,
+    "geography_modified": false,
+    "shared_environment_modified": false,
+    "combat_modified": false,
+    "retarget_enabled": false,
+    "production_activation_allowed": false,
+    "visual_approval_allowed": false
+  },
+  "next_if_feasible": "REPLAY_54_MICROPOSES_WITH_MAX_BOUNDARY_SAFE_ALPHA",
+  "next_if_infeasible": "REJECT_LOCAL_REWEIGHT_AND_PREPARE_SOURCE_RIG_SKIN_REBUILD"
+}

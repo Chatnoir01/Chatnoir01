@@ -74,6 +74,18 @@ def main() -> int:
         digest_number["entries"]["42"]["geometry_sha256"] = 0
         expect_fail(digest_number, "JSON type drift geometry_sha256")
 
+        top_level_parallel_semantic = json.loads(json.dumps(base))
+        top_level_parallel_semantic["safe_spawn_ready"] = True
+        expect_fail(top_level_parallel_semantic, "catalog field set drift")
+
+        entry_parallel_semantic = json.loads(json.dumps(base))
+        entry_parallel_semantic["entries"]["42"]["rendered"] = True
+        expect_fail(entry_parallel_semantic, "entry field set drift")
+
+        authorization_parallel_semantic = json.loads(json.dumps(base))
+        authorization_parallel_semantic["authorization"]["playable"] = True
+        expect_fail(authorization_parallel_semantic, "authorization field set drift")
+
     print("ROAD_DESTINATION_CATALOG_JSON_CONTRACT_TEST_GREEN")
     return 0
 

@@ -50,7 +50,7 @@
     "assets/characters/civilians/civ1/source/shoes03.obj": {
       "upstream_path": "base/clothes/shoes03/shoes03.obj",
       "git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
-      "size_bytes": null
+      "size_bytes": 177420
     }
   },
   "runtime_scene": "assets/characters/civilians/civ1/civ1.tscn",
@@ -64,5 +64,5 @@
   ],
   "mixamo_payload_allowed": false,
   "blocker": "canonical_source_and_runtime_package_not_committed",
-  "next_gate": "populate source_paths from the exact pinned upstream blobs, build a canonical Godot runtime package, record sha256 for every runtime file, then set source_package_present/runtime_package_present/production_authorized/activation_ready only after the packaging validator passes --require-ready"
+  "next_gate": "prove exact pinned source acquisition in CI, then build a canonical Godot runtime package, record sha256 for every runtime file, and set source_package_present/runtime_package_present/production_authorized/activation_ready only after the packaging validator passes --require-ready"
 }

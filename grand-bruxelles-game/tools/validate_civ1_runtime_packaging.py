@@ -43,7 +43,7 @@ EXPECTED_SOURCE_MANIFEST = {
     "assets/characters/civilians/civ1/source/shoes03.obj": {
         "upstream_path": "base/clothes/shoes03/shoes03.obj",
         "git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
-        "size_bytes": None,
+        "size_bytes": 177420,
     },
 }
 
@@ -142,6 +142,9 @@ def validate(root: Path, require_ready: bool = False) -> list[str]:
             for key in ("upstream_path", "git_blob_sha1", "size_bytes"):
                 if pin.get(key) != expected_pin.get(key):
                     errors.append(f"source manifest pin drift: {rel} {key}")
+            size_bytes = pin.get("size_bytes")
+            if not isinstance(size_bytes, int) or size_bytes <= 0:
+                errors.append(f"source manifest size must be a positive integer: {rel}")
 
     canonical_prefix = "assets/characters/civilians/civ1/"
     player_forbidden = ("assets/characters/player_character.glb", "assets/characters/player/")

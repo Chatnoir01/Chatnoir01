@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import importlib
+import importlib.util
+import sys
+import traceback
+from pathlib import Path
+
+import bpy
+
+BASE_PATH = Path(__file__).with_name("generate_mpfb_gate8_glbs.py")
+SPEC = importlib.util.spec_from_file_location("grand_bruxelles_gate8_base_generator", BASE_PATH)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"cannot load Gate-8 base generator: {BASE_PATH}")
+base = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(base)
+
+# Gate-8 generation now consumes the immutable Blender Extensions release of
+# MPFB 2.0.17. The base generator previously targeted a mutable post-release
+# nightly; override only its build identity while preserving all generation
+# contracts and deterministic seeds.
+base.EXPECTED_MPFB_BUILD = "20260722"
+
+_original_export_character = base.export_character
+
+
+def _is_helper_group_name(name: str) -> bool:
+    return (
+        name in {"HelperGeometry", "JointCubes", "Mid", "Left", "Right"}
+        or name.startswith("helper-")
+        or name.startswith("joint-")
+    )
+
+
+def _helper_group_names(obj: bpy.types.Object) -> list[str]:
+    return sorted(group.name for group in obj.vertex_groups if _is_helper_group_name(group.name))
+
+
+def _helper_weighted_vertex_count(obj: bpy.types.Object) -> int:
+    helper_indices = {
+        group.index for group in obj.vertex_groups if _is_helper_group_name(group.name)
+    }
+    if not helper_indices:
+        return 0
+    count = 0
+    for vertex in obj.data.vertices:
+        if any(
+            assignment.group in helper_indices and assignment.weight > 0.0
+            for assignment in vertex.groups
+        ):
+            count += 1
+    return count
+
+
+def _remove_empty_helper_groups(obj: bpy.types.Object) -> None:
+    # MPFB's body MASK can physically remove helper vertices while leaving the
+    # now-empty HelperGeometry/JointCubes group definitions. Only remove those
+    # definitions after proving that no surviving vertex is assigned to them.
+    for group in list(obj.vertex_groups):
+        if _is_helper_group_name(group.name):
+            obj.vertex_groups.remove(group)
+
+
+def _seed_from_hierarchy(root: bpy.types.Object):
+    return next(
+        (
+            int(obj["mpfb_randomization_seed"])
+            for obj in base.descendants(root)
+            if "mpfb_randomization_seed" in obj
+        ),
+        None,
+    )
+
+
+def _delete_hierarchy(root: bpy.types.Object) -> None:
+    # Remove children first so Blender does not leave orphaned character parts.
+    for obj in reversed(base.descendants(root)):
+        if obj.name in bpy.data.objects:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+
+def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
+    mpfb = base.resolve_mpfb_module()
+    services = importlib.import_module(mpfb.__package__ + ".services")
+    ExportService = services.ExportService
+    ObjectService = services.ObjectService
+    TargetService = services.TargetService
+
+    canonical_id = root.name
+    source_seed = _seed_from_hierarchy(root)
+    if source_seed is None:
+        raise RuntimeError(f"{canonical_id}: source randomization seed missing")
+
+    export_root = ExportService.create_character_copy(
+        root,
+        name_suffix="_gate8_export",
+        place_in_collection=None,
+    )
+    export_basemesh = ObjectService.find_object_of_type_amongst_nearest_relatives(export_root)
+    if export_basemesh is None or export_basemesh.type != "MESH":
+        _delete_hierarchy(export_root)
+        raise RuntimeError(f"{canonical_id}: MPFB export copy has no basemesh")
+
+    vertices_before = len(export_basemesh.data.vertices)
+    helper_groups_before = _helper_group_names(export_basemesh)
+    helper_vertices_before = _helper_weighted_vertex_count(export_basemesh)
+    mask_modifiers_before = [
+        modifier.name for modifier in export_basemesh.modifiers if modifier.type == "MASK"
+    ]
+
+    # External engines must not receive MakeHuman modelling targets or helper
+    # geometry. MPFB's own export staging API is authoritative for this step.
+    if TargetService.has_any_shapekey(export_basemesh):
+        TargetService.bake_targets(export_basemesh)
+    ExportService.bake_modifiers_remove_helpers(
+        export_basemesh,
+        bake_masks=True,
+        bake_subdiv=False,
+        remove_helpers=True,
+        also_proxy=True,
+    )
+    bpy.context.view_layer.update()
+
+    vertices_after = len(export_basemesh.data.vertices)
+    helper_groups_after_bake = _helper_group_names(export_basemesh)
+    helper_vertices_after_bake = _helper_weighted_vertex_count(export_basemesh)
+    mask_modifiers_after = [
+        modifier.name for modifier in export_basemesh.modifiers if modifier.type == "MASK"
+    ]
+
+    if vertices_after >= vertices_before:
+        _delete_hierarchy(export_root)
+        raise RuntimeError(
+            f"{canonical_id}: helper bake did not reduce basemesh vertices "
+            f"before={vertices_before} after={vertices_after}"
+        )
+    if helper_vertices_before <= 0:
+        _delete_hierarchy(export_root)
+        raise RuntimeError(f"{canonical_id}: source helper vertex witness unexpectedly empty")
+    if helper_vertices_after_bake != 0:
+        _delete_hierarchy(export_root)
+        raise RuntimeError(
+            f"{canonical_id}: {helper_vertices_after_bake} helper-assigned vertices "
+            "survived MPFB export prep"
+        )
+    if mask_modifiers_after:
+        _delete_hierarchy(export_root)
+        raise RuntimeError(
+            f"{canonical_id}: MASK modifiers survived export prep: {mask_modifiers_after}"
+        )
+    if TargetService.has_any_shapekey(export_basemesh):
+        _delete_hierarchy(export_root)
+        raise RuntimeError(f"{canonical_id}: modelling shape keys survived export prep")
+
+    # Stale empty group definitions are not geometry, but remove them so the
+    # exported contract is unambiguous and downstream importers never see them.
+    _remove_empty_helper_groups(export_basemesh)
+    helper_groups_after = _helper_group_names(export_basemesh)
+    if helper_groups_after:
+        _delete_hierarchy(export_root)
+        raise RuntimeError(
+            f"{canonical_id}: empty helper group cleanup failed: {helper_groups_after}"
+        )
+
+    if _seed_from_hierarchy(export_root) is None:
+        export_basemesh["mpfb_randomization_seed"] = int(source_seed)
+
+    prepared_root = base.root_of(export_basemesh)
+
+    try:
+        record = _original_export_character(prepared_root, output_path)
+        # Blender can append .001 to duplicated object names while the source
+        # hierarchy still exists. Runtime identity must stay deterministic and
+        # tied to the canonical source slot, not Blender's temporary copy name.
+        record["id"] = canonical_id
+        record["seed"] = int(source_seed)
+        record.update(
+            {
+                "export_copy": True,
+                "modeling_shapekeys_baked": True,
+                "mask_modifiers_baked": True,
+                "helpers_removed": True,
+                "basemesh_vertices_before": vertices_before,
+                "basemesh_vertices_after": vertices_after,
+                "helper_vertices_before": helper_vertices_before,
+                "helper_vertices_after_bake": helper_vertices_after_bake,
+                "helper_groups_before": helper_groups_before,
+                "helper_groups_after_bake": helper_groups_after_bake,
+                "helper_groups_after": helper_groups_after,
+                "mask_modifiers_before": mask_modifiers_before,
+                "mask_modifiers_after": mask_modifiers_after,
+            }
+        )
+        base.log(
+            "EXPORT_READY "
+            f"id={record['id']} seed={record['seed']} "
+            f"vertices_before={vertices_before} vertices_after={vertices_after} "
+            f"helper_vertices_before={helper_vertices_before} "
+            f"helper_vertices_after_bake={helper_vertices_after_bake} "
+            "helpers_removed=true masks_baked=true shapekeys_baked=true"
+        )
+        return record
+    finally:
+        if prepared_root.name in bpy.data.objects:
+            _delete_hierarchy(prepared_root)
+
+
+base.export_character = export_character_ready
+
+
+if __name__ == "__main__":
+    try:
+        base.main()
+    except Exception as exc:
+        traceback.print_exc()
+        print(f"GB_GATE8 FAIL {exc}", flush=True)
+        raise SystemExit(1) from exc

@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,18 @@ def require_closed(mapping: dict[str, Any], label: str) -> None:
     for key, value in mapping.items():
         if key.endswith("_authorized") and value is not False:
             raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: {label} opened {key}")
+
+
+def _require_finite_number(value: Any, label: str) -> float | int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: {label} JSON type drift")
+    return value
+
+
+def _require_positive_int(value: Any, label: str) -> int:
+    if type(value) is not int or value <= 0:
+        raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: {label} JSON type drift")
+    return value
 
 
 def segment_intersects_rect(p0: list[float], p1: list[float], bbox: list[float]) -> bool:
@@ -211,12 +224,15 @@ def _source_road_index(source: dict[str, Any]) -> dict[int, dict[str, Any]]:
     for row in rows:
         if not isinstance(row, dict):
             raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source road row")
-        try:
-            rid = int(row.get("osm_id", 0))
-        except (TypeError, ValueError) as exc:
-            raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source road osm_id") from exc
-        if rid <= 0:
-            raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source road osm_id")
+        rid = _require_positive_int(row.get("osm_id"), "source road osm_id")
+        points = row.get("points")
+        if not isinstance(points, list) or len(points) < 2:
+            raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source geometry {rid}")
+        for point in points:
+            if not isinstance(point, list) or len(point) != 2:
+                raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: source road point JSON type drift")
+            _require_finite_number(point[0], "source road point")
+            _require_finite_number(point[1], "source road point")
         if rid in roads:
             raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: duplicate source road osm_id {rid}")
         roads[rid] = row
@@ -236,14 +252,12 @@ def _build_unchecked(source_path: Path, frame_path: Path, cell_index_path: Path)
 
     candidates = []
     for candidate in frontier.get("candidates") or []:
-        rid = int(candidate.get("road_osm_id", 0))
+        rid = _require_positive_int(candidate.get("road_osm_id"), "frontier road_osm_id")
         road = roads.get(rid)
         if not road:
             raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: missing source road {rid}")
-        points = road.get("points") or []
-        if len(points) < 2:
-            raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source geometry {rid}")
-        lambert = [[east + float(point[0]), north - float(point[1])] for point in points]
+        points = road["points"]
+        lambert = [[east + point[0], north - point[1]] for point in points]
         hits = []
         for cell in cell_rows:
             if any(segment_intersects_rect(lambert[i], lambert[i + 1], cell["bbox"]) for i in range(len(lambert) - 1)):

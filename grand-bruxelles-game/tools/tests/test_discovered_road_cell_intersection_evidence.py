@@ -92,6 +92,18 @@ def main() -> int:
     duplicate_source["roads"].append(json.loads(json.dumps(duplicate_source["roads"][0])))
     expect_fail(lambda: tool._source_road_index(duplicate_source), "duplicate source road osm_id")
 
+    # Exact source identity is a JSON schema contract, not merely a value after
+    # Python coercion. Numeric-looking strings must never become canonical OSM ids.
+    string_id_source = json.loads(json.dumps(source_doc))
+    string_id_source["roads"][0]["osm_id"] = str(string_id_source["roads"][0]["osm_id"])
+    expect_fail(lambda: tool._source_road_index(string_id_source), "source road osm_id JSON type drift")
+
+    # Geometry coordinates are equally source-authoritative. A numeric-looking
+    # string must not be normalized by float(...) before Lambert72 intersection math.
+    string_point_source = json.loads(json.dumps(source_doc))
+    string_point_source["roads"][0]["points"][0][0] = str(string_point_source["roads"][0]["points"][0][0])
+    expect_fail(lambda: tool._source_road_index(string_point_source), "source road point JSON type drift")
+
     # The impact contract must not be allowed to self-declare a replacement
     # Lambert72 frame. Its review semantic identity is locked by the persisted
     # frame-review contract and must be independently replayed before spatial math.

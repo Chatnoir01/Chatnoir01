@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BUILDER = ROOT / "tools/build_discovered_road_cell_coverage_frontier.py"
 STRICT_VALIDATOR = ROOT / "tools/validate_discovered_road_cell_frontier_json_types.py"
+REGISTRY_VALIDATOR = ROOT / "tools/validate_registered_cell_manifest_index.py"
 SOURCE = ROOT / "data/osm/vertical_slice_01.game.json"
 FRAME = ROOT / "data/qa/osm_road_frame_correction_impact.contract.json"
 CELLS = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
@@ -56,6 +57,7 @@ def write_temp_json(directory: str, name: str, value: dict) -> Path:
 
 def main() -> int:
     builder = load(BUILDER, "road_cell_frontier_builder")
+    registry_validator = load(REGISTRY_VALIDATOR, "registered_cell_manifest_index_validator")
     frontier = builder.build_frontier(SOURCE, FRAME, CELLS)
     strict_validate(frontier)
 
@@ -70,8 +72,9 @@ def main() -> int:
 
         bbox_float = json.loads(json.dumps(canonical_cells))
         bbox_float["entries"][0]["bbox"][0] = float(bbox_float["entries"][0]["bbox"][0])
+        bbox_float["semantic_sha256"] = registry_validator.semantic_sha256(bbox_float)
         expect_fail(
-            lambda: builder.load_registered_cell_ids(write_temp_json(tmp, "bbox-float.json", bbox_float)),
+            lambda: registry_validator.validate_registry(bbox_float),
             "registered cell bbox JSON type drift",
         )
 

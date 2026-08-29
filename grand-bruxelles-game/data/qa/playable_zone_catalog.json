@@ -54,6 +54,29 @@
       ]
     },
     {
+      "id": "nord_machine_labo",
+      "label": "Gare du Nord — City Machine LABO",
+      "quality": "LABO",
+      "mode": "script_zone",
+      "script": "res://game/zones/nord/nord_city_machine_zone.gd",
+      "spawn": [
+        1120.0,
+        1.05,
+        -2440.0
+      ],
+      "visual_review_only": true,
+      "status": "official_urbis_plan_visible_labo_source_validated_no_osm_no_photo_proof",
+      "requires": [
+        "res://game/zones/nord/nord_city_machine_zone.gd",
+        "res://data/urbis/nord/manifest.json",
+        "res://data/urbis/nord/buildings.game.json",
+        "res://data/urbis/nord/street_surfaces.game.json",
+        "res://data/urbis/nord/street_axes.game.json",
+        "res://data/urbis/nord/tram_network.game.json",
+        "res://data/urbis/nord/train_network.game.json"
+      ]
+    },
+    {
       "id": "anneessens",
       "label": "Anneessens",
       "quality": "LABO",

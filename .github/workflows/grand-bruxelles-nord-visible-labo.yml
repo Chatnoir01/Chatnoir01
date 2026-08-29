@@ -1,0 +1,81 @@
+name: Grand Bruxelles Gare du Nord Visible LABO
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/zones/nord/nord_city_machine_zone.gd'
+      - 'grand-bruxelles-game/game/tests/nord_city_machine_labo_test.gd'
+      - 'grand-bruxelles-game/tools/city_machine/test_nord_visible_labo_onboarding.py'
+      - 'grand-bruxelles-game/data/qa/playable_zone_catalog.json'
+      - 'grand-bruxelles-game/data/urbis/nord/**'
+      - '.github/workflows/grand-bruxelles-nord-visible-labo.yml'
+  push:
+    branches:
+      - feat/gare-du-nord-source-truth
+    paths:
+      - 'grand-bruxelles-game/game/zones/nord/nord_city_machine_zone.gd'
+      - 'grand-bruxelles-game/game/tests/nord_city_machine_labo_test.gd'
+      - 'grand-bruxelles-game/tools/city_machine/test_nord_visible_labo_onboarding.py'
+      - 'grand-bruxelles-game/data/qa/playable_zone_catalog.json'
+      - '.github/workflows/grand-bruxelles-nord-visible-labo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nord-visible-labo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact PR head and source data
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/validate_nord_city_machine_data.py data/urbis/nord
+          python tools/city_machine/test_nord_visible_labo_onboarding.py
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/nord-visible-labo-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/nord-visible-labo-import.log
+
+      - name: Prove Nord official geometry loads visibly
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 180s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/nord_city_machine_labo_test.gd 2>&1 | tee /tmp/nord-visible-labo.log
+          grep -q 'NORD_CITY_MACHINE_LABO_OK' /tmp/nord-visible-labo.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/nord-visible-labo.log
+
+      - name: Upload Nord LABO diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nord-visible-labo-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            /tmp/nord-visible-labo-import.log
+            /tmp/nord-visible-labo.log

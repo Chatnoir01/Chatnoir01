@@ -35,6 +35,28 @@ def test_invalid_scene_fallback_clears_state_and_retries_binding() -> None:
     assert 'call_deferred("_try_bind")' in invalid_scene_block
 
 
+def test_removed_furniture_root_is_rebuilt_while_scene_stays_bound() -> None:
+    source = _source()
+    process_body = _function_body(source, "func _process(_delta: float) -> void:")
+    recovery_block = process_body.split("if not is_instance_valid(_player):", 1)[1]
+    assert "if not is_instance_valid(_root):" in recovery_block
+    root_block = recovery_block.split("if not is_instance_valid(_root):", 1)[1].split(
+        "\n    if is_instance_valid(_root) and is_instance_valid(_player):", 1
+    )[0]
+    assert "_build_once()" in root_block
+
+
+def test_detached_furniture_root_is_released_and_rebuilt() -> None:
+    source = _source()
+    process_body = _function_body(source, "func _process(_delta: float) -> void:")
+    assert "_root.get_parent() != _scene" in process_body
+    detached_block = process_body.split("_root.get_parent() != _scene", 1)[1].split(
+        "\n    if is_instance_valid(_root) and is_instance_valid(_player):", 1
+    )[0]
+    assert "_release_owned_root()" in detached_block
+    assert "_build_once()" in detached_block
+
+
 def test_node_removed_path_releases_owned_state_and_rearms_binding() -> None:
     source = _source()
     handler = _function_body(source, "func _on_tree_node_removed(node: Node) -> void:")

@@ -84,29 +84,19 @@ def main() -> int:
     tampered_cells["entries"][0]["manifest_path"] = "data/cell_manifests/../../qa/osm_road_frame_correction_impact.contract.json"
     expect_fail(lambda: tool._cell_rows(ROOT, tampered_cells), "cell manifest path drift")
 
-    # Source road identity must be one-to-one. A dict comprehension silently
-    # overwrites duplicate OSM ids and can make intersection evidence depend on
-    # source row order rather than an exact source identity.
     source_doc = json.loads(SOURCE.read_text(encoding="utf-8"))
     duplicate_source = json.loads(json.dumps(source_doc))
     duplicate_source["roads"].append(json.loads(json.dumps(duplicate_source["roads"][0])))
     expect_fail(lambda: tool._source_road_index(duplicate_source), "duplicate source road osm_id")
 
-    # Exact source identity is a JSON schema contract, not merely a value after
-    # Python coercion. Numeric-looking strings must never become canonical OSM ids.
     string_id_source = json.loads(json.dumps(source_doc))
     string_id_source["roads"][0]["osm_id"] = str(string_id_source["roads"][0]["osm_id"])
     expect_fail(lambda: tool._source_road_index(string_id_source), "source road osm_id JSON type drift")
 
-    # Geometry coordinates are equally source-authoritative. A numeric-looking
-    # string must not be normalized by float(...) before Lambert72 intersection math.
     string_point_source = json.loads(json.dumps(source_doc))
     string_point_source["roads"][0]["points"][0][0] = str(string_point_source["roads"][0]["points"][0][0])
     expect_fail(lambda: tool._source_road_index(string_point_source), "source road point JSON type drift")
 
-    # The impact contract must not be allowed to self-declare a replacement
-    # Lambert72 frame. Its review semantic identity is locked by the persisted
-    # frame-review contract and must be independently replayed before spatial math.
     frame_doc = json.loads(FRAME.read_text(encoding="utf-8"))
     tampered_frame = json.loads(json.dumps(frame_doc))
     tampered_frame["frame_review"]["review_semantic_sha256"] = "0" * 64
@@ -116,10 +106,26 @@ def main() -> int:
         tampered_frame_path.write_text(json.dumps(tampered_frame), encoding="utf-8")
         expect_fail(lambda: tool._locked_frame(SOURCE, tampered_frame_path, CELLS), "frame review semantic drift")
 
-    # The intersection consumer must independently replay the canonical semantic
-    # identity of the registered-cell index. Matching two declared digest fields
-    # is insufficient because a semantically altered index could otherwise retain
-    # the expected digest and be accepted by this consumer.
+    # Frame origin values are exact JSON-schema evidence. Numeric-looking strings
+    # must not be normalized by float(...) before the locked review comparison.
+    string_frame_origin = json.loads(json.dumps(frame_doc))
+    string_frame_origin["frame_review"]["origin_easting_m"] = str(string_frame_origin["frame_review"]["origin_easting_m"])
+    with tempfile.TemporaryDirectory() as td:
+        string_frame_path = Path(td) / FRAME.name
+        string_frame_path.write_text(json.dumps(string_frame_origin), encoding="utf-8")
+        expect_fail(lambda: tool._locked_frame(SOURCE, string_frame_path, CELLS), "frame origin JSON type drift")
+
+    # Registered-cell accounting is also exact evidence. A numeric-looking string
+    # must not become a legitimate count through int(...) normalization.
+    string_cell_count_frame = json.loads(json.dumps(frame_doc))
+    string_cell_count_frame["registered_cell_index"]["registered_cell_count"] = str(
+        string_cell_count_frame["registered_cell_index"]["registered_cell_count"]
+    )
+    with tempfile.TemporaryDirectory() as td:
+        string_count_path = Path(td) / FRAME.name
+        string_count_path.write_text(json.dumps(string_cell_count_frame), encoding="utf-8")
+        expect_fail(lambda: tool._locked_frame(SOURCE, string_count_path, CELLS), "registered cell count JSON type drift")
+
     tampered_cells = json.loads(json.dumps(cell_index))
     tampered_cells["entries"][0]["maturity_state"] = "tampered-but-declared-hash-unchanged"
     with tempfile.TemporaryDirectory() as td:

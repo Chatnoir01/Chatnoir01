@@ -6,7 +6,9 @@ on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml"
+      - ".github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml"
       - ".github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py"
       - "grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py"
   workflow_dispatch:
 
@@ -42,7 +44,9 @@ jobs:
           git diff --name-only origin/main...HEAD | sort > /tmp/actual.txt
           printf '%s\n' \
             '.github/workflows/grand-bruxelles-gate8-exporter-basis-origin-contract.yml' \
+            '.github/workflows/grand-bruxelles-gate8-source-asset-weight-origin.yml' \
             '.github/workflows/grand-bruxelles-gate8-source-weight-transfer.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_source_asset_weight_origin_test.py' \
             'grand-bruxelles-game/game/tests/gate8_variant01_source_weight_transfer_probe.py' | sort > /tmp/expected.txt
           diff -u /tmp/expected.txt /tmp/actual.txt
 

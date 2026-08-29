@@ -48,6 +48,19 @@ def test_cell_id_bbox_disagreement_fails_closed() -> None:
         raise AssertionError("cell_id/bbox disagreement did not fail closed")
 
 
+def test_zero_padded_cell_id_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    destination = readiness["destinations"][0]
+    assert destination["cell_id"] == "bxl-e147500-n169500-s500"
+    destination["cell_id"] = "bxl-e0147500-n0169500-s0500"
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "non-canonical cell id" in str(exc)
+    else:
+        raise AssertionError("zero-padded cell_id was normalized into canonical identity")
+
+
 def test_boolean_road_osm_id_fails_closed() -> None:
     readiness = json.loads(READINESS.read_text(encoding="utf-8"))
     destination = readiness["destinations"][0]
@@ -101,6 +114,7 @@ if __name__ == "__main__":
     test_real_readiness_grid_identity_is_exact()
     test_forged_grid_cell_id_fails_closed()
     test_cell_id_bbox_disagreement_fails_closed()
+    test_zero_padded_cell_id_fails_closed()
     test_boolean_road_osm_id_fails_closed()
     test_string_road_osm_id_fails_closed()
     test_string_destination_count_fails_closed()

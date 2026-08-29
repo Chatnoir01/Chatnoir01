@@ -70,7 +70,7 @@ func _run() -> void:
         return
     if not _validate_bound_runtime(runtime, "first scene"):
         return
-    var first_count := runtime.applied_building_count()
+    var first_count: int = int(runtime.applied_building_count())
 
     # Autoloads survive production scene replacement. The facade runtime must
     # release old scene references, keep lifecycle watchers armed and bind the

@@ -67,26 +67,53 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          : > /tmp/evidence-preflight.log
+          gh_api_retry() {
+            local endpoint="$1"
+            local output="$2"
+            local attempt rc
+            for attempt in 1 2 3 4; do
+              echo "attempt=${attempt} endpoint=${endpoint}" | tee -a /tmp/evidence-preflight.log
+              set +e
+              gh api "$endpoint" > "$output" 2>> /tmp/evidence-preflight.log
+              rc=$?
+              set -e
+              if test "$rc" -eq 0; then
+                echo "success endpoint=${endpoint}" | tee -a /tmp/evidence-preflight.log
+                return 0
+              fi
+              echo "failure rc=${rc} endpoint=${endpoint}" | tee -a /tmp/evidence-preflight.log
+              sleep "$attempt"
+            done
+            return "$rc"
+          }
+
           for pair in \
             "$TARGET_ARTIFACT_ID|$TARGET_ARTIFACT_DIGEST" \
             "$BOUNDARY_ARTIFACT_ID|$BOUNDARY_ARTIFACT_DIGEST"; do
             ID="${pair%%|*}"; EXPECTED="${pair#*|}"
-            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" > "/tmp/artifact-${ID}.json"
-            python3 - "/tmp/artifact-${ID}.json" "$EXPECTED" <<'PY'
+            gh_api_retry "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" "/tmp/artifact-${ID}.json"
+            python3 - "/tmp/artifact-${ID}.json" "$EXPECTED" <<'PY' 2>&1 | tee -a /tmp/evidence-preflight.log
           import json,sys
           a=json.load(open(sys.argv[1]))
           assert not a['expired']
           assert a['digest']==sys.argv[2]
+          print(f"artifact_id={a['id']} expired={a['expired']} digest={a['digest']}")
           PY
           done
+
           rm -rf /tmp/target-evidence "$PROJECT"
           mkdir -p /tmp/target-evidence "$PROJECT/assets" "$PROJECT/game/tests"
-          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/target.zip
+          gh_api_retry "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" /tmp/target.zip
+          unzip -l /tmp/target.zip | tee /tmp/target-artifact-manifest.txt
           unzip -q /tmp/target.zip -d /tmp/target-evidence
           TARGET="$(find /tmp/target-evidence -type f -name npc_gate_01.glb -print -quit)"
           test -n "$TARGET"
-          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
-          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          ACTUAL_SHA256="$(sha256sum "$TARGET" | awk '{print $1}')"
+          ACTUAL_SIZE="$(stat -c '%s' "$TARGET")"
+          printf 'target=%s\nsha256=%s\nsize_bytes=%s\n' "$TARGET" "$ACTUAL_SHA256" "$ACTUAL_SIZE" | tee -a /tmp/evidence-preflight.log
+          test "$ACTUAL_SHA256" = "$TARGET_SHA256"
+          test "$ACTUAL_SIZE" = "$TARGET_SIZE_BYTES"
           cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
           cp grand-bruxelles-game/data/qa/gate8_variant01_right_boundary_preserving_line_search.json "$PROJECT/contract.json"
           cp grand-bruxelles-game/game/tests/gate8_variant01_right_boundary_preserving_line_search_test.gd "$PROJECT/game/tests/test.gd"
@@ -166,6 +193,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
           path: |
+            /tmp/artifact-*.json
+            /tmp/evidence-preflight.log
+            /tmp/target-artifact-manifest.txt
             /tmp/result.json
             /tmp/result-missing.txt
             /tmp/line-search.log

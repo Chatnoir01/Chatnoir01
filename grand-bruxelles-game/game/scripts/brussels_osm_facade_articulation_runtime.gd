@@ -5,6 +5,7 @@ const BASE_FAMILY := "brussels_osm_facade_surface_v1"
 const EXPECTED_MAX_PALETTE := 6
 
 var _buildings: Array[CSGPolygon3D] = []
+var _buildings_root: Node3D = null
 var _baseline_materials: Dictionary = {}
 var _owned_materials: Dictionary = {}
 var _candidate_materials: Dictionary = {}
@@ -21,17 +22,36 @@ var _tearing_down := false
 func _ready() -> void:
     _tearing_down = false
     process_mode = Node.PROCESS_MODE_ALWAYS
-    var tree := get_tree()
-    if tree != null and not tree.node_added.is_connected(_on_node_added):
-        tree.node_added.connect(_on_node_added)
+    _start_watching()
     _schedule_apply()
 
 func _exit_tree() -> void:
     _tearing_down = true
     _bind_scheduled = false
     _release_material_ownership()
-    _disconnect_mount_listener()
+    _buildings_root = null
+    _stop_watching()
     _disconnect_base_runtime()
+
+func _start_watching() -> void:
+    if _tearing_down or not is_inside_tree():
+        return
+    var tree := get_tree()
+    if tree == null:
+        return
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+    if not tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.connect(_on_node_removed)
+
+func _stop_watching() -> void:
+    var tree := get_tree()
+    if tree == null:
+        return
+    if tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+    if tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.disconnect(_on_node_removed)
 
 func _material_key(material: ShaderMaterial) -> String:
     var color_variant: Variant = material.get_shader_parameter("base_color")
@@ -67,8 +87,6 @@ func _find_existing_buildings_root() -> Node3D:
     var tree := get_tree()
     if tree == null:
         return null
-    # Bounded recovery for an already-mounted scene (including nested SubViewport
-    # harnesses). Per-node events never recurse through the tree.
     for candidate: Node in tree.root.find_children("GeneratedBuildings", "Node3D", true, false):
         if _valid_buildings_root(candidate):
             return candidate as Node3D
@@ -105,16 +123,24 @@ func _on_node_added(node: Node) -> void:
     if _valid_buildings_root(node):
         _schedule_apply()
 
+func _on_node_removed(node: Node) -> void:
+    if _tearing_down or not is_inside_tree() or _failed:
+        return
+    if _buildings_root == null or node != _buildings_root:
+        return
+    _release_material_ownership()
+    _buildings_root = null
+    _ready_complete = false
+    _bind_scheduled = false
+    _start_watching()
+    _connect_base_runtime()
+    call_deferred("_try_apply")
+
 func _schedule_apply() -> void:
     if _tearing_down or not is_inside_tree() or _bind_scheduled or _ready_complete or _failed:
         return
     _bind_scheduled = true
     call_deferred("_try_apply")
-
-func _disconnect_mount_listener() -> void:
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
 
 func _release_material_ownership() -> void:
     for building: CSGPolygon3D in _buildings:
@@ -123,8 +149,6 @@ func _release_material_ownership() -> void:
         var instance_id := building.get_instance_id()
         var baseline := _baseline_materials.get(instance_id) as Material
         var owned := _owned_materials.get(instance_id) as Material
-        # Restore only while the building still carries the exact material this
-        # runtime installed. A later owner is never overwritten during teardown.
         if owned != null and building.material == owned and baseline != null:
             building.material = baseline
         if str(building.get_meta("facade_articulation_family", "")) == MATERIAL_FACTORY.MATERIAL_FAMILY:
@@ -146,7 +170,7 @@ func _fail(message: String) -> void:
     push_error("Brussels OSM facade articulation runtime: %s" % message)
     _failed = true
     _ready_complete = true
-    _disconnect_mount_listener()
+    _stop_watching()
     _disconnect_base_runtime()
 
 func _try_apply() -> void:
@@ -191,11 +215,10 @@ func _try_apply() -> void:
     if _candidate_materials.size() > EXPECTED_MAX_PALETTE:
         _fail("invalid production building/palette state")
         return
+    _buildings_root = buildings_root
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
-    _disconnect_mount_listener()
-    _disconnect_base_runtime()
-    print("BRUSSELS_OSM_FACADE_ARTICULATION_READY: buildings=%d materials=%d family=%s baseline=%s geometry_changed=false event_driven=true" % [_buildings.size(), _candidate_materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY, BASE_FAMILY])
+    print("BRUSSELS_OSM_FACADE_ARTICULATION_READY: buildings=%d materials=%d family=%s baseline=%s geometry_changed=false event_driven=true scene_rebindable=true" % [_buildings.size(), _candidate_materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY, BASE_FAMILY])
 
 func _set_material_state(enabled: bool) -> void:
     if _tearing_down or not is_inside_tree():

@@ -40,6 +40,8 @@ func _process(_delta: float) -> void:
         return
     if not is_instance_valid(_player):
         _player = _scene.get_node_or_null("Player") as Node3D
+    if not is_instance_valid(_root):
+        _build_once()
     if is_instance_valid(_root) and is_instance_valid(_player):
         _root.visible = Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
 

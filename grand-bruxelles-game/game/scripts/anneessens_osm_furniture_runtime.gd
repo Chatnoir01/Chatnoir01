@@ -34,7 +34,9 @@ func _process(_delta: float) -> void:
     if _tearing_down or not is_inside_tree():
         return
     if not is_instance_valid(_scene):
+        _reset()
         _start_watching()
+        call_deferred("_try_bind")
         return
     if not is_instance_valid(_player):
         _player = _scene.get_node_or_null("Player") as Node3D

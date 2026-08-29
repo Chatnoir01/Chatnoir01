@@ -32,6 +32,9 @@ PROXY_ROWS = {
 POSITION_TOL = 1e-4
 WEIGHT_TOL = 1e-4
 CLIFF_L1 = 1.7
+MPFB_RELEASE = "2.0.17"
+MPFB_RELEASE_COMMIT = "80919fa"
+MPFB_WEIGHT_CUTOFF = 0.001
 
 
 class StopAfterVariantOne(RuntimeError):
@@ -88,22 +91,51 @@ def find_hm08(root: bpy.types.Object) -> bpy.types.Object:
     return matches[0]
 
 
-def normalize_positive(values: dict[str, float]) -> dict[str, float]:
-    positive = {name: max(0.0, float(value)) for name, value in values.items() if value > 0.0}
-    total = sum(positive.values())
-    if total <= 0.0:
-        return {}
-    return {name: value / total for name, value in positive.items() if value / total > 0.0}
+def find_effective_rig(root: bpy.types.Object, sportsuit: bpy.types.Object) -> bpy.types.Object:
+    candidates: dict[int, bpy.types.Object] = {}
+    for modifier in sportsuit.modifiers:
+        rig = getattr(modifier, "object", None)
+        if modifier.type == "ARMATURE" and rig is not None and rig.type == "ARMATURE":
+            candidates[id(rig)] = rig
+    if not candidates:
+        for obj in [root, *ready.base.descendants(root)]:
+            if obj.type == "ARMATURE":
+                candidates[id(obj)] = obj
+    if len(candidates) != 1:
+        raise RuntimeError(f"expected exactly one effective rig, got {[obj.name for obj in candidates.values()]}")
+    return next(iter(candidates.values()))
+
+
+def mpfb_eligible_weights(values: dict[str, float], rig_bones: set[str]) -> dict[str, float]:
+    return {
+        name: float(value)
+        for name, value in values.items()
+        if name in rig_bones or name.startswith("DEF-") or name.startswith("mhmask-")
+    }
+
+
+def mpfb_interpolate(body_inputs: list[dict[str, Any]], rig_bones: set[str]) -> tuple[dict[str, float], float]:
+    raw: dict[str, float] = {}
+    coefficient_sum = sum(float(record["coefficient"]) for record in body_inputs)
+    if abs(coefficient_sum) <= 1e-12:
+        raise RuntimeError("MHCLO coefficient sum is zero")
+    for record in body_inputs:
+        coefficient = float(record["coefficient"])
+        for bone, value in mpfb_eligible_weights(record["weights"], rig_bones).items():
+            raw[bone] = raw.get(bone, 0.0) + coefficient * float(value)
+    averaged = {bone: value / coefficient_sum for bone, value in raw.items()}
+    return ({bone: value for bone, value in averaged.items() if value > MPFB_WEIGHT_CUTOFF}, coefficient_sum)
 
 
 def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
     sportsuit = find_sportsuit(root)
     body = find_hm08(root)
+    rig = find_effective_rig(root, sportsuit)
+    rig_bones = {str(bone.name) for bone in rig.data.bones}
     endpoint_records: dict[str, Any] = {}
     for endpoint, proxy in PROXY_ROWS.items():
         observed = weights(sportsuit, sportsuit.data.vertices[endpoint])
-        body_records = []
-        linear: dict[str, float] = {}
+        body_records: list[dict[str, Any]] = []
         for body_vertex, coefficient in zip(proxy["body_vertices"], proxy["barycentric"]):
             source = weights(body, body.data.vertices[body_vertex])
             body_records.append(
@@ -111,52 +143,69 @@ def proxy_interpolation_trace(root: bpy.types.Object) -> dict[str, Any]:
                     "vertex": int(body_vertex),
                     "coefficient": float(coefficient),
                     "weights": source,
+                    "mpfb_eligible_weights": mpfb_eligible_weights(source, rig_bones),
                 }
             )
-            for bone, value in source.items():
-                linear[bone] = linear.get(bone, 0.0) + float(coefficient) * float(value)
-        linear = {bone: value for bone, value in linear.items() if abs(value) > 1e-12}
-        positive_normalized = normalize_positive(linear)
+        interpolated, coefficient_sum = mpfb_interpolate(body_records, rig_bones)
         endpoint_records[str(endpoint)] = {
             "sportsuit_vertex": int(endpoint),
             "observed_weights": observed,
             "body_inputs": body_records,
-            "linear_interpolated_weights": linear,
-            "positive_normalized_interpolated_weights": positive_normalized,
-            "linear_to_observed_l1": l1(linear, observed),
-            "positive_normalized_to_observed_l1": l1(positive_normalized, observed),
+            "mhclo_coefficient_sum": coefficient_sum,
+            "mpfb_interpolated_weights": interpolated,
+            "mpfb_to_observed_l1": l1(interpolated, observed),
         }
-    records = list(endpoint_records.values())
-    observed_cliff = l1(records[0]["observed_weights"], records[1]["observed_weights"])
-    linear_cliff = l1(records[0]["linear_interpolated_weights"], records[1]["linear_interpolated_weights"])
-    normalized_cliff = l1(
-        records[0]["positive_normalized_interpolated_weights"],
-        records[1]["positive_normalized_interpolated_weights"],
-    )
-    max_linear_residual = max(record["linear_to_observed_l1"] for record in records)
-    max_normalized_residual = max(record["positive_normalized_to_observed_l1"] for record in records)
-    if max_normalized_residual <= WEIGHT_TOL:
-        state = "SOURCE_SPORTSUIT_WEIGHTS_MATCH_POSITIVE_NORMALIZED_PROXY_INTERPOLATION"
-        next_axis = "TRACE_HM08_SOURCE_WEIGHT_INPUTS"
-    elif max_linear_residual <= WEIGHT_TOL:
-        state = "SOURCE_SPORTSUIT_WEIGHTS_MATCH_LINEAR_PROXY_INTERPOLATION"
+
+    a, b = endpoint_records[str(PREPARED_ENDPOINTS[0])], endpoint_records[str(PREPARED_ENDPOINTS[1])]
+    observed_cliff = l1(a["observed_weights"], b["observed_weights"])
+    mpfb_cliff = l1(a["mpfb_interpolated_weights"], b["mpfb_interpolated_weights"])
+    cross_pairs: list[dict[str, Any]] = []
+    for source_a in a["body_inputs"]:
+        for source_b in b["body_inputs"]:
+            cross_pairs.append(
+                {
+                    "endpoint_a_body_vertex": int(source_a["vertex"]),
+                    "endpoint_b_body_vertex": int(source_b["vertex"]),
+                    "deform_weight_l1": l1(source_a["mpfb_eligible_weights"], source_b["mpfb_eligible_weights"]),
+                }
+            )
+    cross_min = min(record["deform_weight_l1"] for record in cross_pairs)
+    cross_max = max(record["deform_weight_l1"] for record in cross_pairs)
+    max_mpfb_residual = max(record["mpfb_to_observed_l1"] for record in endpoint_records.values())
+    amplified_beyond_source_cross_max = mpfb_cliff > cross_max + WEIGHT_TOL
+
+    if max_mpfb_residual <= WEIGHT_TOL and cross_min >= CLIFF_L1 and not amplified_beyond_source_cross_max:
+        state = "SOURCE_SPORTSUIT_CLIFF_INHERITED_FROM_HM08_INPUT_REGIONS"
+        next_axis = "TRACE_MHCLO_NATIVE_EDGE_SOURCE_REGION_MAPPING"
+    elif max_mpfb_residual <= WEIGHT_TOL:
+        state = "SOURCE_SPORTSUIT_WEIGHTS_MATCH_MPF_B_INTERPOLATION"
         next_axis = "TRACE_HM08_SOURCE_WEIGHT_INPUTS"
     else:
-        state = "SOURCE_SPORTSUIT_WEIGHTS_NOT_EXPLAINED_BY_MHCLO_LINEAR_INTERPOLATION"
+        state = "SOURCE_SPORTSUIT_WEIGHTS_NOT_EXPLAINED_BY_MPF_B_2_0_17_INTERPOLATION"
         next_axis = "TRACE_MPF_B_PROXY_WEIGHT_TRANSFER_IMPLEMENTATION"
+
     return {
         "diagnostic_state": state,
         "next_safe_axis": next_axis,
+        "mpfb_release": MPFB_RELEASE,
+        "mpfb_release_commit": MPFB_RELEASE_COMMIT,
+        "mpfb_algorithm": "ClothesService.interpolate_weights",
+        "mpfb_group_policy": "rig bones plus DEF-/mhmask- only",
+        "mpfb_weight_cutoff": MPFB_WEIGHT_CUTOFF,
+        "rig_object": rig.name,
+        "rig_bone_count": len(rig_bones),
         "body_object": body.name,
         "body_vertex_count": len(body.data.vertices),
         "sportsuit_object": sportsuit.name,
         "sportsuit_vertex_count": len(sportsuit.data.vertices),
         "endpoint_records": endpoint_records,
         "observed_endpoint_cliff_l1": observed_cliff,
-        "linear_interpolated_endpoint_cliff_l1": linear_cliff,
-        "positive_normalized_endpoint_cliff_l1": normalized_cliff,
-        "max_linear_to_observed_l1": max_linear_residual,
-        "max_positive_normalized_to_observed_l1": max_normalized_residual,
+        "mpfb_interpolated_endpoint_cliff_l1": mpfb_cliff,
+        "max_mpfb_to_observed_l1": max_mpfb_residual,
+        "body_input_cross_endpoint_pairs": cross_pairs,
+        "body_input_cross_endpoint_min_l1": cross_min,
+        "body_input_cross_endpoint_max_l1": cross_max,
+        "mpfb_cliff_amplified_beyond_source_cross_max": amplified_beyond_source_cross_max,
     }
 
 

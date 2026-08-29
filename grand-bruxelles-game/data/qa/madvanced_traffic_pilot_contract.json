@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "base_main_sha": "51e5f163688ea9fbbf9026c4d11282a86adba4f6",
+  "purpose": "Evaluate the published MAdvanced Vehicle System traffic/path layer as a development donor without replacing Grand Bruxelles OSM/UrbIS roads, TrafficManager, or canonical vehicles.",
+  "upstream": {
+    "repository": "https://github.com/Dente222/MAdvanced-Vehicle-Controller.git",
+    "asset_library_version": "1.2.4",
+    "commit": "46179c69f4c9f0af259a7634ed83cca3791d6669",
+    "license": "MIT"
+  },
+  "engine": {
+    "version": "4.7.1-stable",
+    "renderer": "gl_compatibility",
+    "project_name": "Grand Bruxelles Game"
+  },
+  "probe_scripts": [
+    "addons/M.A.V.S/Scripts/MPathManager.gd",
+    "addons/M.A.V.S/Scripts/Path_Follow_Setup.gd",
+    "addons/M.A.V.S/Scripts/traffic_spawner.gd"
+  ],
+  "required_classes": ["MPathManager", "MTrafficTarget", "MTrafficSpawner"],
+  "vehicle_contract_properties": ["take_speed_from_target", "boost_speed", "target_ray", "despawn_allowed"],
+  "policy": {
+    "canonical_addon_install_authorized": false,
+    "runtime_authorized": false,
+    "export_authorized": false,
+    "replace_osm_urbis_geometry_authorized": false,
+    "replace_existing_traffic_manager_authorized": false,
+    "replace_existing_vehicle_runtime_authorized": false,
+    "third_party_visual_assets_authorized": false,
+    "ci_temp_copy_only": true
+  },
+  "success_criteria": {
+    "published_source_pin_exact": true,
+    "godot_4_7_1_parses_logic_subset": true,
+    "isolated_probe_uses_gl_compatibility": true,
+    "path_manager_is_path3d": true,
+    "traffic_target_is_pathfollow3d": true,
+    "spawner_accepts_path3d": true,
+    "vehicle_coupling_is_measured": true,
+    "canonical_project_remains_clean": true
+  }
+}

@@ -52,6 +52,14 @@ def main() -> int:
         "source evidence binding drift",
     )
 
+    injected = json.loads(json.dumps(frontier))
+    injected["noncanonical_extension"] = {"source_registration_ready": True}
+    injected["frontier_sha256"] = builder.sha256_json({k: v for k, v in injected.items() if k != "frontier_sha256"})
+    expect_fail(
+        lambda: validator.validate_source_binding(injected, SOURCE, FRAME, CELLS),
+        "frontier source binding drift",
+    )
+
     print("DISCOVERED_ROAD_CELL_COVERAGE_SOURCE_BINDING_TEST_GREEN")
     return 0
 

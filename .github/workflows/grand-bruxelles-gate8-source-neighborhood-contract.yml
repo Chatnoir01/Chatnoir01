@@ -1,0 +1,168 @@
+name: Grand Bruxelles Gate-8 Source Neighborhood Contract
+
+on:
+  push:
+    branches: ["npc/gate8-source-neighborhood-a67bf92"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-source-neighborhood-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  source-neighborhood-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_MAIN_SHA: "a67bf92b84192a7bf9def5589da44cd55849fa14"
+      SOURCE_RUN_ID: "33269541000"
+      SOURCE_HEAD_SHA: "207f1547820db5a68ea9cba9e845e77c2f4c6262"
+      SOURCE_ARTIFACT_ID: "9719687258"
+      SOURCE_ARTIFACT_DIGEST: "sha256:e72eb7c0ebb1d9548db0f0e60dd33c2a0add31f49fb951a278d3a0e4945610e6"
+      RESULT_PATH: "/tmp/gate8-source-neighborhood/source-weight-transfer-result.json"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and one-file Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual.txt
+          printf '%s\n' '.github/workflows/grand-bruxelles-gate8-source-neighborhood-contract.yml' > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+
+      - name: Download exact RED scientific artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-source-neighborhood/artifact
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}" > /tmp/gate8-source-neighborhood/artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-source-neighborhood/artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['SOURCE_ARTIFACT_DIGEST']
+          assert int(a['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert a['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > /tmp/gate8-source-neighborhood/artifact.zip
+          unzip -q /tmp/gate8-source-neighborhood/artifact.zip -d /tmp/gate8-source-neighborhood/artifact
+          cp /tmp/gate8-source-neighborhood/artifact/source-weight-transfer-result.json "$RESULT_PATH"
+          test -s "$RESULT_PATH"
+
+      - name: Verify exact inherited source-neighborhood contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['RESULT_PATH']))
+          assert r['format']=='grand-bruxelles-gate8-variant01-source-weight-transfer-v3'
+          assert r['generated_glb_sha256']=='912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9'
+          assert r['generated_glb_size_bytes']==15580240
+          assert r['generated_seed']==53756543
+          assert r['prepared_native_edge']==[486,601]
+          assert r['prepared_edge_weight_l1'] >= 1.7
+          assert r['position_tolerance_m']==0.0001
+          assert r['weight_tolerance_l1']==0.0001
+          assert r['cliff_threshold_l1']==1.7
+          assert r['diagnostic_state']=='SOURCE_SPORTSUIT_CLIFF_INHERITED_FROM_HM08_INPUT_REGIONS'
+          assert r['next_safe_axis']=='TRACE_MHCLO_NATIVE_EDGE_SOURCE_REGION_MAPPING'
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+
+          p=r['proxy_interpolation']
+          assert p['diagnostic_state']=='SOURCE_SPORTSUIT_CLIFF_INHERITED_FROM_HM08_INPUT_REGIONS'
+          assert p['next_safe_axis']=='TRACE_MHCLO_NATIVE_EDGE_SOURCE_REGION_MAPPING'
+          assert p['mpfb_release']=='2.0.17'
+          assert p['mpfb_release_commit']=='80919fa'
+          assert p['mpfb_algorithm']=='ClothesService.interpolate_weights'
+          assert p['mpfb_weight_cutoff']==0.001
+          assert p['rig_bone_count']==53
+          assert p['body_vertex_count']==19158
+          assert p['sportsuit_vertex_count']==1797
+          assert p['max_mpfb_to_observed_l1'] <= 1e-4
+          assert p['observed_endpoint_cliff_l1'] >= 1.7
+          assert p['mpfb_interpolated_endpoint_cliff_l1'] >= 1.7
+          assert p['body_input_cross_endpoint_min_l1'] >= 1.7
+          assert p['mpfb_cliff_amplified_beyond_source_cross_max'] is False
+
+          n=p['native_edge_neighborhood']
+          assert set(n)=={'486','601'}
+          assert n['486']['native_degree']==4
+          assert n['601']['native_degree']==4
+          assert n['486']['observed_cliff_neighbor_count']==1
+          assert n['486']['mpfb_cliff_neighbor_count']==1
+          assert n['601']['observed_cliff_neighbor_count']==3
+          assert n['601']['mpfb_cliff_neighbor_count']==3
+
+          by486={edge['neighbor']:edge for edge in n['486']['neighbors']}
+          by601={edge['neighbor']:edge for edge in n['601']['neighbors']}
+          assert set(by486)=={377,379,601,864}
+          assert set(by601)=={378,486,599,615}
+          assert by486[601]['observed_is_cliff'] is True
+          assert by601[378]['observed_is_cliff'] is False
+          assert by601[486]['observed_is_cliff'] is True
+          assert by601[599]['observed_is_cliff'] is True
+          assert by601[615]['observed_is_cliff'] is True
+          assert abs(by486[601]['observed_weight_l1']-1.8260908703086898) <= 1e-12
+          assert abs(by601[599]['observed_weight_l1']-1.8041543279541656) <= 1e-12
+          assert abs(by601[615]['observed_weight_l1']-1.8065089917508885) <= 1e-12
+          assert abs(by601[378]['observed_weight_l1']-0.030131933628581464) <= 1e-12
+          for focal in ('486','601'):
+              for edge in n[focal]['neighbors']:
+                  assert edge['native_edge'] is True
+                  assert abs(edge['observed_weight_l1']-edge['mpfb_interpolated_weight_l1']) <= 1e-4
+
+          print('GATE8_SOURCE_NEIGHBORHOOD_OK',
+                '486_cliffs=',n['486']['observed_cliff_neighbor_count'],
+                '601_cliffs=',n['601']['observed_cliff_neighbor_count'],
+                'next=',r['next_safe_axis'])
+          PY
+
+      - name: Prove fail-closed activation rails remain false
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['RESULT_PATH']))
+          forbidden={
+              'canonical_asset_mutation': False,
+              'canonical_generator_mutation': False,
+              'runtime_npc_mutation': False,
+              'production_activation_allowed': False,
+              'visual_approval_allowed': False,
+          }
+          for key, expected in forbidden.items():
+              assert r[key] is expected, (key, r[key])
+          PY
+
+      - name: Upload locked neighborhood evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-source-neighborhood-contract
+          path: |
+            /tmp/gate8-source-neighborhood/source-weight-transfer-result.json
+            /tmp/gate8-source-neighborhood/artifact.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"

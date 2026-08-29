@@ -41,6 +41,13 @@ def main() -> int:
         "registered cell manifest field set drift",
     )
 
+    hidden_nested_readiness = json.loads(json.dumps(manifest))
+    hidden_nested_readiness["maturity"]["safe_spawn_ready"] = True
+    expect_fail(
+        lambda: builder.validate_registered_cell_manifest_identity(hidden_nested_readiness, row),
+        "registered cell manifest maturity field set drift",
+    )
+
     print("REGISTERED_CELL_MANIFEST_ENVELOPE_TEST_GREEN")
     return 0
 

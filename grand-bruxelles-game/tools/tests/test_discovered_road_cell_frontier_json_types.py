@@ -110,6 +110,15 @@ def main() -> int:
     rehash(candidate_manifest)
     expect_fail(lambda: strict_validate(candidate_manifest), "candidate manifest readiness drift")
 
+    candidate_membership = json.loads(json.dumps(frontier))
+    source_ids = set(candidate_membership["source_zero_intersection_road_osm_ids"])
+    replacement = max(source_ids) + 1000000
+    row = candidate_membership["candidate_cells"][0]
+    row["road_osm_ids"][0] = replacement
+    row["road_osm_ids"] = sorted(row["road_osm_ids"])
+    rehash(candidate_membership)
+    expect_fail(lambda: strict_validate(candidate_membership), "candidate road outside source set")
+
     digest_drift = json.loads(json.dumps(frontier))
     digest_drift["frontier_sha256"] = "0" * 64
     expect_fail(lambda: strict_validate(digest_drift), "frontier sha drift")

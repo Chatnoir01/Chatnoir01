@@ -15,6 +15,41 @@ from typing import Any
 
 FORMAT = "grand-bruxelles-road-destination-catalog-v1"
 SOURCE_FORMAT = "grand-bruxelles-osm-v1"
+CATALOG_FIELDS = frozenset({
+    "format",
+    "source_format",
+    "source_root",
+    "road_record_count",
+    "drivable_record_count",
+    "eligible_record_count",
+    "rejected_drivable_record_count",
+    "entry_count",
+    "duplicate_record_count",
+    "compatible_document_count",
+    "source_document_sha256",
+    "entries",
+    "authorization",
+    "catalog_sha256",
+})
+ENTRY_FIELDS = frozenset({
+    "osm_id",
+    "name",
+    "class",
+    "width",
+    "drivable",
+    "point_count",
+    "geometry_sha256",
+    "source_paths",
+    "source_file_count",
+})
+AUTHORIZATION_FIELDS = frozenset({
+    "source_lookup_only",
+    "render_authorized",
+    "collision_authorized",
+    "runtime_mount_authorized",
+    "safe_spawn_authorized",
+    "jouable_authorized",
+})
 
 
 def canonical_json(value: Any) -> str:
@@ -203,6 +238,8 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
 
 
 def validate_contract(catalog: dict[str, Any]) -> None:
+    if type(catalog) is not dict or set(catalog) != CATALOG_FIELDS:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: catalog field set drift")
     if catalog.get("format") != FORMAT:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: format drift")
     if catalog.get("source_format") != SOURCE_FORMAT or catalog.get("source_root") != "data/osm":
@@ -225,7 +262,9 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     if drivable != eligible + rejected:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: drivable/rejected accounting drift")
 
-    authorization = catalog.get("authorization", {})
+    authorization = catalog.get("authorization")
+    if type(authorization) is not dict or set(authorization) != AUTHORIZATION_FIELDS:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: authorization field set drift")
     for forbidden in (
         "render_authorized",
         "collision_authorized",
@@ -260,6 +299,8 @@ def validate_contract(catalog: dict[str, Any]) -> None:
         osm_id = int(raw_osm_id)
         if not isinstance(raw_entry, dict):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: malformed entry {raw_osm_id!r}")
+        if set(raw_entry) != ENTRY_FIELDS:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: entry field set drift {raw_osm_id!r}")
         entry_osm_id = require_json_int(raw_entry.get("osm_id"), "entry osm_id", minimum=1)
         if osm_id <= 0 or osm_id != entry_osm_id:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: OSM id key/value drift {raw_osm_id!r}")

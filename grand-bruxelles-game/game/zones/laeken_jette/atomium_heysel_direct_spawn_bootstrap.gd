@@ -17,8 +17,16 @@ func _wants_atomium(args: PackedStringArray) -> bool:
             return true
     return false
 
+func _world_root() -> Node3D:
+    for _frame: int in range(60):
+        var main := get_tree().root.find_child("Main", false, false) as Node3D
+        if main != null:
+            return main
+        await get_tree().process_frame
+    return null
+
 func _mount_district() -> void:
-    var world := get_parent() as Node3D
+    var world := await _world_root()
     if world == null:
         push_error("AtomiumHeyselDirectSpawnBootstrap: world root unavailable")
         return

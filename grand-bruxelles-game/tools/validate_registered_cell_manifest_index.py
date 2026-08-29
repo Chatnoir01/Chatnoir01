@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,17 @@ def _require_int(value: Any, label: str, *, minimum: int | None = None) -> int:
     return value
 
 
+def _require_integral_number(value: Any, label: str) -> int:
+    if type(value) not in {int, float}:
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} JSON type drift")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} non-finite drift")
+    if not numeric.is_integer():
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} integral-coordinate drift")
+    return int(numeric)
+
+
 def _validate_entry_identity(row: Any) -> None:
     if not isinstance(row, dict):
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: entry object drift")
@@ -45,12 +57,15 @@ def _validate_entry_identity(row: Any) -> None:
     if row.get("crs") != TARGET_CRS:
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: cell CRS drift")
     bbox = row.get("bbox")
-    if not isinstance(bbox, list) or len(bbox) != 4 or any(type(value) is not int for value in bbox):
-        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell bbox JSON type drift")
-    east, north, east_max, north_max = bbox
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell bbox shape drift")
+    east, north, east_max, north_max = [
+        _require_integral_number(value, f"registered cell bbox[{index}]")
+        for index, value in enumerate(bbox)
+    ]
     if east % CELL_SIZE_M != 0 or north % CELL_SIZE_M != 0:
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell bbox grid alignment drift")
-    if [east, north, east + CELL_SIZE_M, north + CELL_SIZE_M] != bbox:
+    if [east, north, east + CELL_SIZE_M, north + CELL_SIZE_M] != [east, north, east_max, north_max]:
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell bbox identity drift")
     if cell_id != f"bxl-e{east}-n{north}-s{CELL_SIZE_M}":
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell id/bbox identity drift")

@@ -9,6 +9,7 @@ on:
       - 'grand-bruxelles-game/tools/validate_discovered_road_cell_frontier_json_types.py'
       - 'grand-bruxelles-game/tools/tests/test_discovered_road_cell_coverage_frontier.py'
       - 'grand-bruxelles-game/tools/tests/test_discovered_road_cell_frontier_json_types.py'
+      - 'grand-bruxelles-game/tools/tests/test_registered_cell_manifest_envelope.py'
       - 'grand-bruxelles-game/tools/tests/test_registered_cell_manifest_index_semantic_hash.py'
       - 'grand-bruxelles-game/data/osm/**'
       - 'grand-bruxelles-game/data/qa/osm_road_frame_correction_impact.contract.json'
@@ -38,6 +39,7 @@ jobs:
         run: |
           python tools/tests/test_discovered_road_cell_coverage_frontier.py
           python tools/tests/test_discovered_road_cell_frontier_json_types.py
+          python tools/tests/test_registered_cell_manifest_envelope.py
       - name: Build deterministic frontier twice
         working-directory: grand-bruxelles-game
         run: |

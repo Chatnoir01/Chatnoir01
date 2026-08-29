@@ -21,6 +21,22 @@ REQUIRED_CELL_MATURITY_GATES = {
     "streaming",
     "terrain",
 }
+REGISTERED_CELL_MANIFEST_FIELDS = {
+    "bbox",
+    "cell_id",
+    "collisions",
+    "crs",
+    "format",
+    "geometry",
+    "heights",
+    "maturity",
+    "performance",
+    "photo_match",
+    "provenance",
+    "terrain",
+    "transport",
+    "uncertainties",
+}
 
 
 def canonical_json(value: Any) -> str:
@@ -90,6 +106,8 @@ def segment_candidate_cells(p0: list[float], p1: list[float], intersects) -> lis
 
 
 def validate_registered_cell_manifest_identity(manifest: dict[str, Any], row: dict[str, Any]) -> None:
+    if set(manifest) != REGISTERED_CELL_MANIFEST_FIELDS:
+        raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest field set drift")
     if manifest.get("format") != "grand-bruxelles-cell-maturity-v1":
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest format drift")
     if manifest.get("cell_id") != row.get("cell_id") or manifest.get("crs") != TARGET_CRS:
@@ -98,7 +116,9 @@ def validate_registered_cell_manifest_identity(manifest: dict[str, Any], row: di
     if not isinstance(manifest_bbox, list) or len(manifest_bbox) != 4 or manifest_bbox != row.get("bbox"):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest identity drift")
     maturity = manifest.get("maturity")
-    if not isinstance(maturity, dict) or maturity.get("state") != row.get("maturity_state"):
+    if not isinstance(maturity, dict) or set(maturity) != {"state", "gates"}:
+        raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest maturity field set drift")
+    if maturity.get("state") != row.get("maturity_state"):
         raise SystemExit("DISCOVERED_ROAD_CELL_COVERAGE_FAIL: registered cell manifest maturity drift")
     gates = maturity.get("gates")
     if not isinstance(gates, dict):

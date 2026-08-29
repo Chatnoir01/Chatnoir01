@@ -140,6 +140,10 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _manual_binding = manual
     _scene = scene
     _player = player
+    if manual:
+        _stop_watching()
+    else:
+        _start_watching()
     _build_once()
 
 func _reset() -> void:
@@ -229,48 +233,8 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     for child_name: String in ["StreetTreeVisual", "LegacyTreeVisual"]:
         var existing := tree.get_node_or_null(child_name)
         if existing != null:
-            tree.remove_child(existing)
             existing.queue_free()
-    var osm_id := int(tree.get_meta("osm_id", 0))
-    if _enhanced_trees_enabled:
-        TREE_ASSET.populate(tree, osm_id, _tree_materials)
-        return
-    tree.set_meta("asset_family", "legacy_primitive_tree")
-    tree.set_meta("source_dimensions_measured", false)
-    tree.set_meta("species_claimed", false)
-    var legacy := Node3D.new()
-    legacy.name = "LegacyTreeVisual"
-    tree.add_child(legacy)
-    var trunk_mesh := MeshInstance3D.new()
-    trunk_mesh.name = "Trunk"
-    var cylinder := CylinderMesh.new()
-    cylinder.top_radius = 0.16
-    cylinder.bottom_radius = 0.21
-    cylinder.height = 2.6
-    trunk_mesh.mesh = cylinder
-    trunk_mesh.material_override = _tree_materials["trunk"] as Material
-    trunk_mesh.position.y = 1.3
-    legacy.add_child(trunk_mesh)
-    var crown := MeshInstance3D.new()
-    crown.name = "Crown"
-    var sphere := SphereMesh.new()
-    sphere.radius = 1.45
-    sphere.height = 2.9
-    crown.mesh = sphere
-    crown.material_override = _tree_materials["foliage_dark"] as Material
-    crown.position.y = 3.15
-    legacy.add_child(crown)
-
-func set_enhanced_trees_enabled(enabled: bool) -> void:
-    if _enhanced_trees_enabled == enabled:
-        return
-    _enhanced_trees_enabled = enabled
-    for tree: StaticBody3D in _trees:
-        if is_instance_valid(tree):
-            _rebuild_tree_visual(tree)
-
-func enhanced_trees_enabled() -> bool:
-    return _enhanced_trees_enabled
-
-func tree_count() -> int:
-    return _trees.size()
+    var variant := TREE_ASSET.choose_variant(int(tree.get_meta("osm_id", 0)))
+    var visual := TREE_ASSET.create_visual(variant, _tree_materials, _enhanced_trees_enabled)
+    visual.name = "StreetTreeVisual"
+    tree.add_child(visual)

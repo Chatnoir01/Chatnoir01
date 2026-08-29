@@ -95,6 +95,13 @@ def require_int_list(value: Any, label: str, *, positive: bool = False) -> list[
 def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     if not isinstance(frontier, dict):
         fail("frontier object drift")
+
+    # Classify authorization-envelope drift before the broader top-level schema
+    # check so dedicated authorization regressions retain a stable, specific
+    # failure contract while arbitrary non-rail fields still fail closed below.
+    authorization_keys = {key for key in frontier if key.endswith("_authorized")}
+    if authorization_keys != set(AUTHORIZATION_FIELDS):
+        fail("authorization rail set drift")
     if set(frontier) != TOP_LEVEL_FIELDS:
         fail("frontier field set drift")
     if frontier.get("format") != FORMAT or frontier.get("crs") != TARGET_CRS:
@@ -102,9 +109,6 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
 
     require_sha256(frontier.get("source_intersection_evidence_sha256"), "source intersection evidence sha")
 
-    authorization_keys = {key for key in frontier if key.endswith("_authorized")}
-    if authorization_keys != set(AUTHORIZATION_FIELDS):
-        fail("authorization rail set drift")
     for field in AUTHORIZATION_FIELDS:
         if frontier.get(field) is not False:
             fail(f"authorization rail drift: {field}")

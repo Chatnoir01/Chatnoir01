@@ -1,0 +1,150 @@
+name: Grand Bruxelles Gate-8 Variant01 Right Cluster Boundary One-Ring
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-right-cluster-boundary-one-ring-20260829"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-right-cluster-boundary-one-ring.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_right_cluster_boundary_one_ring.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_right_cluster_boundary_one_ring_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  right-cluster-boundary-one-ring:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      TARGET_SIZE_BYTES: "15580240"
+      RESIDUAL_ARTIFACT_ID: "9706869599"
+      RESIDUAL_ARTIFACT_DIGEST: "sha256:86ec04ee33287a30ec93220a658cc5491aca94396b94b9d1eeb80f21143db9c9"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-right-cluster-boundary"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main bounded scope and frozen rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "d6584506da0e2a203325fb90312ed211e38f054d"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-right-cluster-boundary-one-ring.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_right_cluster_boundary_one_ring.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_right_cluster_boundary_one_ring_test.gd' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_right_cluster_boundary_one_ring.json'))
+          assert d['base_main_sha']=='d6584506da0e2a203325fb90312ed211e38f054d'
+          assert d['candidate_variant']==1
+          assert d['target_artifact']['id']==9470539830
+          assert d['residual_artifact']['id']==9706869599
+          assert d['residual_artifact']['expected_state']=='RIGHT_CLUSTER_OPERATOR_CREATES_ADJACENT_RESIDUAL_FAILURE'
+          assert d['residual_artifact']['expected_worst_edge']==[417,1510]
+          assert sorted(d['right_cluster']['modified_vertices'])==[259,758,1510,1511]
+          assert all(v is False for v in d['rails'].values())
+          PY
+          printf '%s\n' "$LIVE_MAIN" | tee "$RUNNER_TEMP/live-main.txt"
+
+      - name: Verify immutable target and residual evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in \
+            "$TARGET_ARTIFACT_ID|$TARGET_ARTIFACT_DIGEST" \
+            "$RESIDUAL_ARTIFACT_ID|$RESIDUAL_ARTIFACT_DIGEST"; do
+            ID="${pair%%|*}"; EXPECTED="${pair#*|}"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" > "$RUNNER_TEMP/artifact-${ID}.json"
+            python3 - "$RUNNER_TEMP/artifact-${ID}.json" "$EXPECTED" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1])); assert not a['expired']; assert a['digest']==sys.argv[2]
+          PY
+          done
+          mkdir -p "$RUNNER_TEMP/target" "$RUNNER_TEMP/residual" "$PROJECT/assets" "$PROJECT/evidence"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/target.zip"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${RESIDUAL_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/residual.zip"
+          unzip -q "$RUNNER_TEMP/target.zip" -d "$RUNNER_TEMP/target"
+          unzip -q "$RUNNER_TEMP/residual.zip" -d "$RUNNER_TEMP/residual"
+          TARGET="$(find "$RUNNER_TEMP/target" -type f -name npc_gate_01.glb -print -quit)"
+          RESIDUAL="$(find "$RUNNER_TEMP/residual" -type f -name residual-shoulder-topology-result.json -print -quit)"
+          test -n "$TARGET" && test -n "$RESIDUAL"
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          python3 - "$RESIDUAL" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['diagnostic_state']=='RIGHT_CLUSTER_OPERATOR_CREATES_ADJACENT_RESIDUAL_FAILURE'
+          assert r['right']['candidate_worst_edge']==[417,1510]
+          assert r['right']['modified_vertex_on_new_worst_edge']==1510
+          assert r['right']['stretch_regression_ratio']>=1.4
+          PY
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          cp "$RESIDUAL" "$PROJECT/evidence/residual.json"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_right_cluster_boundary_one_ring.json "$PROJECT/contract.json"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_right_cluster_boundary_one_ring_test.gd "$PROJECT/gate_test.gd"
+          sha256sum "$TARGET" | tee "$RUNNER_TEMP/npc_gate_01.sha256"
+
+      - name: Import exact target and map right cluster boundary under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT"; chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
+          printf '[application]\nconfig/name="Gate8Variant01RightClusterBoundary"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT/project.godot"
+          timeout 300 "$GODOT" --headless --path "$PROJECT" --import > "$RUNNER_TEMP/godot-import.log" 2>&1
+          timeout 180 "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd | tee "$RUNNER_TEMP/godot.log"
+          cp "$PROJECT/right-cluster-boundary-one-ring-result.json" "$RUNNER_TEMP/result.json"
+          python3 - "$RUNNER_TEMP/result.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['diagnostic_state'] in {'RIGHT_CLUSTER_BOUNDARY_WEIGHT_CLIFF_CONFIRMED','RIGHT_CLUSTER_BOUNDARY_FIELD_BROAD_WITHOUT_HIGH_CLIFF'}, r
+          assert r['failures']==[]
+          assert r['target_vertex_total']==21044
+          assert sorted(r['cluster_vertices'])==[259,758,1510,1511]
+          assert r['boundary_edge_count']>0
+          assert r['expected_residual_worst_edge_found_on_boundary'] is True
+          assert r['rails'] and all(v is False for v in r['rails'].values())
+          assert r['production_activation_allowed'] is False and r['visual_approval_allowed'] is False
+          print('RIGHT_CLUSTER_BOUNDARY_OK state=%s boundary=%d high_l1=%d max_l1=%.6f edge=%s' % (r['diagnostic_state'],r['boundary_edge_count'],r['high_candidate_l1_boundary_edge_count'],r['max_candidate_l1'],r['max_candidate_l1_edge']))
+          PY
+
+      - name: Require repository clean
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-right-cluster-boundary-one-ring-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/live-main.txt
+            ${{ runner.temp }}/artifact-*.json
+            ${{ runner.temp }}/npc_gate_01.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/godot.log
+            ${{ runner.temp }}/godot-import.log
+          retention-days: 14

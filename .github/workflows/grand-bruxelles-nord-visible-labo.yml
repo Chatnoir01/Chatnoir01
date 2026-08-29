@@ -5,6 +5,7 @@ on:
     paths:
       - 'grand-bruxelles-game/game/zones/nord/nord_city_machine_zone.gd'
       - 'grand-bruxelles-game/game/tests/nord_city_machine_labo_test.gd'
+      - 'grand-bruxelles-game/game/tests/nord_visual_witness.gd'
       - 'grand-bruxelles-game/tools/city_machine/test_nord_visible_labo_onboarding.py'
       - 'grand-bruxelles-game/data/qa/playable_zone_catalog.json'
       - 'grand-bruxelles-game/data/urbis/nord/**'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'grand-bruxelles-game/game/zones/nord/nord_city_machine_zone.gd'
       - 'grand-bruxelles-game/game/tests/nord_city_machine_labo_test.gd'
+      - 'grand-bruxelles-game/game/tests/nord_visual_witness.gd'
       - 'grand-bruxelles-game/tools/city_machine/test_nord_visible_labo_onboarding.py'
       - 'grand-bruxelles-game/data/qa/playable_zone_catalog.json'
       - '.github/workflows/grand-bruxelles-nord-visible-labo.yml'
@@ -26,7 +28,7 @@ permissions:
 jobs:
   nord-visible-labo:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,10 +43,12 @@ jobs:
           python tools/validate_nord_city_machine_data.py data/urbis/nord
           python tools/city_machine/test_nord_visible_labo_onboarding.py
 
-      - name: Install Godot 4.7.1
+      - name: Install Godot 4.7.1 and Xvfb
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri
           curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
             -o /tmp/godot.zip \
             https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -69,7 +73,26 @@ jobs:
           grep -q 'NORD_CITY_MACHINE_LABO_OK' /tmp/nord-visible-labo.log
           ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/nord-visible-labo.log
 
-      - name: Upload Nord LABO diagnostics
+      - name: Render deterministic Nord visual witness
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -o pipefail
+          rm -f /tmp/nord-city-machine-overview.png
+          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' \
+            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --rendering-method gl_compatibility \
+            --rendering-driver opengl3 \
+            --resolution 1280x720 \
+            --path grand-bruxelles-game \
+            --script res://game/tests/nord_visual_witness.gd 2>&1 | tee /tmp/nord-visual-witness.log
+          grep -q 'NORD_VISUAL_WITNESS_OK' /tmp/nord-visual-witness.log
+          test -s /tmp/nord-city-machine-overview.png
+          file /tmp/nord-city-machine-overview.png | grep -q 'PNG image data, 1280 x 720'
+          ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/nord-visual-witness.log
+
+      - name: Upload Nord LABO diagnostics and visual witness
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -79,3 +102,5 @@ jobs:
           path: |
             /tmp/nord-visible-labo-import.log
             /tmp/nord-visible-labo.log
+            /tmp/nord-visual-witness.log
+            /tmp/nord-city-machine-overview.png

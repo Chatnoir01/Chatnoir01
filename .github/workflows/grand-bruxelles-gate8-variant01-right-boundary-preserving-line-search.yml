@@ -1,0 +1,157 @@
+name: Grand Bruxelles Gate-8 Variant01 Right Boundary-Preserving Line Search
+
+on:
+  push:
+    branches: ["npc/gate8-variant01-right-boundary-preserving-line-search-r2-20260829"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-right-boundary-preserving-line-search.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_right_boundary_preserving_line_search.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_right_boundary_preserving_line_search_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  line-search:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_DIGEST: "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      TARGET_SIZE_BYTES: "15580240"
+      BOUNDARY_ARTIFACT_ID: "9707725625"
+      BOUNDARY_ARTIFACT_DIGEST: "sha256:0b029fa36e202fdb1863f45d85093660bf08d0ebc39a9480727be520c748849d"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-v01-right-boundary-line-search"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main bounded scope and frozen rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "bd9f1c056dfbc2bf619e6a5d2d117210dc4b1686"
+          test "$(git merge-base origin/main HEAD)" = "$LIVE_MAIN"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-right-boundary-preserving-line-search.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_right_boundary_preserving_line_search.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_right_boundary_preserving_line_search_test.gd' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 - <<'PY'
+          import json
+          m=json.load(open('grand-bruxelles-game/data/qa/gate8_variant01_right_boundary_preserving_line_search.json'))
+          assert m['base_main_sha']=='bd9f1c056dfbc2bf619e6a5d2d117210dc4b1686'
+          assert m['candidate_variant']==1
+          assert m['target']['expected_vertex_total']==21044
+          assert sorted(m['cluster_vertices'])==sorted([259,758,1510,1511])
+          assert m['coherent_anchor']==416 and m['target_edge']==[416,758]
+          assert m['line_search']['alpha_step']==0.01
+          assert m['line_search']['minimum_useful_alpha']==0.05
+          assert all(v is False for v in m['rails'].values())
+          PY
+
+      - name: Verify immutable target and predecessor evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in \
+            "$TARGET_ARTIFACT_ID|$TARGET_ARTIFACT_DIGEST" \
+            "$BOUNDARY_ARTIFACT_ID|$BOUNDARY_ARTIFACT_DIGEST"; do
+            ID="${pair%%|*}"; EXPECTED="${pair#*|}"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}" > "/tmp/artifact-${ID}.json"
+            python3 - "/tmp/artifact-${ID}.json" "$EXPECTED" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          assert not a['expired']
+          assert a['digest']==sys.argv[2]
+          PY
+          done
+          rm -rf /tmp/target-evidence "$PROJECT"
+          mkdir -p /tmp/target-evidence "$PROJECT/assets" "$PROJECT/game/tests"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/target.zip
+          unzip -q /tmp/target.zip -d /tmp/target-evidence
+          TARGET="$(find /tmp/target-evidence -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$TARGET"
+          test "$(sha256sum "$TARGET" | awk '{print $1}')" = "$TARGET_SHA256"
+          test "$(stat -c '%s' "$TARGET")" = "$TARGET_SIZE_BYTES"
+          cp "$TARGET" "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_right_boundary_preserving_line_search.json "$PROJECT/contract.json"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_right_boundary_preserving_line_search_test.gd "$PROJECT/game/tests/test.gd"
+
+      - name: Install exact Godot 4.7.1 and import target
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01RightBoundaryPreservingLineSearch"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          timeout 300s "$GODOT" --headless --path "$PROJECT" --import 2>&1 | tee /tmp/import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Search exact mesh for maximum safe global blend alpha
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 420s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/test.gd 2>&1 | tee /tmp/line-search.log
+          cp "$PROJECT/right-boundary-preserving-line-search-result.json" /tmp/result.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/result.json'))
+          assert r['candidate_variant']==1
+          assert r['godot_version'].startswith('4.7.1')
+          assert r['target_vertex_total']==21044
+          assert r['boundary_edge_count']==18
+          assert r['failures']==[]
+          assert r['diagnostic_state'] in {
+            'RIGHT_BOUNDARY_PRESERVING_REWEIGHT_FEASIBLE',
+            'RIGHT_BOUNDARY_PRESERVING_REWEIGHT_INFEASIBLE'
+          }
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          if r['diagnostic_state']=='RIGHT_BOUNDARY_PRESERVING_REWEIGHT_FEASIBLE':
+              assert r['best_alpha'] >= r['minimum_useful_alpha']
+              assert r['best_target_edge_improvement'] >= 0.001
+              assert r['next_safe_axis']=='REPLAY_54_MICROPOSES_WITH_MAX_BOUNDARY_SAFE_ALPHA'
+          else:
+              assert r['best_alpha'] < r['minimum_useful_alpha']
+              assert r['next_safe_axis']=='REJECT_LOCAL_REWEIGHT_AND_PREPARE_SOURCE_RIG_SKIN_REBUILD'
+          PY
+          git diff --exit-code
+
+      - name: Upload line-search evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-right-boundary-preserving-line-search-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            /tmp/result.json
+            /tmp/line-search.log
+            /tmp/godot-version.txt

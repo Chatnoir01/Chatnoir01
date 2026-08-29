@@ -28,6 +28,33 @@ AUTHORIZATION_FIELDS = (
     "safe_spawn_authorized",
     "jouable_authorized",
 )
+TOP_LEVEL_FIELDS = {
+    "format",
+    "crs",
+    "cell_size_m",
+    "source_intersection_evidence_sha256",
+    "source_zero_intersection_road_count",
+    "source_zero_intersection_road_osm_ids",
+    "candidate_cell_count",
+    "candidate_cells",
+    "covered_zero_intersection_road_count",
+    "uncovered_zero_intersection_road_count",
+    "uncovered_zero_intersection_road_osm_ids",
+    "registered_cell_overlap_count",
+    *AUTHORIZATION_FIELDS,
+    "frontier_sha256",
+}
+CANDIDATE_FIELDS = {
+    "cell_id",
+    "crs",
+    "bbox",
+    "cell_size_m",
+    "road_osm_ids",
+    "road_count",
+    "registered",
+    "manifest_path",
+    "source_registration_ready",
+}
 
 
 def fail(message: str) -> None:
@@ -68,14 +95,20 @@ def require_int_list(value: Any, label: str, *, positive: bool = False) -> list[
 def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     if not isinstance(frontier, dict):
         fail("frontier object drift")
+
+    # Classify authorization-envelope drift before the broader top-level schema
+    # check so dedicated authorization regressions retain a stable, specific
+    # failure contract while arbitrary non-rail fields still fail closed below.
+    authorization_keys = {key for key in frontier if key.endswith("_authorized")}
+    if authorization_keys != set(AUTHORIZATION_FIELDS):
+        fail("authorization rail set drift")
+    if set(frontier) != TOP_LEVEL_FIELDS:
+        fail("frontier field set drift")
     if frontier.get("format") != FORMAT or frontier.get("crs") != TARGET_CRS:
         fail("format/CRS drift")
 
     require_sha256(frontier.get("source_intersection_evidence_sha256"), "source intersection evidence sha")
 
-    authorization_keys = {key for key in frontier if key.endswith("_authorized")}
-    if authorization_keys != set(AUTHORIZATION_FIELDS):
-        fail("authorization rail set drift")
     for field in AUTHORIZATION_FIELDS:
         if frontier.get(field) is not False:
             fail(f"authorization rail drift: {field}")
@@ -113,6 +146,8 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
     for row in rows:
         if not isinstance(row, dict):
             fail("candidate cell object drift")
+        if set(row) != CANDIDATE_FIELDS:
+            fail("candidate field set drift")
         if row.get("crs") != TARGET_CRS:
             fail("candidate cell CRS drift")
         require_int(row.get("cell_size_m"), "candidate cell_size_m")

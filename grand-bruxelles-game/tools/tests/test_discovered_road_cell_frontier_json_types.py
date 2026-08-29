@@ -82,6 +82,16 @@ def main() -> int:
     rehash(unknown_authorization)
     expect_fail(lambda: strict_validate(unknown_authorization), "authorization rail set drift")
 
+    unknown_top_level = json.loads(json.dumps(frontier))
+    unknown_top_level["safe_spawn_ready"] = True
+    rehash(unknown_top_level)
+    expect_fail(lambda: strict_validate(unknown_top_level), "frontier field set drift")
+
+    unknown_candidate_field = json.loads(json.dumps(frontier))
+    unknown_candidate_field["candidate_cells"][0]["rendered"] = True
+    rehash(unknown_candidate_field)
+    expect_fail(lambda: strict_validate(unknown_candidate_field), "candidate field set drift")
+
     cell_identity = json.loads(json.dumps(frontier))
     cell_identity["candidate_cells"][0]["cell_id"] = "bxl-e000000-n000000-s500"
     rehash(cell_identity)

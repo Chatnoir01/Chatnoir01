@@ -140,8 +140,8 @@ func _boundary_edges(arrays: Array, cluster: Dictionary) -> Array:
             if ac == bc: continue
             var inside: int = a if ac else b
             var outside: int = b if ac else a
-            var lo := min(inside, outside)
-            var hi := max(inside, outside)
+            var lo: int = min(inside, outside)
+            var hi: int = max(inside, outside)
             var key := "%d:%d" % [lo, hi]
             if seen.has(key): continue
             seen[key] = true
@@ -231,7 +231,7 @@ func _initialize() -> void:
     if failures.is_empty():
         var count := int(round(1.0 / step))
         for index in range(count, 0, -1):
-            var alpha := min(1.0, float(index) * step)
+            var alpha: float = min(1.0, float(index) * step)
             var rows: Array = []
             var boundary_safe := true
             var target_l1: float = original_target_l1

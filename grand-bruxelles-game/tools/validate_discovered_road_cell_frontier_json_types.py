@@ -63,6 +63,7 @@ SOURCE = ROOT / "data/osm/vertical_slice_01.game.json"
 FRAME = ROOT / "data/qa/osm_road_frame_correction_impact.contract.json"
 CELLS = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
 INTERSECTION_BUILDER = ROOT / "tools/build_discovered_road_cell_intersection_evidence.py"
+FRONTIER_BUILDER = ROOT / "tools/build_discovered_road_cell_coverage_frontier.py"
 
 
 def fail(message: str) -> None:
@@ -116,6 +117,26 @@ def canonical_source_intersection_evidence_sha256() -> str:
     if not isinstance(evidence, dict):
         fail("canonical source intersection evidence object drift")
     return require_sha256(evidence.get("evidence_sha256"), "canonical source intersection evidence sha")
+
+
+@lru_cache(maxsize=1)
+def canonical_candidate_road_cell_bindings() -> dict[str, tuple[int, ...]]:
+    frontier_mod = load_module(FRONTIER_BUILDER, "frontier_source_geometry_binding")
+    expected = frontier_mod.build_frontier(SOURCE, FRAME, CELLS)
+    rows = expected.get("candidate_cells") if isinstance(expected, dict) else None
+    if not isinstance(rows, list):
+        fail("canonical candidate cell binding object drift")
+    bindings: dict[str, tuple[int, ...]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("cell_id"), str):
+            fail("canonical candidate cell binding identity drift")
+        roads = row.get("road_osm_ids")
+        if not isinstance(roads, list) or any(type(rid) is not int or rid <= 0 for rid in roads):
+            fail("canonical candidate road binding drift")
+        bindings[row["cell_id"]] = tuple(roads)
+    if len(bindings) != len(rows):
+        fail("canonical candidate cell binding duplicate drift")
+    return bindings
 
 
 def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
@@ -222,6 +243,13 @@ def validate_frontier_json_types(frontier: dict[str, Any]) -> None:
 
     if seen_cell_ids != sorted(set(seen_cell_ids)):
         fail("candidate cell order/uniqueness drift")
+
+    actual_bindings = {
+        row["cell_id"]: tuple(row["road_osm_ids"])
+        for row in rows
+    }
+    if actual_bindings != canonical_candidate_road_cell_bindings():
+        fail("candidate road/cell source geometry binding drift")
 
     uncovered_id_set = set(uncovered_ids)
     if covered_id_set & uncovered_id_set:

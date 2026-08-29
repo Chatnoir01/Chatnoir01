@@ -60,6 +60,9 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     size = int(match.group(3))
     if size <= 0:
         fail(f"invalid canonical cell size {road_id}")
+    canonical_cell_id = f"bxl-e{east}-n{north}-s{size}"
+    if cell_id != canonical_cell_id:
+        fail(f"non-canonical cell id {road_id}: stored={cell_id} expected={canonical_cell_id}")
 
     bbox = destination.get("cell_bbox")
     if not isinstance(bbox, list) or len(bbox) != 4:

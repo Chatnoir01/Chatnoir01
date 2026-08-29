@@ -137,7 +137,7 @@ jobs:
           test "$(sha256sum /tmp/gate8-weight-transfer/glbs/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_SHA256"
           cat "$GATE8_WEIGHT_TRANSFER_RESULT"
 
-      - name: Verify fail-closed weight-transfer verdict
+      - name: Verify inherited hm08 source-region cliff contract
         shell: bash
         run: |
           set -euo pipefail
@@ -158,25 +158,39 @@ jobs:
           assert r['runtime_npc_mutation'] is False
           assert r['production_activation_allowed'] is False
           assert r['visual_approval_allowed'] is False
-          assert r['diagnostic_state'] in {
-            'SOURCE_SPORTSUIT_WEIGHTS_MATCH_POSITIVE_NORMALIZED_PROXY_INTERPOLATION',
-            'SOURCE_SPORTSUIT_WEIGHTS_MATCH_LINEAR_PROXY_INTERPOLATION',
-            'SOURCE_SPORTSUIT_WEIGHTS_NOT_EXPLAINED_BY_MHCLO_LINEAR_INTERPOLATION',
-            'WEIGHT_CLIFF_INTRODUCED_BY_EXPORT_COPY',
-            'WEIGHT_CLIFF_INTRODUCED_DURING_TARGET_BAKE',
-            'WEIGHT_CLIFF_INTRODUCED_DURING_HELPER_BAKE',
-            'SOURCE_WEIGHT_TRANSFER_POSITION_MAPPING_UNRESOLVED',
-            'SOURCE_WEIGHT_TRANSFER_STAGE_NOT_IDENTIFIED',
-          }
+          assert r['diagnostic_state']=='SOURCE_SPORTSUIT_CLIFF_INHERITED_FROM_HM08_INPUT_REGIONS'
+          assert r['next_safe_axis']=='TRACE_MHCLO_NATIVE_EDGE_SOURCE_REGION_MAPPING'
           assert len(r['transfers']) >= 3
-          if r['proxy_interpolation'] is not None:
-              p=r['proxy_interpolation']
-              assert p['body_vertex_count']==19158
-              assert p['sportsuit_vertex_count']==1797
-              assert set(p['endpoint_records'])=={'486','601'}
-              assert p['observed_endpoint_cliff_l1'] >= 1.7
-              assert p['endpoint_records']['486']['body_inputs'][0]['vertex']==15673
-              assert p['endpoint_records']['601']['body_inputs'][0]['vertex']==15947
+          assert all(t['positions_resolved'] for t in r['transfers'])
+          assert all(t['mapped_edge_is_cliff'] for t in r['transfers'])
+          assert all(t['weight_delta_to_prepared_l1']==0.0 for t in [] ) if False else True
+          p=r['proxy_interpolation']
+          assert p is not None
+          assert p['diagnostic_state']=='SOURCE_SPORTSUIT_CLIFF_INHERITED_FROM_HM08_INPUT_REGIONS'
+          assert p['next_safe_axis']=='TRACE_MHCLO_NATIVE_EDGE_SOURCE_REGION_MAPPING'
+          assert p['mpfb_release']=='2.0.17'
+          assert p['mpfb_release_commit']=='80919fa'
+          assert p['mpfb_algorithm']=='ClothesService.interpolate_weights'
+          assert p['mpfb_group_policy']=='rig bones plus DEF-/mhmask- only'
+          assert p['mpfb_weight_cutoff']==0.001
+          assert p['rig_bone_count']==53
+          assert p['body_vertex_count']==19158
+          assert p['sportsuit_vertex_count']==1797
+          assert set(p['endpoint_records'])=={'486','601'}
+          assert p['observed_endpoint_cliff_l1'] >= 1.7
+          assert p['mpfb_interpolated_endpoint_cliff_l1'] >= 1.7
+          assert p['max_mpfb_to_observed_l1'] <= 1e-4
+          assert len(p['body_input_cross_endpoint_pairs'])==9
+          assert p['body_input_cross_endpoint_min_l1'] >= 1.7
+          assert p['body_input_cross_endpoint_max_l1'] >= p['body_input_cross_endpoint_min_l1']
+          assert p['mpfb_cliff_amplified_beyond_source_cross_max'] is False
+          assert p['endpoint_records']['486']['body_inputs'][0]['vertex']==15673
+          assert p['endpoint_records']['601']['body_inputs'][0]['vertex']==15947
+          for endpoint in ('486','601'):
+              assert p['endpoint_records'][endpoint]['mpfb_to_observed_l1'] <= 1e-4
+          for t in r['transfers']:
+              assert t['endpoint_a']['weight_delta_to_prepared_l1']==0.0
+              assert t['endpoint_b']['weight_delta_to_prepared_l1']==0.0
           print('GATE8_SOURCE_WEIGHT_TRANSFER_OK', r['diagnostic_state'], r['next_safe_axis'])
           PY
 

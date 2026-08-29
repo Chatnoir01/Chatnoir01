@@ -74,10 +74,35 @@ def test_string_road_osm_id_fails_closed() -> None:
         raise AssertionError("string road_osm_id was coerced to integer identity")
 
 
+def test_string_destination_count_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    readiness["destination_count"] = str(readiness["destination_count"])
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "destination accounting drift" in str(exc)
+    else:
+        raise AssertionError("string destination_count was coerced to integer accounting")
+
+
+def test_string_bbox_coordinate_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    destination = readiness["destinations"][0]
+    destination["cell_bbox"][0] = str(destination["cell_bbox"][0])
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "invalid cell bbox" in str(exc)
+    else:
+        raise AssertionError("string bbox coordinate was coerced to numeric identity")
+
+
 if __name__ == "__main__":
     test_real_readiness_grid_identity_is_exact()
     test_forged_grid_cell_id_fails_closed()
     test_cell_id_bbox_disagreement_fails_closed()
     test_boolean_road_osm_id_fails_closed()
     test_string_road_osm_id_fails_closed()
+    test_string_destination_count_fails_closed()
+    test_string_bbox_coordinate_fails_closed()
     print("ROAD_CELL_GRID_IDENTITY_TEST_OK")

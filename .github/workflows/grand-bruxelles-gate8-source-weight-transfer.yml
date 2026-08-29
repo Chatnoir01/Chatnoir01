@@ -137,7 +137,7 @@ jobs:
           test "$(sha256sum /tmp/gate8-weight-transfer/glbs/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_SHA256"
           cat "$GATE8_WEIGHT_TRANSFER_RESULT"
 
-      - name: Verify inherited hm08 source-region cliff contract
+      - name: Verify inherited hm08 source-region and native-neighborhood contract
         shell: bash
         run: |
           set -euo pipefail
@@ -175,7 +175,7 @@ jobs:
           assert p['rig_bone_count']==53
           assert p['body_vertex_count']==19158
           assert p['sportsuit_vertex_count']==1797
-          assert set(p['endpoint_records'])=={'486','601'}
+          assert set(p['endpoint_records'])=={'377','378','379','486','599','601','615','864'}
           assert p['observed_endpoint_cliff_l1'] >= 1.7
           assert p['mpfb_interpolated_endpoint_cliff_l1'] >= 1.7
           assert p['max_mpfb_to_observed_l1'] <= 1e-4
@@ -185,8 +185,25 @@ jobs:
           assert p['mpfb_cliff_amplified_beyond_source_cross_max'] is False
           assert p['endpoint_records']['486']['body_inputs'][0]['vertex']==15673
           assert p['endpoint_records']['601']['body_inputs'][0]['vertex']==15947
-          for endpoint in ('486','601'):
-              assert p['endpoint_records'][endpoint]['mpfb_to_observed_l1'] <= 1e-4
+          for endpoint in p['endpoint_records'].values():
+              assert endpoint['mpfb_to_observed_l1'] <= 1e-4
+          n=p['native_edge_neighborhood']
+          assert set(n)=={'486','601'}
+          assert n['486']['native_degree']==4
+          assert n['601']['native_degree']==4
+          assert n['486']['observed_cliff_neighbor_count']==1
+          assert n['486']['mpfb_cliff_neighbor_count']==1
+          assert n['601']['observed_cliff_neighbor_count']==3
+          assert n['601']['mpfb_cliff_neighbor_count']==3
+          by486={edge['neighbor']:edge for edge in n['486']['neighbors']}
+          by601={edge['neighbor']:edge for edge in n['601']['neighbors']}
+          assert set(by486)=={377,379,601,864}
+          assert set(by601)=={378,486,599,615}
+          assert by486[601]['observed_is_cliff'] is True
+          assert by601[378]['observed_is_cliff'] is False
+          assert by601[486]['observed_is_cliff'] is True
+          assert by601[599]['observed_is_cliff'] is True
+          assert by601[615]['observed_is_cliff'] is True
           for t in r['transfers']:
               assert t['endpoint_a']['weight_delta_to_prepared_l1']==0.0
               assert t['endpoint_b']['weight_delta_to_prepared_l1']==0.0

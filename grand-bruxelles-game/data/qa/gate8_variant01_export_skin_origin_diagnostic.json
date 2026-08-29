@@ -1,0 +1,36 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-export-skin-origin-diagnostic-v2",
+  "base_main_sha": "02e2b3f65d735289b1f5a5f20cdd6528e98ac6e4",
+  "candidate_variant": 1,
+  "surface": "Human_female_sportsuit01_gate8_export#0",
+  "target": {
+    "artifact_id": 9710540154,
+    "artifact_digest": "sha256:45006cb1f15c7e2613744e1a261d080ef7d0123a027b84761509e42cc6f6fb70",
+    "sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "size_bytes": 15580240,
+    "expected_vertex_total": 21044,
+    "source_generation_run_id": 32552758284,
+    "source_generation_head_sha": "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+  },
+  "source_generator": {
+    "repository_path": "grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py",
+    "source_head_sha": "afcb7b352ed054d98fdf83eae3333ec82c814b3e",
+    "expected_behavior": "bake helper mask geometry through MPFB ExportService, remove empty helper groups, preserve surviving deformation weights"
+  },
+  "probe_vertices": [416, 417, 758, 1510, 259, 1511],
+  "target_edge": [416, 758],
+  "adjacent_residual_edge": [417, 1510],
+  "weight_cliff_l1_min": 1.7,
+  "weight_sum_tolerance": 0.0001,
+  "minimum_positive_weight": 0.000000001,
+  "rails": {
+    "canonical_asset_mutation": false,
+    "runtime_npc_mutation": false,
+    "retarget_allowed": false,
+    "production_activation_allowed": false,
+    "visual_approval_allowed": false
+  },
+  "next_if_export_weight_cliff_confirmed": "INSTRUMENT_MPF_BASIS_PRE_EXPORT_WEIGHTS_AND_COMPARE_TO_GLB",
+  "next_if_bind_or_rest_invalid": "REBUILD_SOURCE_RIG_BIND_REST_BEFORE_ANY_WEIGHT_EDIT",
+  "next_if_export_is_clean": "TRACE_DOWNSTREAM_IMPORT_OR_RUNTIME_MUTATION"
+}

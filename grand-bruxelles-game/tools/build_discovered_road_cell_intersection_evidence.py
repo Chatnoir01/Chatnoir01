@@ -157,6 +157,26 @@ def _cell_rows(root: Path, cells: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(result, key=lambda row: str(row["cell_id"]))
 
 
+def _source_road_index(source: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    rows = source.get("roads")
+    if not isinstance(rows, list):
+        raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source roads")
+    roads: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source road row")
+        try:
+            rid = int(row.get("osm_id", 0))
+        except (TypeError, ValueError) as exc:
+            raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source road osm_id") from exc
+        if rid <= 0:
+            raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: invalid source road osm_id")
+        if rid in roads:
+            raise SystemExit(f"DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: duplicate source road osm_id {rid}")
+        roads[rid] = row
+    return roads
+
+
 def _build_unchecked(source_path: Path, frame_path: Path, cell_index_path: Path) -> dict[str, Any]:
     source_path, frame_path, cell_index_path = map(Path, (source_path, frame_path, cell_index_path))
     root = _root_from_source(source_path)
@@ -165,7 +185,7 @@ def _build_unchecked(source_path: Path, frame_path: Path, cell_index_path: Path)
     source = load_json(source_path)
     if source.get("format") != "grand-bruxelles-osm-v1" or source.get("license") != "ODbL-1.0":
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: source format/provenance drift")
-    roads = {int(row["osm_id"]): row for row in source.get("roads") or [] if isinstance(row, dict) and int(row.get("osm_id", 0)) > 0}
+    roads = _source_road_index(source)
     cell_rows = _cell_rows(root, cells)
 
     candidates = []

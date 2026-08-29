@@ -1,0 +1,64 @@
+name: Grand Bruxelles Gare du Nord source acquisition
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/gare-du-nord-source-truth
+    paths:
+      - '.github/workflows/grand-bruxelles-nord-source-acquisition.yml'
+      - 'grand-bruxelles-game/tools/fetch_urbis_nord.py'
+      - 'grand-bruxelles-game/tools/validate_nord_city_machine_data.py'
+      - 'grand-bruxelles-game/tools/test_nord_source_contract.py'
+      - 'grand-bruxelles-game/data/qa/nord_source_target.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gare-du-nord-source-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  acquire-official-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prove Nord source contract
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python -m py_compile tools/fetch_urbis_nord.py tools/validate_nord_city_machine_data.py tools/test_nord_source_contract.py
+          python tools/test_nord_source_contract.py
+
+      - name: Acquire official UrbIS Nord envelope
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          rm -rf data/urbis/nord
+          python tools/fetch_urbis_nord.py --output-dir data/urbis/nord --retries 4
+          python tools/validate_nord_city_machine_data.py data/urbis/nord
+
+      - name: Persist immutable source snapshot on feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/urbis/nord
+          if git diff --cached --quiet; then
+            echo 'NORD_SOURCE_PERSISTENCE_OK unchanged=true'
+            exit 0
+          fi
+          git commit -m 'data(nord): persist official UrbIS station envelope'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo 'NORD_SOURCE_PERSISTENCE_OK unchanged=false'

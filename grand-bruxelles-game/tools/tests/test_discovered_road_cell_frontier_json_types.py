@@ -62,6 +62,7 @@ def main() -> int:
     strict_validate(frontier)
 
     canonical_cells = json.loads(CELLS.read_text(encoding="utf-8"))
+    registry_validator.validate_registry(canonical_cells)
     with tempfile.TemporaryDirectory() as tmp:
         count_string = json.loads(json.dumps(canonical_cells))
         count_string["registered_cell_count"] = str(count_string["registered_cell_count"])
@@ -70,12 +71,20 @@ def main() -> int:
             "registered cell count JSON type drift",
         )
 
-        bbox_float = json.loads(json.dumps(canonical_cells))
-        bbox_float["entries"][0]["bbox"][0] = float(bbox_float["entries"][0]["bbox"][0])
-        bbox_float["semantic_sha256"] = registry_validator.semantic_sha256(bbox_float)
+        bbox_string = json.loads(json.dumps(canonical_cells))
+        bbox_string["entries"][0]["bbox"][0] = str(bbox_string["entries"][0]["bbox"][0])
+        bbox_string["semantic_sha256"] = registry_validator.semantic_sha256(bbox_string)
         expect_fail(
-            lambda: registry_validator.validate_registry(bbox_float),
-            "registered cell bbox JSON type drift",
+            lambda: registry_validator.validate_registry(bbox_string),
+            "registered cell bbox[0] JSON type drift",
+        )
+
+        bbox_fractional = json.loads(json.dumps(canonical_cells))
+        bbox_fractional["entries"][0]["bbox"][0] += 0.5
+        bbox_fractional["semantic_sha256"] = registry_validator.semantic_sha256(bbox_fractional)
+        expect_fail(
+            lambda: registry_validator.validate_registry(bbox_fractional),
+            "registered cell bbox[0] integral-coordinate drift",
         )
 
     global_size_string = json.loads(json.dumps(frontier))

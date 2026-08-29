@@ -38,6 +38,13 @@ def is_sha256(value: Any) -> bool:
     return len(text) == 64 and all(ch in "0123456789abcdef" for ch in text)
 
 
+def require_json_int(value: Any, label: str, *, minimum: int = 0) -> int:
+    """Return an identity/accounting integer without normalizing JSON types."""
+    if type(value) is not int or value < minimum:
+        raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: JSON type drift {label}")
+    return value
+
+
 def load_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -183,15 +190,18 @@ def build_binding(source_root: Path, readiness_path: Path, catalog_builder_path:
     )
 
     destinations = readiness.get("destinations")
-    if not isinstance(destinations, list) or int(readiness.get("destination_count", -1)) != len(destinations):
+    if not isinstance(destinations, list):
+        raise SystemExit("ROAD_PROVENANCE_BINDING_FAIL: readiness destination accounting drift")
+    destination_count = require_json_int(readiness.get("destination_count"), "readiness destination_count")
+    if destination_count != len(destinations):
         raise SystemExit("ROAD_PROVENANCE_BINDING_FAIL: readiness destination accounting drift")
 
     registered: dict[int, dict[str, Any]] = {}
     for destination in destinations:
         if not isinstance(destination, dict):
             raise SystemExit("ROAD_PROVENANCE_BINDING_FAIL: malformed destination")
-        road_id = int(destination.get("road_osm_id", 0))
-        if road_id <= 0 or road_id in registered:
+        road_id = require_json_int(destination.get("road_osm_id"), "destination road_osm_id", minimum=1)
+        if road_id in registered:
             raise SystemExit(f"ROAD_PROVENANCE_BINDING_FAIL: invalid/duplicate road {road_id}")
         source_entry = catalog["entries"].get(str(road_id))
         if source_entry is None:
@@ -282,11 +292,16 @@ def validate_binding(binding: dict[str, Any]) -> None:
     if not is_sha256(binding.get("source_catalog_sha256")) or not is_sha256(binding.get("readiness_catalog_semantic_sha256")):
         raise SystemExit("ROAD_PROVENANCE_BINDING_FAIL: upstream semantic identity missing")
     entries = binding.get("entries")
-    if not isinstance(entries, dict) or int(binding.get("entry_count", -1)) != len(entries):
+    if not isinstance(entries, dict):
+        raise SystemExit("ROAD_PROVENANCE_BINDING_FAIL: entry accounting drift")
+    entry_count = require_json_int(binding.get("entry_count"), "binding entry_count")
+    registered_count = require_json_int(binding.get("registered_not_rendered_count"), "binding registered_not_rendered_count")
+    discovered_count = require_json_int(binding.get("discovered_only_count"), "binding discovered_only_count")
+    if entry_count != len(entries):
         raise SystemExit("ROAD_PROVENANCE_BINDING_FAIL: entry accounting drift")
     registered = sum(1 for row in entries.values() if row.get("state") == "REGISTERED_NOT_RENDERED")
     discovered = sum(1 for row in entries.values() if row.get("state") == "DISCOVERED")
-    if registered != int(binding.get("registered_not_rendered_count", -1)) or discovered != int(binding.get("discovered_only_count", -1)) or registered + discovered != len(entries):
+    if registered != registered_count or discovered != discovered_count or registered + discovered != len(entries):
         raise SystemExit("ROAD_PROVENANCE_BINDING_FAIL: state accounting drift")
     auth = binding.get("authorization") or {}
     if auth.get("evidence_only") is not True:

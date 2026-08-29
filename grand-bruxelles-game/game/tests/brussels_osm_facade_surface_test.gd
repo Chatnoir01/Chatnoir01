@@ -4,6 +4,7 @@ const MATERIAL_PATH := "res://game/scripts/brussels_osm_facade_surface_material.
 const RUNTIME_PATH := "res://game/scripts/brussels_osm_facade_surface_runtime.gd"
 const MATERIAL_FAMILY := "brussels_osm_facade_surface_v1"
 const MIN_GENERIC_BUILDINGS := 40
+const MAX_BIND_FRAMES := 240
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -11,6 +12,37 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     push_error("BRUSSELS_OSM_FACADE_SURFACE_FAIL: %s" % message)
     quit(1)
+
+func _wait_for_runtime(runtime: Node) -> bool:
+    for _frame: int in range(MAX_BIND_FRAMES):
+        await process_frame
+        if runtime.ready_complete() and not runtime.failed() and runtime.applied_building_count() >= MIN_GENERIC_BUILDINGS:
+            return true
+    return false
+
+func _validate_bound_runtime(runtime: Node, label: String) -> bool:
+    if not runtime.ready_complete():
+        _fail("%s runtime did not finish" % label)
+        return false
+    if runtime.failed():
+        _fail("%s runtime reported failure" % label)
+        return false
+    if runtime.applied_building_count() < MIN_GENERIC_BUILDINGS:
+        _fail("%s too few generic OSM buildings received shared surface" % label)
+        return false
+    if runtime.shared_material_count() < 2:
+        _fail("%s shared facade material family is not reusable" % label)
+        return false
+    if not runtime.geometry_unchanged():
+        _fail("%s facade surface runtime changed or retained stale building geometry" % label)
+        return false
+    if runtime.hero_replacement_count() != 0:
+        _fail("%s facade surface runtime touched hero replacement geometry" % label)
+        return false
+    if runtime.material_family() != MATERIAL_FAMILY:
+        _fail("%s unexpected material family" % label)
+        return false
+    return true
 
 func _run() -> void:
     if not FileAccess.file_exists(MATERIAL_PATH):
@@ -24,39 +56,40 @@ func _run() -> void:
     if packed == null:
         _fail("production main scene missing")
         return
-    var scene := packed.instantiate() as Node3D
-    root.add_child(scene)
+
+    var first_scene := packed.instantiate() as Node3D
+    root.add_child(first_scene)
 
     var runtime := root.get_node_or_null("BrusselsOsmFacadeSurfaceRuntime")
     if runtime == null:
         _fail("shared facade surface runtime missing")
         return
 
-    for _frame: int in range(240):
+    if not await _wait_for_runtime(runtime):
+        _fail("first scene facade bind timed out")
+        return
+    if not _validate_bound_runtime(runtime, "first scene"):
+        return
+    var first_count: int = int(runtime.applied_building_count())
+
+    # Autoloads survive production scene replacement. The facade runtime must
+    # release old scene references, keep lifecycle watchers armed and bind the
+    # new GeneratedBuildings root without per-frame global discovery.
+    first_scene.queue_free()
+    for _frame: int in range(4):
         await process_frame
-        if runtime.ready_complete():
-            break
-    if not runtime.ready_complete():
-        _fail("runtime did not finish")
+
+    var replacement_scene := packed.instantiate() as Node3D
+    root.add_child(replacement_scene)
+
+    if not await _wait_for_runtime(runtime):
+        _fail("replacement scene facade rebind timed out")
         return
-    if runtime.failed():
-        _fail("runtime reported failure")
+    if not _validate_bound_runtime(runtime, "replacement scene"):
         return
-    if runtime.applied_building_count() < MIN_GENERIC_BUILDINGS:
-        _fail("too few generic OSM buildings received shared surface")
-        return
-    if runtime.shared_material_count() < 2:
-        _fail("shared facade material family is not reusable")
-        return
-    if not runtime.geometry_unchanged():
-        _fail("facade surface runtime changed building geometry")
-        return
-    if runtime.hero_replacement_count() != 0:
-        _fail("facade surface runtime touched hero replacement geometry")
-        return
-    if runtime.material_family() != MATERIAL_FAMILY:
-        _fail("unexpected material family")
+    if runtime.applied_building_count() != first_count:
+        _fail("replacement scene building coverage drifted: first=%d replacement=%d" % [first_count, runtime.applied_building_count()])
         return
 
-    print("BRUSSELS_OSM_FACADE_SURFACE_OK: buildings=%d materials=%d family=%s geometry_changed=false hero_replacements=0" % [runtime.applied_building_count(), runtime.shared_material_count(), runtime.material_family()])
+    print("BRUSSELS_OSM_FACADE_SURFACE_OK: buildings=%d materials=%d family=%s geometry_changed=false hero_replacements=0 scene_rebind=true" % [runtime.applied_building_count(), runtime.shared_material_count(), runtime.material_family()])
     quit(0)

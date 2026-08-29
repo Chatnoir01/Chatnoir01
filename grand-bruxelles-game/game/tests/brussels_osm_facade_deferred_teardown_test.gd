@@ -86,16 +86,22 @@ func _run() -> void:
     # to Node and would fail this witness at parse time before runtime checks.
     var tree: SceneTree = self
 
-    # Phase 1: Surface owns a SceneTree.node_added listener while waiting.
-    # Teardown must synchronously disconnect it, even if its deferred bind has not run.
+    # Phase 1: Surface owns lifecycle listeners while waiting. Teardown must
+    # synchronously disconnect them, even if its deferred bind has not run.
     var surface_probe := SURFACE_SCRIPT.new() as Node
     root.add_child(surface_probe)
     if not tree.node_added.is_connected(surface_probe._on_node_added):
-        _fail("surface listener was not connected before teardown")
+        _fail("surface node_added listener was not connected before teardown")
+        return
+    if not tree.node_removed.is_connected(surface_probe._on_node_removed):
+        _fail("surface node_removed listener was not connected before teardown")
         return
     root.remove_child(surface_probe)
     if tree.node_added.is_connected(surface_probe._on_node_added):
         _fail("surface retained SceneTree.node_added listener after teardown")
+        return
+    if tree.node_removed.is_connected(surface_probe._on_node_removed):
+        _fail("surface retained SceneTree.node_removed listener after teardown")
         return
     await process_frame
     if bool(surface_probe.call("ready_complete")):
@@ -103,8 +109,8 @@ func _run() -> void:
         return
     surface_probe.queue_free()
 
-    # Phase 2: Articulation must clean both SceneTree.node_added and its
-    # facade_surface_ready connection to the base Surface runtime on teardown.
+    # Phase 2: Articulation must clean both SceneTree lifecycle listeners and
+    # its facade_surface_ready connection to the base Surface runtime on teardown.
     var mount := _build_probe_mount(false)
     var surface := SURFACE_SCRIPT.new() as Node
     surface.name = "BrusselsOsmFacadeSurfaceRuntime"
@@ -119,7 +125,10 @@ func _run() -> void:
     root.add_child(articulation)
     await process_frame
     if not tree.node_added.is_connected(articulation._on_node_added):
-        _fail("articulation listener was not connected before teardown")
+        _fail("articulation node_added listener was not connected before teardown")
+        return
+    if not tree.node_removed.is_connected(articulation._on_node_removed):
+        _fail("articulation node_removed listener was not connected before teardown")
         return
     if not surface.facade_surface_ready.is_connected(articulation._on_base_surface_ready):
         _fail("articulation did not connect base-runtime signal before teardown")
@@ -128,6 +137,9 @@ func _run() -> void:
     root.remove_child(articulation)
     if tree.node_added.is_connected(articulation._on_node_added):
         _fail("articulation retained SceneTree.node_added listener after teardown")
+        return
+    if tree.node_removed.is_connected(articulation._on_node_removed):
+        _fail("articulation retained SceneTree.node_removed listener after teardown")
         return
     if surface.facade_surface_ready.is_connected(articulation._on_base_surface_ready):
         _fail("articulation retained facade_surface_ready signal after teardown")
@@ -142,9 +154,11 @@ func _run() -> void:
     _cleanup_viewport(mount["viewport"] as SubViewport)
     await process_frame
 
-    # Phase 3: a terminal successful bind must also release the cross-runtime
-    # facade_surface_ready subscription. It must additionally surrender the
-    # material it owns when Articulation is removed while Surface remains alive.
+    # Phase 3: successful articulation remains scene-rebindable. Its lifecycle
+    # listeners and base facade_surface_ready signal must stay connected after
+    # ready_complete, then all disconnect synchronously at actual teardown.
+    # It must additionally surrender the material it owns when removed while
+    # Surface remains alive.
     var success_mount := _build_probe_mount(true)
     var success_building := success_mount["building"] as CSGPolygon3D
     var success_legacy := success_mount["legacy"] as Material
@@ -152,7 +166,7 @@ func _run() -> void:
     success_surface.name = "BrusselsOsmFacadeSurfaceRuntime"
     root.add_child(success_surface)
     if not await _wait_ready(success_surface, 12):
-        _fail("surface did not reach terminal success for signal-cleanup probe")
+        _fail("surface did not reach terminal success for signal-retention probe")
         return
     var surface_owned_material := success_building.material
 
@@ -160,22 +174,34 @@ func _run() -> void:
     success_articulation.name = "BrusselsOsmFacadeArticulationRuntime"
     root.add_child(success_articulation)
     if not await _wait_ready(success_articulation, 12):
-        _fail("articulation did not reach terminal success for signal-cleanup probe")
+        _fail("articulation did not reach terminal success for signal-retention probe")
         return
-    if success_surface.facade_surface_ready.is_connected(success_articulation._on_base_surface_ready):
-        _fail("articulation retained facade_surface_ready after terminal success")
+    if not success_surface.facade_surface_ready.is_connected(success_articulation._on_base_surface_ready):
+        _fail("articulation dropped facade_surface_ready needed for scene rebind")
         return
-    if tree.node_added.is_connected(success_articulation._on_node_added):
-        _fail("articulation retained SceneTree.node_added after terminal success")
+    if not tree.node_added.is_connected(success_articulation._on_node_added):
+        _fail("articulation dropped SceneTree.node_added needed for scene rebind")
+        return
+    if not tree.node_removed.is_connected(success_articulation._on_node_removed):
+        _fail("articulation dropped SceneTree.node_removed needed for scene rebind")
         return
     if not bool(success_articulation.call("geometry_unchanged")):
-        _fail("terminal signal cleanup changed facade geometry")
+        _fail("retained scene-rebind subscriptions changed facade geometry")
         return
     if success_building.material == surface_owned_material:
         _fail("articulation never took material ownership in successful probe")
         return
 
     root.remove_child(success_articulation)
+    if success_surface.facade_surface_ready.is_connected(success_articulation._on_base_surface_ready):
+        _fail("articulation retained facade_surface_ready after teardown")
+        return
+    if tree.node_added.is_connected(success_articulation._on_node_added):
+        _fail("articulation retained SceneTree.node_added after successful teardown")
+        return
+    if tree.node_removed.is_connected(success_articulation._on_node_removed):
+        _fail("articulation retained SceneTree.node_removed after successful teardown")
+        return
     if success_building.material != surface_owned_material:
         _fail("articulation material ownership survived teardown")
         return
@@ -213,8 +239,7 @@ func _run() -> void:
 
     # Phase 5: Surface itself is also a presentation owner. Removing Surface after
     # a successful bind must restore the exact legacy material and clear only its
-    # own metadata. This is deliberately RED on production until Surface gains an
-    # owner-aware teardown release path.
+    # own metadata.
     root.remove_child(success_surface)
     if success_building.material != success_legacy:
         _fail("surface material ownership survived teardown")
@@ -247,5 +272,5 @@ func _run() -> void:
 
     _cleanup_viewport(success_mount["viewport"] as SubViewport)
 
-    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true articulation_material_owner_cleanup=true surface_material_owner_cleanup=true later_owners_preserved=true post_teardown_ready=false geometry_changed=false")
+    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_teardown_cleanup=true scene_rebind_signal_retained_until_teardown=true articulation_material_owner_cleanup=true surface_material_owner_cleanup=true later_owners_preserved=true post_teardown_ready=false geometry_changed=false")
     quit(0)

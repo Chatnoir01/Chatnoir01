@@ -1,0 +1,1305 @@
+{
+  "format": "grand-bruxelles-zone-cells-v2",
+  "zone_id": "anderlecht",
+  "crs": "EPSG:31370",
+  "boundary_source": "data/processed/remaining_brussels/boundaries/anderlecht.geojson",
+  "source_bbox": [
+    141192.63390749,
+    166293.40998182,
+    147982.74999184,
+    171103.63493994
+  ],
+  "cell_size_m": 500.0,
+  "cell_id_scheme": "global Lambert72 minE/minN + cell size",
+  "envelope_cell_count": 154,
+  "cell_count": 99,
+  "cells": [
+    {
+      "id": "bxl-e143500-n166000-s500",
+      "zone_id": "anderlecht",
+      "row": 0,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        166000.0,
+        144000.0,
+        166500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n166000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n166000-s500 --bbox 143500.0,166000.0,144000.0,166500.0"
+    },
+    {
+      "id": "bxl-e144000-n166000-s500",
+      "zone_id": "anderlecht",
+      "row": 0,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        166000.0,
+        144500.0,
+        166500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n166000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n166000-s500 --bbox 144000.0,166000.0,144500.0,166500.0"
+    },
+    {
+      "id": "bxl-e144500-n166000-s500",
+      "zone_id": "anderlecht",
+      "row": 0,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        166000.0,
+        145000.0,
+        166500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n166000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n166000-s500 --bbox 144500.0,166000.0,145000.0,166500.0"
+    },
+    {
+      "id": "bxl-e142000-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 2,
+      "bbox": [
+        142000.0,
+        166500.0,
+        142500.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142000-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142000-n166500-s500 --bbox 142000.0,166500.0,142500.0,167000.0"
+    },
+    {
+      "id": "bxl-e142500-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 3,
+      "bbox": [
+        142500.0,
+        166500.0,
+        143000.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142500-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142500-n166500-s500 --bbox 142500.0,166500.0,143000.0,167000.0"
+    },
+    {
+      "id": "bxl-e143000-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 4,
+      "bbox": [
+        143000.0,
+        166500.0,
+        143500.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143000-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143000-n166500-s500 --bbox 143000.0,166500.0,143500.0,167000.0"
+    },
+    {
+      "id": "bxl-e143500-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        166500.0,
+        144000.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n166500-s500 --bbox 143500.0,166500.0,144000.0,167000.0"
+    },
+    {
+      "id": "bxl-e144000-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        166500.0,
+        144500.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n166500-s500 --bbox 144000.0,166500.0,144500.0,167000.0"
+    },
+    {
+      "id": "bxl-e144500-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        166500.0,
+        145000.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n166500-s500 --bbox 144500.0,166500.0,145000.0,167000.0"
+    },
+    {
+      "id": "bxl-e145000-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        166500.0,
+        145500.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n166500-s500 --bbox 145000.0,166500.0,145500.0,167000.0"
+    },
+    {
+      "id": "bxl-e145500-n166500-s500",
+      "zone_id": "anderlecht",
+      "row": 1,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        166500.0,
+        146000.0,
+        167000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n166500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n166500-s500 --bbox 145500.0,166500.0,146000.0,167000.0"
+    },
+    {
+      "id": "bxl-e141000-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 0,
+      "bbox": [
+        141000.0,
+        167000.0,
+        141500.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e141000-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e141000-n167000-s500 --bbox 141000.0,167000.0,141500.0,167500.0"
+    },
+    {
+      "id": "bxl-e141500-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 1,
+      "bbox": [
+        141500.0,
+        167000.0,
+        142000.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e141500-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e141500-n167000-s500 --bbox 141500.0,167000.0,142000.0,167500.0"
+    },
+    {
+      "id": "bxl-e142000-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 2,
+      "bbox": [
+        142000.0,
+        167000.0,
+        142500.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142000-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142000-n167000-s500 --bbox 142000.0,167000.0,142500.0,167500.0"
+    },
+    {
+      "id": "bxl-e142500-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 3,
+      "bbox": [
+        142500.0,
+        167000.0,
+        143000.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142500-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142500-n167000-s500 --bbox 142500.0,167000.0,143000.0,167500.0"
+    },
+    {
+      "id": "bxl-e143000-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 4,
+      "bbox": [
+        143000.0,
+        167000.0,
+        143500.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143000-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143000-n167000-s500 --bbox 143000.0,167000.0,143500.0,167500.0"
+    },
+    {
+      "id": "bxl-e143500-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        167000.0,
+        144000.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n167000-s500 --bbox 143500.0,167000.0,144000.0,167500.0"
+    },
+    {
+      "id": "bxl-e144000-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        167000.0,
+        144500.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n167000-s500 --bbox 144000.0,167000.0,144500.0,167500.0"
+    },
+    {
+      "id": "bxl-e144500-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        167000.0,
+        145000.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n167000-s500 --bbox 144500.0,167000.0,145000.0,167500.0"
+    },
+    {
+      "id": "bxl-e145000-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        167000.0,
+        145500.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n167000-s500 --bbox 145000.0,167000.0,145500.0,167500.0"
+    },
+    {
+      "id": "bxl-e145500-n167000-s500",
+      "zone_id": "anderlecht",
+      "row": 2,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        167000.0,
+        146000.0,
+        167500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n167000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n167000-s500 --bbox 145500.0,167000.0,146000.0,167500.0"
+    },
+    {
+      "id": "bxl-e141000-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 0,
+      "bbox": [
+        141000.0,
+        167500.0,
+        141500.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e141000-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e141000-n167500-s500 --bbox 141000.0,167500.0,141500.0,168000.0"
+    },
+    {
+      "id": "bxl-e141500-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 1,
+      "bbox": [
+        141500.0,
+        167500.0,
+        142000.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e141500-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e141500-n167500-s500 --bbox 141500.0,167500.0,142000.0,168000.0"
+    },
+    {
+      "id": "bxl-e142000-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 2,
+      "bbox": [
+        142000.0,
+        167500.0,
+        142500.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142000-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142000-n167500-s500 --bbox 142000.0,167500.0,142500.0,168000.0"
+    },
+    {
+      "id": "bxl-e142500-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 3,
+      "bbox": [
+        142500.0,
+        167500.0,
+        143000.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142500-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142500-n167500-s500 --bbox 142500.0,167500.0,143000.0,168000.0"
+    },
+    {
+      "id": "bxl-e143000-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 4,
+      "bbox": [
+        143000.0,
+        167500.0,
+        143500.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143000-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143000-n167500-s500 --bbox 143000.0,167500.0,143500.0,168000.0"
+    },
+    {
+      "id": "bxl-e143500-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        167500.0,
+        144000.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n167500-s500 --bbox 143500.0,167500.0,144000.0,168000.0"
+    },
+    {
+      "id": "bxl-e144000-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        167500.0,
+        144500.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n167500-s500 --bbox 144000.0,167500.0,144500.0,168000.0"
+    },
+    {
+      "id": "bxl-e144500-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        167500.0,
+        145000.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n167500-s500 --bbox 144500.0,167500.0,145000.0,168000.0"
+    },
+    {
+      "id": "bxl-e145000-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        167500.0,
+        145500.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n167500-s500 --bbox 145000.0,167500.0,145500.0,168000.0"
+    },
+    {
+      "id": "bxl-e145500-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        167500.0,
+        146000.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n167500-s500 --bbox 145500.0,167500.0,146000.0,168000.0"
+    },
+    {
+      "id": "bxl-e146000-n167500-s500",
+      "zone_id": "anderlecht",
+      "row": 3,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        167500.0,
+        146500.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n167500-s500 --bbox 146000.0,167500.0,146500.0,168000.0"
+    },
+    {
+      "id": "bxl-e141500-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 1,
+      "bbox": [
+        141500.0,
+        168000.0,
+        142000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e141500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e141500-n168000-s500 --bbox 141500.0,168000.0,142000.0,168500.0"
+    },
+    {
+      "id": "bxl-e142000-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 2,
+      "bbox": [
+        142000.0,
+        168000.0,
+        142500.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142000-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142000-n168000-s500 --bbox 142000.0,168000.0,142500.0,168500.0"
+    },
+    {
+      "id": "bxl-e142500-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 3,
+      "bbox": [
+        142500.0,
+        168000.0,
+        143000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142500-n168000-s500 --bbox 142500.0,168000.0,143000.0,168500.0"
+    },
+    {
+      "id": "bxl-e143000-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 4,
+      "bbox": [
+        143000.0,
+        168000.0,
+        143500.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143000-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143000-n168000-s500 --bbox 143000.0,168000.0,143500.0,168500.0"
+    },
+    {
+      "id": "bxl-e143500-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        168000.0,
+        144000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n168000-s500 --bbox 143500.0,168000.0,144000.0,168500.0"
+    },
+    {
+      "id": "bxl-e144000-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        168000.0,
+        144500.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n168000-s500 --bbox 144000.0,168000.0,144500.0,168500.0"
+    },
+    {
+      "id": "bxl-e144500-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        168000.0,
+        145000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n168000-s500 --bbox 144500.0,168000.0,145000.0,168500.0"
+    },
+    {
+      "id": "bxl-e145000-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        168000.0,
+        145500.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n168000-s500 --bbox 145000.0,168000.0,145500.0,168500.0"
+    },
+    {
+      "id": "bxl-e145500-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        168000.0,
+        146000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n168000-s500 --bbox 145500.0,168000.0,146000.0,168500.0"
+    },
+    {
+      "id": "bxl-e146000-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        168000.0,
+        146500.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n168000-s500 --bbox 146000.0,168000.0,146500.0,168500.0"
+    },
+    {
+      "id": "bxl-e146500-n168000-s500",
+      "zone_id": "anderlecht",
+      "row": 4,
+      "col": 11,
+      "bbox": [
+        146500.0,
+        168000.0,
+        147000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n168000-s500 --bbox 146500.0,168000.0,147000.0,168500.0"
+    },
+    {
+      "id": "bxl-e141500-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 1,
+      "bbox": [
+        141500.0,
+        168500.0,
+        142000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e141500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e141500-n168500-s500 --bbox 141500.0,168500.0,142000.0,169000.0"
+    },
+    {
+      "id": "bxl-e142000-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 2,
+      "bbox": [
+        142000.0,
+        168500.0,
+        142500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142000-n168500-s500 --bbox 142000.0,168500.0,142500.0,169000.0"
+    },
+    {
+      "id": "bxl-e142500-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 3,
+      "bbox": [
+        142500.0,
+        168500.0,
+        143000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142500-n168500-s500 --bbox 142500.0,168500.0,143000.0,169000.0"
+    },
+    {
+      "id": "bxl-e143000-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 4,
+      "bbox": [
+        143000.0,
+        168500.0,
+        143500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143000-n168500-s500 --bbox 143000.0,168500.0,143500.0,169000.0"
+    },
+    {
+      "id": "bxl-e143500-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        168500.0,
+        144000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n168500-s500 --bbox 143500.0,168500.0,144000.0,169000.0"
+    },
+    {
+      "id": "bxl-e144000-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        168500.0,
+        144500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n168500-s500 --bbox 144000.0,168500.0,144500.0,169000.0"
+    },
+    {
+      "id": "bxl-e144500-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        168500.0,
+        145000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n168500-s500 --bbox 144500.0,168500.0,145000.0,169000.0"
+    },
+    {
+      "id": "bxl-e145000-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        168500.0,
+        145500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n168500-s500 --bbox 145000.0,168500.0,145500.0,169000.0"
+    },
+    {
+      "id": "bxl-e145500-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        168500.0,
+        146000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n168500-s500 --bbox 145500.0,168500.0,146000.0,169000.0"
+    },
+    {
+      "id": "bxl-e146000-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        168500.0,
+        146500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n168500-s500 --bbox 146000.0,168500.0,146500.0,169000.0"
+    },
+    {
+      "id": "bxl-e146500-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 11,
+      "bbox": [
+        146500.0,
+        168500.0,
+        147000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n168500-s500 --bbox 146500.0,168500.0,147000.0,169000.0"
+    },
+    {
+      "id": "bxl-e147000-n168500-s500",
+      "zone_id": "anderlecht",
+      "row": 5,
+      "col": 12,
+      "bbox": [
+        147000.0,
+        168500.0,
+        147500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n168500-s500 --bbox 147000.0,168500.0,147500.0,169000.0"
+    },
+    {
+      "id": "bxl-e141500-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 1,
+      "bbox": [
+        141500.0,
+        169000.0,
+        142000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e141500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e141500-n169000-s500 --bbox 141500.0,169000.0,142000.0,169500.0"
+    },
+    {
+      "id": "bxl-e142000-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 2,
+      "bbox": [
+        142000.0,
+        169000.0,
+        142500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142000-n169000-s500 --bbox 142000.0,169000.0,142500.0,169500.0"
+    },
+    {
+      "id": "bxl-e142500-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 3,
+      "bbox": [
+        142500.0,
+        169000.0,
+        143000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142500-n169000-s500 --bbox 142500.0,169000.0,143000.0,169500.0"
+    },
+    {
+      "id": "bxl-e143000-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 4,
+      "bbox": [
+        143000.0,
+        169000.0,
+        143500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143000-n169000-s500 --bbox 143000.0,169000.0,143500.0,169500.0"
+    },
+    {
+      "id": "bxl-e143500-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        169000.0,
+        144000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n169000-s500 --bbox 143500.0,169000.0,144000.0,169500.0"
+    },
+    {
+      "id": "bxl-e144000-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        169000.0,
+        144500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n169000-s500 --bbox 144000.0,169000.0,144500.0,169500.0"
+    },
+    {
+      "id": "bxl-e144500-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        169000.0,
+        145000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n169000-s500 --bbox 144500.0,169000.0,145000.0,169500.0"
+    },
+    {
+      "id": "bxl-e145000-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        169000.0,
+        145500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n169000-s500 --bbox 145000.0,169000.0,145500.0,169500.0"
+    },
+    {
+      "id": "bxl-e145500-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        169000.0,
+        146000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n169000-s500 --bbox 145500.0,169000.0,146000.0,169500.0"
+    },
+    {
+      "id": "bxl-e146000-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        169000.0,
+        146500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n169000-s500 --bbox 146000.0,169000.0,146500.0,169500.0"
+    },
+    {
+      "id": "bxl-e146500-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 11,
+      "bbox": [
+        146500.0,
+        169000.0,
+        147000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n169000-s500 --bbox 146500.0,169000.0,147000.0,169500.0"
+    },
+    {
+      "id": "bxl-e147000-n169000-s500",
+      "zone_id": "anderlecht",
+      "row": 6,
+      "col": 12,
+      "bbox": [
+        147000.0,
+        169000.0,
+        147500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n169000-s500 --bbox 147000.0,169000.0,147500.0,169500.0"
+    },
+    {
+      "id": "bxl-e142000-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 2,
+      "bbox": [
+        142000.0,
+        169500.0,
+        142500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142000-n169500-s500 --bbox 142000.0,169500.0,142500.0,170000.0"
+    },
+    {
+      "id": "bxl-e142500-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 3,
+      "bbox": [
+        142500.0,
+        169500.0,
+        143000.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e142500-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e142500-n169500-s500 --bbox 142500.0,169500.0,143000.0,170000.0"
+    },
+    {
+      "id": "bxl-e143000-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 4,
+      "bbox": [
+        143000.0,
+        169500.0,
+        143500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143000-n169500-s500 --bbox 143000.0,169500.0,143500.0,170000.0"
+    },
+    {
+      "id": "bxl-e143500-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        169500.0,
+        144000.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n169500-s500 --bbox 143500.0,169500.0,144000.0,170000.0"
+    },
+    {
+      "id": "bxl-e144000-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        169500.0,
+        144500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n169500-s500 --bbox 144000.0,169500.0,144500.0,170000.0"
+    },
+    {
+      "id": "bxl-e144500-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        169500.0,
+        145000.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n169500-s500 --bbox 144500.0,169500.0,145000.0,170000.0"
+    },
+    {
+      "id": "bxl-e145000-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        169500.0,
+        145500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n169500-s500 --bbox 145000.0,169500.0,145500.0,170000.0"
+    },
+    {
+      "id": "bxl-e145500-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        169500.0,
+        146000.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n169500-s500 --bbox 145500.0,169500.0,146000.0,170000.0"
+    },
+    {
+      "id": "bxl-e146000-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        169500.0,
+        146500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n169500-s500 --bbox 146000.0,169500.0,146500.0,170000.0"
+    },
+    {
+      "id": "bxl-e146500-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 11,
+      "bbox": [
+        146500.0,
+        169500.0,
+        147000.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n169500-s500 --bbox 146500.0,169500.0,147000.0,170000.0"
+    },
+    {
+      "id": "bxl-e147000-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 12,
+      "bbox": [
+        147000.0,
+        169500.0,
+        147500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n169500-s500 --bbox 147000.0,169500.0,147500.0,170000.0"
+    },
+    {
+      "id": "bxl-e147500-n169500-s500",
+      "zone_id": "anderlecht",
+      "row": 7,
+      "col": 13,
+      "bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500 --bbox 147500.0,169500.0,148000.0,170000.0"
+    },
+    {
+      "id": "bxl-e143500-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 5,
+      "bbox": [
+        143500.0,
+        170000.0,
+        144000.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n170000-s500 --bbox 143500.0,170000.0,144000.0,170500.0"
+    },
+    {
+      "id": "bxl-e144000-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        170000.0,
+        144500.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n170000-s500 --bbox 144000.0,170000.0,144500.0,170500.0"
+    },
+    {
+      "id": "bxl-e144500-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        170000.0,
+        145000.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n170000-s500 --bbox 144500.0,170000.0,145000.0,170500.0"
+    },
+    {
+      "id": "bxl-e145000-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        170000.0,
+        145500.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n170000-s500 --bbox 145000.0,170000.0,145500.0,170500.0"
+    },
+    {
+      "id": "bxl-e145500-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        170000.0,
+        146000.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n170000-s500 --bbox 145500.0,170000.0,146000.0,170500.0"
+    },
+    {
+      "id": "bxl-e146000-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        170000.0,
+        146500.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n170000-s500 --bbox 146000.0,170000.0,146500.0,170500.0"
+    },
+    {
+      "id": "bxl-e146500-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 11,
+      "bbox": [
+        146500.0,
+        170000.0,
+        147000.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n170000-s500 --bbox 146500.0,170000.0,147000.0,170500.0"
+    },
+    {
+      "id": "bxl-e147000-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 12,
+      "bbox": [
+        147000.0,
+        170000.0,
+        147500.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n170000-s500 --bbox 147000.0,170000.0,147500.0,170500.0"
+    },
+    {
+      "id": "bxl-e147500-n170000-s500",
+      "zone_id": "anderlecht",
+      "row": 8,
+      "col": 13,
+      "bbox": [
+        147500.0,
+        170000.0,
+        148000.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500 --bbox 147500.0,170000.0,148000.0,170500.0"
+    },
+    {
+      "id": "bxl-e144000-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 6,
+      "bbox": [
+        144000.0,
+        170500.0,
+        144500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n170500-s500 --bbox 144000.0,170500.0,144500.0,171000.0"
+    },
+    {
+      "id": "bxl-e144500-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        170500.0,
+        145000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n170500-s500 --bbox 144500.0,170500.0,145000.0,171000.0"
+    },
+    {
+      "id": "bxl-e145000-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 8,
+      "bbox": [
+        145000.0,
+        170500.0,
+        145500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n170500-s500 --bbox 145000.0,170500.0,145500.0,171000.0"
+    },
+    {
+      "id": "bxl-e145500-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        170500.0,
+        146000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n170500-s500 --bbox 145500.0,170500.0,146000.0,171000.0"
+    },
+    {
+      "id": "bxl-e146000-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        170500.0,
+        146500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n170500-s500 --bbox 146000.0,170500.0,146500.0,171000.0"
+    },
+    {
+      "id": "bxl-e146500-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 11,
+      "bbox": [
+        146500.0,
+        170500.0,
+        147000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n170500-s500 --bbox 146500.0,170500.0,147000.0,171000.0"
+    },
+    {
+      "id": "bxl-e147000-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 12,
+      "bbox": [
+        147000.0,
+        170500.0,
+        147500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n170500-s500 --bbox 147000.0,170500.0,147500.0,171000.0"
+    },
+    {
+      "id": "bxl-e147500-n170500-s500",
+      "zone_id": "anderlecht",
+      "row": 9,
+      "col": 13,
+      "bbox": [
+        147500.0,
+        170500.0,
+        148000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n170500-s500 --bbox 147500.0,170500.0,148000.0,171000.0"
+    },
+    {
+      "id": "bxl-e144500-n171000-s500",
+      "zone_id": "anderlecht",
+      "row": 10,
+      "col": 7,
+      "bbox": [
+        144500.0,
+        171000.0,
+        145000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n171000-s500 --bbox 144500.0,171000.0,145000.0,171500.0"
+    },
+    {
+      "id": "bxl-e145500-n171000-s500",
+      "zone_id": "anderlecht",
+      "row": 10,
+      "col": 9,
+      "bbox": [
+        145500.0,
+        171000.0,
+        146000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n171000-s500 --bbox 145500.0,171000.0,146000.0,171500.0"
+    },
+    {
+      "id": "bxl-e146000-n171000-s500",
+      "zone_id": "anderlecht",
+      "row": 10,
+      "col": 10,
+      "bbox": [
+        146000.0,
+        171000.0,
+        146500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n171000-s500 --bbox 146000.0,171000.0,146500.0,171500.0"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format": "grand-bruxelles-runtime-exclusions-v1",
+  "purpose": "keep useful seam/reference data without loading geometry owned by another workstream",
+  "excluded_cells": [
+    {
+      "cell_id": "bxl-e147500-n169500-s500",
+      "owner": "main-corridor",
+      "reason": "contains the Bruxelles-Midi Lambert72 control point and overlaps the main Midi reconstruction workstream",
+      "production_streaming": false,
+      "reference_data_retained": true
+    }
+  ]
+}

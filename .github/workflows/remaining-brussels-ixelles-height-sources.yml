@@ -1,0 +1,74 @@
+name: Remaining Brussels Ixelles Height Sources
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - "grand-bruxelles-game/tools/resolve_urbis_height_sources.py"
+      - "grand-bruxelles-game/tests/test_resolve_urbis_height_sources.py"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_height_tile_plan.json"
+      - ".github/workflows/remaining-brussels-ixelles-height-sources.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-ixelles-height-sources
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout clean mapping branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+
+      - name: Run source resolver tests
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_resolve_urbis_height_sources
+
+      - name: Resolve official DSM and DTM archives
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/resolve_urbis_height_sources.py \
+            --plan data/processed/remaining_brussels/references/ixelles_height_tile_plan.json \
+            --kind dsm \
+            --output /tmp/ixelles_dsm_sources.json
+          python3 tools/resolve_urbis_height_sources.py \
+            --plan data/processed/remaining_brussels/references/ixelles_height_tile_plan.json \
+            --kind dtm \
+            --output /tmp/ixelles_dtm_sources.json
+
+      - name: Validate exact two-tile resolution
+        run: |
+          python3 - <<'PY'
+          import json
+          for kind in ('dsm','dtm'):
+              p=json.load(open(f'/tmp/ixelles_{kind}_sources.json',encoding='utf-8'))
+              assert p['source_crs']=='EPSG:31370'
+              assert p['expected_1km_tile_codes']==['149168','149169']
+              assert [x['tile'] for x in p['resolved_archives']]==['149168','149169']
+              assert len({x['url'] for x in p['resolved_archives']})==2
+              assert all(x['url'].lower().endswith('.zip') for x in p['resolved_archives'])
+              print('IXELLES_HEIGHT_SOURCE_VALID',kind,[x['url'] for x in p['resolved_archives']])
+          PY
+
+      - name: Publish resolved source provenance
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-reste-bruxelles-clean
+          git reset --hard origin/zone-reste-bruxelles-clean
+          mkdir -p grand-bruxelles-game/data/processed/remaining_brussels/references
+          cp /tmp/ixelles_dsm_sources.json grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dsm_sources.json
+          cp /tmp/ixelles_dtm_sources.json grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_sources.json
+          git add grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dsm_sources.json \
+                  grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_sources.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: resolve Ixelles official DSM-DTM archives [skip ci]"
+          git push origin HEAD:zone-reste-bruxelles-clean

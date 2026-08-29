@@ -1,0 +1,196 @@
+name: Remaining Brussels Ixelles Building Heights
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - "grand-bruxelles-game/tools/derive_ixelles_building_heights.py"
+      - "grand-bruxelles-game/tests/test_derive_ixelles_building_heights.py"
+      - "grand-bruxelles-game/tools/inspect_ixelles_height_values.py"
+      - "grand-bruxelles-game/tests/test_inspect_ixelles_height_values.py"
+      - "grand-bruxelles-game/tools/select_ixelles_runtime_height_candidates.py"
+      - "grand-bruxelles-game/tests/test_select_ixelles_runtime_height_candidates.py"
+      - "grand-bruxelles-game/tools/evaluate_ixelles_dtm_lod.py"
+      - "grand-bruxelles-game/tests/test_evaluate_ixelles_dtm_lod.py"
+      - "grand-bruxelles-game/tools/verify_urbis_height_archives.py"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_height_tile_plan.json"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dsm_sources.json"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_sources.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**/raw/buildings.geojson"
+      - ".github/workflows/remaining-brussels-ixelles-building-heights.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-ixelles-building-heights
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout clean mapping branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+
+      - name: Install raster dependencies
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3" "rasterio>=1.3,<2"
+
+      - name: Run derivation, diagnostic, height-policy and terrain-LOD unit tests
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m unittest -v tests.test_derive_ixelles_building_heights
+          python3 -m unittest -v tests.test_inspect_ixelles_height_values
+          python3 -m unittest -v tests.test_select_ixelles_runtime_height_candidates
+          python3 -m unittest -v tests.test_evaluate_ixelles_dtm_lod
+
+      - name: Download and revalidate official height rasters
+        working-directory: grand-bruxelles-game
+        run: |
+          rm -rf /tmp/ixelles-height-work
+          python3 tools/verify_urbis_height_archives.py \
+            --dsm-resolution data/processed/remaining_brussels/references/ixelles_dsm_sources.json \
+            --dtm-resolution data/processed/remaining_brussels/references/ixelles_dtm_sources.json \
+            --work-dir /tmp/ixelles-height-work \
+            --dsm-output /tmp/ixelles_dsm_archive_validation.json \
+            --dtm-output /tmp/ixelles_dtm_archive_validation.json
+
+      - name: Inspect real paired raster value distributions
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/inspect_ixelles_height_values.py \
+            --raster-root /tmp/ixelles-height-work \
+            --tiles 149168 149169 \
+            --output /tmp/ixelles_height_value_diagnostics.json
+
+      - name: Derive per-building DSM-DTM statistics
+        working-directory: grand-bruxelles-game
+        run: |
+          set +e
+          python3 tools/derive_ixelles_building_heights.py \
+            --plan data/processed/remaining_brussels/references/ixelles_height_tile_plan.json \
+            --cell-root data/urbis/remaining_brussels/cells \
+            --raster-root /tmp/ixelles-height-work \
+            --output /tmp/ixelles_building_height_stats_full.json \
+            --summary-output /tmp/ixelles_building_height_summary.json \
+            --csv-output /tmp/ixelles_building_heights.csv \
+            > /tmp/ixelles_height_derivation.log 2>&1
+          code=$?
+          cat /tmp/ixelles_height_derivation.log
+          exit $code
+
+      - name: Upload raster diagnostics and derivation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-height-diagnostics
+          path: |
+            /tmp/ixelles_height_value_diagnostics.json
+            /tmp/ixelles_dsm_archive_validation.json
+            /tmp/ixelles_dtm_archive_validation.json
+            /tmp/ixelles_height_derivation.log
+          if-no-files-found: warn
+
+      - name: Enforce height quality report gate
+        run: |
+          python3 - <<'PY'
+          import csv,json
+          p=json.load(open('/tmp/ixelles_building_height_stats_full.json',encoding='utf-8'))
+          assert p['source_crs']=='EPSG:31370'
+          assert p['materialized_cells']==['bxl-e149000-n169000-s500','bxl-e149000-n169500-s500','bxl-e149500-n168500-s500','bxl-e149500-n169000-s500','bxl-e149500-n169500-s500']
+          assert p['expected_1km_tile_codes']==['149168','149169']
+          assert p['raster_shape']==[4000,2000]
+          assert p['building_memberships']>0 and p['unique_building_ids']>0
+          assert sum(p['confidence_counts'].values())==p['building_memberships']
+          q=p['mosaic_quality_gate']
+          assert q['valid_sample_count']>0
+          assert q['dtm_range_m']>=0.25
+          assert q['height_p95_m']>0.5
+          for b in p['buildings']:
+              h=b['height_stats']
+              assert h['confidence'] in ('high','medium','insufficient')
+              for key in ('p50','p75','p90'):
+                  v=h['plausible_difference_m'][key]
+                  assert v is None or -0.5 <= v <= 250.0
+          rows=list(csv.DictReader(open('/tmp/ixelles_building_heights.csv',encoding='utf-8')))
+          assert len(rows)==p['building_memberships']
+          summary=json.load(open('/tmp/ixelles_building_height_summary.json',encoding='utf-8'))
+          assert 'buildings' not in summary and summary['building_memberships']==len(rows)
+          print('IXELLES_BUILDING_HEIGHT_GATE_VALID',p['building_memberships'],p['unique_building_ids'],p['confidence_counts'],q)
+          PY
+
+      - name: Build non-runtime-approved height candidates
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/select_ixelles_runtime_height_candidates.py \
+            --input-csv /tmp/ixelles_building_heights.csv \
+            --output /tmp/ixelles_runtime_height_candidates.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/ixelles_runtime_height_candidates.json',encoding='utf-8'))
+          assert p['source_crs']=='EPSG:31370'
+          assert p['runtime_approved'] is False
+          assert p['policy_status']=='candidate_only_secondary_validation_required'
+          assert p['unique_buildings']>0
+          assert p['candidate_heights_emitted']>0
+          assert all(c['runtime_approved'] is False for c in p['candidates'])
+          assert len({c['building_id'] for c in p['candidates']})==p['unique_buildings']
+          print('IXELLES_RUNTIME_HEIGHT_CANDIDATES_GATE_VALID',p['unique_buildings'],p['candidate_heights_emitted'],p['buildings_flagged_for_review'])
+          PY
+
+      - name: Evaluate official DTM terrain LOD reconstruction error
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/evaluate_ixelles_dtm_lod.py \
+            --plan data/processed/remaining_brussels/references/ixelles_height_tile_plan.json \
+            --raster-root /tmp/ixelles-height-work \
+            --output /tmp/ixelles_dtm_lod_evidence.json \
+            --resolutions 1 2 4 8
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/ixelles_dtm_lod_evidence.json',encoding='utf-8'))
+          assert p['source_crs']=='EPSG:31370'
+          assert p['runtime_approved'] is False
+          assert p['status']=='evidence_only_not_runtime_approved'
+          assert len(p['cells'])==5
+          for cell in p['cells']:
+              assert cell['source_pixel_size_m']==0.5
+              assert [level['resolution_m'] for level in cell['levels']]==[1.0,2.0,4.0,8.0]
+              for level in cell['levels']:
+                  assert level['paired_samples']>0
+                  assert level['rmse_m']>=0
+                  assert level['p95_abs_error_m']>=0
+                  assert level['max_abs_error_m']>=level['p95_abs_error_m']
+          print('IXELLES_DTM_LOD_EVIDENCE_GATE_VALID',[(c['cell_id'],[(l['resolution_m'],l['p95_abs_error_m']) for l in c['levels']]) for c in p['cells']])
+          PY
+
+      - name: Upload full height, candidate and terrain evidence artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-building-height-statistics-full
+          path: |
+            /tmp/ixelles_building_height_stats_full.json
+            /tmp/ixelles_runtime_height_candidates.json
+            /tmp/ixelles_dtm_lod_evidence.json
+          if-no-files-found: error
+
+      - name: Publish compact auditable reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-reste-bruxelles-clean
+          git reset --hard origin/zone-reste-bruxelles-clean
+          OUT=grand-bruxelles-game/data/processed/remaining_brussels/references
+          mkdir -p "$OUT"
+          rm -f "$OUT/ixelles_building_height_stats.json"
+          cp /tmp/ixelles_building_height_summary.json "$OUT/ixelles_building_height_summary.json"
+          cp /tmp/ixelles_building_heights.csv "$OUT/ixelles_building_heights.csv"
+          git add -A "$OUT"
+          git diff --cached --quiet && exit 0
+          git commit -m "data: compact Ixelles building height evidence [skip ci]"
+          git push origin HEAD:zone-reste-bruxelles-clean

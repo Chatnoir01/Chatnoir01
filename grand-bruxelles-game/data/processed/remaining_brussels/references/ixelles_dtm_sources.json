@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "format": "grand-bruxelles-height-source-resolution-v1",
+  "kind": "dtm",
+  "source": "Paradigm UrbIS Digital Terrain Model 2021",
+  "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+  "dataset_atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-en.xml",
+  "source_crs": "EPSG:31370",
+  "bbox_epsg31370": [
+    149000,
+    168500,
+    150000,
+    170000
+  ],
+  "expected_1km_tile_codes": [
+    "149168",
+    "149169"
+  ],
+  "feeds_crawled": [
+    {
+      "url": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-en.xml",
+      "depth": 0,
+      "bytes": 53227,
+      "links": 222
+    },
+    {
+      "url": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-fr.xml",
+      "depth": 1,
+      "bytes": 53345,
+      "links": 222
+    },
+    {
+      "url": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-nl.xml",
+      "depth": 1,
+      "bytes": 53256,
+      "links": 222
+    }
+  ],
+  "resolved_archives": [
+    {
+      "tile": "149168",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149168_20211009_50.zip"
+    },
+    {
+      "tile": "149169",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149169_20211009_50.zip"
+    }
+  ],
+  "license": "CC0 per official Paradigm/Geobru metadata recorded by the project",
+  "status": "official_archives_resolved_not_yet_downloaded_or_hashed"
+}

@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "format": "grand-bruxelles-height-archive-validation-v2",
+  "kind": "dsm",
+  "source": "Paradigm UrbIS Digital Surface Model 2021",
+  "dataset_id": "8c2d921e-6a53-11ed-bfb5-010101010000",
+  "source_crs": "EPSG:31370",
+  "bbox_epsg31370": [
+    149000,
+    168500,
+    150000,
+    170000
+  ],
+  "expected_1km_tile_codes": [
+    "149168",
+    "149169"
+  ],
+  "license": "CC0 per official Paradigm/Geobru metadata recorded by the project",
+  "validated_at_utc": "2026-08-12T03:54:50+00:00",
+  "archives": [
+    {
+      "tile": "149168",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_149168_20211009_50.zip",
+      "archive_bytes": 13059638,
+      "sha256": "53e90a44b78823f081451ea8e17271d54bcc2a5dd007a67ef82a3d17887b014c",
+      "raster": {
+        "filename": "UrbDSM_2021_149168.tif",
+        "width": 2000,
+        "height": 2000,
+        "count": 1,
+        "dtype": "float32",
+        "embedded_crs_epsg": null,
+        "crs_epsg": 31370,
+        "crs_basis": "authoritative_source_manifest",
+        "bounds": [
+          149000.1341350079,
+          168000.0715624727,
+          150000.1341350079,
+          169000.0715624727
+        ],
+        "resolution": [
+          0.5,
+          0.5
+        ],
+        "nodata": -3.4028234663852886e+38,
+        "transform": [
+          0.5,
+          0.0,
+          149000.1341350079,
+          0.0,
+          -0.5,
+          169000.0715624727
+        ]
+      }
+    },
+    {
+      "tile": "149169",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_149169_20211009_50.zip",
+      "archive_bytes": 13086999,
+      "sha256": "b735417906189a50475a3538d5d0b74270a721beaf3abb2e8a25cea2374fd99f",
+      "raster": {
+        "filename": "UrbDSM_2021_149169.tif",
+        "width": 2000,
+        "height": 2000,
+        "count": 1,
+        "dtype": "float32",
+        "embedded_crs_epsg": null,
+        "crs_epsg": 31370,
+        "crs_basis": "authoritative_source_manifest",
+        "bounds": [
+          149000.1341350079,
+          169000.0715624727,
+          150000.1341350079,
+          170000.0715624727
+        ],
+        "resolution": [
+          0.5,
+          0.5
+        ],
+        "nodata": -3.4028234663852886e+38,
+        "transform": [
+          0.5,
+          0.0,
+          149000.1341350079,
+          0.0,
+          -0.5,
+          170000.0715624727
+        ]
+      }
+    }
+  ],
+  "status": "official_archives_hashed_and_rasters_validated"
+}

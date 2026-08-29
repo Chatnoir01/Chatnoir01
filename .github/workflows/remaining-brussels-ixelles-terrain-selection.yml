@@ -1,0 +1,30 @@
+name: Remaining Brussels Ixelles Terrain Selection
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_lod_evidence.json"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_runtime_selection.json"
+      - "grand-bruxelles-game/tests/test_ixelles_dtm_runtime_selection.py"
+      - ".github/workflows/remaining-brussels-ixelles-terrain-selection.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_lod_evidence.json"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_runtime_selection.json"
+      - "grand-bruxelles-game/tests/test_ixelles_dtm_runtime_selection.py"
+      - ".github/workflows/remaining-brussels-ixelles-terrain-selection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate measured terrain selection
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_ixelles_dtm_runtime_selection

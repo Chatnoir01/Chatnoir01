@@ -1,0 +1,30 @@
+{
+  "format": "grand-bruxelles-remaining-zones-v1",
+  "crs": "EPSG:31370",
+  "cell_size_m": 500,
+  "zones": [
+    {"id": "anderlecht", "name": "Anderlecht", "wave": "R1", "priority": 1, "focus": ["Cureghem", "Canal", "Abattoirs", "Anderlecht centre"]},
+    {"id": "molenbeek", "name": "Molenbeek-Saint-Jean", "wave": "R1", "priority": 2, "focus": ["Canal", "Comte de Flandre", "Étangs Noirs", "Karreveld"]},
+    {"id": "saint-gilles", "name": "Saint-Gilles", "wave": "R1", "priority": 3, "focus": ["Parvis", "Barrière", "Hôtel de Ville"], "exclusions": ["Gare du Midi and immediate reserved corridor"]},
+    {"id": "ixelles", "name": "Ixelles", "wave": "R1", "priority": 4, "focus": ["Porte de Namur", "Flagey", "Étangs d'Ixelles", "Université / Solbosch"]},
+    {"id": "saint-josse", "name": "Saint-Josse-ten-Noode", "wave": "R1", "priority": 5, "focus": ["Botanique", "Madou", "Chaussée de Louvain"]},
+    {"id": "schaerbeek", "name": "Schaerbeek", "wave": "R1", "priority": 6, "focus": ["Place Colignon", "Josaphat", "Meiser", "Gare de Schaerbeek"]},
+    {"id": "etterbeek", "name": "Etterbeek", "wave": "R1", "priority": 7, "focus": ["Jourdan", "La Chasse", "Cinquantenaire edge"]},
+    {"id": "koekelberg", "name": "Koekelberg", "wave": "R2", "priority": 8, "focus": ["Basilique", "Parc Élisabeth"]},
+    {"id": "ganshoren", "name": "Ganshoren", "wave": "R2", "priority": 9, "focus": ["Basilique edge", "Parc Roi Baudouin edge"]},
+    {"id": "berchem", "name": "Berchem-Sainte-Agathe", "wave": "R2", "priority": 10, "focus": ["Place Schweitzer", "Gare de Berchem-Sainte-Agathe"]},
+    {"id": "evere", "name": "Evere", "wave": "R2", "priority": 11, "focus": ["Bordet", "Evere centre"]},
+    {"id": "forest", "name": "Forest", "wave": "R3", "priority": 12, "focus": ["Altitude 100", "Parc de Forest", "Forest National", "Abbaye de Forest"]},
+    {"id": "uccle", "name": "Uccle", "wave": "R3", "priority": 13, "focus": ["Parvis Saint-Pierre", "Fort Jaco", "Observatoire", "Dieweg"]},
+    {"id": "auderghem", "name": "Auderghem", "wave": "R3", "priority": 14, "focus": ["Herrmann-Debroux", "Rouge-Cloître"]},
+    {"id": "watermael-boitsfort", "name": "Watermael-Boitsfort", "wave": "R3", "priority": 15, "focus": ["Place Keym", "Boitsfort", "Forêt de Soignes edge"]},
+    {"id": "woluwe-saint-lambert", "name": "Woluwe-Saint-Lambert", "wave": "R3", "priority": 16, "focus": ["Tomberg", "Roodebeek", "Woluwe Shopping"]},
+    {"id": "woluwe-saint-pierre", "name": "Woluwe-Saint-Pierre", "wave": "R3", "priority": 17, "focus": ["Stockel", "Montgomery edge", "Parc de Woluwe"]}
+  ],
+  "brussels_city_subzones": [
+    {"id": "haren", "name": "Haren", "wave": "R2", "boundary_strategy": "submunicipal official geometry required"},
+    {"id": "neder-over-heembeek", "name": "Neder-over-Heembeek", "wave": "R2", "boundary_strategy": "submunicipal official geometry required"},
+    {"id": "european-quarter-east", "name": "Quartier européen / extensions est", "wave": "R1", "boundary_strategy": "monitoring districts / explicit official cut"},
+    {"id": "louise-roosevelt-bois", "name": "Louise / Roosevelt / Bois de la Cambre", "wave": "R3", "boundary_strategy": "official Brussels City / road and park geometry"}
+  ]
+}

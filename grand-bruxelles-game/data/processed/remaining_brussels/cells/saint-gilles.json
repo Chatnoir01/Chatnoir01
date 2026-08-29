@@ -1,0 +1,278 @@
+{
+  "format": "grand-bruxelles-zone-cells-v2",
+  "zone_id": "saint-gilles",
+  "crs": "EPSG:31370",
+  "boundary_source": "data/processed/remaining_brussels/boundaries/saint-gilles.geojson",
+  "source_bbox": [
+    146981.15276086,
+    167792.96542964,
+    149281.06970082,
+    169979.96555657
+  ],
+  "cell_size_m": 500.0,
+  "cell_id_scheme": "global Lambert72 minE/minN + cell size",
+  "envelope_cell_count": 30,
+  "cell_count": 20,
+  "cells": [
+    {
+      "id": "bxl-e148000-n167500-s500",
+      "zone_id": "saint-gilles",
+      "row": 0,
+      "col": 3,
+      "bbox": [
+        148000.0,
+        167500.0,
+        148500.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n167500-s500 --bbox 148000.0,167500.0,148500.0,168000.0"
+    },
+    {
+      "id": "bxl-e148500-n167500-s500",
+      "zone_id": "saint-gilles",
+      "row": 0,
+      "col": 4,
+      "bbox": [
+        148500.0,
+        167500.0,
+        149000.0,
+        168000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148500-n167500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148500-n167500-s500 --bbox 148500.0,167500.0,149000.0,168000.0"
+    },
+    {
+      "id": "bxl-e147500-n168000-s500",
+      "zone_id": "saint-gilles",
+      "row": 1,
+      "col": 2,
+      "bbox": [
+        147500.0,
+        168000.0,
+        148000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n168000-s500 --bbox 147500.0,168000.0,148000.0,168500.0"
+    },
+    {
+      "id": "bxl-e148000-n168000-s500",
+      "zone_id": "saint-gilles",
+      "row": 1,
+      "col": 3,
+      "bbox": [
+        148000.0,
+        168000.0,
+        148500.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n168000-s500 --bbox 148000.0,168000.0,148500.0,168500.0"
+    },
+    {
+      "id": "bxl-e148500-n168000-s500",
+      "zone_id": "saint-gilles",
+      "row": 1,
+      "col": 4,
+      "bbox": [
+        148500.0,
+        168000.0,
+        149000.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148500-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148500-n168000-s500 --bbox 148500.0,168000.0,149000.0,168500.0"
+    },
+    {
+      "id": "bxl-e149000-n168000-s500",
+      "zone_id": "saint-gilles",
+      "row": 1,
+      "col": 5,
+      "bbox": [
+        149000.0,
+        168000.0,
+        149500.0,
+        168500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149000-n168000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149000-n168000-s500 --bbox 149000.0,168000.0,149500.0,168500.0"
+    },
+    {
+      "id": "bxl-e146500-n168500-s500",
+      "zone_id": "saint-gilles",
+      "row": 2,
+      "col": 0,
+      "bbox": [
+        146500.0,
+        168500.0,
+        147000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n168500-s500 --bbox 146500.0,168500.0,147000.0,169000.0"
+    },
+    {
+      "id": "bxl-e147000-n168500-s500",
+      "zone_id": "saint-gilles",
+      "row": 2,
+      "col": 1,
+      "bbox": [
+        147000.0,
+        168500.0,
+        147500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n168500-s500 --bbox 147000.0,168500.0,147500.0,169000.0"
+    },
+    {
+      "id": "bxl-e147500-n168500-s500",
+      "zone_id": "saint-gilles",
+      "row": 2,
+      "col": 2,
+      "bbox": [
+        147500.0,
+        168500.0,
+        148000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n168500-s500 --bbox 147500.0,168500.0,148000.0,169000.0"
+    },
+    {
+      "id": "bxl-e148000-n168500-s500",
+      "zone_id": "saint-gilles",
+      "row": 2,
+      "col": 3,
+      "bbox": [
+        148000.0,
+        168500.0,
+        148500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n168500-s500 --bbox 148000.0,168500.0,148500.0,169000.0"
+    },
+    {
+      "id": "bxl-e148500-n168500-s500",
+      "zone_id": "saint-gilles",
+      "row": 2,
+      "col": 4,
+      "bbox": [
+        148500.0,
+        168500.0,
+        149000.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148500-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148500-n168500-s500 --bbox 148500.0,168500.0,149000.0,169000.0"
+    },
+    {
+      "id": "bxl-e149000-n168500-s500",
+      "zone_id": "saint-gilles",
+      "row": 2,
+      "col": 5,
+      "bbox": [
+        149000.0,
+        168500.0,
+        149500.0,
+        169000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149000-n168500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149000-n168500-s500 --bbox 149000.0,168500.0,149500.0,169000.0"
+    },
+    {
+      "id": "bxl-e147000-n169000-s500",
+      "zone_id": "saint-gilles",
+      "row": 3,
+      "col": 1,
+      "bbox": [
+        147000.0,
+        169000.0,
+        147500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n169000-s500 --bbox 147000.0,169000.0,147500.0,169500.0"
+    },
+    {
+      "id": "bxl-e147500-n169000-s500",
+      "zone_id": "saint-gilles",
+      "row": 3,
+      "col": 2,
+      "bbox": [
+        147500.0,
+        169000.0,
+        148000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n169000-s500 --bbox 147500.0,169000.0,148000.0,169500.0"
+    },
+    {
+      "id": "bxl-e148000-n169000-s500",
+      "zone_id": "saint-gilles",
+      "row": 3,
+      "col": 3,
+      "bbox": [
+        148000.0,
+        169000.0,
+        148500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n169000-s500 --bbox 148000.0,169000.0,148500.0,169500.0"
+    },
+    {
+      "id": "bxl-e148500-n169000-s500",
+      "zone_id": "saint-gilles",
+      "row": 3,
+      "col": 4,
+      "bbox": [
+        148500.0,
+        169000.0,
+        149000.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148500-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148500-n169000-s500 --bbox 148500.0,169000.0,149000.0,169500.0"
+    },
+    {
+      "id": "bxl-e149000-n169000-s500",
+      "zone_id": "saint-gilles",
+      "row": 3,
+      "col": 5,
+      "bbox": [
+        149000.0,
+        169000.0,
+        149500.0,
+        169500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149000-n169000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500 --bbox 149000.0,169000.0,149500.0,169500.0"
+    },
+    {
+      "id": "bxl-e147000-n169500-s500",
+      "zone_id": "saint-gilles",
+      "row": 4,
+      "col": 1,
+      "bbox": [
+        147000.0,
+        169500.0,
+        147500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n169500-s500 --bbox 147000.0,169500.0,147500.0,170000.0"
+    },
+    {
+      "id": "bxl-e147500-n169500-s500",
+      "zone_id": "saint-gilles",
+      "row": 4,
+      "col": 2,
+      "bbox": [
+        147500.0,
+        169500.0,
+        148000.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500 --bbox 147500.0,169500.0,148000.0,170000.0"
+    },
+    {
+      "id": "bxl-e148000-n169500-s500",
+      "zone_id": "saint-gilles",
+      "row": 4,
+      "col": 3,
+      "bbox": [
+        148000.0,
+        169500.0,
+        148500.0,
+        170000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n169500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n169500-s500 --bbox 148000.0,169500.0,148500.0,170000.0"
+    }
+  ]
+}

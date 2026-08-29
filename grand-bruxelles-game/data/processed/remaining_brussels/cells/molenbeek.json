@@ -1,0 +1,616 @@
+{
+  "format": "grand-bruxelles-zone-cells-v2",
+  "zone_id": "molenbeek",
+  "crs": "EPSG:31370",
+  "boundary_source": "data/processed/remaining_brussels/boundaries/molenbeek.geojson",
+  "source_bbox": [
+    143969.60176739,
+    170396.61043053,
+    148566.77784019,
+    173443.38526947
+  ],
+  "cell_size_m": 500.0,
+  "cell_id_scheme": "global Lambert72 minE/minN + cell size",
+  "envelope_cell_count": 77,
+  "cell_count": 46,
+  "cells": [
+    {
+      "id": "bxl-e147000-n170000-s500",
+      "zone_id": "molenbeek",
+      "row": 0,
+      "col": 7,
+      "bbox": [
+        147000.0,
+        170000.0,
+        147500.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n170000-s500 --bbox 147000.0,170000.0,147500.0,170500.0"
+    },
+    {
+      "id": "bxl-e143500-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 0,
+      "bbox": [
+        143500.0,
+        170500.0,
+        144000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n170500-s500 --bbox 143500.0,170500.0,144000.0,171000.0"
+    },
+    {
+      "id": "bxl-e144000-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        170500.0,
+        144500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n170500-s500 --bbox 144000.0,170500.0,144500.0,171000.0"
+    },
+    {
+      "id": "bxl-e144500-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        170500.0,
+        145000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n170500-s500 --bbox 144500.0,170500.0,145000.0,171000.0"
+    },
+    {
+      "id": "bxl-e145000-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        170500.0,
+        145500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n170500-s500 --bbox 145000.0,170500.0,145500.0,171000.0"
+    },
+    {
+      "id": "bxl-e145500-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        170500.0,
+        146000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n170500-s500 --bbox 145500.0,170500.0,146000.0,171000.0"
+    },
+    {
+      "id": "bxl-e146000-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 5,
+      "bbox": [
+        146000.0,
+        170500.0,
+        146500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n170500-s500 --bbox 146000.0,170500.0,146500.0,171000.0"
+    },
+    {
+      "id": "bxl-e146500-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 6,
+      "bbox": [
+        146500.0,
+        170500.0,
+        147000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n170500-s500 --bbox 146500.0,170500.0,147000.0,171000.0"
+    },
+    {
+      "id": "bxl-e147000-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 7,
+      "bbox": [
+        147000.0,
+        170500.0,
+        147500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n170500-s500 --bbox 147000.0,170500.0,147500.0,171000.0"
+    },
+    {
+      "id": "bxl-e147500-n170500-s500",
+      "zone_id": "molenbeek",
+      "row": 1,
+      "col": 8,
+      "bbox": [
+        147500.0,
+        170500.0,
+        148000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n170500-s500 --bbox 147500.0,170500.0,148000.0,171000.0"
+    },
+    {
+      "id": "bxl-e143500-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 0,
+      "bbox": [
+        143500.0,
+        171000.0,
+        144000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n171000-s500 --bbox 143500.0,171000.0,144000.0,171500.0"
+    },
+    {
+      "id": "bxl-e144000-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        171000.0,
+        144500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n171000-s500 --bbox 144000.0,171000.0,144500.0,171500.0"
+    },
+    {
+      "id": "bxl-e144500-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        171000.0,
+        145000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n171000-s500 --bbox 144500.0,171000.0,145000.0,171500.0"
+    },
+    {
+      "id": "bxl-e145000-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        171000.0,
+        145500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n171000-s500 --bbox 145000.0,171000.0,145500.0,171500.0"
+    },
+    {
+      "id": "bxl-e145500-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        171000.0,
+        146000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n171000-s500 --bbox 145500.0,171000.0,146000.0,171500.0"
+    },
+    {
+      "id": "bxl-e146000-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 5,
+      "bbox": [
+        146000.0,
+        171000.0,
+        146500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n171000-s500 --bbox 146000.0,171000.0,146500.0,171500.0"
+    },
+    {
+      "id": "bxl-e146500-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 6,
+      "bbox": [
+        146500.0,
+        171000.0,
+        147000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n171000-s500 --bbox 146500.0,171000.0,147000.0,171500.0"
+    },
+    {
+      "id": "bxl-e147000-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 7,
+      "bbox": [
+        147000.0,
+        171000.0,
+        147500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n171000-s500 --bbox 147000.0,171000.0,147500.0,171500.0"
+    },
+    {
+      "id": "bxl-e147500-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 8,
+      "bbox": [
+        147500.0,
+        171000.0,
+        148000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n171000-s500 --bbox 147500.0,171000.0,148000.0,171500.0"
+    },
+    {
+      "id": "bxl-e148000-n171000-s500",
+      "zone_id": "molenbeek",
+      "row": 2,
+      "col": 9,
+      "bbox": [
+        148000.0,
+        171000.0,
+        148500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n171000-s500 --bbox 148000.0,171000.0,148500.0,171500.0"
+    },
+    {
+      "id": "bxl-e143500-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 0,
+      "bbox": [
+        143500.0,
+        171500.0,
+        144000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n171500-s500 --bbox 143500.0,171500.0,144000.0,172000.0"
+    },
+    {
+      "id": "bxl-e144000-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        171500.0,
+        144500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n171500-s500 --bbox 144000.0,171500.0,144500.0,172000.0"
+    },
+    {
+      "id": "bxl-e144500-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        171500.0,
+        145000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n171500-s500 --bbox 144500.0,171500.0,145000.0,172000.0"
+    },
+    {
+      "id": "bxl-e145000-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        171500.0,
+        145500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n171500-s500 --bbox 145000.0,171500.0,145500.0,172000.0"
+    },
+    {
+      "id": "bxl-e145500-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        171500.0,
+        146000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n171500-s500 --bbox 145500.0,171500.0,146000.0,172000.0"
+    },
+    {
+      "id": "bxl-e146000-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 5,
+      "bbox": [
+        146000.0,
+        171500.0,
+        146500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n171500-s500 --bbox 146000.0,171500.0,146500.0,172000.0"
+    },
+    {
+      "id": "bxl-e146500-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 6,
+      "bbox": [
+        146500.0,
+        171500.0,
+        147000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n171500-s500 --bbox 146500.0,171500.0,147000.0,172000.0"
+    },
+    {
+      "id": "bxl-e147000-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 7,
+      "bbox": [
+        147000.0,
+        171500.0,
+        147500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n171500-s500 --bbox 147000.0,171500.0,147500.0,172000.0"
+    },
+    {
+      "id": "bxl-e147500-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 8,
+      "bbox": [
+        147500.0,
+        171500.0,
+        148000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n171500-s500 --bbox 147500.0,171500.0,148000.0,172000.0"
+    },
+    {
+      "id": "bxl-e148000-n171500-s500",
+      "zone_id": "molenbeek",
+      "row": 3,
+      "col": 9,
+      "bbox": [
+        148000.0,
+        171500.0,
+        148500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n171500-s500 --bbox 148000.0,171500.0,148500.0,172000.0"
+    },
+    {
+      "id": "bxl-e145000-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        172000.0,
+        145500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n172000-s500 --bbox 145000.0,172000.0,145500.0,172500.0"
+    },
+    {
+      "id": "bxl-e145500-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        172000.0,
+        146000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n172000-s500 --bbox 145500.0,172000.0,146000.0,172500.0"
+    },
+    {
+      "id": "bxl-e146000-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 5,
+      "bbox": [
+        146000.0,
+        172000.0,
+        146500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n172000-s500 --bbox 146000.0,172000.0,146500.0,172500.0"
+    },
+    {
+      "id": "bxl-e146500-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 6,
+      "bbox": [
+        146500.0,
+        172000.0,
+        147000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n172000-s500 --bbox 146500.0,172000.0,147000.0,172500.0"
+    },
+    {
+      "id": "bxl-e147000-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 7,
+      "bbox": [
+        147000.0,
+        172000.0,
+        147500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n172000-s500 --bbox 147000.0,172000.0,147500.0,172500.0"
+    },
+    {
+      "id": "bxl-e147500-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 8,
+      "bbox": [
+        147500.0,
+        172000.0,
+        148000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n172000-s500 --bbox 147500.0,172000.0,148000.0,172500.0"
+    },
+    {
+      "id": "bxl-e148000-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 9,
+      "bbox": [
+        148000.0,
+        172000.0,
+        148500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n172000-s500 --bbox 148000.0,172000.0,148500.0,172500.0"
+    },
+    {
+      "id": "bxl-e148500-n172000-s500",
+      "zone_id": "molenbeek",
+      "row": 4,
+      "col": 10,
+      "bbox": [
+        148500.0,
+        172000.0,
+        149000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148500-n172000-s500 --bbox 148500.0,172000.0,149000.0,172500.0"
+    },
+    {
+      "id": "bxl-e145500-n172500-s500",
+      "zone_id": "molenbeek",
+      "row": 5,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        172500.0,
+        146000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n172500-s500 --bbox 145500.0,172500.0,146000.0,173000.0"
+    },
+    {
+      "id": "bxl-e146000-n172500-s500",
+      "zone_id": "molenbeek",
+      "row": 5,
+      "col": 5,
+      "bbox": [
+        146000.0,
+        172500.0,
+        146500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n172500-s500 --bbox 146000.0,172500.0,146500.0,173000.0"
+    },
+    {
+      "id": "bxl-e147000-n172500-s500",
+      "zone_id": "molenbeek",
+      "row": 5,
+      "col": 7,
+      "bbox": [
+        147000.0,
+        172500.0,
+        147500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n172500-s500 --bbox 147000.0,172500.0,147500.0,173000.0"
+    },
+    {
+      "id": "bxl-e147500-n172500-s500",
+      "zone_id": "molenbeek",
+      "row": 5,
+      "col": 8,
+      "bbox": [
+        147500.0,
+        172500.0,
+        148000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n172500-s500 --bbox 147500.0,172500.0,148000.0,173000.0"
+    },
+    {
+      "id": "bxl-e148000-n172500-s500",
+      "zone_id": "molenbeek",
+      "row": 5,
+      "col": 9,
+      "bbox": [
+        148000.0,
+        172500.0,
+        148500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n172500-s500 --bbox 148000.0,172500.0,148500.0,173000.0"
+    },
+    {
+      "id": "bxl-e148500-n172500-s500",
+      "zone_id": "molenbeek",
+      "row": 5,
+      "col": 10,
+      "bbox": [
+        148500.0,
+        172500.0,
+        149000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148500-n172500-s500 --bbox 148500.0,172500.0,149000.0,173000.0"
+    },
+    {
+      "id": "bxl-e147500-n173000-s500",
+      "zone_id": "molenbeek",
+      "row": 6,
+      "col": 8,
+      "bbox": [
+        147500.0,
+        173000.0,
+        148000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n173000-s500 --bbox 147500.0,173000.0,148000.0,173500.0"
+    },
+    {
+      "id": "bxl-e148000-n173000-s500",
+      "zone_id": "molenbeek",
+      "row": 6,
+      "col": 9,
+      "bbox": [
+        148000.0,
+        173000.0,
+        148500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n173000-s500 --bbox 148000.0,173000.0,148500.0,173500.0"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "format": "grand-bruxelles-ixelles-building-height-stats-v2",
+  "generated_at_utc": "2026-08-12T06:09:57+00:00",
+  "source_crs": "EPSG:31370",
+  "method": "DSM minus DTM sampled at 0.5 m pixel centers inside official UrbIS building footprints",
+  "selection_policy": "No runtime height is baked here. p50/p75/p90 and diagnostics are retained; insufficient samples remain explicit.",
+  "plausibility_window_m": [
+    -0.5,
+    250.0
+  ],
+  "mosaic_quality_gate": {
+    "dtm_min_m": 50.114,
+    "dtm_max_m": 92.226,
+    "dtm_range_m": 42.112,
+    "height_p50_m": 6.352,
+    "height_p95_m": 24.272,
+    "positive_height_fraction": 0.710822,
+    "identical_dsm_dtm_fraction": 0.217058,
+    "valid_sample_count": 8000000
+  },
+  "confidence_policy": {
+    "minimum_plausible_pixels": 16,
+    "minimum_plausible_fraction": 0.6,
+    "high": "at least 64 plausible pixels and at least 90% of valid samples plausible",
+    "medium": "minimum thresholds met but high threshold not met",
+    "insufficient": "minimum thresholds not met"
+  },
+  "materialized_cells": [
+    "bxl-e149000-n169000-s500",
+    "bxl-e149000-n169500-s500",
+    "bxl-e149500-n168500-s500",
+    "bxl-e149500-n169000-s500",
+    "bxl-e149500-n169500-s500"
+  ],
+  "expected_1km_tile_codes": [
+    "149168",
+    "149169"
+  ],
+  "raster_shape": [
+    4000,
+    2000
+  ],
+  "raster_transform": [
+    0.5,
+    0.0,
+    149000.1341350079,
+    0.0,
+    -0.5,
+    170000.0715624727
+  ],
+  "building_memberships": 3652,
+  "unique_building_ids": 3498,
+  "duplicate_cell_memberships": 154,
+  "confidence_counts": {
+    "high": 3548,
+    "insufficient": 26,
+    "medium": 78
+  },
+  "detail_storage": "Per-building rows are published as CSV; full nested JSON remains a CI artifact only."
+}

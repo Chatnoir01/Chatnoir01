@@ -79,6 +79,11 @@ def main() -> int:
             "registered cell bbox[0] JSON type drift",
         )
 
+        bbox_integral_int = json.loads(json.dumps(canonical_cells))
+        bbox_integral_int["entries"][0]["bbox"][0] = int(bbox_integral_int["entries"][0]["bbox"][0])
+        bbox_integral_int["semantic_sha256"] = registry_validator.semantic_sha256(bbox_integral_int)
+        registry_validator.validate_registry(bbox_integral_int)
+
         bbox_fractional = json.loads(json.dumps(canonical_cells))
         bbox_fractional["entries"][0]["bbox"][0] += 0.5
         bbox_fractional["semantic_sha256"] = registry_validator.semantic_sha256(bbox_fractional)
@@ -169,6 +174,20 @@ def main() -> int:
     row["road_osm_ids"] = sorted(row["road_osm_ids"])
     rehash(candidate_membership)
     expect_fail(lambda: strict_validate(candidate_membership), "candidate road outside source set")
+
+    road_cell_binding = json.loads(json.dumps(frontier))
+    source_row = next(row for row in road_cell_binding["candidate_cells"] if row["road_osm_ids"])
+    moved_road = source_row["road_osm_ids"][0]
+    target_row = next(
+        row for row in road_cell_binding["candidate_cells"]
+        if row is not source_row and moved_road not in row["road_osm_ids"]
+    )
+    source_row["road_osm_ids"].remove(moved_road)
+    source_row["road_count"] = len(source_row["road_osm_ids"])
+    target_row["road_osm_ids"] = sorted(target_row["road_osm_ids"] + [moved_road])
+    target_row["road_count"] = len(target_row["road_osm_ids"])
+    rehash(road_cell_binding)
+    expect_fail(lambda: strict_validate(road_cell_binding), "candidate road/cell source geometry binding drift")
 
     source_evidence_binding = json.loads(json.dumps(frontier))
     source_evidence_binding["source_intersection_evidence_sha256"] = "0" * 64

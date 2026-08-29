@@ -28,3 +28,9 @@ def test_node_removed_path_releases_owned_state_and_rearms_binding() -> None:
     assert "_reset()" in handler
     assert "_start_watching()" in handler
     assert "call_deferred(\"_try_bind\")" in handler
+
+
+def test_scene_removal_watcher_stays_armed_after_automatic_bind() -> None:
+    source = _source()
+    bind_body = source.split("func _bind_scene(scene: Node3D, manual: bool) -> void:", 1)[1].split("\nfunc ", 1)[0]
+    assert "_stop_watching()" not in bind_body

@@ -1,0 +1,132 @@
+name: Grand Bruxelles Police V3 Closed Body
+
+on:
+  push:
+    branches:
+      - visual/mmc-police-authored-lod-7712a33
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/authored_lod/**"
+      - "grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/authored_lod/**"
+      - "grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv"
+      - "grand-bruxelles-game/game/scripts/authored_geometry_payload.gd"
+      - "grand-bruxelles-game/game/scripts/mmc_police_authored_lod_runtime.gd"
+      - "grand-bruxelles-game/game/tests/mmc_police_authored_lod_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/mmc_police_authored_lod_witness_test.gd"
+      - "grand-bruxelles-game/data/runtime/modules/mmc_police_authored_lod.json"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-police-authored-lod.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-police-v3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  police-v3:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify source-derived exterior payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, hashlib, json, pathlib, zlib
+          cases = [
+              ("grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/authored_lod", "a021faaf6427bebae58c9f380502d901d33415130772f4010c64bf4a2d84f1e2", "73c6cc1c05b667d09e277d30f8ca2046947d26a63fb6699d865aaf2ca449ad07", 2697, 1465, 29489, 3),
+              ("grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/authored_lod", "5c3d5836d19b12347d9ab8e044fe9593b15255d211282ffa374f140e58d9eabd", "438c03fb92a3b25aaaae8d8785e7743da6c2035d4ea8ca5b63faca92755f3dbf", 2121, 1230, 23889, 3),
+          ]
+          for directory, source_sha, payload_sha, triangles, vertices, raw_bytes, parts in cases:
+              root = pathlib.Path(directory)
+              meta = json.loads((root / "meta.json").read_text())
+              assert meta["license"] == "CC BY 4.0"
+              assert meta["source_sha256"] == source_sha
+              assert meta["payload_sha256"] == payload_sha
+              assert meta["triangles"] == triangles
+              assert meta["vertices"] == vertices
+              assert meta["raw_bytes"] == raw_bytes
+              assert meta["part_count"] == parts
+              expected_parts = [f"part_{i:02d}.txt" for i in range(parts)]
+              assert meta["payload_parts"] == expected_parts
+              encoded = "".join((root / part).read_text().strip() for part in expected_parts)
+              raw = zlib.decompress(base64.b64decode(encoded))
+              assert len(raw) == raw_bytes
+              assert raw[:4] == b"GBAG"
+              assert hashlib.sha256(raw).hexdigest() == payload_sha
+          print("MMC_POLICE_V3_PAYLOAD_OK")
+          PY
+
+      - name: Validate asset registry coverage
+        run: python3 grand-bruxelles-game/tools/validate_asset_provenance.py
+
+      - name: Refuse heavyweight source GLBs and GTA bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/generic_sedan.glb
+          test ! -e grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/generic_sport_coupe.glb
+          if find grand-bruxelles-game -type f \( -iname '*.yft' -o -iname '*.ytd' \) -print -quit | grep -q .; then
+            echo "Forbidden GTA mod geometry/texture byte detected"
+            exit 1
+          fi
+
+      - name: Verify export inclusion
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRESET=grand-bruxelles-game/export_presets.cfg
+          grep -Fq 'assets/vehicles/mmc_generic_sedan/authored_lod/*.txt' "$PRESET"
+          grep -Fq 'assets/vehicles/mmc_generic_sport_coupe/authored_lod/*.txt' "$PRESET"
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+
+      - name: Import project and reject parser failures
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/police-v3-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Couldn't load project data" /tmp/police-v3-import.log; then exit 1; fi
+
+      - name: Run V3 closed-body cabin officers and enter-exit contract test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mmc_police_authored_lod_runtime_test.gd 2>&1 | tee /tmp/police-v3-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MMC_POLICE_V2_FAIL" /tmp/police-v3-test.log; then exit 1; fi
+          grep -q "MMC_POLICE_V3_OK" /tmp/police-v3-test.log
+
+      - name: Render exterior and cabin witnesses 1280x720
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --path grand-bruxelles-game --script res://game/tests/mmc_police_authored_lod_witness_test.gd 2>&1 | tee /tmp/police-v3-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MMC_POLICE_V2_VISUAL_FAIL" /tmp/police-v3-witness.log; then exit 1; fi
+          grep -q "MMC_POLICE_V2_VISUAL_OK" /tmp/police-v3-witness.log
+          test -s grand-bruxelles-game/artifacts/visual/mmc_police_v2_exterior_witness.png
+          test -s grand-bruxelles-game/artifacts/visual/mmc_police_v2_cabin_witness.png
+
+      - name: Upload V3 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmc-police-v3-witness
+          path: |
+            grand-bruxelles-game/artifacts/visual/mmc_police_v2_exterior_witness.png
+            grand-bruxelles-game/artifacts/visual/mmc_police_v2_cabin_witness.png
+          if-no-files-found: error

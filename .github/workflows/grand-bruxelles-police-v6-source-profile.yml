@@ -1,0 +1,101 @@
+name: Grand Bruxelles Police V6 Source Profile
+
+on:
+  push:
+    branches:
+      - visual/mmc-police-authored-lod-7712a33
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/authored_lod/source_profile_v6.txt"
+      - "grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/authored_lod/source_profile_v6.txt"
+      - "grand-bruxelles-game/game/scripts/mmc_police_v6_source_profile_tuner.gd"
+      - "grand-bruxelles-game/game/tests/mmc_police_v6_source_profile_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/mmc_police_v6_source_profile_witness_test.gd"
+      - "grand-bruxelles-game/data/runtime/modules/mmc_police_v6_source_profile.json"
+      - ".github/workflows/grand-bruxelles-police-v6-source-profile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-police-v6-source-profile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  police-v6-source-profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source profiles and renderer-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          cases = [
+            ('grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/authored_lod/source_profile_v6.txt', 'a021faaf6427bebae58c9f380502d901d33415130772f4010c64bf4a2d84f1e2', 4.65),
+            ('grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/authored_lod/source_profile_v6.txt', '5c3d5836d19b12347d9ab8e044fe9593b15255d211282ffa374f140e58d9eabd', 4.48),
+          ]
+          for path, sha, length in cases:
+              data = json.load(open(path, encoding='utf-8'))
+              assert data['schema'] == 'grand-bruxelles-mmc-source-profile-v2'
+              assert data['source_sha256'] == sha
+              assert abs(float(data['target_length']) - length) < 1e-6
+              assert len(data['lower_sections']) == 19
+              assert len(data['roof_sections']) == 13
+              assert all(len(row) == 4 for row in data['lower_sections'])
+              assert all(len(row) == 3 for row in data['roof_sections'])
+          print('MMC_POLICE_V6_PROFILE_DATA_OK')
+          PY
+          grep -q '"renderer_only": true' grand-bruxelles-game/game/scripts/mmc_police_v6_source_profile_tuner.gd
+          grep -q '"source_profile_derived": true' grand-bruxelles-game/game/scripts/mmc_police_v6_source_profile_tuner.gd
+          grep -q '"changes_existing_physics": false' grand-bruxelles-game/game/scripts/mmc_police_v6_source_profile_tuner.gd
+          grep -q '"changes_existing_collision": false' grand-bruxelles-game/game/scripts/mmc_police_v6_source_profile_tuner.gd
+          grep -q '"changes_traffic_motion": false' grand-bruxelles-game/game/scripts/mmc_police_v6_source_profile_tuner.gd
+          grep -q '"changes_geography": false' grand-bruxelles-game/game/scripts/mmc_police_v6_source_profile_tuner.gd
+          test -f grand-bruxelles-game/data/runtime/modules/mmc_police_v6_source_profile.json
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Import project and reject parser failures
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/v6-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Couldn't load project data" /tmp/v6-import.log; then exit 1; fi
+      - name: Run V6 source-profile invariants
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mmc_police_v6_source_profile_runtime_test.gd 2>&1 | tee /tmp/v6-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MMC_POLICE_V6_SOURCE_PROFILE_FAIL" /tmp/v6-test.log; then exit 1; fi
+          grep -q "MMC_POLICE_V6_SOURCE_PROFILE_OK" /tmp/v6-test.log
+      - name: Render V6 witnesses 1280x720
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --path grand-bruxelles-game --script res://game/tests/mmc_police_v6_source_profile_witness_test.gd 2>&1 | tee /tmp/v6-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MMC_POLICE_V6_VISUAL_FAIL" /tmp/v6-witness.log; then exit 1; fi
+          grep -q "MMC_POLICE_V6_VISUAL_OK" /tmp/v6-witness.log
+          test -s grand-bruxelles-game/artifacts/visual/mmc_police_v6_source_profile_exterior.png
+          test -s grand-bruxelles-game/artifacts/visual/mmc_police_v6_source_profile_side.png
+      - name: Upload V6 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmc-police-v6-source-profile-witness
+          path: |
+            grand-bruxelles-game/artifacts/visual/mmc_police_v6_source_profile_exterior.png
+            grand-bruxelles-game/artifacts/visual/mmc_police_v6_source_profile_side.png
+            /tmp/v6-test.log
+            /tmp/v6-witness.log
+          if-no-files-found: error

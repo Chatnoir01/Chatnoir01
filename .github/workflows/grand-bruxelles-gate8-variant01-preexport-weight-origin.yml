@@ -1,0 +1,244 @@
+name: Grand Bruxelles Gate-8 Variant01 Pre-Export Weight Origin
+
+on:
+  push:
+    branches: ["npc/gate8-v01-preexport-weight-origin-20260829"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-preexport-weight-origin.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_preexport_weight_origin.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_preexport_weight_origin_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  preexport-weight-origin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      BASE_MAIN_SHA: "379c5190b148f08d4d2bdc5b89b135cda16f3409"
+      SOURCE_RUN_ID: "32552758284"
+      SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+      SOURCE_BRANCH: "npc/civ1-source-acquisition-witness-a28971e"
+      ASSET_PACK_ARTIFACT_ID: "9710539659"
+      ASSET_PACK_ARTIFACT_DIGEST: "sha256:ce6fe32adf20838b853ef6f3e80f47bee194f21565cf4d35cad8f2c02f2941da"
+      ASSET_PACK_SHA256: "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+      ASSET_PACK_SIZE_BYTES: "81255948"
+      TARGET_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GATE8_SOURCE_DIR: "/tmp/gate8-source"
+      GATE8_PREEXPORT_CONTRACT: "${{ github.workspace }}/grand-bruxelles-game/data/qa/gate8_variant01_preexport_weight_origin.json"
+      GATE8_PREEXPORT_RESULT: "/tmp/gate8-preexport/preexport-weight-origin-result.json"
+      HOME: "/tmp/grand-bruxelles-blender-home"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-preexport-weight-origin.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_preexport_weight_origin.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_preexport_weight_origin_probe.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/qa/gate8_variant01_preexport_weight_origin.json'
+          c=json.load(open(p, encoding='utf-8'))
+          assert c['format']=='grand-bruxelles-gate8-variant01-preexport-weight-origin-v1'
+          assert c['base_main_sha']=='379c5190b148f08d4d2bdc5b89b135cda16f3409'
+          assert c['candidate_variant']==1
+          assert c['source_generation']['run_id']==32552758284
+          assert c['source_generation']['head_sha']=='afcb7b352ed054d98fdf83eae3333ec82c814b3e'
+          assert c['source_generation']['asset_pack_artifact_id']==9710539659
+          assert c['source_generation']['asset_pack_sha256']=='6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a'
+          assert c['exported_target']['sha256']=='912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9'
+          assert c['exported_target']['godot_diagnostic_artifact_id']==9713149661
+          assert c['weight_vector_l1_match_tolerance']==0.0001
+          assert c['edge_l1_match_tolerance']==0.0001
+          assert all(v is False for v in c['rails'].values())
+          PY
+          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_preexport_weight_origin_probe.py
+
+      - name: Materialize exact source generator files from pinned source head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE8_SOURCE_DIR" /tmp/gate8-preexport
+          for path in \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py \
+            grand-bruxelles-game/tools/fetch_mpfb_2017.py
+          do
+            out="$GATE8_SOURCE_DIR/$(basename "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${SOURCE_HEAD_SHA}" --jq .content | tr -d '\n' | base64 -d > "$out"
+            test -s "$out"
+            sha256sum "$out"
+          done
+          grep -F 'ExportService.create_character_copy' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_export_ready_glbs.py"
+          grep -F 'TargetService.bake_targets' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_export_ready_glbs.py"
+          grep -F 'ExportService.bake_modifiers_remove_helpers' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_export_ready_glbs.py"
+          grep -F 'bpy.ops.export_scene.gltf' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_glbs.py"
+
+      - name: Download and verify exact fresh Gate-8 asset pack artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}" > /tmp/gate8-preexport/asset-artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-preexport/asset-artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['ASSET_PACK_ARTIFACT_DIGEST']
+          wr=a.get('workflow_run') or {}
+          assert int(wr.get('id',-1))==int(os.environ['SOURCE_RUN_ID'])
+          assert wr.get('head_sha')==os.environ['SOURCE_HEAD_SHA']
+          print('ASSET_ARTIFACT_OK', a['id'], a['digest'], wr.get('head_sha'))
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}/zip" > /tmp/gate8-preexport/asset-pack-artifact.zip
+          mkdir -p /tmp/gate8-preexport/asset-artifact
+          unzip -q /tmp/gate8-preexport/asset-pack-artifact.zip -d /tmp/gate8-preexport/asset-artifact
+          PACK="$(find /tmp/gate8-preexport/asset-artifact -type f -name 'makehuman_gate8_system_assets_cc0.zip' -print -quit)"
+          test -n "$PACK"
+          test "$(stat -c '%s' "$PACK")" = "$ASSET_PACK_SIZE_BYTES"
+          test "$(sha256sum "$PACK" | awk '{print $1}')" = "$ASSET_PACK_SHA256"
+          printf '%s\n' "$PACK" > /tmp/gate8-preexport/asset-pack-path.txt
+
+      - name: Acquire exact Blender 4.2.23 LTS and MPFB 2.0.17
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/gb-blender /tmp/gate8-preexport/blender-extensions
+          BLENDER_ARCHIVE=blender-4.2.23-linux-x64.tar.xz
+          curl --fail --location --retry 3 --retry-all-errors \
+            "https://download.blender.org/release/Blender4.2/${BLENDER_ARCHIVE}" \
+            --output "/tmp/${BLENDER_ARCHIVE}"
+          curl --fail --location --retry 3 --retry-all-errors \
+            "https://download.blender.org/release/Blender4.2/blender-4.2.23.sha256" \
+            --output /tmp/blender-4.2.23.sha256
+          grep " ${BLENDER_ARCHIVE}$" /tmp/blender-4.2.23.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum --check blender-linux.sha256)
+          tar -xJf "/tmp/${BLENDER_ARCHIVE}" -C /tmp/gb-blender
+          BLENDER_BIN="$(find /tmp/gb-blender -mindepth 2 -maxdepth 2 -type f -name blender -perm -111 | head -n 1)"
+          test -x "$BLENDER_BIN"
+          "$BLENDER_BIN" --version | tee /tmp/gate8-preexport/blender-version.txt
+          grep -q '^Blender 4\.2\.23' /tmp/gate8-preexport/blender-version.txt
+          printf '%s\n' "$BLENDER_BIN" > /tmp/gate8-preexport/blender-bin.txt
+
+          python3 "$GATE8_SOURCE_DIR/fetch_mpfb_2017.py" \
+            --output /tmp/gate8-preexport/mpfb2-2.0.17.zip \
+            --manifest /tmp/gate8-preexport/mpfb2-2.0.17.manifest.json \
+            --retries 3 | tee /tmp/gate8-preexport/mpfb-fetch.log
+          grep -q '^MPFB_2017_FETCH_OK ' /tmp/gate8-preexport/mpfb-fetch.log
+
+      - name: Install and enable exact MPFB extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/gate8-preexport/blender-bin.txt)"
+          "$BLENDER_BIN" --background --command extension repo-add gb_ci \
+            --name "Grand Bruxelles CI" \
+            --directory /tmp/gate8-preexport/blender-extensions \
+            --clear-all | tee /tmp/gate8-preexport/extension-repo-add.txt
+          "$BLENDER_BIN" --background --command extension install-file \
+            --repo gb_ci --enable /tmp/gate8-preexport/mpfb2-2.0.17.zip \
+            | tee /tmp/gate8-preexport/mpfb-install.txt
+          "$BLENDER_BIN" --background --command extension list | tee /tmp/gate8-preexport/extensions.txt
+          grep -qi 'mpfb' /tmp/gate8-preexport/extensions.txt
+
+      - name: Reproduce variant01 and inspect prepared weights before GLB serialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/gate8-preexport/blender-bin.txt)"
+          PACK="$(cat /tmp/gate8-preexport/asset-pack-path.txt)"
+          mkdir -p /tmp/gate8-preexport/glbs
+          "$BLENDER_BIN" --background --offline-mode \
+            --python grand-bruxelles-game/game/tests/gate8_variant01_preexport_weight_origin_probe.py \
+            -- \
+            --asset-pack "$PACK" \
+            --output-dir /tmp/gate8-preexport/glbs \
+            | tee /tmp/gate8-preexport/probe.log
+          test -s "$GATE8_PREEXPORT_RESULT"
+          test -f /tmp/gate8-preexport/glbs/npc_gate_01.glb
+          test "$(sha256sum /tmp/gate8-preexport/glbs/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_SHA256"
+          cat "$GATE8_PREEXPORT_RESULT"
+
+      - name: Verify fail-closed scientific result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['GATE8_PREEXPORT_RESULT'], encoding='utf-8'))
+          assert r['format']=='grand-bruxelles-gate8-variant01-preexport-weight-origin-result-v2'
+          assert r['candidate_variant']==1
+          assert r['source_head_sha']==os.environ['SOURCE_HEAD_SHA']
+          assert r['generated_glb_sha256']==os.environ['TARGET_SHA256']
+          assert r['generated_glb_size_bytes']==15580240
+          assert r['generated_seed']==53756543
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          state=r['diagnostic_state']
+          assert state in {
+              'PRE_EXPORT_WEIGHT_DISCONTINUITY_CONFIRMED',
+              'PRE_EXPORT_COFACE_WEIGHT_CLIFF_CONFIRMED',
+              'PRE_EXPORT_TARGET_EDGE_NOT_REPRODUCED',
+          }, state
+          if state=='PRE_EXPORT_WEIGHT_DISCONTINUITY_CONFIRMED':
+              matches=r['preexport']['valid_preexport_matches']
+              assert matches
+              assert all(m['object_matches_required_fragment'] for m in matches)
+              assert all(m['edge_l1_matches_exported'] for m in matches)
+              assert r['next_safe_axis']=='LOCATE_MPF_BASIS_OR_PROXY_WEIGHT_SOURCE_BEFORE_EXPORT_PREP'
+          elif state=='PRE_EXPORT_COFACE_WEIGHT_CLIFF_CONFIRMED':
+              matches=r['preexport']['valid_preexport_coface_matches']
+              assert matches
+              assert all(m['object_matches_required_fragment'] for m in matches)
+              assert all(m['edge_l1_matches_exported'] for m in matches)
+              assert all(m['native_edge'] is False for m in matches)
+              assert all(m['shared_polygon_indices'] for m in matches)
+              assert r['next_safe_axis']=='MAP_GLTF_TRIANGULATION_OF_COFACE_TO_EXPORTED_TARGET_EDGE'
+          else:
+              assert r['next_safe_axis']=='TRACE_GLTF_EXPORT_VERTEX_WEIGHT_TRANSFORMATION'
+          print('PREEXPORT_WEIGHT_ORIGIN_RESULT_OK', state)
+          PY
+
+      - name: Upload source-origin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-variant01-preexport-weight-origin
+          path: |
+            /tmp/gate8-preexport/preexport-weight-origin-result.json
+            /tmp/gate8-preexport/probe.log
+            /tmp/gate8-preexport/blender-version.txt
+            /tmp/gate8-preexport/mpfb2-2.0.17.manifest.json
+            /tmp/gate8-preexport/mpfb-fetch.log
+            /tmp/gate8-preexport/mpfb-install.txt
+            /tmp/gate8-preexport/asset-artifact.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove canonical repository stayed clean
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"

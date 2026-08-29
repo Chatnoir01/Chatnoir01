@@ -7,6 +7,10 @@ on:
       - 'grand-bruxelles-game/game/scripts/brussels_osm_road_surface_runtime.gd'
       - 'grand-bruxelles-game/game/scripts/brussels_osm_sidewalk_surface_runtime.gd'
       - 'grand-bruxelles-game/game/scripts/brussels_osm_rail_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_street_lamp_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_bollard_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd'
       - 'grand-bruxelles-game/game/tests/shared_environment_node_removed_lifecycle_test.py'
       - '.github/workflows/grand-bruxelles-shared-environment-node-removed-lifecycle.yml'
   workflow_dispatch:

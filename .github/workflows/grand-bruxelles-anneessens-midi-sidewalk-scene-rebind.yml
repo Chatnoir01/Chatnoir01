@@ -1,0 +1,26 @@
+name: Grand Bruxelles Anneessens-Midi Sidewalk Scene Rebind
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_midi_sidewalk_scene_rebind_test.py"
+      - "grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json"
+      - ".github/workflows/grand-bruxelles-anneessens-midi-sidewalk-scene-rebind.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scene-rebind-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact PR head
+        if: github.event_name == 'pull_request'
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate Anneessens-Midi sidewalk scene rebind lifecycle
+        run: python3 grand-bruxelles-game/game/tests/anneessens_midi_sidewalk_scene_rebind_test.py

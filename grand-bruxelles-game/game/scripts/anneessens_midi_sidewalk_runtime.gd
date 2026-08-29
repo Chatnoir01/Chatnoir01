@@ -21,8 +21,9 @@ func _ready() -> void:
     _tearing_down = false
     process_mode = Node.PROCESS_MODE_ALWAYS
     var tree := get_tree()
-    if not tree.node_added.is_connected(_on_node_added):
-        tree.node_added.connect(_on_node_added)
+    if not tree.node_removed.is_connected(_on_tree_node_removed):
+        tree.node_removed.connect(_on_tree_node_removed)
+    _start_scene_watch()
     _schedule_bind()
 
 func _exit_tree() -> void:
@@ -31,6 +32,8 @@ func _exit_tree() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+    if tree != null and tree.node_removed.is_connected(_on_tree_node_removed):
+        tree.node_removed.disconnect(_on_tree_node_removed)
     _release_owned_root()
     _scene = null
     _manual_binding = false
@@ -45,9 +48,25 @@ func _release_owned_root() -> void:
     _sidewalk_count = 0
     _collision_count = 0
 
+func _start_scene_watch() -> void:
+    if _tearing_down or not is_inside_tree() or _manual_binding or is_instance_valid(_scene):
+        return
+    var tree := get_tree()
+    if tree != null and not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+
 func _on_node_added(_node: Node) -> void:
     if _tearing_down or _manual_binding or is_instance_valid(_scene):
         return
+    _schedule_bind()
+
+func _on_tree_node_removed(node: Node) -> void:
+    if _tearing_down or _manual_binding or not is_instance_valid(_scene) or node != _scene:
+        return
+    _release_owned_root()
+    _scene = null
+    _bind_scheduled = false
+    _start_scene_watch()
     _schedule_bind()
 
 func _schedule_bind() -> void:

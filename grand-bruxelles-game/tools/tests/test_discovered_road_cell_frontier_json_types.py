@@ -54,15 +54,31 @@ def main() -> int:
 
     global_size_string = json.loads(json.dumps(frontier))
     global_size_string["cell_size_m"] = str(global_size_string["cell_size_m"])
+    rehash(global_size_string)
+    expect_fail(lambda: builder.validate_structure(global_size_string), "cell_size_m JSON type drift")
     expect_fail(lambda: strict_validate(global_size_string), "cell_size_m JSON type drift")
 
     row_size_string = json.loads(json.dumps(frontier))
     row_size_string["candidate_cells"][0]["cell_size_m"] = str(row_size_string["candidate_cells"][0]["cell_size_m"])
+    rehash(row_size_string)
+    expect_fail(lambda: builder.validate_structure(row_size_string), "candidate cell_size_m JSON type drift")
     expect_fail(lambda: strict_validate(row_size_string), "candidate cell_size_m JSON type drift")
 
     bbox_float = json.loads(json.dumps(frontier))
     bbox_float["candidate_cells"][0]["bbox"][0] = float(bbox_float["candidate_cells"][0]["bbox"][0])
+    rehash(bbox_float)
+    expect_fail(lambda: builder.validate_structure(bbox_float), "candidate bbox JSON type drift")
     expect_fail(lambda: strict_validate(bbox_float), "candidate bbox JSON type drift")
+
+    source_count_string = json.loads(json.dumps(frontier))
+    source_count_string["source_zero_intersection_road_count"] = str(source_count_string["source_zero_intersection_road_count"])
+    rehash(source_count_string)
+    expect_fail(lambda: builder.validate_structure(source_count_string), "source_zero_intersection_road_count JSON type drift")
+
+    registered_overlap_string = json.loads(json.dumps(frontier))
+    registered_overlap_string["registered_cell_overlap_count"] = "0"
+    rehash(registered_overlap_string)
+    expect_fail(lambda: builder.validate_structure(registered_overlap_string), "registered_cell_overlap_count JSON type drift")
 
     road_id_string = json.loads(json.dumps(frontier))
     road_id_string["source_zero_intersection_road_osm_ids"][0] = str(road_id_string["source_zero_intersection_road_osm_ids"][0])

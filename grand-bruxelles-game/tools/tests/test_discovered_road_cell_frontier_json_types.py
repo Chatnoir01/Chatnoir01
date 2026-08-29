@@ -119,6 +119,11 @@ def main() -> int:
     rehash(candidate_membership)
     expect_fail(lambda: strict_validate(candidate_membership), "candidate road outside source set")
 
+    source_evidence_binding = json.loads(json.dumps(frontier))
+    source_evidence_binding["source_intersection_evidence_sha256"] = "0" * 64
+    rehash(source_evidence_binding)
+    expect_fail(lambda: strict_validate(source_evidence_binding), "source intersection evidence binding drift")
+
     digest_drift = json.loads(json.dumps(frontier))
     digest_drift["frontier_sha256"] = "0" * 64
     expect_fail(lambda: strict_validate(digest_drift), "frontier sha drift")

@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = ROOT / "data" / "qa" / "shared_environment_lifecycle_contract.json"
 EXPECTED = {
+    "game/scripts/midi_blue_stone_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_road_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_rail_surface_runtime.gd": "_on_node_removed",
@@ -18,12 +19,21 @@ EXPECTED = {
     "game/scripts/brussels_osm_facade_articulation_runtime.gd": "_on_node_removed",
 }
 HELPER_WATCHERS = {
+    "game/scripts/midi_blue_stone_surface_runtime.gd",
     "game/scripts/anneessens_osm_furniture_runtime.gd",
     "game/scripts/brussels_base_ground_surface_runtime.gd",
     "game/scripts/brussels_osm_facade_surface_runtime.gd",
     "game/scripts/brussels_osm_facade_articulation_runtime.gd",
 }
 HELPER_REBIND_TOKENS = {
+    "game/scripts/midi_blue_stone_surface_runtime.gd": (
+        "_release_material_ownership()",
+        "_midi_root = null",
+        "_ready_complete = false",
+        "_awaiting_midi = true",
+        "_start_watching()",
+        'call_deferred("_bind_existing_midi")',
+    ),
     "game/scripts/anneessens_osm_furniture_runtime.gd": (
         "_reset()",
         "_start_watching()",

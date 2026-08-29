@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BUILDER = ROOT / "tools/build_discovered_road_cell_coverage_frontier.py"
 STRICT_VALIDATOR = ROOT / "tools/validate_discovered_road_cell_frontier_json_types.py"
+REGISTRY_VALIDATOR = ROOT / "tools/validate_registered_cell_manifest_index.py"
 SOURCE = ROOT / "data/osm/vertical_slice_01.game.json"
 FRAME = ROOT / "data/qa/osm_road_frame_correction_impact.contract.json"
 CELLS = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
@@ -56,16 +57,34 @@ def write_temp_json(directory: str, name: str, value: dict) -> Path:
 
 def main() -> int:
     builder = load(BUILDER, "road_cell_frontier_builder")
+    registry_validator = load(REGISTRY_VALIDATOR, "registered_cell_manifest_index_validator")
     frontier = builder.build_frontier(SOURCE, FRAME, CELLS)
     strict_validate(frontier)
 
     canonical_cells = json.loads(CELLS.read_text(encoding="utf-8"))
+    registry_validator.validate_registry(canonical_cells)
     with tempfile.TemporaryDirectory() as tmp:
         count_string = json.loads(json.dumps(canonical_cells))
         count_string["registered_cell_count"] = str(count_string["registered_cell_count"])
         expect_fail(
             lambda: builder.load_registered_cell_ids(write_temp_json(tmp, "count-string.json", count_string)),
             "registered cell count JSON type drift",
+        )
+
+        bbox_string = json.loads(json.dumps(canonical_cells))
+        bbox_string["entries"][0]["bbox"][0] = str(bbox_string["entries"][0]["bbox"][0])
+        bbox_string["semantic_sha256"] = registry_validator.semantic_sha256(bbox_string)
+        expect_fail(
+            lambda: registry_validator.validate_registry(bbox_string),
+            "registered cell bbox[0] JSON type drift",
+        )
+
+        bbox_fractional = json.loads(json.dumps(canonical_cells))
+        bbox_fractional["entries"][0]["bbox"][0] += 0.5
+        bbox_fractional["semantic_sha256"] = registry_validator.semantic_sha256(bbox_fractional)
+        expect_fail(
+            lambda: registry_validator.validate_registry(bbox_fractional),
+            "registered cell bbox[0] integral-coordinate drift",
         )
 
     global_size_string = json.loads(json.dumps(frontier))

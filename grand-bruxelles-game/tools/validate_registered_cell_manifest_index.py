@@ -4,10 +4,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
 SCHEMA = "grand-bruxelles-registered-cell-manifest-index-v1"
+TARGET_CRS = "EPSG:31370"
+CELL_SIZE_M = 500
 
 
 def canonical_json(value: Any) -> str:
@@ -26,6 +29,48 @@ def _is_lower_hex(value: Any, length: int) -> bool:
     return isinstance(value, str) and len(value) == length and all(ch in "0123456789abcdef" for ch in value)
 
 
+def _require_int(value: Any, label: str, *, minimum: int | None = None) -> int:
+    if type(value) is not int:
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} JSON type drift")
+    if minimum is not None and value < minimum:
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} value drift")
+    return value
+
+
+def _require_integral_number(value: Any, label: str) -> int:
+    if type(value) not in {int, float}:
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} JSON type drift")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} non-finite drift")
+    if not numeric.is_integer():
+        raise SystemExit(f"REGISTERED_CELL_INDEX_FAIL: {label} integral-coordinate drift")
+    return int(numeric)
+
+
+def _validate_entry_identity(row: Any) -> None:
+    if not isinstance(row, dict):
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: entry object drift")
+    cell_id = row.get("cell_id")
+    if not isinstance(cell_id, str) or not cell_id:
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: cell identity drift")
+    if row.get("crs") != TARGET_CRS:
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: cell CRS drift")
+    bbox = row.get("bbox")
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell bbox shape drift")
+    east, north, east_max, north_max = [
+        _require_integral_number(value, f"registered cell bbox[{index}]")
+        for index, value in enumerate(bbox)
+    ]
+    if east % CELL_SIZE_M != 0 or north % CELL_SIZE_M != 0:
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell bbox grid alignment drift")
+    if [east, north, east + CELL_SIZE_M, north + CELL_SIZE_M] != [east, north, east_max, north_max]:
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell bbox identity drift")
+    if cell_id != f"bxl-e{east}-n{north}-s{CELL_SIZE_M}":
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell id/bbox identity drift")
+
+
 def validate_registry(registry: dict[str, Any]) -> None:
     if registry.get("schema") != SCHEMA:
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: schema drift")
@@ -35,6 +80,19 @@ def validate_registry(registry: dict[str, Any]) -> None:
     production_base = registry.get("production_base_sha")
     if not _is_lower_hex(production_base, 40):
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: production base sha format drift")
+    entries = registry.get("entries")
+    if not isinstance(entries, list):
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: entries drift")
+    declared_count = _require_int(registry.get("registered_cell_count"), "registered_cell_count", minimum=0)
+    if len(entries) != declared_count:
+        raise SystemExit("REGISTERED_CELL_INDEX_FAIL: registered cell accounting drift")
+    seen: set[str] = set()
+    for row in entries:
+        _validate_entry_identity(row)
+        cell_id = row["cell_id"]
+        if cell_id in seen:
+            raise SystemExit("REGISTERED_CELL_INDEX_FAIL: duplicate registered cell")
+        seen.add(cell_id)
     expected = semantic_sha256(registry)
     if stored != expected:
         raise SystemExit("REGISTERED_CELL_INDEX_FAIL: semantic sha drift")

@@ -96,6 +96,25 @@ def test_cell_manifest_byte_drift_fails_closed() -> None:
             raise AssertionError("tampered cell manifest bytes did not fail closed")
 
 
+def test_cell_manifest_path_cannot_escape_canonical_directory() -> None:
+    readiness_path = ROOT / "data" / "provenance" / "brussels_road_destination_readiness_catalog.json"
+    readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
+    destination = dict(readiness["destinations"][0])
+    source_manifest = ROOT / destination["cell_manifest_path"]
+    with tempfile.TemporaryDirectory() as tmp:
+        project_root = Path(tmp)
+        escaped = project_root / "data" / "escaped-cell-manifest.json"
+        escaped.parent.mkdir(parents=True, exist_ok=True)
+        escaped.write_bytes(source_manifest.read_bytes())
+        destination["cell_manifest_path"] = "data/cell_manifests/../../data/escaped-cell-manifest.json"
+        try:
+            module.verify_cell_manifest(project_root, destination, int(destination["road_osm_id"]))
+        except SystemExit as exc:
+            assert "escapes canonical cell manifest directory" in str(exc)
+        else:
+            raise AssertionError("escaped cell manifest path did not fail closed")
+
+
 def test_workflow_publishes_only_verified_complete_evidence() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     assert "- name: Verify provenance binding evidence before upload" in workflow
@@ -117,6 +136,7 @@ def main() -> int:
     test_tampered_readiness_semantic_fails_closed()
     test_opened_destination_authorization_fails_closed_even_with_rehashed_readiness()
     test_cell_manifest_byte_drift_fails_closed()
+    test_cell_manifest_path_cannot_escape_canonical_directory()
     test_workflow_publishes_only_verified_complete_evidence()
     print("ROAD_PROVENANCE_BINDING_TEST_OK")
     return 0

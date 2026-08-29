@@ -374,50 +374,45 @@ func material_enhanced_enabled() -> bool:
 
 func set_visual_enabled(enabled: bool) -> void:
     _visual_enabled = enabled
-    if is_instance_valid(_root):
-        _root.visible = enabled
+    for batch: MultiMeshInstance3D in [_trunk_batch, _dark_batch, _light_batch]:
+        if is_instance_valid(batch): batch.visible = enabled
 
-func visual_enabled() -> bool:
-    return _visual_enabled
+func source_positions_unchanged() -> bool:
+    if _source_positions.size() != _source_ids.size(): return false
+    var data := _load_json(DATA_PATH)
+    var preowned := _preowned_tree_ids()
+    var index := 0
+    for raw: Variant in data.get("environment_points", []):
+        if not raw is Dictionary: continue
+        var point := raw as Dictionary
+        if str(point.get("kind", "")) != "tree": continue
+        var osm_id := int(point.get("osm_id", 0))
+        if preowned.has(osm_id): continue
+        if index >= _source_positions.size() or _source_ids[index] != osm_id: return false
+        var position_value := point.get("position", []) as Array
+        if position_value.size() != 2: return false
+        var actual := _source_positions[index]
+        if abs(actual.x - float(position_value[0])) > POSITION_EPSILON_M or abs(actual.z - float(position_value[1])) > POSITION_EPSILON_M: return false
+        index += 1
+    return index == _source_positions.size()
 
-func ready_complete() -> bool:
-    return _ready_complete
-
-func failed() -> bool:
-    return _failed
-
-func source_tree_count() -> int:
-    return EXPECTED_SOURCE_TREE_COUNT
-
-func preowned_tree_count() -> int:
-    return EXPECTED_PREOWNED_TREE_COUNT
-
-func runtime_tree_count() -> int:
-    return _source_positions.size()
-
+func ready_complete() -> bool: return _ready_complete
+func failed() -> bool: return _failed
+func tree_count() -> int: return _source_positions.size()
+func total_source_tree_count() -> int: return EXPECTED_SOURCE_TREE_COUNT
+func preowned_tree_count() -> int: return EXPECTED_PREOWNED_TREE_COUNT
 func batch_count() -> int:
     var count := 0
-    for batch in [_trunk_batch, _dark_batch, _light_batch]:
+    for batch: MultiMeshInstance3D in [_trunk_batch, _dark_batch, _light_batch]:
         if is_instance_valid(batch): count += 1
     return count
-
-func collision_count() -> int:
-    return _collision_body.get_child_count() if is_instance_valid(_collision_body) else 0
-
-func source_positions() -> Array[Vector3]:
-    return _source_positions.duplicate()
-
-func source_ids() -> Array[int]:
-    return _source_ids.duplicate()
-
-func lod_active() -> bool:
-    return _lod_active
-
-func near_tree_count() -> int:
-    return _near_tree_count
-
-func far_tree_count() -> int:
-    return _far_tree_count
-
-func foliage_instance_count() -> int:
-    return _foliage_instance_count
+func collision_count() -> int: return _collision_body.get_child_count() if is_instance_valid(_collision_body) else 0
+func source_positions() -> Array[Vector3]: return _source_positions.duplicate()
+func source_ids() -> Array[int]: return _source_ids.duplicate()
+func claims_species() -> bool: return false
+func claims_measured_dimensions() -> bool: return false
+func visual_enabled() -> bool: return _visual_enabled
+func lod_active() -> bool: return _lod_active
+func near_tree_count() -> int: return _near_tree_count
+func far_tree_count() -> int: return _far_tree_count
+func foliage_instance_count() -> int: return _foliage_instance_count

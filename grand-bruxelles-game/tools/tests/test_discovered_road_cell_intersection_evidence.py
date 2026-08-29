@@ -104,6 +104,17 @@ def main() -> int:
         tampered_frame_path.write_text(json.dumps(tampered_frame), encoding="utf-8")
         expect_fail(lambda: tool._locked_frame(SOURCE, tampered_frame_path, CELLS), "frame review semantic drift")
 
+    # The intersection consumer must independently replay the canonical semantic
+    # identity of the registered-cell index. Matching two declared digest fields
+    # is insufficient because a semantically altered index could otherwise retain
+    # the expected digest and be accepted by this consumer.
+    tampered_cells = json.loads(json.dumps(cell_index))
+    tampered_cells["entries"][0]["maturity_state"] = "tampered-but-declared-hash-unchanged"
+    with tempfile.TemporaryDirectory() as td:
+        tampered_cells_path = Path(td) / CELLS.name
+        tampered_cells_path.write_text(json.dumps(tampered_cells), encoding="utf-8")
+        expect_fail(lambda: tool._locked_frame(SOURCE, FRAME, tampered_cells_path), "cell index semantic sha drift")
+
     print("DISCOVERED_ROAD_CELL_INTERSECTION_EVIDENCE_TEST_GREEN")
     return 0
 

@@ -105,6 +105,20 @@ def _review_semantic_sha256(review: dict[str, Any]) -> str:
     return sha256_json(unsigned)
 
 
+def _validate_cell_index_semantic(root: Path, cells: dict[str, Any]) -> str:
+    validator = load_module(
+        root / "tools/validate_registered_cell_index_semantics.py",
+        "registered_cell_index_semantics_for_intersections",
+    )
+    try:
+        digest = validator.validate(cells)
+    except SystemExit as exc:
+        raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell index semantic sha drift") from exc
+    if digest != cells.get("semantic_sha256"):
+        raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell index semantic sha drift")
+    return digest
+
+
 def _locked_frame(source_path: Path, frame_path: Path, cell_index_path: Path):
     root = _root_from_source(source_path)
     frame = load_json(frame_path)
@@ -150,7 +164,8 @@ def _locked_frame(source_path: Path, frame_path: Path, cell_index_path: Path):
     if cells.get("schema") != "grand-bruxelles-registered-cell-manifest-index-v1" or cells.get("destination_readiness") != "REGISTERED_CELL_INDEX_EVIDENCE_ONLY":
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: cell index drift")
     require_closed(cells, "cell index")
-    if cells_desc.get("semantic_sha256") != cells.get("semantic_sha256") or int(cells_desc.get("registered_cell_count", -1)) != int(cells.get("registered_cell_count", -2)):
+    cell_semantic_sha = _validate_cell_index_semantic(root, cells)
+    if cells_desc.get("semantic_sha256") != cell_semantic_sha or int(cells_desc.get("registered_cell_count", -1)) != int(cells.get("registered_cell_count", -2)):
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame/cell semantic drift")
     return frame, cells, east, north
 

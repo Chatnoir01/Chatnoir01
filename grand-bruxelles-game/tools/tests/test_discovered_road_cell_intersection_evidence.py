@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -90,6 +91,18 @@ def main() -> int:
     duplicate_source = json.loads(json.dumps(source_doc))
     duplicate_source["roads"].append(json.loads(json.dumps(duplicate_source["roads"][0])))
     expect_fail(lambda: tool._source_road_index(duplicate_source), "duplicate source road osm_id")
+
+    # The impact contract must not be allowed to self-declare a replacement
+    # Lambert72 frame. Its review semantic identity is locked by the persisted
+    # frame-review contract and must be independently replayed before spatial math.
+    frame_doc = json.loads(FRAME.read_text(encoding="utf-8"))
+    tampered_frame = json.loads(json.dumps(frame_doc))
+    tampered_frame["frame_review"]["review_semantic_sha256"] = "0" * 64
+    tampered_frame["frame_review"]["origin_easting_m"] += 500.0
+    with tempfile.TemporaryDirectory() as td:
+        tampered_frame_path = Path(td) / FRAME.name
+        tampered_frame_path.write_text(json.dumps(tampered_frame), encoding="utf-8")
+        expect_fail(lambda: tool._locked_frame(SOURCE, tampered_frame_path, CELLS), "frame review semantic drift")
 
     print("DISCOVERED_ROAD_CELL_INTERSECTION_EVIDENCE_TEST_GREEN")
     return 0

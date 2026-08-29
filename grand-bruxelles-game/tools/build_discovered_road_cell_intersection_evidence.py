@@ -11,6 +11,7 @@ from typing import Any
 FORMAT = "grand-bruxelles-discovered-road-cell-intersection-evidence-v1"
 TARGET_CRS = "EPSG:31370"
 FRAME_FORMULA = "E=origin_easting_m+x;N=origin_northing_m-z"
+REVIEW_PATH = "data/qa/osm_road_frame_correction_review.contract.json"
 
 
 def canonical_json(value: Any) -> str:
@@ -99,7 +100,13 @@ def _build_frontier(root: Path):
     )
 
 
+def _review_semantic_sha256(review: dict[str, Any]) -> str:
+    unsigned = {k: v for k, v in review.items() if k not in {"production_base_sha", "review_semantic_sha256"}}
+    return sha256_json(unsigned)
+
+
 def _locked_frame(source_path: Path, frame_path: Path, cell_index_path: Path):
+    root = _root_from_source(source_path)
     frame = load_json(frame_path)
     if frame.get("schema") != "grand-bruxelles-osm-road-frame-correction-impact-v2" or frame.get("status") != "LOCKED_IMPACT_MEASUREMENT_EVIDENCE_ONLY":
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame contract drift")
@@ -109,11 +116,35 @@ def _locked_frame(source_path: Path, frame_path: Path, cell_index_path: Path):
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: source provenance drift")
     if not is_sha256(source_desc.get("sha256")) or sha256_file(source_path) != source_desc.get("sha256"):
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: source document sha drift")
+
     desc = frame.get("frame_review") or {}
-    if desc.get("crs") != TARGET_CRS or desc.get("formula") != FRAME_FORMULA:
+    if desc.get("path") != REVIEW_PATH or desc.get("crs") != TARGET_CRS or desc.get("formula") != FRAME_FORMULA:
         raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: corrected frame drift")
+    review = load_json(root / REVIEW_PATH)
+    if review.get("schema") != "grand-bruxelles-osm-road-frame-correction-review-v1" or review.get("status") != "READY_FOR_FRAME_CORRECTION_REVIEW_SOURCE_ORIGIN":
+        raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame review contract drift")
+    require_closed(review.get("authorization") or {}, "frame review")
+    stored_review_sha = review.get("review_semantic_sha256")
+    if not is_sha256(stored_review_sha) or stored_review_sha != _review_semantic_sha256(review) or desc.get("review_semantic_sha256") != stored_review_sha:
+        raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame review semantic drift")
+    review_source = review.get("source") or {}
+    if (
+        review_source.get("path") != source_desc.get("path")
+        or review_source.get("sha256") != source_desc.get("sha256")
+        or review_source.get("license") != source_desc.get("license")
+    ):
+        raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame review source drift")
+    candidate_frame = review.get("candidate_frame") or {}
+    if (
+        candidate_frame.get("crs") != TARGET_CRS
+        or candidate_frame.get("formula") != FRAME_FORMULA
+        or float(candidate_frame.get("origin_easting_m")) != float(desc.get("origin_easting_m"))
+        or float(candidate_frame.get("origin_northing_m")) != float(desc.get("origin_northing_m"))
+    ):
+        raise SystemExit("DISCOVERED_ROAD_CELL_INTERSECTION_FAIL: frame review candidate drift")
     east = float(desc.get("origin_easting_m"))
     north = float(desc.get("origin_northing_m"))
+
     cells_desc = frame.get("registered_cell_index") or {}
     cells = load_json(cell_index_path)
     if cells.get("schema") != "grand-bruxelles-registered-cell-manifest-index-v1" or cells.get("destination_readiness") != "REGISTERED_CELL_INDEX_EVIDENCE_ONLY":

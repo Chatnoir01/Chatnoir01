@@ -15,6 +15,13 @@ RESULT_PATH = Path(os.environ["GATE8_ALPHA_RESULT"]).resolve()
 ALPHA = 0.125
 FOCUS_VERTICES = (377, 378, 379, 486, 599, 601, 615, 864)
 OBJECT_FRAGMENT = "female_sportsuit01"
+FROZEN_POSE_DEGREES = {
+    "upperarm_r": 35.0,
+    "clavicle_r": 12.0,
+    "spine_03": 4.0,
+    "spine_02": 2.0,
+}
+WITNESS_PATH = Path("grand-bruxelles-game/game/tests/gate8_runtime_witness.gd")
 
 sys.path.insert(0, str(SOURCE_DIR))
 import generate_mpfb_gate8_export_ready_glbs as ready  # noqa: E402
@@ -58,6 +65,25 @@ def blend_weights(stored: dict[str, Any], rematched: dict[str, Any]) -> dict[str
         for name in names
     }
     return {name: value for name, value in blended.items() if value > 1e-12}
+
+
+def patch_witness_for_frozen_pose() -> None:
+    if not WITNESS_PATH.is_file():
+        raise RuntimeError(f"historical Godot witness missing: {WITNESS_PATH}")
+    text = WITNESS_PATH.read_text(encoding="utf-8")
+    call_anchor = "    shot.add_child(model)\n\n    var correction := Gate8Loader.ground_external_visual(model)"
+    if text.count(call_anchor) != 1:
+        raise RuntimeError("Godot witness pose call anchor drifted")
+    call = """    shot.add_child(model)\n\n    var pose_error := _apply_frozen_shoulder_pose(model)\n    if pose_error != OK:\n        push_error(\"Gate-8 witness could not apply frozen shoulder pose model=%02d distance=%.1f view=%s\" % [variant_index, distance_m, view_name])\n        shot.queue_free()\n        return pose_error\n\n    var correction := Gate8Loader.ground_external_visual(model)"""
+    helper_anchor = "\nfunc _rest_vertex_world_bounds(root: Node3D) -> Dictionary:\n"
+    if text.count(helper_anchor) != 1:
+        raise RuntimeError("Godot witness helper anchor drifted")
+    pose_rows = ", ".join(f'\"{name}\": {degrees:.1f}' for name, degrees in FROZEN_POSE_DEGREES.items())
+    helper = f'''\nfunc _apply_frozen_shoulder_pose(root: Node3D) -> Error:\n    var skeletons := root.find_children("*", "Skeleton3D", true, false)\n    if skeletons.size() != 1:\n        push_error("Gate-8 frozen pose expected exactly one Skeleton3D, got %d" % skeletons.size())\n        return ERR_INVALID_DATA\n    var skeleton := skeletons[0] as Skeleton3D\n    if skeleton == null:\n        return ERR_INVALID_DATA\n    var pose_degrees := {{{pose_rows}}}\n    for bone_name: String in pose_degrees:\n        var bone_index := skeleton.find_bone(bone_name)\n        if bone_index < 0:\n            push_error("Gate-8 frozen pose missing bone %s" % bone_name)\n            return ERR_INVALID_DATA\n        skeleton.set_bone_pose_rotation(\n            bone_index,\n            Quaternion(Vector3(0.0, 0.0, 1.0), deg_to_rad(float(pose_degrees[bone_name])))\n        )\n    print("GATE8_FROZEN_SHOULDER_POSE_OK axis=local_z upperarm_r=35 clavicle_r=12 spine_03=4 spine_02=2")\n    return OK\n'''
+    patched = text.replace(call_anchor, call).replace(helper_anchor, helper + helper_anchor)
+    if patched == text:
+        raise RuntimeError("Godot witness frozen-pose patch was a no-op")
+    WITNESS_PATH.write_text(patched, encoding="utf-8")
 
 
 def main() -> None:
@@ -123,8 +149,11 @@ def main() -> None:
     glbs = sorted(output_dir.glob("npc_gate_*.glb"))
     if len(glbs) != 8:
         raise RuntimeError(f"expected 8 generated GLBs, got {len(glbs)}")
+
+    patch_witness_for_frozen_pose()
+
     result = {
-        "format": "grand-bruxelles-gate8-alpha0125-export-v1",
+        "format": "grand-bruxelles-gate8-alpha0125-export-v2-posed-witness",
         "alpha": ALPHA,
         "candidate_variant": "npc_gate_01",
         "focus_vertices": list(FOCUS_VERTICES),
@@ -132,6 +161,8 @@ def main() -> None:
         "source_pack_sha256": ready.base.EXPECTED_ASSET_SHA256,
         "generator_mpfb": "2.0.17",
         "generator_mpfb_build": ready.base.EXPECTED_MPFB_BUILD,
+        "godot_witness_pose_axis": "local_z",
+        "godot_witness_pose_degrees": FROZEN_POSE_DEGREES,
         "audit": audit,
         "canonical_asset_mutation": False,
         "canonical_mhclo_mutation": False,
@@ -141,7 +172,7 @@ def main() -> None:
     }
     RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
     RESULT_PATH.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print("GATE8_ALPHA0125_EXPORT_OK variant=npc_gate_01 alpha=0.125 focus_vertices=8", flush=True)
+    print("GATE8_ALPHA0125_EXPORT_OK variant=npc_gate_01 alpha=0.125 focus_vertices=8 posed_godot_witness=local_z", flush=True)
 
 
 if __name__ == "__main__":

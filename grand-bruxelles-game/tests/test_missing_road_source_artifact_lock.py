@@ -19,7 +19,12 @@ HEX = set('0123456789abcdef')
 def require_sha256(value: object, label: str, prefix: bool = False) -> str:
     if type(value) is not str:
         raise AssertionError(f'{label}: expected string')
-    raw = value[7:] if prefix and value.startswith('sha256:') else value
+    if prefix:
+        if not value.startswith('sha256:'):
+            raise AssertionError(f'{label}: invalid sha256')
+        raw = value[7:]
+    else:
+        raw = value
     if len(raw) != 64 or any(ch not in HEX for ch in raw):
         raise AssertionError(f'{label}: invalid sha256')
     return raw

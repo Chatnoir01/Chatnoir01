@@ -246,13 +246,15 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     drivable = require_json_int(catalog.get("drivable_record_count"), "drivable_record_count", minimum=0)
     rejected = require_json_int(catalog.get("rejected_drivable_record_count"), "rejected_drivable_record_count", minimum=0)
     compatible_documents = require_json_int(catalog.get("compatible_document_count"), "compatible_document_count", minimum=0)
-    require_json_int(catalog.get("road_record_count"), "road_record_count", minimum=0)
+    road_records = require_json_int(catalog.get("road_record_count"), "road_record_count", minimum=0)
     if entry_count != len(entries):
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: entry count drift")
     if eligible != entry_count + duplicates:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: unique/duplicate accounting drift")
     if drivable != eligible + rejected:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: drivable/rejected accounting drift")
+    if road_records < drivable:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: road/drivable accounting drift")
 
     authorization = catalog.get("authorization")
     if type(authorization) is not dict or set(authorization) != AUTHORIZATION_FIELDS:

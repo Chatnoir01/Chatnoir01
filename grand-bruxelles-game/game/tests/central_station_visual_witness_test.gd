@@ -7,20 +7,16 @@ const WIDTH := 1280
 const HEIGHT := 720
 const REVIEW_ANCHOR := Vector3(647.68, 0.0, -407.70)
 
-
 func _initialize() -> void:
     call_deferred("_run")
-
 
 func _fail(message: String) -> void:
     push_error("CENTRAL_STATION_VISUAL_WITNESS_FAIL: %s" % message)
     quit(1)
 
-
 func _wait_frames(count: int) -> void:
     for _i: int in range(count):
         await process_frame
-
 
 func _hide_canvas(node: Node) -> void:
     if node is CanvasLayer:
@@ -29,7 +25,6 @@ func _hide_canvas(node: Node) -> void:
         (node as CanvasItem).visible = false
     for child: Node in node.get_children():
         _hide_canvas(child)
-
 
 func _zone_by_id(selector: Node, zone_id: String) -> Dictionary:
     var rows: Variant = selector.call("available_zones")
@@ -40,19 +35,15 @@ func _zone_by_id(selector: Node, zone_id: String) -> Dictionary:
             return (raw as Dictionary).duplicate(true)
     return {}
 
-
 func _capture(path: String) -> bool:
     for _frame: int in range(3):
         RenderingServer.force_draw()
         await process_frame
     var image := root.get_texture().get_image()
-    if image == null or image.is_empty():
-        return false
-    if image.get_width() != WIDTH or image.get_height() != HEIGHT:
+    if image == null or image.is_empty() or image.get_width() != WIDTH or image.get_height() != HEIGHT:
         return false
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
     return image.save_png(ProjectSettings.globalize_path(path)) == OK
-
 
 func _install_review_overlay(main: Node) -> void:
     var overlay := CanvasLayer.new()
@@ -70,7 +61,6 @@ func _install_review_overlay(main: Node) -> void:
     overlay.add_child(label)
     main.add_child(overlay)
 
-
 func _configure_review_camera(main: Node, name: String, position: Vector3, target: Vector3, fov: float) -> Camera3D:
     var camera := Camera3D.new()
     camera.name = name
@@ -83,12 +73,10 @@ func _configure_review_camera(main: Node, name: String, position: Vector3, targe
     camera.current = true
     return camera
 
-
 func _run() -> void:
     if change_scene_to_file(MAIN_SCENE) != OK:
         _fail("main scene load failed")
         return
-
     var player: CharacterBody3D = null
     var selector: Node = null
     for _attempt: int in range(360):
@@ -98,27 +86,19 @@ func _run() -> void:
         selector = root.get_node_or_null("ZoneSelectorRuntime")
         if player != null and selector != null:
             break
-    if current_scene == null or player == null:
-        _fail("production main/player unavailable")
+    if current_scene == null or player == null or selector == null:
+        _fail("production main/player/selector unavailable")
         return
-    if selector == null:
-        _fail("ZoneSelectorRuntime autoload unavailable")
-        return
-
     var zone := _zone_by_id(selector, ZONE_ID)
-    if zone.is_empty():
-        _fail("Central LABO_BRUT is not listed by the production selector")
+    if zone.is_empty() or str(zone.get("quality", "")) != "LABO_BRUT" or str(zone.get("mode", "")) != "script_zone":
+        _fail("Central LABO_BRUT selector contract missing")
         return
-    if str(zone.get("quality", "")) != "LABO_BRUT":
-        _fail("Central review zone lost LABO_BRUT quality")
+    var toggle := selector.get_node_or_null("ZoneSelectorToggle") as Button
+    if toggle == null or toggle.text != "CHANGER DE ZONE" or not toggle.visible:
+        _fail("CHANGER DE ZONE control is not player-visible")
         return
-    if str(zone.get("mode", "")) != "script_zone":
-        _fail("Central review zone no longer uses script_zone runtime")
-        return
-
     await selector.call("_apply_zone", current_scene, zone)
     await _wait_frames(24)
-
     var lab := current_scene.get_node_or_null("ZoneLab_%s" % ZONE_ID)
     if lab == null:
         _fail("production selector did not mount Central LABO_BRUT")
@@ -134,21 +114,13 @@ func _run() -> void:
     if building_count != 1 or street_surface_count != 1 or bay_count != 9 or column_count != 4:
         _fail("Central source-backed review invariants are incomplete")
         return
-
     var station: Node3D = lab.get_node_or_null("CentralStationUrban30201") as Node3D
-    if station == null:
+    if station == null or int(station.get_meta("source_urban_id", -1)) != 30201:
         _fail("Urban 30201 station root unavailable")
         return
-    if int(station.get_meta("source_urban_id", -1)) != 30201:
-        _fail("Urban source id lost")
+    if bool(station.get_meta("authoritative_urbis_alignment", true)) or bool(station.get_meta("promotion_allowed", true)):
+        _fail("review geometry truth contract drifted")
         return
-    if bool(station.get_meta("authoritative_urbis_alignment", true)):
-        _fail("review geometry falsely claims authoritative UrbIS alignment")
-        return
-    if bool(station.get_meta("promotion_allowed", true)):
-        _fail("review geometry falsely permits promotion")
-        return
-
     if str(current_scene.get_meta("grand_bruxelles_active_zone_id", "")) != ZONE_ID:
         _fail("active-zone truth was not published for Central")
         return
@@ -158,41 +130,43 @@ func _run() -> void:
     player.set_physics_process(false)
     _hide_canvas(root)
     _install_review_overlay(current_scene)
-
-    # Front/player-arrival witness: camera remains on the temporary review forecourt
-    # and looks toward the documented four-column / canopy / nine-bay facade reading.
     var arrival_position := Vector3(REVIEW_ANCHOR.x, 5.2, REVIEW_ANCHOR.z + 36.0)
     var facade_target := Vector3(REVIEW_ANCHOR.x, 8.8, REVIEW_ANCHOR.z + 1.5)
-    var arrival_camera := _configure_review_camera(
-        current_scene,
-        "CentralStationArrivalWitnessCamera",
-        arrival_position,
-        facade_target,
-        58.0
-    )
+    var arrival_camera := _configure_review_camera(current_scene, "CentralStationArrivalWitnessCamera", arrival_position, facade_target, 58.0)
     var arrival_path := OUT_DIR + "/central_station_arrival.png"
     if not await _capture(arrival_path):
         _fail("arrival capture failed")
         return
-
     arrival_camera.queue_free()
     await process_frame
     var overview_position := Vector3(REVIEW_ANCHOR.x + 48.0, 31.0, REVIEW_ANCHOR.z + 49.0)
     var overview_target := Vector3(REVIEW_ANCHOR.x, 8.0, REVIEW_ANCHOR.z - 5.0)
-    var overview_camera := _configure_review_camera(
-        current_scene,
-        "CentralStationOverviewWitnessCamera",
-        overview_position,
-        overview_target,
-        56.0
-    )
+    var overview_camera := _configure_review_camera(current_scene, "CentralStationOverviewWitnessCamera", overview_position, overview_target, 56.0)
     var overview_path := OUT_DIR + "/central_station_overview.png"
     if not await _capture(overview_path):
         _fail("overview capture failed")
         return
+    overview_camera.queue_free()
+    await process_frame
+
+    # Third witness keeps the real production UI visible and proves the player can
+    # leave Central through the persistent CHANGER DE ZONE control.
+    var overlay := current_scene.get_node_or_null("CentralStationWitnessOverlay")
+    if overlay != null:
+        overlay.queue_free()
+    selector.call("set_menu_open", false)
+    await _wait_frames(3)
+    toggle = selector.get_node_or_null("ZoneSelectorToggle") as Button
+    if toggle == null or not toggle.visible or toggle.text != "CHANGER DE ZONE":
+        _fail("CHANGER DE ZONE disappeared after Central activation")
+        return
+    var ui_path := OUT_DIR + "/central_station_change_zone_button.png"
+    if not await _capture(ui_path):
+        _fail("change-zone UI witness capture failed")
+        return
 
     var report := {
-        "format": "grand-bruxelles-central-station-visual-witness-v1",
+        "format": "grand-bruxelles-central-station-visual-witness-v2",
         "zone_id": ZONE_ID,
         "urban_id": 30201,
         "quality": "LABO_BRUT",
@@ -204,23 +178,11 @@ func _run() -> void:
         "resolution": [WIDTH, HEIGHT],
         "arrival_capture": arrival_path,
         "overview_capture": overview_path,
-        "arrival_camera": {
-            "position": [arrival_position.x, arrival_position.y, arrival_position.z],
-            "target": [facade_target.x, facade_target.y, facade_target.z]
-        },
-        "overview_camera": {
-            "position": [overview_position.x, overview_position.y, overview_position.z],
-            "target": [overview_target.x, overview_target.y, overview_target.z]
-        },
+        "change_zone_ui_capture": ui_path,
+        "change_zone_button": {"text": toggle.text, "visible": toggle.visible},
         "stats": (stats as Dictionary).duplicate(true),
         "production_selector_path": true,
-        "production_ui_hidden_for_review_capture": true,
-        "source_backed_visual_invariants": {
-            "upper_bays": 9,
-            "entrance_columns": 4,
-            "bilingual_signage": true,
-            "canopy": true
-        }
+        "source_backed_visual_invariants": {"upper_bays": 9, "entrance_columns": 4, "bilingual_signage": true, "canopy": true}
     }
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
     var report_file := FileAccess.open(ProjectSettings.globalize_path(OUT_DIR + "/report.json"), FileAccess.WRITE)
@@ -229,6 +191,5 @@ func _run() -> void:
         return
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
-
-    print("CENTRAL_STATION_VISUAL_WITNESS_OK: urban_id=30201 quality=LABO_BRUT buildings=%d surfaces=%d bays=%d columns=%d captures=2 authoritative_urbis=false promotion=false" % [building_count, street_surface_count, bay_count, column_count])
+    print("CENTRAL_STATION_VISUAL_WITNESS_OK: urban_id=30201 quality=LABO_BRUT buildings=%d surfaces=%d bays=%d columns=%d captures=3 change_zone_button=true authoritative_urbis=false promotion=false" % [building_count, street_surface_count, bay_count, column_count])
     quit(0)

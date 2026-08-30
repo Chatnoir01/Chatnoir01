@@ -280,6 +280,7 @@ def validate_contract(catalog: dict[str, Any]) -> None:
         if not is_sha256(raw_digest):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid source document SHA256 {source_path!r}")
 
+    observed_duplicate_multiplicity = 0
     for raw_osm_id, raw_entry in entries.items():
         if type(raw_osm_id) is not str or not raw_osm_id.isdigit():
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid OSM id {raw_osm_id!r}")
@@ -320,12 +321,19 @@ def validate_contract(catalog: dict[str, Any]) -> None:
         source_file_count = require_json_int(raw_entry.get("source_file_count"), "source_file_count", minimum=1)
         if source_file_count != len(normalized_source_paths):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source file count drift {osm_id}")
+        observed_duplicate_multiplicity += source_file_count - 1
         for source_path in normalized_source_paths:
             if source_path not in source_digests:
                 raise SystemExit(
                     "ROAD_DESTINATION_CATALOG_FAIL: source path missing locked digest "
                     f"osm_id={osm_id} source_path={source_path!r}"
                 )
+
+    if duplicates != observed_duplicate_multiplicity:
+        raise SystemExit(
+            "ROAD_DESTINATION_CATALOG_FAIL: duplicate/source multiplicity accounting drift "
+            f"declared={duplicates} observed={observed_duplicate_multiplicity}"
+        )
 
     stored_catalog_sha = catalog.get("catalog_sha256")
     if type(stored_catalog_sha) is not str:

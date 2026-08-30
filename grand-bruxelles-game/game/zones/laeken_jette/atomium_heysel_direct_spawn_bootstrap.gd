@@ -4,7 +4,7 @@ extends Node
 ## This keeps normal first-load world behavior unchanged while making spawn=atomium
 ## render the surrounding official UrbIS context instead of an isolated showcase.
 
-const DISTRICT_RUNTIME := preload("res://game/zones/laeken_jette/atomium_heysel_district_runtime.gd")
+const DISTRICT_RUNTIME := preload("res://game/zones/laeken_jette/atomium_heysel_district_runtime_bounds_consistent.gd")
 
 func _ready() -> void:
     if not _wants_atomium(OS.get_cmdline_user_args()):

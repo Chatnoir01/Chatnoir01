@@ -5,7 +5,8 @@ const OUT_DIR := "res://artifacts/qa/atomium_arrival_occluder"
 const WIDTH := 1280
 const HEIGHT := 720
 const EXPECTED_LOCATION := "ATOMIUM · HEYSEL / HEIZEL"
-const EXPECTED_FOV := 69.0
+# DirectSpawnPresentation is the production owner of the Atomium player camera FOV.
+const EXPECTED_FOV := 48.0
 const EXPECTED_PITCH_DEGREES := 20.0
 const EXPECTED_SPRING_LENGTH := 4.9
 const EXPECTED_SPAWN_OFFSET := Vector3(120.0, 0.0, 0.0)

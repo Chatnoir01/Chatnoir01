@@ -35,6 +35,28 @@ jobs:
           python3 tools/tests/test_road_destination_catalog_source_structure.py
           python3 tools/tests/test_road_runtime_index.py
 
+      - name: Prove direct builder rejects unlisted compatible source
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          probe='data/osm/__road_destination_unlisted_probe.game.json'
+          cp data/osm/vertical_slice_01.game.json "$probe"
+          trap 'rm -f "$probe" /tmp/road-builder-lock-probe.json /tmp/road-builder-lock-probe.log' EXIT
+          if python3 tools/build_road_destination_catalog.py \
+            --source-root data/osm \
+            --output /tmp/road-builder-lock-probe.json \
+            > /tmp/road-builder-lock-probe.log 2>&1; then
+            cat /tmp/road-builder-lock-probe.log
+            echo 'RED: direct road destination builder accepted an unlisted compatible source document' >&2
+            exit 1
+          fi
+          cat /tmp/road-builder-lock-probe.log
+          grep -q 'ROAD_DESTINATION_SOURCE_LOCK_FAIL: compatible source set drift' /tmp/road-builder-lock-probe.log || {
+            echo 'RED: builder failed for the wrong reason; expected source-lock fail-close' >&2
+            exit 1
+          }
+          echo 'ROAD_DESTINATION_DIRECT_BUILDER_LOCK_GREEN'
+
       - name: Build deterministic catalog and runtime index twice
         working-directory: grand-bruxelles-game
         run: |

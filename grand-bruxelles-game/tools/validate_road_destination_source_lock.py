@@ -113,7 +113,10 @@ def discover_compatible_documents(source_root: Path) -> dict[str, str]:
             continue
         try:
             raw = path.read_bytes()
-            payload = json.loads(raw.decode("utf-8"))
+            payload = json.loads(
+                raw.decode("utf-8"),
+                object_pairs_hook=reject_duplicate_object_keys,
+            )
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             fail(f"invalid source JSON {path}: {exc}")
         if type(payload) is not dict or payload.get("format") != SOURCE_FORMAT:

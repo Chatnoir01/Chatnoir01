@@ -26,6 +26,14 @@ func _hide_canvas(node: Node) -> void:
     for child: Node in node.get_children():
         _hide_canvas(child)
 
+func _set_canvas_items_visible(node: Node, visible: bool) -> void:
+    if node is CanvasLayer:
+        (node as CanvasLayer).visible = visible
+    elif node is CanvasItem:
+        (node as CanvasItem).visible = visible
+    for child: Node in node.get_children():
+        _set_canvas_items_visible(child, visible)
+
 func _zone_by_id(selector: Node, zone_id: String) -> Dictionary:
     var rows: Variant = selector.call("available_zones")
     if not rows is Array:
@@ -94,8 +102,8 @@ func _run() -> void:
         _fail("Central LABO_BRUT selector contract missing")
         return
     var toggle := selector.get_node_or_null("ZoneSelectorToggle") as Button
-    if toggle == null or toggle.text != "ZONES" or not toggle.is_visible_in_tree():
-        _fail("production ZONES control is not player-visible")
+    if toggle == null or toggle.text != "CHANGER DE ZONE" or not toggle.is_visible_in_tree():
+        _fail("production CHANGER DE ZONE control is not player-visible")
         return
     await selector.call("_apply_zone", current_scene, zone)
     await _wait_frames(24)
@@ -152,13 +160,19 @@ func _run() -> void:
     var overlay := current_scene.get_node_or_null("CentralStationWitnessOverlay")
     if overlay != null:
         overlay.queue_free()
-    if selector is CanvasLayer:
-        (selector as CanvasLayer).visible = true
+    _set_canvas_items_visible(selector, true)
     selector.call("set_menu_open", false)
     await _wait_frames(3)
     toggle = selector.get_node_or_null("ZoneSelectorToggle") as Button
-    if toggle == null or toggle.text != "ZONES" or not toggle.is_visible_in_tree():
-        _fail("production ZONES control disappeared after Central activation")
+    var panel := selector.get_node_or_null("ZoneSelectorPanel") as PanelContainer
+    if toggle == null or toggle.text != "CHANGER DE ZONE" or not toggle.is_visible_in_tree() or panel == null:
+        _fail("production CHANGER DE ZONE control disappeared after Central activation")
+        return
+    toggle.emit_signal("pressed")
+    await _wait_frames(2)
+    var central_button := panel.find_child("Zone_central", true, false) as Button
+    if not panel.visible or central_button == null or not central_button.is_visible_in_tree() or not central_button.text.contains("LABO_BRUT"):
+        _fail("CHANGER DE ZONE did not expose Central LABO_BRUT")
         return
     var ui_path := OUT_DIR + "/central_station_change_zone_button.png"
     if not await _capture(ui_path):
@@ -179,7 +193,7 @@ func _run() -> void:
         "arrival_capture": arrival_path,
         "overview_capture": overview_path,
         "change_zone_ui_capture": ui_path,
-        "change_zone_button": {"text": toggle.text, "visible_in_tree": toggle.is_visible_in_tree()},
+        "change_zone_button": {"text": toggle.text, "visible_in_tree": toggle.is_visible_in_tree(), "panel_opened": panel.visible},
         "stats": (stats as Dictionary).duplicate(true),
         "production_selector_path": true,
         "source_backed_visual_invariants": {"upper_bays": 9, "entrance_columns": 4, "bilingual_signage": true, "canopy": true}
@@ -191,5 +205,5 @@ func _run() -> void:
         return
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
-    print("CENTRAL_STATION_VISUAL_WITNESS_OK: urban_id=30201 quality=LABO_BRUT buildings=%d surfaces=%d bays=%d columns=%d captures=3 zones_button=true authoritative_urbis=false promotion=false" % [building_count, street_surface_count, bay_count, column_count])
+    print("CENTRAL_STATION_VISUAL_WITNESS_OK: urban_id=30201 quality=LABO_BRUT buildings=%d surfaces=%d bays=%d columns=%d captures=3 change_zone_button=true panel_opened=true authoritative_urbis=false promotion=false" % [building_count, street_surface_count, bay_count, column_count])
     quit(0)

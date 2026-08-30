@@ -1,0 +1,55 @@
+name: Grand Bruxelles Atomium UrbIS 3D Discovery
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-atomium-urbis3d-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-official-3d:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch official Paradigm 3D Constructions Atom feed
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            'https://urbisdownload.datastore.brussels/atomfeed/e9ec2aa4-cffd-11ee-bccc-00090ffe0001-fr.xml' \
+            --output "$RUNNER_TEMP/urbis-3d-constructions.xml"
+          test -s "$RUNNER_TEMP/urbis-3d-constructions.xml"
+
+      - name: Enumerate official distribution links
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import xml.etree.ElementTree as ET
+
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'urbis-3d-constructions.xml'
+          root = ET.parse(path).getroot()
+          hrefs = []
+          for element in root.iter():
+              href = element.attrib.get('href')
+              if href and href not in hrefs:
+                  hrefs.append(href)
+              text = (element.text or '').strip()
+              if text.startswith('http') and text not in hrefs:
+                  hrefs.append(text)
+          archives = [url for url in hrefs if any(token in url.lower() for token in ('.zip', '.gml', '.gpkg', '.shp'))]
+          print('URBIS_3D_DISCOVERY_HREFS=' + json.dumps(hrefs, ensure_ascii=False))
+          print('URBIS_3D_DISCOVERY_ARCHIVES=' + json.dumps(archives, ensure_ascii=False))
+          print(f'URBIS_3D_DISCOVERY_OK hrefs={len(hrefs)} archives={len(archives)}')
+          PY
+
+      - name: Upload official feed receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: urbis-3d-constructions-feed
+          path: ${{ runner.temp }}/urbis-3d-constructions.xml
+          if-no-files-found: error
+          retention-days: 7

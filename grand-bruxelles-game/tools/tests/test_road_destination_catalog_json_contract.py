@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 CASES_PATH = Path(__file__).resolve().with_name("_road_destination_catalog_json_contract_cases.py")
@@ -48,5 +49,30 @@ def write_document_with_lock(path: Path, **kwargs: object) -> None:
 
 cases.write_document = write_document_with_lock
 
+
+def _run_duplicate_source_key_probe() -> None:
+    """Canonical source JSON must reject duplicate object keys before derivation."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "data" / "osm"
+        root.mkdir(parents=True, exist_ok=True)
+        source = root / "duplicate-key.game.json"
+        source.write_text(
+            '{"format":"grand-bruxelles-osm-v1","format":"grand-bruxelles-osm-v1",'
+            '"roads":[{"osm_id":42,"name":"Rue Test","class":"tertiary",'
+            '"width":7.0,"drivable":true,"points":[[0.0,0.0],[10.0,0.0]]}],'
+            '"buildings":[]}',
+            encoding="utf-8",
+        )
+        _refresh_lock(root)
+        try:
+            cases.module.build_catalog(root)
+        except SystemExit as exc:
+            assert "duplicate JSON object key" in str(exc), str(exc)
+        else:
+            raise AssertionError("expected duplicate source JSON object key to fail closed")
+
+
 if __name__ == "__main__":
-    raise SystemExit(cases.main())
+    result = cases.main()
+    _run_duplicate_source_key_probe()
+    raise SystemExit(result)

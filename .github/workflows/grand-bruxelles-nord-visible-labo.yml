@@ -6,6 +6,8 @@ on:
       - 'grand-bruxelles-game/game/zones/nord/nord_city_machine_zone.gd'
       - 'grand-bruxelles-game/game/tests/nord_city_machine_labo_test.gd'
       - 'grand-bruxelles-game/game/tests/nord_visual_witness.gd'
+      - 'grand-bruxelles-game/game/tests/nord_zone_selector_button_test.gd'
+      - 'grand-bruxelles-game/game/scripts/zone_selector_runtime.gd'
       - 'grand-bruxelles-game/tools/city_machine/test_nord_visible_labo_onboarding.py'
       - 'grand-bruxelles-game/data/qa/playable_zone_catalog.json'
       - 'grand-bruxelles-game/data/urbis/nord/**'
@@ -17,8 +19,11 @@ on:
       - 'grand-bruxelles-game/game/zones/nord/nord_city_machine_zone.gd'
       - 'grand-bruxelles-game/game/tests/nord_city_machine_labo_test.gd'
       - 'grand-bruxelles-game/game/tests/nord_visual_witness.gd'
+      - 'grand-bruxelles-game/game/tests/nord_zone_selector_button_test.gd'
+      - 'grand-bruxelles-game/game/scripts/zone_selector_runtime.gd'
       - 'grand-bruxelles-game/tools/city_machine/test_nord_visible_labo_onboarding.py'
       - 'grand-bruxelles-game/data/qa/playable_zone_catalog.json'
+      - 'grand-bruxelles-game/data/urbis/nord/**'
       - '.github/workflows/grand-bruxelles-nord-visible-labo.yml'
   workflow_dispatch:
 
@@ -92,6 +97,17 @@ jobs:
           grep -q 'NORD_CITY_MACHINE_LABO_OK' /tmp/nord-visible-labo.log
           ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/nord-visible-labo.log
 
+      - name: Prove production change-zone button reaches Nord
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 180s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/nord_zone_selector_button_test.gd \
+            2>&1 | tee /tmp/nord-zone-selector-button.log
+          grep -q 'NORD_ZONE_SELECTOR_BUTTON_OK' /tmp/nord-zone-selector-button.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|NORD_ZONE_SELECTOR_BUTTON_FAIL|Invalid call|previously freed|ERROR:' /tmp/nord-zone-selector-button.log
+
       - name: Capture Nord production-selector visual witness
         shell: bash
         run: |
@@ -140,6 +156,7 @@ jobs:
         if: always()
         run: |
           mkdir -p grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness
+          test ! -f /tmp/nord-zone-selector-button.log || cp /tmp/nord-zone-selector-button.log grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/zone-selector-button.log
           test ! -f /tmp/nord-visual-witness.log || cp /tmp/nord-visual-witness.log grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/witness.log
           test ! -f /tmp/nord-visible-labo.log || cp /tmp/nord-visible-labo.log grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/labo.log
           test ! -f /tmp/nord-visible-labo-import.log || cp /tmp/nord-visible-labo-import.log grand-bruxelles-game/artifacts/qa/nord_city_machine_visual_witness/import.log

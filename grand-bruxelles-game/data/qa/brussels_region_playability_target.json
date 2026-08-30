@@ -1,0 +1,59 @@
+{
+  "schema": "grand-bruxelles-region-playability-target-v1",
+  "scope": "Brussels-Capital Region",
+  "completion_claimed": false,
+  "policy": {
+    "all_19_municipalities_required": true,
+    "single_connected_gameplay_network_required": true,
+    "continuous_ground_or_explicit_runtime_transport_required": true,
+    "collision_required": true,
+    "stable_spawn_required": true,
+    "load_without_crash_required": true,
+    "visual_runtime_evidence_required": true,
+    "no_isolated_listable_zone": true,
+    "no_source_free_geometry_promotion": true
+  },
+  "required_municipalities": [
+    {"niscode": "21001", "id": "anderlecht", "name": "Anderlecht"},
+    {"niscode": "21002", "id": "auderghem", "name": "Auderghem"},
+    {"niscode": "21003", "id": "berchem_sainte_agathe", "name": "Berchem-Sainte-Agathe"},
+    {"niscode": "21004", "id": "bruxelles_ville", "name": "Bruxelles-Ville"},
+    {"niscode": "21005", "id": "etterbeek", "name": "Etterbeek"},
+    {"niscode": "21006", "id": "evere", "name": "Evere"},
+    {"niscode": "21007", "id": "forest", "name": "Forest"},
+    {"niscode": "21008", "id": "ganshoren", "name": "Ganshoren"},
+    {"niscode": "21009", "id": "ixelles", "name": "Ixelles"},
+    {"niscode": "21010", "id": "jette", "name": "Jette"},
+    {"niscode": "21011", "id": "koekelberg", "name": "Koekelberg"},
+    {"niscode": "21012", "id": "molenbeek_saint_jean", "name": "Molenbeek-Saint-Jean"},
+    {"niscode": "21013", "id": "saint_gilles", "name": "Saint-Gilles"},
+    {"niscode": "21014", "id": "saint_josse_ten_noode", "name": "Saint-Josse-ten-Noode"},
+    {"niscode": "21015", "id": "schaerbeek", "name": "Schaerbeek"},
+    {"niscode": "21016", "id": "uccle", "name": "Uccle"},
+    {"niscode": "21017", "id": "watermael_boitsfort", "name": "Watermael-Boitsfort"},
+    {"niscode": "21018", "id": "woluwe_saint_lambert", "name": "Woluwe-Saint-Lambert"},
+    {"niscode": "21019", "id": "woluwe_saint_pierre", "name": "Woluwe-Saint-Pierre"}
+  ],
+  "required_city_network_anchors": [
+    "midi",
+    "anneessens",
+    "bourse",
+    "grand_place",
+    "rogier",
+    "gare_du_nord",
+    "ixelles",
+    "atomium",
+    "jette"
+  ],
+  "promotion_gate": {
+    "municipality_may_be_marked_playable_only_when": [
+      "source-backed road/ground coverage exists",
+      "runtime mount is authorized",
+      "collision is proven",
+      "at least one stable spawn is proven",
+      "zone loads without crash",
+      "zone is connected to the regional gameplay graph",
+      "visual runtime evidence exists"
+    ]
+  }
+}

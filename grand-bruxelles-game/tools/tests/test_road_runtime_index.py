@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import hashlib
 import importlib.util
 import json
@@ -36,6 +37,15 @@ def road(osm_id: int, name: str = "Teststraat - Rue Test") -> dict:
     }
 
 
+def assert_contract_rejects(index: dict, expected_fragment: str) -> None:
+    try:
+        module.validate_contract(index)
+    except SystemExit as exc:
+        assert expected_fragment in str(exc), str(exc)
+    else:
+        raise AssertionError(f"runtime index contract accepted invalid payload: {expected_fragment}")
+
+
 def test_synthetic_determinism_and_source_binding() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         source_root = Path(tmp) / "data" / "osm"
@@ -68,6 +78,50 @@ def test_duplicate_source_ownership_fails_closed() -> None:
             raise AssertionError("duplicate runtime source ownership did not fail closed")
 
 
+def test_runtime_index_json_contract_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        source_root = Path(tmp) / "data" / "osm"
+        write_document(source_root / "slice.game.json", [road(42)])
+        catalog = module._catalog_module.build_catalog(source_root)
+        index = module.build_runtime_index(catalog)
+
+        injected = copy.deepcopy(index)
+        injected["safe_spawn_ready"] = True
+        assert_contract_rejects(injected, "field set drift")
+
+        auth_injected = copy.deepcopy(index)
+        auth_injected["authorization"]["rendered"] = True
+        assert_contract_rejects(auth_injected, "authorization field set drift")
+
+        descriptor_injected = copy.deepcopy(index)
+        descriptor_injected["documents"][0]["municipality"] = "Bruxelles"
+        assert_contract_rejects(descriptor_injected, "descriptor field set drift")
+
+        string_road_id = copy.deepcopy(index)
+        string_road_id["documents"][0]["road_ids"] = ["42"]
+        assert_contract_rejects(string_road_id, "JSON type drift road id")
+
+        string_sha = copy.deepcopy(index)
+        string_sha["catalog_sha256"] = 42
+        assert_contract_rejects(string_sha, "JSON type drift catalog_sha256")
+
+        path_type_drift = copy.deepcopy(index)
+        path_type_drift["documents"][0]["path"] = 42
+        assert_contract_rejects(path_type_drift, "JSON type drift source path")
+
+        parent_traversal = copy.deepcopy(index)
+        parent_traversal["documents"][0]["path"] = "data/osm/../shadow.game.json"
+        assert_contract_rejects(parent_traversal, "non-canonical source path")
+
+        dot_segment = copy.deepcopy(index)
+        dot_segment["documents"][0]["path"] = "data/osm/./slice.game.json"
+        assert_contract_rejects(dot_segment, "non-canonical source path")
+
+        backslash_drift = copy.deepcopy(index)
+        backslash_drift["documents"][0]["path"] = "data/osm/sub\\slice.game.json"
+        assert_contract_rejects(backslash_drift, "non-canonical source path")
+
+
 def test_real_slice_matches_catalog_and_contains_lemonnier() -> None:
     source_root = ROOT / "data" / "osm"
     catalog = module._catalog_module.build_catalog(source_root)
@@ -94,6 +148,7 @@ def test_real_slice_matches_catalog_and_contains_lemonnier() -> None:
 def main() -> int:
     test_synthetic_determinism_and_source_binding()
     test_duplicate_source_ownership_fails_closed()
+    test_runtime_index_json_contract_fails_closed()
     test_real_slice_matches_catalog_and_contains_lemonnier()
     print("ROAD_RUNTIME_INDEX_TEST_OK")
     return 0

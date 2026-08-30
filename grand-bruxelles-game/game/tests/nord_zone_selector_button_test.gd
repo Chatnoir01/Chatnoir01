@@ -2,6 +2,7 @@ extends SceneTree
 
 const MAIN_SCENE := "res://game/main.tscn"
 const ZONE_ID := "nord_machine_labo"
+const EXPECTED_TOGGLE_TEXT := "CHANGER DE ZONE"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -30,8 +31,11 @@ func _run() -> void:
     if toggle == null or panel == null:
         _fail("production zone-change controls missing")
         return
-    if toggle.text.strip_edges().is_empty():
-        _fail("zone-change toggle has no visible label")
+    if toggle.text != EXPECTED_TOGGLE_TEXT:
+        _fail("zone-change toggle label drifted: %s" % toggle.text)
+        return
+    if toggle.size.x < 160.0:
+        _fail("zone-change toggle too narrow for explicit label")
         return
 
     selector.call("set_menu_open", true)

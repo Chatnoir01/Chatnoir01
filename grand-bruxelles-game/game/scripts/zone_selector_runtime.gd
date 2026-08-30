@@ -171,10 +171,10 @@ func _infer_active_zone_id(main: Node) -> String:
 func _build_ui() -> void:
     _toggle = Button.new()
     _toggle.name = "ZoneSelectorToggle"
-    _toggle.text = "ZONES"
+    _toggle.text = "CHANGER DE ZONE"
     _toggle.set_anchors_preset(Control.PRESET_TOP_RIGHT)
     _toggle.position = Vector2(-500.0, 18.0)
-    _toggle.size = Vector2(108.0, 42.0)
+    _toggle.size = Vector2(190.0, 42.0)
     _toggle.pressed.connect(func() -> void: set_menu_open(not _panel.visible))
     add_child(_toggle)
 

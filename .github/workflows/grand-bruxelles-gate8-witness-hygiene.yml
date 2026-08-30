@@ -1,0 +1,152 @@
+name: Grand Bruxelles Gate-8 Witness Hygiene
+
+on:
+  push:
+    branches: ["npc/gate8-witness-hygiene-03003b0"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-witness-hygiene.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  witness-hygiene:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BASE_MAIN_SHA: "03003b0326ec344109a3bb41d7ec5d03c2528872"
+      HISTORICAL_WITNESS_HEAD: "ccece65cbb2e3eb0d1f2c11876a621299b766717"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      HOME: "/tmp/grand-bruxelles-gate8-hygiene-home"
+      GODOT_EPHEMERAL_ROGUE_TEXTURE: "grand-bruxelles-game/assets/characters/player_character_rogue_texture.png"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded QA-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' '.github/workflows/grand-bruxelles-gate8-witness-hygiene.yml' > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+
+      - name: Materialize historical witness ephemerally
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$GODOT_EPHEMERAL_ROGUE_TEXTURE"
+          for path in \
+            grand-bruxelles-game/game/scripts/gate8_visual_loader.gd \
+            grand-bruxelles-game/game/tests/gate8_runtime_witness.gd \
+            grand-bruxelles-game/game/tests/gate8_runtime_witness.tscn
+          do
+            test ! -e "$path"
+            mkdir -p "$(dirname "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${HISTORICAL_WITNESS_HEAD}" --jq .content | tr -d '\n' | base64 -d > "$path"
+            test -s "$path"
+          done
+          git status --porcelain --untracked-files=all | tee /tmp/status-after-materialize.txt
+          ! grep -Fq "$GODOT_EPHEMERAL_ROGUE_TEXTURE" /tmp/status-after-materialize.txt
+
+      - name: Run exact Godot 4.7.1 editor import pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/godot
+          curl -L --fail --retry 3 --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          timeout 300s "$GODOT" --headless --editor --path grand-bruxelles-game --quit-after 1200 2>&1 | tee /tmp/godot-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/godot-import.log
+          git status --porcelain --untracked-files=all | tee /tmp/status-after-godot.txt
+
+      - name: Prove cleanup removes only validated Godot-generated residue
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          rows = Path('/tmp/status-after-godot.txt').read_text().splitlines()
+          witness_paths = {
+              'grand-bruxelles-game/game/scripts/gate8_visual_loader.gd',
+              'grand-bruxelles-game/game/tests/gate8_runtime_witness.gd',
+              'grand-bruxelles-game/game/tests/gate8_runtime_witness.tscn',
+          }
+          rogue = 'grand-bruxelles-game/assets/characters/player_character_rogue_texture.png'
+          cleanup = set()
+          bad = []
+
+          def tracked(path: str) -> bool:
+              return subprocess.run(
+                  ['git', 'ls-files', '--error-unmatch', '--', path],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+              ).returncode == 0
+
+          for row in rows:
+              if not row.startswith('?? '):
+                  bad.append(row)
+                  continue
+              path = row[3:]
+              if path.startswith('grand-bruxelles-game/.godot/'):
+                  continue
+              if path in witness_paths or path == rogue:
+                  cleanup.add(path)
+                  continue
+              if path.endswith('.uid'):
+                  source = path[:-4]
+                  if source in witness_paths or tracked(source):
+                      cleanup.add(path)
+                      continue
+              if path.endswith('.import'):
+                  source = path[:-7]
+                  if source == rogue or source in witness_paths or tracked(source):
+                      cleanup.add(path)
+                      continue
+              bad.append(row)
+
+          Path('/tmp/unexpected-status.txt').write_text('\n'.join(bad) + ('\n' if bad else ''))
+          Path('/tmp/validated-sidecars.txt').write_text('\n'.join(sorted(cleanup)) + ('\n' if cleanup else ''))
+          assert not bad, bad
+          PY
+          rm -rf grand-bruxelles-game/.godot
+          if test -s /tmp/validated-sidecars.txt; then
+            while IFS= read -r path; do
+              rm -f -- "$path"
+            done < /tmp/validated-sidecars.txt
+          fi
+          git status --porcelain --untracked-files=all | tee /tmp/status-after-cleanup.txt
+          test -z "$(cat /tmp/status-after-cleanup.txt)"
+          echo 'GATE8_WITNESS_HYGIENE_OK canonical_tree_clean=true cleanup_policy=validated_sidecars_only'
+
+      - name: Upload hygiene diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-witness-hygiene-diagnostics
+          path: |
+            /tmp/status-after-materialize.txt
+            /tmp/status-after-godot.txt
+            /tmp/unexpected-status.txt
+            /tmp/validated-sidecars.txt
+            /tmp/status-after-cleanup.txt
+            /tmp/godot-version.txt
+            /tmp/godot-import.log
+          if-no-files-found: warn
+          retention-days: 14

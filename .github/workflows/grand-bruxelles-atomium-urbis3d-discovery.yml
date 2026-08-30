@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/grand-bruxelles-atomium-urbis3d-discovery.yml'
+      - 'grand-bruxelles-game/tools/build_atomium_heysel_urbis3d_slice.py'
+      - 'grand-bruxelles-game/tools/extract_urbis_3d_hero.py'
   workflow_dispatch:
 
 permissions:
@@ -12,8 +14,10 @@ permissions:
 jobs:
   discover-official-3d:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+
       - name: Fetch official Paradigm 3D Constructions Atom feed
         run: |
           set -euo pipefail
@@ -72,7 +76,7 @@ jobs:
           unzip -t "$ARCHIVE" >/dev/null
           mkdir -p "$RUNNER_TEMP/urbis3d-heysel"
           unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/urbis3d-heysel"
-          find "$RUNNER_TEMP/urbis3d-heysel" -type f -maxdepth 3 -printf '%P\n' | sort | tee "$RUNNER_TEMP/urbis3d-heysel-members.txt"
+          find "$RUNNER_TEMP/urbis3d-heysel" -maxdepth 3 -type f -printf '%P\n' | sort | tee "$RUNNER_TEMP/urbis3d-heysel-members.txt"
 
       - name: Inspect official SHP layers and fields
         run: |
@@ -150,6 +154,48 @@ jobs:
           print('URBIS_3D_HEYSEL_FACE_CANDIDATES=' + ','.join(candidates))
           PY
 
+      - name: Build deterministic source-faithful Heysel LoD2 slice
+        run: |
+          set -euo pipefail
+          ARCHIVE_SHA="$(cut -d' ' -f1 "$RUNNER_TEMP/urbis3d-heysel-archive.sha256")"
+          SOURCE_ROOT="$RUNNER_TEMP/urbis3d-heysel/shp"
+          PREFIX='UrbISBuildings3D_148176'
+          OUT1="$RUNNER_TEMP/atomium-heysel-urbis3d-slice.json"
+          OUT2="$RUNNER_TEMP/atomium-heysel-urbis3d-slice-repeat.json"
+          for OUT in "$OUT1" "$OUT2"; do
+            python3 grand-bruxelles-game/tools/build_atomium_heysel_urbis3d_slice.py \
+              --source-root "$SOURCE_ROOT" \
+              --prefix "$PREFIX" \
+              --min-e 148002.07966029973 \
+              --min-n 176002.01708776454 \
+              --max-e 148998.18860971605 \
+              --max-n 176998.12603718086 \
+              --origin-e 147868.29422791934 \
+              --origin-n 169538.62414926197 \
+              --package-url "$URBIS3D_HEYSEL_URL" \
+              --package-sha256 "$ARCHIVE_SHA" \
+              --distribution-date "$URBIS3D_HEYSEL_DATE" \
+              --output "$OUT"
+          done
+          cmp "$OUT1" "$OUT2"
+          sha256sum "$OUT1" | tee "$RUNNER_TEMP/atomium-heysel-urbis3d-slice.sha256"
+          python3 - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'atomium-heysel-urbis3d-slice.json'
+          data = json.loads(path.read_text(encoding='utf-8'))
+          evidence = data['evidence']
+          if evidence['building_count'] <= 0 or evidence['face_count'] <= 0 or evidence['triangle_count'] <= 0:
+              raise SystemExit('LoD2 slice is empty')
+          if data['coordinates']['game_y_conversion_claimed'] is not False:
+              raise SystemExit('Discovery slice must not claim a game-Y conversion')
+          print(
+              'ATOMIUM_HEYSEL_URBIS3D_ARTIFACT_OK '
+              f"bytes={path.stat().st_size} buildings={evidence['building_count']} "
+              f"faces={evidence['face_count']} triangles={evidence['triangle_count']} "
+              f"z={evidence['source_z_min_m']}..{evidence['source_z_max_m']}"
+          )
+          PY
+
       - name: Upload official feed and Heysel discovery receipt
         uses: actions/upload-artifact@v4
         with:
@@ -159,5 +205,15 @@ jobs:
             ${{ runner.temp }}/urbis3d-heysel-discovery.json
             ${{ runner.temp }}/urbis3d-heysel-archive.sha256
             ${{ runner.temp }}/urbis3d-heysel-members.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload deterministic Heysel LoD2 slice
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-heysel-urbis3d-slice
+          path: |
+            ${{ runner.temp }}/atomium-heysel-urbis3d-slice.json
+            ${{ runner.temp }}/atomium-heysel-urbis3d-slice.sha256
           if-no-files-found: error
           retention-days: 7

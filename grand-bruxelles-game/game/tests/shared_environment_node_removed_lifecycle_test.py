@@ -92,7 +92,9 @@ STREET_FURNITURE_REBIND = {
     "game/scripts/brussels_street_lamp_runtime.gd",
     "game/scripts/brussels_bollard_runtime.gd",
 }
-NODE_REMOVED_CONNECT_RE = re.compile(r"node_removed\.connect\(([_A-Za-z0-9]+)\)")
+NODE_REMOVED_CONNECT_RE = re.compile(
+    r"node_removed\s*\.\s*connect\s*\(\s*([_A-Za-z0-9]+)\s*\)"
+)
 
 
 def fail(message: str) -> None:
@@ -257,7 +259,7 @@ def main() -> None:
         "SHARED_ENVIRONMENT_NODE_REMOVED_LIFECYCLE_OK: "
         f"runtimes={len(EXPECTED)} watcher_cleanup=locked retained_state_cleanup=locked "
         f"helper_watchers={len(HELPER_WATCHERS)} street_furniture_rebind=locked "
-        f"discovery=single_handler_fail_closed"
+        f"discovery=single_handler_fail_closed multiline=locked"
     )
 
 

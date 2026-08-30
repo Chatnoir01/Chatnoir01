@@ -66,6 +66,10 @@ def main() -> int:
         entry_id_string["entries"]["42"]["osm_id"] = "42"
         expect_fail(entry_id_string, "JSON type drift entry osm_id")
 
+        leading_zero_key = json.loads(json.dumps(base))
+        leading_zero_key["entries"]["00042"] = leading_zero_key["entries"].pop("42")
+        expect_fail(leading_zero_key, "non-canonical OSM id key")
+
         point_count_float = json.loads(json.dumps(base))
         point_count_float["entries"]["42"]["point_count"] = 2.0
         expect_fail(point_count_float, "JSON type drift point_count")

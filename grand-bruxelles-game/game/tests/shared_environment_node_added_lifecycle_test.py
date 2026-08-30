@@ -30,12 +30,10 @@ def validate_watcher_cardinality(source: str, rel_path: str) -> None:
             f"runtime must connect node_added exactly once: {rel_path} "
             f"sites={len(connected)} handlers={list(connected)}"
         )
-    if len(disconnected) != 1:
-        fail(
-            f"runtime must disconnect node_added exactly once: {rel_path} "
-            f"sites={len(disconnected)} handlers={list(disconnected)}"
-        )
-    if disconnected != connected:
+    if not disconnected:
+        fail(f"runtime must disconnect node_added on at least one cleanup path: {rel_path}")
+    unexpected_disconnects = tuple(handler for handler in disconnected if handler != connected[0])
+    if unexpected_disconnects:
         fail(
             f"node_added watcher cleanup mismatch: {rel_path} "
             f"connected={list(connected)} disconnected={list(disconnected)}"
@@ -76,19 +74,28 @@ def main() -> None:
     else:
         fail("duplicate node_added subscription sites are not rejected")
 
-    duplicate_disconnect_probe = "\n".join(
+    alternate_cleanup_probe = "\n".join(
         (
             "node_added.connect(_on_node_added)",
             "node_added.disconnect(_on_node_added)",
             "node_added.disconnect(_on_node_added)",
         )
     )
+    validate_watcher_cardinality(alternate_cleanup_probe, "synthetic_alternate_cleanup.gd")
+
+    mismatched_cleanup_probe = "\n".join(
+        (
+            "node_added.connect(_on_node_added)",
+            "node_added.disconnect(_on_node_added)",
+            "node_added.disconnect(_rogue_node_added)",
+        )
+    )
     try:
-        validate_watcher_cardinality(duplicate_disconnect_probe, "synthetic_duplicate_disconnect.gd")
+        validate_watcher_cardinality(mismatched_cleanup_probe, "synthetic_mismatched_cleanup.gd")
     except AssertionError:
         pass
     else:
-        fail("duplicate node_added disconnect sites are not rejected")
+        fail("node_added cleanup path using a different handler is not rejected")
 
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("node_added_watcher_cleanup_required") is not True:
@@ -120,7 +127,7 @@ def main() -> None:
     print(
         "SHARED_ENVIRONMENT_NODE_ADDED_LIFECYCLE_OK: "
         f"runtimes={len(runtimes)} watcher_cleanup=locked "
-        "single_handler=locked multiline=locked subscription_cardinality=locked"
+        "single_subscription=locked multiline=locked cleanup_handlers=locked"
     )
 
 

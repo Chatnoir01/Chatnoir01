@@ -109,13 +109,14 @@ def main() -> int:
         coord = game_doc.get("grand_bruxelles_coordinate_system")
         if not isinstance(coord, dict) or coord.get("source_crs") != "EPSG:31370":
             return fail(f"game coordinate contract missing: {slug}")
-        game_origin = coord.get("origin")
-        if not isinstance(game_origin, dict):
-            return fail(f"game origin metadata missing: {slug}")
-        if float(game_origin.get("e", float("nan"))) != EXPECTED_ORIGIN["e"]:
+        if float(coord.get("origin_e", float("nan"))) != EXPECTED_ORIGIN["e"]:
             return fail(f"game origin e mismatch: {slug}")
-        if float(game_origin.get("n", float("nan"))) != EXPECTED_ORIGIN["n"]:
+        if float(coord.get("origin_n", float("nan"))) != EXPECTED_ORIGIN["n"]:
             return fail(f"game origin n mismatch: {slug}")
+        if float(coord.get("origin_altitude", float("nan"))) != EXPECTED_ORIGIN["altitude"]:
+            return fail(f"game origin altitude mismatch: {slug}")
+        if coord.get("axes") != EXPECTED_ORIGIN["axes"] or coord.get("units") != EXPECTED_ORIGIN["units"]:
+            return fail(f"game axes/units mismatch: {slug}")
         details.append(f"{slug}={expected}")
 
     print(

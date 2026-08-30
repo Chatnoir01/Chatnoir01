@@ -40,13 +40,23 @@ jobs:
           grep -F "MIDI_GLAZING_WITNESS_OK" /tmp/midi-glazing.log
           test -f grand-bruxelles-game/artifacts/visual/midi_glazing_before.png
           test -f grand-bruxelles-game/artifacts/visual/midi_glazing_after.png
+      - name: Stage full-frame evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf evidence/midi-glazing
+          mkdir -p evidence/midi-glazing
+          cp grand-bruxelles-game/artifacts/visual/midi_glazing_before.png evidence/midi-glazing/
+          cp grand-bruxelles-game/artifacts/visual/midi_glazing_after.png evidence/midi-glazing/
+          cp /tmp/midi-glazing.log evidence/midi-glazing/
+          test -s evidence/midi-glazing/midi_glazing_before.png
+          test -s evidence/midi-glazing/midi_glazing_after.png
+          test -s evidence/midi-glazing/midi-glazing.log
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-architectural-glazing-visual-evidence
-          path: |
-            grand-bruxelles-game/artifacts/visual/midi_glazing_before.png
-            grand-bruxelles-game/artifacts/visual/midi_glazing_after.png
-            /tmp/midi-glazing.log
+          path: evidence/midi-glazing/
           if-no-files-found: error

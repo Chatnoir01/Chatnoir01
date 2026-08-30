@@ -84,31 +84,39 @@ func _run() -> void:
     camera.look_at(ENTRANCE + Vector3(0.0, 7.5, 0.0), Vector3.UP)
     camera.current = true
 
+    # Freeze gameplay before the A/B pair. The previous witness allowed NPC/vehicle
+    # simulation to advance between captures, contaminating the glazing delta with
+    # unrelated player-visible motion. Rendering remains active while SceneTree is paused.
+    paused = true
+    await process_frame
+    await RenderingServer.frame_post_draw
+
     runtime.set_enhanced_material_enabled(false)
     var before := await _capture(BEFORE_PATH)
+    var control := await _capture("")
+    if before == null or control == null:
+        _fail("capture missing")
+        return
+    var control_over3 := _count_pixels_over_delta(before, control, 3.0)
+    if control_over3 != 0:
+        _fail("frozen A/B control drifted by %d pixels above 3 RGB; dynamic state is not deterministic" % control_over3)
+        return
+
     runtime.set_enhanced_material_enabled(true)
     var after := await _capture(AFTER_PATH)
-    if before == null or after == null:
+    if after == null:
         _fail("capture missing")
         return
     if before.get_width() != WIDTH or before.get_height() != HEIGHT or after.get_width() != WIDTH or after.get_height() != HEIGHT:
         _fail("capture resolution must be 1280x720")
         return
 
-    var over3 := 0
-    var over8 := 0
+    var over3 := _count_pixels_over_delta(before, after, 3.0)
+    var over8 := _count_pixels_over_delta(before, after, 8.0)
     var total := WIDTH * HEIGHT
-    for y: int in range(HEIGHT):
-        for x: int in range(WIDTH):
-            var a := before.get_pixel(x, y)
-            var b := after.get_pixel(x, y)
-            var delta := maxf(absf(a.r - b.r) * 255.0, maxf(absf(a.g - b.g) * 255.0, absf(a.b - b.b) * 255.0))
-            if delta > 3.0:
-                over3 += 1
-            if delta > 8.0:
-                over8 += 1
     var ratio3 := float(over3) / float(total)
     var ratio8 := float(over8) / float(total)
+    print("MIDI_GLAZING_CONTROL frozen=true over3=%d" % control_over3)
     print("MIDI_GLAZING_DELTA over3=%d ratio3=%.6f over8=%d ratio8=%.6f" % [over3, ratio3, over8, ratio8])
     if ratio3 < MIN_CHANGED_OVER_3:
         _fail("normal-distance >3 RGB area below 2.00% anti-micro gate")
@@ -119,11 +127,24 @@ func _run() -> void:
     print("MIDI_GLAZING_WITNESS_OK")
     quit(0)
 
+func _count_pixels_over_delta(a: Image, b: Image, threshold: float) -> int:
+    if a == null or b == null or a.get_size() != b.get_size():
+        return WIDTH * HEIGHT
+    var changed := 0
+    for y: int in range(a.get_height()):
+        for x: int in range(a.get_width()):
+            var pa := a.get_pixel(x, y)
+            var pb := b.get_pixel(x, y)
+            var delta := maxf(absf(pa.r - pb.r) * 255.0, maxf(absf(pa.g - pb.g) * 255.0, absf(pa.b - pb.b) * 255.0))
+            if delta > threshold:
+                changed += 1
+    return changed
+
 func _capture(path: String) -> Image:
     await process_frame
     await RenderingServer.frame_post_draw
     var image := get_root().get_viewport().get_texture().get_image()
-    if image.save_png(path) != OK:
+    if not path.is_empty() and image.save_png(path) != OK:
         return null
     return image
 

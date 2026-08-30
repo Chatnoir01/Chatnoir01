@@ -15,15 +15,14 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from lambert72_to_game_geojson import (
-    DEFAULT_ORIGIN_ALTITUDE,
-    DEFAULT_ORIGIN_E,
-    DEFAULT_ORIGIN_N,
-    convert_document,
-)
+from lambert72_to_game_geojson import DEFAULT_ORIGIN_ALTITUDE, convert_document
 
 WFS_URL = "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
 DEFAULT_BBOX = (149000.0, 172000.0, 150000.0, 172500.0)
+# Nord must own a Nord-local metric origin. The generic converter default is
+# anchored elsewhere in Brussels and must never leak into this zone contract.
+NORD_ORIGIN_E = (DEFAULT_BBOX[0] + DEFAULT_BBOX[2]) / 2.0
+NORD_ORIGIN_N = (DEFAULT_BBOX[1] + DEFAULT_BBOX[3]) / 2.0
 SOURCE_LICENSE = "CC0-1.0 (UrbIS vector layers used by this source root)"
 LAYERS = {
     "buildings": "urbisvector:Buildings",
@@ -80,7 +79,7 @@ def fetch_layer(
                     f"unexpected UrbIS WFS response for {layer_name}: {document.get('type')!r}"
                 )
             return document
-        except Exception as exc:  # explicit network/service retry path
+        except Exception as exc:
             last_error = exc
             if attempt >= max(1, retries):
                 break
@@ -104,10 +103,17 @@ def main() -> int:
     parser.add_argument("--bbox", type=parse_bbox, default=DEFAULT_BBOX)
     parser.add_argument("--output-dir", type=Path, default=Path("data/urbis/nord"))
     parser.add_argument("--retries", type=int, default=4)
-    parser.add_argument("--origin-e", type=float, default=DEFAULT_ORIGIN_E)
-    parser.add_argument("--origin-n", type=float, default=DEFAULT_ORIGIN_N)
+    parser.add_argument("--origin-e", type=float, default=NORD_ORIGIN_E)
+    parser.add_argument("--origin-n", type=float, default=NORD_ORIGIN_N)
     parser.add_argument("--origin-altitude", type=float, default=DEFAULT_ORIGIN_ALTITUDE)
     args = parser.parse_args()
+
+    min_e, min_n, max_e, max_n = args.bbox
+    if not (min_e <= args.origin_e <= max_e and min_n <= args.origin_n <= max_n):
+        raise SystemExit(
+            f"Nord game origin must stay inside acquisition bbox: "
+            f"origin=({args.origin_e},{args.origin_n}) bbox={list(args.bbox)}"
+        )
 
     manifest: dict[str, Any] = {
         "format": "grand-bruxelles-urbis-wfs-v1",
@@ -170,7 +176,10 @@ def main() -> int:
         raise SystemExit(f"Required Gare du Nord UrbIS layers empty: {', '.join(missing)}")
 
     write_json(args.output_dir / "manifest.json", manifest, pretty=True)
-    print(f"NORD_URBIS_SOURCE_OK root={args.output_dir} bbox={list(args.bbox)}")
+    print(
+        f"NORD_URBIS_SOURCE_OK root={args.output_dir} bbox={list(args.bbox)} "
+        f"origin=({args.origin_e},{args.origin_n})"
+    )
     return 0
 
 

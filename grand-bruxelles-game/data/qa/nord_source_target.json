@@ -9,6 +9,14 @@
   "source_license": "CC0-1.0 (UrbIS vector layers used by this source root)",
   "acquisition_bbox": [149000.0, 172000.0, 150000.0, 172500.0],
   "bbox_semantics": "bootstrap envelope for Gare du Nord and immediate rail/streets context; not a surveyed station-footprint claim",
+  "game_origin": {
+    "e": 149500.0,
+    "n": 172250.0,
+    "altitude": 0.0,
+    "strategy": "acquisition_bbox_center",
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
   "required_layers": {
     "buildings": "urbisvector:Buildings",
     "street_surfaces": "urbisvector:StreetSurfaces",
@@ -22,6 +30,7 @@
     "synthetic_station_geometry_forbidden": true,
     "runtime_registration_before_source_validation_forbidden": true,
     "jouable_promotion_before_visual_proof_forbidden": true,
-    "official_raw_and_game_pair_required": true
+    "official_raw_and_game_pair_required": true,
+    "game_origin_outside_acquisition_bbox_forbidden": true
   }
 }

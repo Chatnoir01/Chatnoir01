@@ -80,6 +80,29 @@ def main() -> int:
             })
             expect_build_fail(root, "source JSON type drift drivable")
 
+        # A rejected drivable road is still canonical source input. Invalid identity must
+        # not short-circuit validation of its geometry/width and hide structural source
+        # corruption inside rejected_drivable_record_count.
+        malformed_rejected = dict(valid_road())
+        malformed_rejected["osm_id"] = 0
+        malformed_rejected["points"] = "not-a-point-list"
+        write_json(root / "malformed-container.game.json", {
+            "format": "grand-bruxelles-osm-v1",
+            "roads": [valid_road(), malformed_rejected],
+            "buildings": [],
+        })
+        expect_build_fail(root, "malformed source points container")
+
+        malformed_rejected = dict(valid_road())
+        malformed_rejected["osm_id"] = 0
+        malformed_rejected["width"] = "7.0"
+        write_json(root / "malformed-container.game.json", {
+            "format": "grand-bruxelles-osm-v1",
+            "roads": [valid_road(), malformed_rejected],
+            "buildings": [],
+        })
+        expect_build_fail(root, "source JSON type drift width")
+
     print("ROAD_DESTINATION_CATALOG_SOURCE_STRUCTURE_TEST_GREEN")
     return 0
 

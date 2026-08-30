@@ -63,7 +63,18 @@ jobs:
             --headless --path grand-bruxelles-game \
             --script res://game/tests/midi_architectural_glazing_scene_replacement_test.gd 2>&1 | tee /tmp/midi-glazing-scene-replacement.log
           grep -q 'MIDI_ARCHITECTURAL_GLAZING_SCENE_REPLACEMENT_OK: surfaces=340 autoload_rebind=true toggle_preserved=true topology_recovered=true geometry_changed=false' /tmp/midi-glazing-scene-replacement.log
-          ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/midi-glazing-scene-replacement.log
+
+          expected_topology_error='ERROR: Midi glazing runtime: expected 340 verified glazing surfaces, got 0 after bounded Midi subtree population'
+          test "$(grep -Fc "$expected_topology_error" /tmp/midi-glazing-scene-replacement.log)" -eq 1 || {
+            echo 'RED: expected exactly one deliberate glazing topology fail-close before recovery' >&2
+            exit 1
+          }
+
+          if grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/midi-glazing-scene-replacement.log \
+            | grep -Fv "$expected_topology_error"; then
+            echo 'RED: unexpected runtime error during glazing scene-replacement proof' >&2
+            exit 1
+          fi
 
       - name: Upload glazing scene-replacement diagnostics
         if: always()

@@ -26,6 +26,13 @@ def test_authored_civilian_roster_readiness_is_fail_closed() -> None:
     assert status["source_paths"] == list(contract["required_source_manifest"].keys())
     assert status["excluded_upstream_intermediates"] == contract["required_excluded_upstream_intermediates"]
 
+    sanitization = status.get("sanitization_contract", {})
+    required_sanitization = contract["required_sanitization_contract"]
+    for key, expected in required_sanitization.items():
+        assert sanitization.get(key) == expected, f"CIV-1 sanitization contract drift: {key}"
+    assert sanitization["materialization_allowed_after_strip"] is False
+    assert (ROOT / sanitization["tool"]).is_file()
+
     unresolved = []
     for rel_path, entry in contract["required_source_manifest"].items():
         assert len(entry["git_blob_sha1"]) == 40

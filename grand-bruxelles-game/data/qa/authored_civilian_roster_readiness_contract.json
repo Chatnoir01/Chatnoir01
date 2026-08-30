@@ -10,7 +10,7 @@
     "activation_ready": false,
     "source_package_present": false,
     "runtime_package_present": false,
-    "blocker": "embedded_mixamo_animation_payload_and_canonical_packages_not_verified"
+    "blocker": "sanitized_body_not_yet_materialized_or_verified"
   },
   "required_character_source": {
     "repository": "https://github.com/ibrews/VitruvianGodot",
@@ -45,11 +45,21 @@
     "assets/characters/civilians/civ1/source/shoes03.obj": {"upstream_path":"base/clothes/shoes03/shoes03.obj","git_blob_sha1":"2cd09f0af9c5bd13604d57d8af19e9205933ee85","size_bytes":null,"license_scope_verified":true,"license":"CC0-1.0"}
   },
   "required_excluded_upstream_intermediates": ["godot_project/hairtool_cards.glb", "godot_project/vitruvian_hair.glb"],
+  "required_sanitization_contract": {
+    "tool": "tools/strip_glb_animations.py",
+    "input_upstream_path": "godot_project/vitruvian_body.glb",
+    "operation": "remove_glTF_animations_array_only",
+    "preserve_non_json_chunks_byte_for_byte": true,
+    "preserve_geometry_skin_material_json": true,
+    "require_source_animations": true,
+    "materialization_allowed_after_strip": false
+  },
   "forbidden_civilian_runtime_sources": ["assets/characters/player_character.glb", "assets/characters/player/"],
   "observed_main_runtime": {"authored_character_is_player_only":true,"npc_agent_uses_profiled_procedural_mesh":true,"procedural_mesh_marker":"array_mesh_profiled_v2"},
   "promotion_requirements": [
     "exact upstream README/NOTICE/LICENSE evidence remains pinned by git blob identity",
     "CC0 character geometry is separated from the embedded Mixamo animation payload before source materialization",
+    "deterministic stripper preserves every non-JSON GLB chunk byte-for-byte and leaves materialization disabled until sanitized SHA-256 plus structural inventory are recorded",
     "only canonical body/head/rigged-hair/footwear inputs are materialized; obsolete hair intermediates remain excluded",
     "canonical CIV-1 runtime package is committed and every runtime file has SHA-256 provenance",
     "civilian runtime does not reuse player_character.glb or assets/characters/player/",

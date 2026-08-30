@@ -1,5 +1,5 @@
 {
-  "format": "grand-bruxelles-civ1-runtime-packaging-v3",
+  "format": "grand-bruxelles-civ1-runtime-packaging-v4",
   "candidate_id": "CIV-1",
   "owner_verdict": "GARDER",
   "approved_review_pr": 1006,
@@ -22,9 +22,7 @@
       "character_geometry_redistribution_verified": true,
       "tool_code_license": "MIT",
       "animation_payload_license": "ADOBE_MIXAMO_TERMS",
-      "unresolved_components": [
-        "godot_project/vitruvian_body.glb#embedded_mixamo_animations"
-      ],
+      "unresolved_components": ["godot_project/vitruvian_body.glb#embedded_mixamo_animations"],
       "canonical_hair_asset": "godot_project/vitruvian_hair_rigged.glb"
     }
   },
@@ -42,50 +40,27 @@
     "assets/characters/civilians/civ1/source/shoes03.obj"
   ],
   "source_manifest": {
-    "assets/characters/civilians/civ1/source/vitruvian_body.glb": {
-      "upstream_path": "godot_project/vitruvian_body.glb",
-      "git_blob_sha1": "09bcade1092e5a89b474e91e6013209d4c68c127",
-      "size_bytes": 6879364,
-      "license_scope_verified": false,
-      "geometry_license_scope_verified": true,
-      "blocked_component": "embedded_mixamo_animations"
-    },
-    "assets/characters/civilians/civ1/source/vitruvian_head.glb": {
-      "upstream_path": "godot_project/vitruvian_head.glb",
-      "git_blob_sha1": "0c810e209f09fc079086746f0813de9531d0f7fb",
-      "size_bytes": 10189832,
-      "license_scope_verified": true,
-      "license": "CC0-1.0"
-    },
-    "assets/characters/civilians/civ1/source/vitruvian_hair_rigged.glb": {
-      "upstream_path": "godot_project/vitruvian_hair_rigged.glb",
-      "git_blob_sha1": "8edfccbf29e072b60b21a47dba9bbc992f00ac2e",
-      "size_bytes": 37694332,
-      "license_scope_verified": true,
-      "license": "CC0-1.0"
-    },
-    "assets/characters/civilians/civ1/source/shoes03.obj": {
-      "upstream_path": "base/clothes/shoes03/shoes03.obj",
-      "git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
-      "size_bytes": null,
-      "license_scope_verified": true,
-      "license": "CC0-1.0"
-    }
+    "assets/characters/civilians/civ1/source/vitruvian_body.glb": {"upstream_path":"godot_project/vitruvian_body.glb","git_blob_sha1":"09bcade1092e5a89b474e91e6013209d4c68c127","size_bytes":6879364,"license_scope_verified":false,"geometry_license_scope_verified":true,"blocked_component":"embedded_mixamo_animations"},
+    "assets/characters/civilians/civ1/source/vitruvian_head.glb": {"upstream_path":"godot_project/vitruvian_head.glb","git_blob_sha1":"0c810e209f09fc079086746f0813de9531d0f7fb","size_bytes":10189832,"license_scope_verified":true,"license":"CC0-1.0"},
+    "assets/characters/civilians/civ1/source/vitruvian_hair_rigged.glb": {"upstream_path":"godot_project/vitruvian_hair_rigged.glb","git_blob_sha1":"8edfccbf29e072b60b21a47dba9bbc992f00ac2e","size_bytes":37694332,"license_scope_verified":true,"license":"CC0-1.0"},
+    "assets/characters/civilians/civ1/source/shoes03.obj": {"upstream_path":"base/clothes/shoes03/shoes03.obj","git_blob_sha1":"2cd09f0af9c5bd13604d57d8af19e9205933ee85","size_bytes":null,"license_scope_verified":true,"license":"CC0-1.0"}
   },
-  "excluded_upstream_intermediates": [
-    "godot_project/hairtool_cards.glb",
-    "godot_project/vitruvian_hair.glb"
-  ],
+  "excluded_upstream_intermediates": ["godot_project/hairtool_cards.glb","godot_project/vitruvian_hair.glb"],
+  "sanitization_contract": {
+    "tool": "tools/strip_glb_animations.py",
+    "input_upstream_path": "godot_project/vitruvian_body.glb",
+    "operation": "remove_glTF_animations_array_only",
+    "preserve_non_json_chunks_byte_for_byte": true,
+    "preserve_geometry_skin_material_json": true,
+    "require_source_animations": true,
+    "materialization_allowed_after_strip": false,
+    "required_followup": ["verify exact upstream Git blob before stripping","record sanitized body SHA-256 and structural inventory","Godot 4.7.1 import: skeleton/skin/material integrity","attach independently licensed idle/walk/run only after provenance verification","grounding and foot-slide regression","player-view 1280x720 evidence at 2m/5m/8m"]
+  },
   "runtime_scene": "assets/characters/civilians/civ1/civ1.tscn",
-  "runtime_files": [
-    "assets/characters/civilians/civ1/civ1.tscn"
-  ],
+  "runtime_files": ["assets/characters/civilians/civ1/civ1.tscn"],
   "runtime_sha256": {},
-  "forbidden_runtime_paths": [
-    "assets/characters/player_character.glb",
-    "assets/characters/player/"
-  ],
+  "forbidden_runtime_paths": ["assets/characters/player_character.glb","assets/characters/player/"],
   "mixamo_payload_allowed": false,
-  "blocker": "embedded_mixamo_animation_payload_and_canonical_packages_not_verified",
-  "next_gate": "strip or independently replace the embedded Mixamo animations from vitruvian_body.glb before materialization, preserving only the upstream-declared CC0 character geometry; then materialize the exact pinned body/head/canonical rigged-hair/footwear blobs, record SHA-256 and run Godot 4.7.1 skeleton/skin/material plus independent idle/walk/run grounding gates"
+  "blocker": "sanitized_body_not_yet_materialized_or_verified",
+  "next_gate": "run the deterministic GLB animation stripper only against the exact pinned upstream body, prove its Git blob pin before input, record the sanitized SHA-256 plus structural inventory, then validate Godot 4.7.1 skeleton/skin/material integrity before sourcing independent idle/walk/run animations"
 }

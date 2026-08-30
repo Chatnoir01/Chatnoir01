@@ -74,6 +74,26 @@ def main() -> int:
         digest_number["entries"]["42"]["geometry_sha256"] = 0
         expect_fail(digest_number, "JSON type drift geometry_sha256")
 
+        name_number = json.loads(json.dumps(base))
+        name_number["entries"]["42"]["name"] = 42
+        expect_fail(name_number, "JSON type drift entry name")
+
+        class_number = json.loads(json.dumps(base))
+        class_number["entries"]["42"]["class"] = 7
+        expect_fail(class_number, "JSON type drift entry class")
+
+        width_string = json.loads(json.dumps(base))
+        width_string["entries"]["42"]["width"] = "7.0"
+        expect_fail(width_string, "JSON type drift entry width")
+
+        width_bool = json.loads(json.dumps(base))
+        width_bool["entries"]["42"]["width"] = True
+        expect_fail(width_bool, "JSON type drift entry width")
+
+        width_nan = json.loads(json.dumps(base))
+        width_nan["entries"]["42"]["width"] = float("nan")
+        expect_fail(width_nan, "non-finite entry width")
+
         top_level_parallel_semantic = json.loads(json.dumps(base))
         top_level_parallel_semantic["safe_spawn_ready"] = True
         expect_fail(top_level_parallel_semantic, "catalog field set drift")

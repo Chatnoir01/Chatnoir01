@@ -1,0 +1,241 @@
+name: Grand Bruxelles Gate-8 Local601 Real Posed Geometry RED First
+
+on:
+  push:
+    branches: ["npc/gate8-local601-real-pose-e5535c4"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-local601-real-posed-geometry-red-first.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_local601_real_posed_geometry_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  local601-real-posed-geometry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      BASE_MAIN_SHA: "e5535c442c87029f68ce46578f8c95f768341350"
+      SOURCE_RUN_ID: "32552758284"
+      SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+      ASSET_PACK_ARTIFACT_ID: "9710539659"
+      ASSET_PACK_ARTIFACT_DIGEST: "sha256:ce6fe32adf20838b853ef6f3e80f47bee194f21565cf4d35cad8f2c02f2941da"
+      ASSET_PACK_SHA256: "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+      ASSET_PACK_SIZE_BYTES: "81255948"
+      REMATCH_RUN_ID: "33270713349"
+      REMATCH_HEAD_SHA: "9defe931b0b51b3582c1e555ff80992f64f311fc"
+      REMATCH_ARTIFACT_ID: "9720026708"
+      REMATCH_ARTIFACT_DIGEST: "sha256:70ecea6e85c9a44d742f437dc8c1a1e00b6fb4a2b41c5b12f51d0b9e23b7fe71"
+      GATE8_SOURCE_DIR: "/tmp/gate8-source"
+      GATE8_REMATCH_EVIDENCE: "/tmp/gate8-local601/rematch/result.json"
+      GATE8_LOCAL601_RESULT: "/tmp/gate8-local601/result.json"
+      HOME: "/tmp/grand-bruxelles-blender-home"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded two-file Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-local601-real-posed-geometry-red-first.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_local601_real_posed_geometry_probe.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_local601_real_posed_geometry_probe.py
+
+      - name: Materialize exact pinned source generator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE8_SOURCE_DIR" /tmp/gate8-local601/rematch
+          for path in \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py \
+            grand-bruxelles-game/tools/fetch_mpfb_2017.py
+          do
+            out="$GATE8_SOURCE_DIR/$(basename "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${SOURCE_HEAD_SHA}" --jq .content | tr -d '\n' | base64 -d > "$out"
+            test -s "$out"
+          done
+          grep -q 'ExportService.create_character_copy' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_export_ready_glbs.py"
+
+      - name: Download exact CC0 Gate-8 source asset pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}" > /tmp/gate8-local601/asset-artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-local601/asset-artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['ASSET_PACK_ARTIFACT_DIGEST']
+          assert int(a['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert a['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}/zip" > /tmp/gate8-local601/asset.zip
+          mkdir -p /tmp/gate8-local601/asset
+          unzip -q /tmp/gate8-local601/asset.zip -d /tmp/gate8-local601/asset
+          PACK="$(find /tmp/gate8-local601/asset -type f -name 'makehuman_gate8_system_assets_cc0.zip' -print -quit)"
+          test -n "$PACK"
+          test "$(stat -c '%s' "$PACK")" = "$ASSET_PACK_SIZE_BYTES"
+          test "$(sha256sum "$PACK" | awk '{print $1}')" = "$ASSET_PACK_SHA256"
+          printf '%s\n' "$PACK" > /tmp/gate8-local601/asset-pack-path.txt
+
+      - name: Download immutable reviewed rematch evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REMATCH_ARTIFACT_ID}" > /tmp/gate8-local601/rematch-meta.json
+          python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/gate8-local601/rematch-meta.json'))
+          assert not m['expired']
+          assert m['digest']==os.environ['REMATCH_ARTIFACT_DIGEST']
+          assert int(m['workflow_run']['id'])==int(os.environ['REMATCH_RUN_ID'])
+          assert m['workflow_run']['head_sha']==os.environ['REMATCH_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REMATCH_ARTIFACT_ID}/zip" > /tmp/gate8-local601/rematch.zip
+          unzip -q /tmp/gate8-local601/rematch.zip -d /tmp/gate8-local601/rematch
+          test -s "$GATE8_REMATCH_EVIDENCE"
+
+      - name: Acquire Blender 4.2.23 and exact MPFB 2.0.17
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/gb-blender /tmp/gate8-local601/blender-extensions
+          ARCHIVE=blender-4.2.23-linux-x64.tar.xz
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/${ARCHIVE}" -o "/tmp/${ARCHIVE}"
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/blender-4.2.23.sha256" -o /tmp/blender.sha256
+          grep " ${ARCHIVE}$" /tmp/blender.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum --check blender-linux.sha256)
+          tar -xJf "/tmp/${ARCHIVE}" -C /tmp/gb-blender
+          BLENDER_BIN="$(find /tmp/gb-blender -mindepth 2 -maxdepth 2 -type f -name blender -perm -111 | head -n 1)"
+          "$BLENDER_BIN" --version | tee /tmp/gate8-local601/blender-version.txt
+          grep -q '^Blender 4\.2\.23' /tmp/gate8-local601/blender-version.txt
+          printf '%s\n' "$BLENDER_BIN" > /tmp/gate8-local601/blender-bin.txt
+          python3 "$GATE8_SOURCE_DIR/fetch_mpfb_2017.py" \
+            --output /tmp/gate8-local601/mpfb.zip \
+            --manifest /tmp/gate8-local601/mpfb.manifest.json \
+            --retries 3 | tee /tmp/gate8-local601/mpfb-fetch.log
+          grep -q '^MPFB_2017_FETCH_OK ' /tmp/gate8-local601/mpfb-fetch.log
+          "$BLENDER_BIN" --background --command extension repo-add gb_ci \
+            --name "Grand Bruxelles CI" \
+            --directory /tmp/gate8-local601/blender-extensions \
+            --clear-all
+          "$BLENDER_BIN" --background --command extension install-file \
+            --repo gb_ci --enable /tmp/gate8-local601/mpfb.zip \
+            | tee /tmp/gate8-local601/mpfb-install.txt
+
+      - name: Run actual Blender deformation with only vertex 601 rematched
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/gate8-local601/blender-bin.txt)"
+          PACK="$(cat /tmp/gate8-local601/asset-pack-path.txt)"
+          mkdir -p /tmp/gate8-local601/out
+          "$BLENDER_BIN" --background --offline-mode \
+            --python grand-bruxelles-game/game/tests/gate8_variant01_local601_real_posed_geometry_probe.py \
+            -- --asset-pack "$PACK" --output-dir /tmp/gate8-local601/out \
+            | tee /tmp/gate8-local601/probe.log
+          test -s "$GATE8_LOCAL601_RESULT"
+          cat "$GATE8_LOCAL601_RESULT"
+
+      - name: Validate measurement envelope and safety rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, os
+          r=json.load(open(os.environ['GATE8_LOCAL601_RESULT']))
+          assert r['format']=='grand-bruxelles-gate8-variant01-local601-real-posed-geometry-v1-red-first'
+          assert r['candidate_strategy']=='REMATCH_ONLY_SPORTSUIT_VERTEX_601_KEEP_OTHER_FOCUS_VERTICES_STORED'
+          assert r['source_evidence_artifact_id']==9720026708
+          assert r['source_evidence_head_sha']==os.environ['REMATCH_HEAD_SHA']
+          assert r['mpfb_release']=='2.0.17'
+          assert r['mpfb_release_commit']=='80919fa'
+          assert r['pose_degrees']=={'upperarm_r':35.0,'clavicle_r':12.0,'spine_03':4.0,'spine_02':2.0,'spine_01':0.0}
+          assert r['sportsuit_vertex_count']==1797
+          assert r['rig_bone_count']==53
+          assert r['focus_vertices']==[377,378,379,486,599,601,615,864]
+          assert r['candidate_vertices']==[601]
+          assert len(r['local_edges'])==7
+          assert {tuple(x['edge']) for x in r['local_edges']}=={
+              (377,486),(379,486),(486,601),(486,864),(378,601),(599,601),(601,615)
+          }
+          for edge in r['local_edges']:
+              for key in ('rest_length_m','stored_posed_length_m','candidate_posed_length_m','stored_stretch_ratio','candidate_stretch_ratio','stored_abs_strain','candidate_abs_strain'):
+                  assert math.isfinite(float(edge[key]))
+              assert edge['rest_length_m'] > 0.0
+              assert edge['stored_posed_length_m'] > 0.0
+              assert edge['candidate_posed_length_m'] > 0.0
+          for record in r['polygon_orientation']:
+              assert math.isfinite(float(record['stored_rest_normal_dot']))
+              assert math.isfinite(float(record['candidate_rest_normal_dot']))
+          for vertex, record in r['displacements'].items():
+              assert all(math.isfinite(float(v)) and float(v) >= 0.0 for v in record.values())
+              if vertex != '601':
+                  assert float(record['stored_vs_candidate_delta_m']) < 1e-7
+          assert r['diagnostic_state']=='RED_FIRST_LOCAL601_REAL_POSED_GEOMETRY_MEASURED_UNREVIEWED'
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_mhclo_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+          print('GATE8_LOCAL601_REAL_POSED_GEOMETRY_MEASURED',
+                'critical',r['critical_edge_mean_stored_abs_strain'],'->',r['critical_edge_mean_candidate_abs_strain'],
+                'control',r['control_edge_mean_stored_abs_strain'],'->',r['control_edge_mean_candidate_abs_strain'],
+                'inversions',r['stored_inversion_count'],'->',r['candidate_inversion_count'])
+          PY
+
+      - name: Upload RED-first local601 real posed geometry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-local601-real-posed-geometry-v1-red-first
+          path: |
+            /tmp/gate8-local601/result.json
+            /tmp/gate8-local601/probe.log
+            /tmp/gate8-local601/blender-version.txt
+            /tmp/gate8-local601/mpfb.manifest.json
+            /tmp/gate8-local601/mpfb-fetch.log
+            /tmp/gate8-local601/mpfb-install.txt
+            /tmp/gate8-local601/asset-artifact.json
+            /tmp/gate8-local601/rematch-meta.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"
+
+      - name: Fail closed until local601 real-pose evidence is reviewed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['GATE8_LOCAL601_RESULT']))
+          raise SystemExit(
+              'RED_FIRST_UNREVIEWED_LOCAL601_REAL_POSED_GEOMETRY: '
+              + 'critical=' + str(r['critical_edge_mean_stored_abs_strain']) + '->' + str(r['critical_edge_mean_candidate_abs_strain'])
+              + ' control=' + str(r['control_edge_mean_stored_abs_strain']) + '->' + str(r['control_edge_mean_candidate_abs_strain'])
+              + ' inversions=' + str(r['stored_inversion_count']) + '->' + str(r['candidate_inversion_count'])
+          )
+          PY

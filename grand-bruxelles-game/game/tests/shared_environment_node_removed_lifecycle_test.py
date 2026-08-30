@@ -125,14 +125,16 @@ def main() -> None:
     discovery_probe = "\n".join(
         (
             "node_removed.connect(_on_node_removed)",
-            "node_removed.connect(_rogue_node_removed)",
+            "node_removed.connect(",
+            "    _rogue_node_removed",
+            ")",
         )
     )
     if connected_node_removed_handlers(discovery_probe) != (
         "_on_node_removed",
         "_rogue_node_removed",
     ):
-        fail("node_removed watcher discovery does not enumerate duplicate/rogue handlers")
+        fail("node_removed watcher discovery does not enumerate multiline duplicate/rogue handlers")
 
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("node_removed_watcher_cleanup_required") is not True:

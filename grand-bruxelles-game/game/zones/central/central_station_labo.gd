@@ -22,11 +22,14 @@ var last_stats: Dictionary = {
 var _identity_failure := false
 var _station_root: Node3D
 var _white_stone: StandardMaterial3D
+var _white_stone_shadow: StandardMaterial3D
 var _blue_stone: StandardMaterial3D
 var _bronze: StandardMaterial3D
 var _glass: StandardMaterial3D
+var _glass_dark: StandardMaterial3D
 var _canopy: StandardMaterial3D
 var _paving: StandardMaterial3D
+var _relief: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -90,12 +93,15 @@ func _material(color: Color, roughness: float, metallic: float = 0.0) -> Standar
 
 
 func _make_materials() -> void:
-    _white_stone = _material(Color(0.70, 0.69, 0.64, 1.0), 0.88)
-    _blue_stone = _material(Color(0.22, 0.25, 0.27, 1.0), 0.82)
-    _bronze = _material(Color(0.22, 0.16, 0.09, 1.0), 0.48, 0.48)
-    _glass = _material(Color(0.10, 0.19, 0.24, 1.0), 0.20, 0.12)
-    _canopy = _material(Color(0.17, 0.18, 0.18, 1.0), 0.54, 0.32)
-    _paving = _material(Color(0.36, 0.36, 0.35, 1.0), 0.94)
+    _white_stone = _material(Color(0.73, 0.71, 0.65, 1.0), 0.91)
+    _white_stone_shadow = _material(Color(0.58, 0.57, 0.53, 1.0), 0.93)
+    _blue_stone = _material(Color(0.20, 0.23, 0.25, 1.0), 0.84)
+    _bronze = _material(Color(0.19, 0.13, 0.075, 1.0), 0.43, 0.52)
+    _glass = _material(Color(0.075, 0.15, 0.18, 1.0), 0.18, 0.16)
+    _glass_dark = _material(Color(0.035, 0.065, 0.075, 1.0), 0.24, 0.08)
+    _canopy = _material(Color(0.15, 0.16, 0.16, 1.0), 0.50, 0.38)
+    _paving = _material(Color(0.35, 0.35, 0.34, 1.0), 0.95)
+    _relief = _material(Color(0.36, 0.30, 0.22, 1.0), 0.78, 0.10)
 
 
 func _add_box(parent: Node3D, node_name: String, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:
@@ -112,10 +118,10 @@ func _add_box(parent: Node3D, node_name: String, size: Vector3, position: Vector
 
 func _add_column(parent: Node3D, index: int, position: Vector3) -> MeshInstance3D:
     var mesh := CylinderMesh.new()
-    mesh.top_radius = 0.34
-    mesh.bottom_radius = 0.38
-    mesh.height = 4.35
-    mesh.radial_segments = 16
+    mesh.top_radius = 0.36
+    mesh.bottom_radius = 0.41
+    mesh.height = 4.55
+    mesh.radial_segments = 24
     mesh.material = _white_stone
     var instance := MeshInstance3D.new()
     instance.name = "MainEntranceColumn_%02d" % index
@@ -129,10 +135,13 @@ func _add_label(parent: Node3D, node_name: String, text_value: String, position:
     var label := Label3D.new()
     label.name = node_name
     label.text = text_value
-    label.font_size = 42
-    label.outline_size = 8
+    label.font_size = 64
+    label.outline_size = 10
+    label.pixel_size = 0.0105
     label.position = position
-    label.modulate = Color(0.90, 0.90, 0.84, 1.0)
+    label.modulate = Color(0.13, 0.12, 0.10, 1.0)
+    label.outline_modulate = Color(0.83, 0.80, 0.70, 0.60)
+    label.double_sided = true
     parent.add_child(label)
     return label
 
@@ -141,19 +150,30 @@ func _build_review_forecourt() -> void:
     var pavement := MeshInstance3D.new()
     pavement.name = "CentralReviewForecourt"
     var plane := PlaneMesh.new()
-    plane.size = Vector2(76.0, 46.0)
+    plane.size = Vector2(88.0, 54.0)
     plane.material = _paving
     pavement.mesh = plane
-    pavement.position = CENTRAL_REVIEW_ANCHOR + Vector3(0.0, 0.015, 17.0)
+    pavement.position = CENTRAL_REVIEW_ANCHOR + Vector3(0.0, 0.015, 18.0)
     add_child(pavement)
+
+    # A few paving bands give the witness a readable human scale without
+    # pretending to reproduce surveyed Carrefour de l'Europe paving.
+    for index: int in range(5):
+        _add_box(
+            self,
+            "CentralReviewPavingBand_%02d" % index,
+            Vector3(82.0, 0.025, 0.10),
+            CENTRAL_REVIEW_ANCHOR + Vector3(0.0, 0.035, 5.0 + float(index) * 8.0),
+            _blue_stone
+        )
 
     var body := StaticBody3D.new()
     body.name = "CentralReviewForecourtCollision"
     var shape_node := CollisionShape3D.new()
     var shape := BoxShape3D.new()
-    shape.size = Vector3(76.0, 0.16, 46.0)
+    shape.size = Vector3(88.0, 0.16, 54.0)
     shape_node.shape = shape
-    body.position = CENTRAL_REVIEW_ANCHOR + Vector3(0.0, -0.08, 17.0)
+    body.position = CENTRAL_REVIEW_ANCHOR + Vector3(0.0, -0.08, 18.0)
     body.add_child(shape_node)
     add_child(body)
 
@@ -171,38 +191,60 @@ func _build_station(identity: Dictionary) -> void:
     _station_root.set_meta("identity_schema", str(identity.get("schema", "")))
     add_child(_station_root)
 
-    # Conservative station massing only. The heritage record establishes the
-    # five-level + mezzanine reading and trapezoidal block, not these dimensions.
-    _add_box(_station_root, "StationMassing", Vector3(64.0, 20.0, 25.0), Vector3(0.0, 10.0, -10.5), _white_stone)
-    _add_box(_station_root, "BlueStoneBase", Vector3(62.5, 1.15, 1.0), Vector3(0.0, 0.58, 2.25), _blue_stone)
-    _add_box(_station_root, "BlueStoneCrown", Vector3(63.0, 0.72, 1.0), Vector3(0.0, 19.62, 2.20), _blue_stone)
+    # Conservative five-level surface massing. Dimensions are review conventions.
+    _add_box(_station_root, "StationMassing", Vector3(66.0, 21.0, 27.0), Vector3(0.0, 10.5, -11.0), _white_stone)
+    _add_box(_station_root, "BlueStoneBase", Vector3(65.0, 1.10, 1.25), Vector3(0.0, 0.55, 2.05), _blue_stone)
+    _add_box(_station_root, "FirstFloorShadowBand", Vector3(64.6, 0.35, 0.58), Vector3(0.0, 5.75, 2.48), _white_stone_shadow)
+    _add_box(_station_root, "BlueStoneCrown", Vector3(65.2, 0.72, 1.18), Vector3(0.0, 20.62, 2.10), _blue_stone)
+    _add_box(_station_root, "RoofParapet", Vector3(64.8, 0.65, 1.40), Vector3(0.0, 21.25, 1.86), _white_stone)
 
-    # Concave-reading main entrance: three shallow front segments establish the
-    # heritage-described recess without pretending to be survey geometry.
+    _build_main_entrance()
+    _build_upper_nine_bays()
+    _build_ground_floor_wings()
+    _build_side_elevations()
+    _add_station_collision()
+
+
+func _build_main_entrance() -> void:
+    # Heritage-described concave entrance at Putterie / boulevard de l'Impératrice.
+    # Three shallow angled pieces create the reading while remaining non-survey.
     var entrance := Node3D.new()
     entrance.name = "MainEntranceConcaveReview"
-    entrance.position = Vector3(0.0, 0.0, 2.55)
+    entrance.position = Vector3(0.0, 0.0, 2.68)
     _station_root.add_child(entrance)
-    var left := _add_box(entrance, "EntranceApronLeft", Vector3(11.0, 4.2, 0.55), Vector3(-10.5, 2.1, -0.15), _white_stone)
-    left.rotation_degrees.y = -5.0
-    var center := _add_box(entrance, "EntranceApronCenter", Vector3(10.5, 4.2, 0.55), Vector3(0.0, 2.1, -0.62), _white_stone)
-    center.rotation_degrees.y = 0.0
-    var right := _add_box(entrance, "EntranceApronRight", Vector3(11.0, 4.2, 0.55), Vector3(10.5, 2.1, -0.15), _white_stone)
-    right.rotation_degrees.y = 5.0
 
-    # Four supports under the main canopy, explicitly sourced as a count only.
+    var left := _add_box(entrance, "EntranceApronLeft", Vector3(11.8, 4.55, 0.70), Vector3(-11.0, 2.30, -0.02), _white_stone)
+    left.rotation_degrees.y = -7.0
+    _add_box(entrance, "EntranceApronCenter", Vector3(11.0, 4.55, 0.70), Vector3(0.0, 2.30, -0.72), _white_stone)
+    var right := _add_box(entrance, "EntranceApronRight", Vector3(11.8, 4.55, 0.70), Vector3(11.0, 2.30, -0.02), _white_stone)
+    right.rotation_degrees.y = 7.0
+
+    _add_box(entrance, "EntranceOpeningDark", Vector3(22.8, 3.35, 0.32), Vector3(0.0, 2.00, 0.12), _glass_dark)
+    for door_index: int in range(5):
+        var door_x := -8.8 + float(door_index) * 4.4
+        _add_box(entrance, "EntranceDoorGlass_%02d" % door_index, Vector3(3.55, 2.90, 0.16), Vector3(door_x, 1.72, 0.31), _glass)
+        _add_box(entrance, "EntranceDoorBronze_%02d" % door_index, Vector3(0.11, 3.00, 0.24), Vector3(door_x + 1.77, 1.72, 0.25), _bronze)
+
     for index: int in range(EXPECTED_ENTRANCE_COLUMNS):
-        var x := -8.1 + float(index) * 5.4
-        _add_column(entrance, index, Vector3(x, 2.18, 2.15))
+        var x := -8.25 + float(index) * 5.50
+        _add_column(entrance, index, Vector3(x, 2.28, 2.25))
         last_stats["entrance_columns"] = int(last_stats["entrance_columns"]) + 1
 
-    _add_box(entrance, "MainEntranceCanopy", Vector3(27.5, 0.42, 5.2), Vector3(0.0, 4.45, 1.55), _canopy)
-    _add_box(entrance, "EntranceOpeningDark", Vector3(21.0, 3.15, 0.28), Vector3(0.0, 1.9, 0.18), _glass)
-    _add_box(entrance, "ReliefPanelLeft", Vector3(3.4, 2.25, 0.20), Vector3(-14.2, 2.15, 0.28), _blue_stone)
-    _add_box(entrance, "ReliefPanelRight", Vector3(3.4, 2.25, 0.20), Vector3(14.2, 2.15, 0.28), _blue_stone)
+    _add_box(entrance, "MainEntranceCanopy", Vector3(29.2, 0.46, 5.9), Vector3(0.0, 4.72, 1.78), _canopy)
+    _add_box(entrance, "CanopyBronzeLip", Vector3(29.4, 0.15, 0.20), Vector3(0.0, 4.51, 4.70), _bronze)
 
-    # Nine upper bow-window bays are a documented source invariant. The bay
-    # dimensions/cadence below remain explicitly non-survey presentation data.
+    # Reliefs and central inaugural plaque are a restrained readable proxy.
+    _add_box(entrance, "ReliefPanelLeft", Vector3(3.8, 2.45, 0.23), Vector3(-15.1, 2.30, 0.37), _relief)
+    _add_box(entrance, "ReliefPanelRight", Vector3(3.8, 2.45, 0.23), Vector3(15.1, 2.30, 0.37), _relief)
+    _add_box(entrance, "InauguralPlaque", Vector3(1.35, 1.65, 0.20), Vector3(0.0, 5.72, 0.37), _blue_stone)
+
+    _add_label(_station_root, "SignBruxellesCentral", "BRUXELLES CENTRAL", Vector3(-10.6, 5.70, 3.18))
+    _add_label(_station_root, "SignBrusselCentraal", "BRUSSEL CENTRAAL", Vector3(10.6, 5.70, 3.18))
+
+
+func _build_upper_nine_bays() -> void:
+    # Urban 30201 documents nine glazed upper bays with small subdivisions and
+    # recessed wall strips. Counts are source-backed; exact sizes are not.
     var upper := Node3D.new()
     upper.name = "UpperNineBayRhythm"
     _station_root.add_child(upper)
@@ -210,23 +252,69 @@ func _build_station(identity: Dictionary) -> void:
     var spacing := 6.4
     for index: int in range(EXPECTED_UPPER_BAYS):
         var x := start_x + float(index) * spacing
-        _add_box(upper, "UpperBayGlass_%02d" % index, Vector3(4.25, 10.5, 0.30), Vector3(x, 11.9, 2.66), _glass)
-        _add_box(upper, "UpperBayBronzeLeft_%02d" % index, Vector3(0.18, 10.65, 0.38), Vector3(x - 2.16, 11.9, 2.55), _bronze)
-        _add_box(upper, "UpperBayBronzeRight_%02d" % index, Vector3(0.18, 10.65, 0.38), Vector3(x + 2.16, 11.9, 2.55), _bronze)
-        for bar: int in range(3):
+        _add_box(upper, "UpperBayRecess_%02d" % index, Vector3(4.82, 11.25, 0.22), Vector3(x, 13.05, 2.57), _white_stone_shadow)
+        _add_box(upper, "UpperBayGlass_%02d" % index, Vector3(4.22, 10.65, 0.24), Vector3(x, 13.05, 2.74), _glass)
+        _add_box(upper, "UpperBayBronzeLeft_%02d" % index, Vector3(0.15, 10.75, 0.34), Vector3(x - 2.10, 13.05, 2.78), _bronze)
+        _add_box(upper, "UpperBayBronzeRight_%02d" % index, Vector3(0.15, 10.75, 0.34), Vector3(x + 2.10, 13.05, 2.78), _bronze)
+        _add_box(upper, "UpperBayBronzeMid_%02d" % index, Vector3(0.12, 10.65, 0.34), Vector3(x, 13.05, 2.79), _bronze)
+        for bar: int in range(5):
             _add_box(
                 upper,
                 "UpperBayHorizontal_%02d_%02d" % [index, bar],
-                Vector3(4.25, 0.15, 0.38),
-                Vector3(x, 8.4 + float(bar) * 3.3, 2.55),
+                Vector3(4.20, 0.12, 0.34),
+                Vector3(x, 8.65 + float(bar) * 2.20, 2.79),
                 _bronze
             )
         last_stats["upper_bays"] = int(last_stats["upper_bays"]) + 1
 
-    _add_label(_station_root, "SignBruxellesCentral", "BRUXELLES CENTRAL", Vector3(-11.5, 5.55, 3.05))
-    _add_label(_station_root, "SignBrusselCentraal", "BRUSSEL CENTRAAL", Vector3(11.5, 5.55, 3.05))
+    # Recessed trumeaux make the nine-bay cadence read as architecture rather
+    # than nine giant panes floating on a flat box.
+    for pier_index: int in range(10):
+        var pier_x := -28.8 + float(pier_index) * 6.4
+        _add_box(upper, "RecessedTrumeau_%02d" % pier_index, Vector3(1.18, 11.65, 0.48), Vector3(pier_x, 13.05, 2.46), _white_stone)
 
-    _add_station_collision()
+
+func _build_ground_floor_wings() -> void:
+    # The heritage record says lateral ground levels are broadly glazed/open.
+    for side: int in [-1, 1]:
+        for index: int in range(3):
+            var x := float(side) * (20.6 + float(index) * 4.0)
+            _add_box(_station_root, "GroundWingGlass_%d_%02d" % [side, index], Vector3(3.05, 3.15, 0.24), Vector3(x, 2.15, 2.72), _glass_dark)
+            _add_box(_station_root, "GroundWingHead_%d_%02d" % [side, index], Vector3(3.35, 0.22, 0.32), Vector3(x, 3.76, 2.78), _bronze)
+            _add_box(_station_root, "GroundWingSill_%d_%02d" % [side, index], Vector3(3.35, 0.18, 0.32), Vector3(x, 0.56, 2.78), _blue_stone)
+
+
+func _build_side_elevations() -> void:
+    # Source-backed *types* only: glazed ground level, upper rectangular windows
+    # and lesenes. Their cadence/measurements remain review conventions.
+    for side: int in [-1, 1]:
+        var x := float(side) * 33.12
+        for index: int in range(6):
+            var z := -21.0 + float(index) * 4.2
+            _add_box(_station_root, "SideGroundGlass_%d_%02d" % [side, index], Vector3(0.25, 3.10, 3.20), Vector3(x, 2.10, z), _glass_dark)
+            for floor_index: int in range(3):
+                _add_box(
+                    _station_root,
+                    "SideUpperWindow_%d_%02d_%02d" % [side, index, floor_index],
+                    Vector3(0.28, 2.40, 2.85),
+                    Vector3(x, 8.25 + float(floor_index) * 4.05, z),
+                    _glass
+                )
+        for pier_index: int in range(7):
+            var pier_z := -23.1 + float(pier_index) * 4.2
+            _add_box(_station_root, "SideLesene_%d_%02d" % [side, pier_index], Vector3(0.42, 13.2, 0.55), Vector3(x + float(side) * 0.05, 13.0, pier_z), _white_stone_shadow)
+
+    # Three-sided bow-window reading on the boulevard de l'Impératrice side.
+    var bow := Node3D.new()
+    bow.name = "BoulevardImperatriceThreeSidedBowWindowReview"
+    bow.position = Vector3(33.45, 12.8, -8.2)
+    _station_root.add_child(bow)
+    _add_box(bow, "BowCenter", Vector3(0.30, 8.6, 4.2), Vector3(0.55, 0.0, 0.0), _glass)
+    var bow_front := _add_box(bow, "BowFrontFacet", Vector3(0.28, 8.6, 2.4), Vector3(0.28, 0.0, 2.85), _glass)
+    bow_front.rotation_degrees.y = -26.0
+    var bow_rear := _add_box(bow, "BowRearFacet", Vector3(0.28, 8.6, 2.4), Vector3(0.28, 0.0, -2.85), _glass)
+    bow_rear.rotation_degrees.y = 26.0
+    _add_box(bow, "BowCap", Vector3(1.25, 0.40, 8.0), Vector3(0.20, 4.50, 0.0), _blue_stone)
 
 
 func _add_station_collision() -> void:
@@ -234,9 +322,9 @@ func _add_station_collision() -> void:
     body.name = "CentralStationReviewCollision"
     var collision := CollisionShape3D.new()
     var shape := BoxShape3D.new()
-    shape.size = Vector3(64.0, 20.0, 25.0)
+    shape.size = Vector3(66.0, 21.0, 27.0)
     collision.shape = shape
-    body.position = Vector3(0.0, 10.0, -10.5)
+    body.position = Vector3(0.0, 10.5, -11.0)
     body.add_child(collision)
     _station_root.add_child(body)
 

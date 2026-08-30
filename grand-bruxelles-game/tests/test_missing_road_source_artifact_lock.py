@@ -14,7 +14,7 @@ CLOSED = {
 HEX = set('0123456789abcdef')
 
 
-def require_sha(value: object, label: str, prefix: bool = False) -> str:
+def require_sha256(value: object, label: str, prefix: bool = False) -> str:
     if type(value) is not str:
         raise AssertionError(f'{label}: expected string')
     raw = value[7:] if prefix and value.startswith('sha256:') else value
@@ -23,11 +23,17 @@ def require_sha(value: object, label: str, prefix: bool = False) -> str:
     return raw
 
 
+def require_git_sha(value: object, label: str) -> str:
+    if type(value) is not str or len(value) != 40 or any(ch not in HEX for ch in value):
+        raise AssertionError(f'{label}: invalid git sha')
+    return value
+
+
 def test_locked_batch_contract() -> None:
     lock = json.loads(LOCK.read_text(encoding='utf-8'))
     assert lock['schema'] == 'grand-bruxelles-missing-road-source-artifact-lock-v1'
     assert lock['source_run_id'] == 33286183671
-    require_sha(lock['source_head_sha'], 'source_head_sha')
+    require_git_sha(lock['source_head_sha'], 'source_head_sha')
     assert lock['source_provider'] == 'OpenStreetMap contributors via Overpass API'
     assert lock['source_license'] == 'ODbL-1.0'
     assert lock['evidence_only'] is True
@@ -45,9 +51,9 @@ def test_locked_batch_contract() -> None:
         assert type(row['osm_relation_id']) is int and row['osm_relation_id'] > 0
         assert type(row['road_count']) is int and row['road_count'] > 0
         assert type(row['point_count']) is int and row['point_count'] >= row['road_count'] * 2
-        require_sha(row['artifact_digest'], f"{row['niscode']} artifact_digest", prefix=True)
+        require_sha256(row['artifact_digest'], f"{row['niscode']} artifact_digest", prefix=True)
         for key in ('manifest_file_sha256','raw_semantic_sha256','raw_file_sha256','game_semantic_sha256','game_file_sha256','receipt_file_sha256'):
-            require_sha(row[key], f"{row['niscode']} {key}")
+            require_sha256(row[key], f"{row['niscode']} {key}")
         assert row['raw_semantic_sha256'] != row['raw_file_sha256']
         assert row['game_semantic_sha256'] != row['game_file_sha256']
 
@@ -58,7 +64,7 @@ def test_locked_batch_contract() -> None:
     assert accounting['cross_municipality_duplicate_osm_id_count'] == 586
     assert accounting['duplicate_membership_excess'] == 594
     assert accounting['unique_osm_road_count'] == 19113
-    require_sha(accounting['duplicate_map_sha256'], 'duplicate_map_sha256')
+    require_sha256(accounting['duplicate_map_sha256'], 'duplicate_map_sha256')
 
     pair_count = sum(lock['overlap_summary']['pairs'].values())
     triple_count = sum(lock['overlap_summary']['triples'].values())

@@ -71,8 +71,8 @@ func _run() -> void:
     if central.is_empty() or str(central.get("quality", "")) != "LABO_BRUT" or str(central.get("mode", "")) != "script_zone":
         _fail("Central LABO_BRUT selector contract missing")
         return
-    if str(central.get("script", "")) != "res://game/zones/central/central_station_labo.gd":
-        _fail("Central selector script drifted")
+    if str(central.get("script", "")) != "res://game/zones/central/central_station_context_labo.gd":
+        _fail("Central contextual selector script drifted")
         return
     var life_script := str(anneessens.get("life_script", ""))
     var life_minimum: Variant = anneessens.get("life_minimum", {})
@@ -211,5 +211,5 @@ func _run() -> void:
             return
         print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
         print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d central=LABO_BRUT change_zone_button=true central_button=true reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
+    print("ZONE_SELECTOR_OK: listed=%d central=LABO_BRUT contextual_runtime=true change_zone_button=true central_button=true reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

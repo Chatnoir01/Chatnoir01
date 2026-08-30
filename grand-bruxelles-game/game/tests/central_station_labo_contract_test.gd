@@ -1,6 +1,6 @@
 extends SceneTree
 
-const CENTRAL_ZONE := preload("res://game/zones/central/central_station_labo.gd")
+const CENTRAL_ZONE := preload("res://game/zones/central/central_station_context_labo.gd")
 const EXPECTED_ANCHOR := Vector3(647.68, 0.0, -407.70)
 
 func _init() -> void: call_deferred("_run")
@@ -32,8 +32,23 @@ func _run() -> void:
     if upper == null or _count_children_with_prefix(upper, "UpperBayGlass_") != 9 or _count_children_with_prefix(upper, "RecessedTrumeau_") != 10: _fail("upper facade articulation incomplete"); return
     if station.get_node_or_null("BoulevardImperatriceThreeSidedBowWindowReview") == null: _fail("boulevard bow-window reading missing"); return
     if station.get_node_or_null("RoofSetback") == null or _count_children_with_prefix(station, "RoofVent_") != 5: _fail("roof silhouette details missing"); return
+    var station_depth := station.get_node_or_null("CentralStationReviewDepth")
+    if station_depth == null or station_depth.get_node_or_null("EntranceTransomGlass") == null: _fail("street-level station depth layer missing"); return
+    if _count_children_with_prefix(station_depth, "UpperBaySill_") != 9 or _count_children_with_prefix(station_depth, "EntranceStep_") != 3: _fail("station depth articulation incomplete"); return
     if zone.review_anchor().distance_to(EXPECTED_ANCHOR) > 0.01: _fail("review anchor drifted"); return
     if zone.get_node_or_null("CentralReviewForecourt") == null or zone.get_node_or_null("CentralReviewForecourtCollision") == null: _fail("review forecourt or collision missing"); return
     if _count_children_with_prefix(zone, "CentralReviewBollard_") != 8 or _count_children_with_prefix(zone, "CentralReviewLamp_") != 2: _fail("street-scale frontage furniture missing"); return
-    print("CENTRAL_STATION_LABO_TEST_OK urban_id=30201 buildings=1 surfaces=1 bays=9 columns=4 doors=5 bollards=8 lamps=2 quality=LABO_BRUT promotion=false")
+    var context := zone.get_node_or_null("CentralProceduralStreetContext")
+    if context == null: _fail("procedural street context missing"); return
+    if bool(context.get_meta("authoritative", true)) or bool(context.get_meta("source_geometry", true)): _fail("procedural context fabricated authority"); return
+    if int(zone.get_meta("central_context_block_masses", 0)) != 7 or int(zone.get_meta("central_context_road_segments", 0)) != 3: _fail("context block/road count drifted"); return
+    if int(zone.get_meta("central_context_storefront_groups", 0)) != 7 or int(zone.get_meta("central_context_tree_count", 0)) != 6: _fail("street-level context richness drifted"); return
+    for road_name: String in ["ReviewRoad_CarrefourEurope", "ReviewRoad_Impératrice", "ReviewRoad_Putterie"]:
+        if context.get_node_or_null(road_name) == null: _fail("review road missing: %s" % road_name); return
+    for block_name: String in ["WestBlockNorth", "WestBlockSouth", "EastBlockNorth", "EastBlockSouth", "ForecourtOppositeWest", "ForecourtOppositeCenter", "ForecourtOppositeEast"]:
+        var block := context.get_node_or_null(block_name)
+        if block == null or block.get_node_or_null("Massing") == null or block.get_node_or_null("GroundCornice") == null: _fail("context block detail missing: %s" % block_name); return
+    if _count_children_with_prefix(context, "ContextTree_") != 6 or _count_children_with_prefix(context, "ContextBenchSeat_") != 4: _fail("context furniture/trees missing"); return
+    if _count_children_with_prefix(context, "ReviewCrosswalk_") != 8 or _count_children_with_prefix(context, "ReviewFrontLaneDash_") != 10: _fail("street markings incomplete"); return
+    print("CENTRAL_STATION_LABO_TEST_OK urban_id=30201 buildings=1 surfaces=1 bays=9 columns=4 doors=5 blocks=7 roads=3 storefront_groups=7 trees=6 quality=LABO_BRUT authoritative=false promotion=false")
     quit(0)

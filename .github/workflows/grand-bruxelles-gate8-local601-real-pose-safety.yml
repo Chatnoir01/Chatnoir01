@@ -1,0 +1,36 @@
+name: Grand Bruxelles Gate-8 Local601 Real Pose Safety
+
+on:
+  push:
+    branches: ["npc/gate8-local601-safety-c7d2c49"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-local601-real-pose-safety.yml"
+      - "grand-bruxelles-game/data/qa/gate8_local601_real_pose_safety.json"
+      - "grand-bruxelles-game/game/tests/gate8_local601_real_pose_safety_test.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safety-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact bounded scope and current base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git merge-base origin/main HEAD)" = "c7d2c4981b17992e71c91fa53a9f7a2ac5502535"
+          git diff --name-only c7d2c4981b17992e71c91fa53a9f7a2ac5502535...HEAD | sort > /tmp/actual.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-local601-real-pose-safety.yml' \
+            'grand-bruxelles-game/data/qa/gate8_local601_real_pose_safety.json' \
+            'grand-bruxelles-game/game/tests/gate8_local601_real_pose_safety_test.py' | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+      - name: Validate measured rejection contract
+        working-directory: grand-bruxelles-game
+        run: python3 game/tests/gate8_local601_real_pose_safety_test.py

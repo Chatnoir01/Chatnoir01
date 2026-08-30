@@ -1,0 +1,81 @@
+{
+  "format": "grand-bruxelles-authored-civilian-roster-readiness-v2",
+  "base_main_sha": "bdc538a4065d846f2c01a733e2b9c514cadb3829",
+  "candidate_id": "CIV-1",
+  "source_status_path": "assets/characters/civilians/civ1/source_status.json",
+  "visual_runtime_path": "game/scripts/humanoid_visual.gd",
+  "owner_verdict": "GARDER",
+  "required_current_state": {
+    "production_authorized": false,
+    "activation_ready": false,
+    "source_package_present": false,
+    "runtime_package_present": false,
+    "blocker": "canonical_source_and_runtime_package_not_committed"
+  },
+  "required_character_source": {
+    "repository": "https://github.com/ibrews/VitruvianGodot",
+    "commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
+    "license": "CC0-1.0"
+  },
+  "required_footwear_source": {
+    "repository": "https://github.com/furqonat/makehuman-assets",
+    "commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
+    "asset": "base/clothes/shoes03/shoes03.obj",
+    "license": "CC0-1.0",
+    "obj_git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85"
+  },
+  "required_source_manifest": {
+    "assets/characters/civilians/civ1/source/vitruvian_body.glb": {
+      "upstream_path": "godot_project/vitruvian_body.glb",
+      "git_blob_sha1": "09bcade1092e5a89b474e91e6013209d4c68c127",
+      "size_bytes": 6879364
+    },
+    "assets/characters/civilians/civ1/source/vitruvian_head.glb": {
+      "upstream_path": "godot_project/vitruvian_head.glb",
+      "git_blob_sha1": "0c810e209f09fc079086746f0813de9531d0f7fb",
+      "size_bytes": 10189832
+    },
+    "assets/characters/civilians/civ1/source/hairtool_cards.glb": {
+      "upstream_path": "godot_project/hairtool_cards.glb",
+      "git_blob_sha1": "04799adc868ba72e0fa1c1ab60c0442e12d5987e",
+      "size_bytes": 14839096
+    },
+    "assets/characters/civilians/civ1/source/vitruvian_hair.glb": {
+      "upstream_path": "godot_project/vitruvian_hair.glb",
+      "git_blob_sha1": "b6f63553ce9d5f2f83920b445f21831caf9017f1",
+      "size_bytes": 21189248
+    },
+    "assets/characters/civilians/civ1/source/shoes03.obj": {
+      "upstream_path": "base/clothes/shoes03/shoes03.obj",
+      "git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
+      "size_bytes": null
+    }
+  },
+  "forbidden_civilian_runtime_sources": [
+    "assets/characters/player_character.glb",
+    "assets/characters/player/"
+  ],
+  "observed_main_runtime": {
+    "authored_character_is_player_only": true,
+    "npc_agent_uses_profiled_procedural_mesh": true,
+    "procedural_mesh_marker": "array_mesh_profiled_v2"
+  },
+  "promotion_requirements": [
+    "canonical CIV-1 source package is committed from the exact pinned upstream blobs",
+    "canonical CIV-1 runtime package is committed and every runtime file has SHA-256 provenance",
+    "source_status production_authorized and activation_ready are explicitly promoted by the packaging validator",
+    "civilian runtime does not reuse player_character.glb or assets/characters/player/",
+    "Godot 4.7.1 import proves skeleton, skin, materials and animations",
+    "player-view 1280x720 evidence proves authored civilian credibility at 2 m, 5 m and 8 m",
+    "grounding and gait evidence proves no foot sliding"
+  ],
+  "verdict": "BLOCK_RUNTIME_PROMOTION_UNTIL_AUTHORED_CIVILIAN_PACKAGE_READY",
+  "authorizations": {
+    "runtime_mutation": false,
+    "source_mutation": false,
+    "player_reuse": false,
+    "production": false,
+    "jouable": false,
+    "visual_approval": false
+  }
+}

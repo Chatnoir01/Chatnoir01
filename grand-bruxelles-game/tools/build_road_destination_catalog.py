@@ -133,9 +133,12 @@ def road_signature(road: dict[str, Any]) -> dict[str, Any] | None:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-canonical source name")
     if raw_class.strip() != raw_class:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-canonical source class")
+    raw_drivable = road.get("drivable")
+    if type(raw_drivable) is not bool:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift drivable")
     name = raw_name
     road_class = raw_class
-    drivable = road.get("drivable") is True
+    drivable = raw_drivable
     if raw_osm_id <= 0 or not name or not drivable:
         return None
     points = normalized_points(road.get("points"))

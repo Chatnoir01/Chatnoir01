@@ -1,5 +1,5 @@
 {
-  "format": "grand-bruxelles-civ1-runtime-packaging-v3",
+  "format": "grand-bruxelles-civ1-runtime-packaging-v4",
   "candidate_id": "CIV-1",
   "owner_verdict": "GARDER",
   "approved_review_pr": 1006,
@@ -76,6 +76,23 @@
     "godot_project/hairtool_cards.glb",
     "godot_project/vitruvian_hair.glb"
   ],
+  "sanitization_contract": {
+    "tool": "tools/strip_glb_animations.py",
+    "input_upstream_path": "godot_project/vitruvian_body.glb",
+    "operation": "remove_glTF_animations_array_only",
+    "preserve_non_json_chunks_byte_for_byte": true,
+    "preserve_geometry_skin_material_json": true,
+    "require_source_animations": true,
+    "materialization_allowed_after_strip": false,
+    "required_followup": [
+      "verify exact upstream Git blob before stripping",
+      "record sanitized body SHA-256 and structural inventory",
+      "Godot 4.7.1 import: skeleton/skin/material integrity",
+      "attach independently licensed idle/walk/run only after provenance verification",
+      "grounding and foot-slide regression",
+      "player-view 1280x720 evidence at 2m/5m/8m"
+    ]
+  },
   "runtime_scene": "assets/characters/civilians/civ1/civ1.tscn",
   "runtime_files": [
     "assets/characters/civilians/civ1/civ1.tscn"
@@ -86,6 +103,6 @@
     "assets/characters/player/"
   ],
   "mixamo_payload_allowed": false,
-  "blocker": "embedded_mixamo_animation_payload_and_canonical_packages_not_verified",
-  "next_gate": "strip or independently replace the embedded Mixamo animations from vitruvian_body.glb before materialization, preserving only the upstream-declared CC0 character geometry; then materialize the exact pinned body/head/canonical rigged-hair/footwear blobs, record SHA-256 and run Godot 4.7.1 skeleton/skin/material plus independent idle/walk/run grounding gates"
+  "blocker": "sanitized_body_not_yet_materialized_or_verified",
+  "next_gate": "run the deterministic GLB animation stripper only against the exact pinned upstream body, prove its Git blob pin before input, record the sanitized SHA-256 plus structural inventory, then validate Godot 4.7.1 skeleton/skin/material integrity before sourcing independent idle/walk/run animations"
 }

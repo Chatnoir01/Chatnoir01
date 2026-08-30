@@ -62,6 +62,13 @@ def main() -> int:
         road_record_underflow["road_record_count"] = 0
         expect_fail(road_record_underflow, "road/drivable accounting drift")
 
+        duplicate_without_source_multiplicity = json.loads(json.dumps(base))
+        duplicate_without_source_multiplicity["duplicate_record_count"] = 1
+        duplicate_without_source_multiplicity["eligible_record_count"] = 2
+        duplicate_without_source_multiplicity["drivable_record_count"] = 2
+        duplicate_without_source_multiplicity["road_record_count"] = 2
+        expect_fail(duplicate_without_source_multiplicity, "duplicate/source multiplicity accounting drift")
+
         entry_id_string = json.loads(json.dumps(base))
         entry_id_string["entries"]["42"]["osm_id"] = "42"
         expect_fail(entry_id_string, "JSON type drift entry osm_id")

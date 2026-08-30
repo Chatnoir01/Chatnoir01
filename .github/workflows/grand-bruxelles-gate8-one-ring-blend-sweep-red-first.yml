@@ -1,0 +1,231 @@
+name: Grand Bruxelles Gate-8 One-Ring Blend Sweep RED First
+
+on:
+  push:
+    branches: ["qa/gate8-local601-blend-rejection-b293bf9"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-one-ring-blend-sweep-red-first.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_one_ring_blend_sweep_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  one-ring-blend-sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      BASE_MAIN_SHA: "b293bf94de8ba1e4c9893295b6ebb6487b131c7c"
+      SOURCE_RUN_ID: "32552758284"
+      SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+      ASSET_PACK_ARTIFACT_ID: "9710539659"
+      ASSET_PACK_ARTIFACT_DIGEST: "sha256:ce6fe32adf20838b853ef6f3e80f47bee194f21565cf4d35cad8f2c02f2941da"
+      ASSET_PACK_SHA256: "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+      ASSET_PACK_SIZE_BYTES: "81255948"
+      REMATCH_RUN_ID: "33270713349"
+      REMATCH_HEAD_SHA: "9defe931b0b51b3582c1e555ff80992f64f311fc"
+      REMATCH_ARTIFACT_ID: "9720026708"
+      REMATCH_ARTIFACT_DIGEST: "sha256:70ecea6e85c9a44d742f437dc8c1a1e00b6fb4a2b41c5b12f51d0b9e23b7fe71"
+      GATE8_SOURCE_DIR: "/tmp/gate8-source"
+      GATE8_REMATCH_EVIDENCE: "/tmp/gate8-one-ring/rematch/result.json"
+      GATE8_ONE_RING_BLEND_RESULT: "/tmp/gate8-one-ring/result.json"
+      HOME: "/tmp/grand-bruxelles-blender-home"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-local601-blend-rejection.yml' \
+            '.github/workflows/grand-bruxelles-gate8-one-ring-blend-sweep-red-first.yml' \
+            'grand-bruxelles-game/data/qa/gate8_local601_blend_rejection_contract.json' \
+            'grand-bruxelles-game/tools/tests/test_gate8_local601_blend_rejection_contract.py' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_one_ring_blend_sweep_probe.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_one_ring_blend_sweep_probe.py
+          python3 grand-bruxelles-game/tools/tests/test_gate8_local601_blend_rejection_contract.py
+
+      - name: Materialize exact pinned source generator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE8_SOURCE_DIR" /tmp/gate8-one-ring/rematch
+          for path in \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py \
+            grand-bruxelles-game/tools/fetch_mpfb_2017.py
+          do
+            out="$GATE8_SOURCE_DIR/$(basename "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${SOURCE_HEAD_SHA}" --jq .content | tr -d '\n' | base64 -d > "$out"
+            test -s "$out"
+          done
+          grep -q 'ExportService.create_character_copy' "$GATE8_SOURCE_DIR/generate_mpfb_gate8_export_ready_glbs.py"
+
+      - name: Download exact CC0 Gate-8 source asset pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}" > /tmp/gate8-one-ring/asset-artifact.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-one-ring/asset-artifact.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['ASSET_PACK_ARTIFACT_DIGEST']
+          assert int(a['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert a['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}/zip" > /tmp/gate8-one-ring/asset.zip
+          mkdir -p /tmp/gate8-one-ring/asset
+          unzip -q /tmp/gate8-one-ring/asset.zip -d /tmp/gate8-one-ring/asset
+          PACK="$(find /tmp/gate8-one-ring/asset -type f -name 'makehuman_gate8_system_assets_cc0.zip' -print -quit)"
+          test -n "$PACK"
+          test "$(stat -c '%s' "$PACK")" = "$ASSET_PACK_SIZE_BYTES"
+          test "$(sha256sum "$PACK" | awk '{print $1}')" = "$ASSET_PACK_SHA256"
+          printf '%s\n' "$PACK" > /tmp/gate8-one-ring/asset-pack-path.txt
+
+      - name: Download immutable reviewed rematch evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REMATCH_ARTIFACT_ID}" > /tmp/gate8-one-ring/rematch-meta.json
+          python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/gate8-one-ring/rematch-meta.json'))
+          assert not m['expired']
+          assert m['digest']==os.environ['REMATCH_ARTIFACT_DIGEST']
+          assert int(m['workflow_run']['id'])==int(os.environ['REMATCH_RUN_ID'])
+          assert m['workflow_run']['head_sha']==os.environ['REMATCH_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REMATCH_ARTIFACT_ID}/zip" > /tmp/gate8-one-ring/rematch.zip
+          unzip -q /tmp/gate8-one-ring/rematch.zip -d /tmp/gate8-one-ring/rematch
+          test -s "$GATE8_REMATCH_EVIDENCE"
+
+      - name: Acquire Blender 4.2.23 and exact MPFB 2.0.17
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/gb-blender /tmp/gate8-one-ring/blender-extensions
+          ARCHIVE=blender-4.2.23-linux-x64.tar.xz
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/${ARCHIVE}" -o "/tmp/${ARCHIVE}"
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/blender-4.2.23.sha256" -o /tmp/blender.sha256
+          grep " ${ARCHIVE}$" /tmp/blender.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum --check blender-linux.sha256)
+          tar -xJf "/tmp/${ARCHIVE}" -C /tmp/gb-blender
+          BLENDER_BIN="$(find /tmp/gb-blender -mindepth 2 -maxdepth 2 -type f -name blender -perm -111 | head -n 1)"
+          "$BLENDER_BIN" --version | tee /tmp/gate8-one-ring/blender-version.txt
+          grep -q '^Blender 4\.2\.23' /tmp/gate8-one-ring/blender-version.txt
+          printf '%s\n' "$BLENDER_BIN" > /tmp/gate8-one-ring/blender-bin.txt
+          python3 "$GATE8_SOURCE_DIR/fetch_mpfb_2017.py" \
+            --output /tmp/gate8-one-ring/mpfb.zip \
+            --manifest /tmp/gate8-one-ring/mpfb.manifest.json \
+            --retries 3 | tee /tmp/gate8-one-ring/mpfb-fetch.log
+          grep -q '^MPFB_2017_FETCH_OK ' /tmp/gate8-one-ring/mpfb-fetch.log
+          "$BLENDER_BIN" --background --command extension repo-add gb_ci \
+            --name "Grand Bruxelles CI" \
+            --directory /tmp/gate8-one-ring/blender-extensions \
+            --clear-all
+          "$BLENDER_BIN" --background --command extension install-file \
+            --repo gb_ci --enable /tmp/gate8-one-ring/mpfb.zip \
+            | tee /tmp/gate8-one-ring/mpfb-install.txt
+
+      - name: Run real-pose topology-constrained one-ring blend sweep
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/gate8-one-ring/blender-bin.txt)"
+          PACK="$(cat /tmp/gate8-one-ring/asset-pack-path.txt)"
+          mkdir -p /tmp/gate8-one-ring/out
+          "$BLENDER_BIN" --background --offline-mode \
+            --python grand-bruxelles-game/game/tests/gate8_variant01_one_ring_blend_sweep_probe.py \
+            -- --asset-pack "$PACK" --output-dir /tmp/gate8-one-ring/out \
+            | tee /tmp/gate8-one-ring/probe.log
+          test -s "$GATE8_ONE_RING_BLEND_RESULT"
+          cat "$GATE8_ONE_RING_BLEND_RESULT"
+
+      - name: Validate measurement envelope and closed safety rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, os
+          r=json.load(open(os.environ['GATE8_ONE_RING_BLEND_RESULT']))
+          assert r['format']=='grand-bruxelles-gate8-variant01-one-ring-blend-sweep-v1-red-first'
+          assert r['candidate_strategy']=='UNIFORM_LINEAR_BLEND_STORED_TO_REMATCHED_WEIGHTS_ACROSS_REVIEWED_ONE_RING'
+          assert r['alphas']==[0.0625,0.125,0.25,0.375,0.5]
+          assert r['source_evidence_artifact_id']==9720026708
+          assert r['mpfb_release']=='2.0.17' and r['mpfb_release_commit']=='80919fa'
+          assert r['sportsuit_vertex_count']==1797 and r['rig_bone_count']==53
+          assert r['topology_constraint']['changed_vertices_exactly']==[377,378,379,486,599,601,615,864]
+          assert r['topology_constraint']['outside_focus_vertices_modified'] is False
+          assert r['topology_constraint']['shared_alpha_across_one_ring'] is True
+          assert len(r['candidates'])==5
+          for candidate in r['candidates']:
+              assert 0.0 < candidate['alpha'] <= 0.5
+              assert len(candidate['local_edges'])==7
+              assert math.isfinite(candidate['critical_edge_mean_abs_strain'])
+              assert math.isfinite(candidate['control_edge_mean_abs_strain'])
+              assert math.isfinite(candidate['control_edge_378_601_abs_strain'])
+              assert math.isfinite(candidate['focus_vertex_max_delta_m'])
+              assert candidate['focus_vertex_max_delta_m'] >= 0.0
+              assert candidate['inversion_count'] >= 0
+          for rail in ('canonical_asset_mutation','canonical_mhclo_mutation','canonical_generator_mutation','runtime_npc_mutation','production_activation_allowed','visual_approval_allowed'):
+              assert r[rail] is False
+          assert r['diagnostic_state']=='RED_FIRST_ONE_RING_BLEND_SWEEP_MEASURED_UNREVIEWED'
+          print('GATE8_ONE_RING_BLEND_SWEEP_MEASURED', [(c['alpha'], c['critical_edge_mean_abs_strain'], c['control_edge_mean_abs_strain'], c['focus_vertex_max_delta_m']) for c in r['candidates']])
+          PY
+
+      - name: Upload RED-first one-ring evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-one-ring-blend-sweep-v1-red-first
+          path: |
+            /tmp/gate8-one-ring/result.json
+            /tmp/gate8-one-ring/probe.log
+            /tmp/gate8-one-ring/blender-version.txt
+            /tmp/gate8-one-ring/mpfb.manifest.json
+            /tmp/gate8-one-ring/mpfb-fetch.log
+            /tmp/gate8-one-ring/mpfb-install.txt
+            /tmp/gate8-one-ring/asset-artifact.json
+            /tmp/gate8-one-ring/rematch-meta.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"
+
+      - name: Fail closed until one-ring evidence is reviewed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['GATE8_ONE_RING_BLEND_RESULT']))
+          compact=[{
+              'a':c['alpha'],
+              'critical':c['critical_edge_mean_abs_strain'],
+              'control':c['control_edge_mean_abs_strain'],
+              'max_delta':c['focus_vertex_max_delta_m'],
+              'inv':c['inversion_count'],
+          } for c in r['candidates']]
+          raise SystemExit('RED_FIRST_UNREVIEWED_ONE_RING_BLEND_SWEEP: '+json.dumps(compact, sort_keys=True))
+          PY

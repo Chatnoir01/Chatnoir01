@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
@@ -36,13 +37,7 @@ def require_git_sha(value: object, label: str) -> str:
     return value
 
 
-def test_artifact_digest_requires_explicit_sha256_prefix() -> None:
-    with pytest.raises(AssertionError, match='artifact_digest: invalid sha256'):
-        require_sha256('0' * 64, 'artifact_digest', prefix=True)
-
-
-def test_locked_batch_contract() -> None:
-    lock = json.loads(LOCK.read_text(encoding='utf-8'))
+def validate_lock(lock: dict[str, object]) -> None:
     assert lock['schema'] == 'grand-bruxelles-missing-road-source-artifact-lock-v1'
     assert lock['source_run_id'] == 33286183671
     require_git_sha(lock['source_head_sha'], 'source_head_sha')
@@ -82,6 +77,31 @@ def test_locked_batch_contract() -> None:
     triple_count = sum(lock['overlap_summary']['triples'].values())
     assert pair_count + triple_count == 586
     assert pair_count + (triple_count * 2) == 594
+
+
+def test_artifact_digest_requires_explicit_sha256_prefix() -> None:
+    with pytest.raises(AssertionError, match='artifact_digest: invalid sha256'):
+        require_sha256('0' * 64, 'artifact_digest', prefix=True)
+
+
+def test_locked_batch_contract() -> None:
+    validate_lock(json.loads(LOCK.read_text(encoding='utf-8')))
+
+
+def test_root_semantic_field_drift_fails_closed() -> None:
+    lock = json.loads(LOCK.read_text(encoding='utf-8'))
+    mutated = copy.deepcopy(lock)
+    mutated['safe_spawn_ready'] = True
+    with pytest.raises(AssertionError, match='lock field set drift'):
+        validate_lock(mutated)
+
+
+def test_municipality_semantic_field_drift_fails_closed() -> None:
+    lock = json.loads(LOCK.read_text(encoding='utf-8'))
+    mutated = copy.deepcopy(lock)
+    mutated['municipalities'][0]['playable'] = True
+    with pytest.raises(AssertionError, match='municipality field set drift'):
+        validate_lock(mutated)
 
 
 def test_ambiguous_municipality_membership_stays_closed() -> None:

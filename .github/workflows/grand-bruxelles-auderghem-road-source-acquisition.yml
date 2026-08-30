@@ -26,6 +26,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+
       - name: Validate offline acquisition contract
         run: python -m pytest -q tests/test_municipality_road_source_acquisition.py
 

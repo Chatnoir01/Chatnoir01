@@ -57,8 +57,8 @@ func _prove_catalog_coverage() -> bool:
         return _fail("Central canonical review row missing")
     if str(central_row.get("quality", "")) != "LABO_BRUT" or str(central_row.get("mode", "")) != "script_zone":
         return _fail("Central must remain LABO_BRUT script_zone while official ground coverage is missing")
-    if str(central_row.get("script", "")) != "res://game/zones/central/central_station_labo.gd":
-        return _fail("Central review runtime contract drifted")
+    if str(central_row.get("script", "")) != "res://game/zones/central/central_station_context_labo.gd":
+        return _fail("Central contextual review runtime contract drifted")
     if review_aliases.size() != 1 or str(review_aliases.get("midi_machine_labo", "")) != "midi":
         return _fail("unexpected ground-network review aliases: %s" % str(review_aliases))
     var midi_review: Variant = alias_rows.get("midi_machine_labo", {})
@@ -122,39 +122,22 @@ func _prove_runtime_bindings() -> bool:
     var road_runtime := ROAD_RUNTIME.new()
     road_runtime.call("_register_official_surface", ixelles_road)
     if road_runtime.official_applied_road_count() != 1:
-        ixelles_root.free()
-        road_runtime.free()
-        return _fail("Ixelles official road was not registered exactly once")
+        ixelles_root.free(); road_runtime.free(); return _fail("Ixelles official road was not registered exactly once")
     if ixelles_road.material_override == null:
-        ixelles_root.free()
-        road_runtime.free()
-        return _fail("Ixelles official road did not receive presentation material")
+        ixelles_root.free(); road_runtime.free(); return _fail("Ixelles official road did not receive presentation material")
     if str(ixelles_road.get_meta("ground_network_provider", "")) != "UrbIS":
-        ixelles_root.free()
-        road_runtime.free()
-        return _fail("Ixelles official road provider metadata mismatch")
+        ixelles_root.free(); road_runtime.free(); return _fail("Ixelles official road provider metadata mismatch")
     if not ixelles_road.transform.is_equal_approx(road_transform):
-        ixelles_root.free()
-        road_runtime.free()
-        return _fail("Ixelles official road transform changed")
+        ixelles_root.free(); road_runtime.free(); return _fail("Ixelles official road transform changed")
 
     var sidewalk_runtime := SIDEWALK_RUNTIME.new()
     sidewalk_runtime.call("_register_official_sidewalk", ixelles_sidewalk)
     if sidewalk_runtime.official_applied_sidewalk_count() != 1:
-        ixelles_root.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        return _fail("Ixelles official sidewalk was not registered exactly once")
+        ixelles_root.free(); road_runtime.free(); sidewalk_runtime.free(); return _fail("Ixelles official sidewalk was not registered exactly once")
     if ixelles_sidewalk.material_override == null:
-        ixelles_root.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        return _fail("Ixelles official sidewalk did not receive presentation material")
+        ixelles_root.free(); road_runtime.free(); sidewalk_runtime.free(); return _fail("Ixelles official sidewalk did not receive presentation material")
     if not ixelles_sidewalk.transform.is_equal_approx(sidewalk_transform):
-        ixelles_root.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        return _fail("Ixelles official sidewalk transform changed")
+        ixelles_root.free(); road_runtime.free(); sidewalk_runtime.free(); return _fail("Ixelles official sidewalk transform changed")
 
     var jette_street := MeshInstance3D.new()
     jette_street.name = "JetteOfficialStreetSurfaces"
@@ -162,24 +145,12 @@ func _prove_runtime_bindings() -> bool:
     var jette_street_transform := jette_street.transform
     road_runtime.call("_register_official_surface", jette_street)
     if road_runtime.official_applied_road_count() != 2:
-        ixelles_root.free()
-        jette_street.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        return _fail("Jette official street surface was not registered")
+        ixelles_root.free(); jette_street.free(); road_runtime.free(); sidewalk_runtime.free(); return _fail("Jette official street surface was not registered")
     sidewalk_runtime.call("_register_official_sidewalk", jette_street)
     if sidewalk_runtime.official_applied_sidewalk_count() != 1:
-        ixelles_root.free()
-        jette_street.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        return _fail("Jette untyped street bundle was incorrectly claimed as sidewalk")
+        ixelles_root.free(); jette_street.free(); road_runtime.free(); sidewalk_runtime.free(); return _fail("Jette untyped street bundle was incorrectly claimed as sidewalk")
     if not jette_street.transform.is_equal_approx(jette_street_transform):
-        ixelles_root.free()
-        jette_street.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        return _fail("Jette official street transform changed")
+        ixelles_root.free(); jette_street.free(); road_runtime.free(); sidewalk_runtime.free(); return _fail("Jette official street transform changed")
 
     var jette_tram := MeshInstance3D.new()
     jette_tram.name = "JetteOfficialTramNetwork"
@@ -188,56 +159,21 @@ func _prove_runtime_bindings() -> bool:
     var rail_runtime := RAIL_RUNTIME.new()
     rail_runtime.call("_register_official_rail", jette_tram)
     if rail_runtime.official_applied_rail_count() != 1:
-        ixelles_root.free()
-        jette_street.free()
-        jette_tram.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        rail_runtime.free()
-        return _fail("Jette official tram alignment was not registered")
+        ixelles_root.free(); jette_street.free(); jette_tram.free(); road_runtime.free(); sidewalk_runtime.free(); rail_runtime.free(); return _fail("Jette official tram alignment was not registered")
     if jette_tram.material_override == null:
-        ixelles_root.free()
-        jette_street.free()
-        jette_tram.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        rail_runtime.free()
-        return _fail("Jette official tram alignment did not receive presentation material")
+        ixelles_root.free(); jette_street.free(); jette_tram.free(); road_runtime.free(); sidewalk_runtime.free(); rail_runtime.free(); return _fail("Jette official tram alignment did not receive presentation material")
     if str(jette_tram.get_meta("ground_network_geometry_claim", "")) != "source_alignment_only_no_fabricated_dual_rail_gauge":
-        ixelles_root.free()
-        jette_street.free()
-        jette_tram.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        rail_runtime.free()
-        return _fail("Jette tram geometry claim is not conservative")
+        ixelles_root.free(); jette_street.free(); jette_tram.free(); road_runtime.free(); sidewalk_runtime.free(); rail_runtime.free(); return _fail("Jette tram geometry claim is not conservative")
     if not jette_tram.transform.is_equal_approx(jette_tram_transform):
-        ixelles_root.free()
-        jette_street.free()
-        jette_tram.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        rail_runtime.free()
-        return _fail("Jette official tram transform changed")
+        ixelles_root.free(); jette_street.free(); jette_tram.free(); road_runtime.free(); sidewalk_runtime.free(); rail_runtime.free(); return _fail("Jette official tram transform changed")
 
     road_runtime.call("_set_material_state", false)
     sidewalk_runtime.call("_set_material_state", false)
     rail_runtime.call("_set_material_state", false)
     if ixelles_road.material_override != null or ixelles_sidewalk.material_override != null or jette_street.material_override != null or jette_tram.material_override != null:
-        ixelles_root.free()
-        jette_street.free()
-        jette_tram.free()
-        road_runtime.free()
-        sidewalk_runtime.free()
-        rail_runtime.free()
-        return _fail("enhanced-off did not restore official material overrides")
+        ixelles_root.free(); jette_street.free(); jette_tram.free(); road_runtime.free(); sidewalk_runtime.free(); rail_runtime.free(); return _fail("enhanced-off did not restore official material overrides")
 
-    ixelles_root.free()
-    jette_street.free()
-    jette_tram.free()
-    road_runtime.free()
-    sidewalk_runtime.free()
-    rail_runtime.free()
+    ixelles_root.free(); jette_street.free(); jette_tram.free(); road_runtime.free(); sidewalk_runtime.free(); rail_runtime.free()
     return true
 
 func _fail(message: String) -> bool:

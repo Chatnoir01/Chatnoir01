@@ -49,8 +49,8 @@ def main() -> None:
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list):
         fail("shared Environment lifecycle runtime registry missing")
-    if contract.get("node_added_registry_runtime_count") != len(runtimes) + 1:
-        fail("RED_PROBE: node_added registry count mismatch must fail closed")
+    if contract.get("node_added_registry_runtime_count") != len(runtimes):
+        fail("node_added registry runtime count missing or drifted")
 
     seen_paths: set[str] = set()
     for entry in runtimes:

@@ -1,5 +1,7 @@
 name: Grand Bruxelles Gare du Nord Visible LABO
 
+# Human-authored retrigger point: bot-persisted source snapshots can require a
+# user commit before GitHub will execute the PR visual proof.
 on:
   pull_request:
     paths:

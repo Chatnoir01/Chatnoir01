@@ -67,6 +67,67 @@ def main() -> int:
         })
         expect_build_fail(root, "malformed source road record roads[1]")
 
+        # `drivable` is a canonical source-schema boolean. Values that merely resemble
+        # booleans must fail closed instead of being silently normalized to non-drivable.
+        for malformed_drivable in ("true", 1, None):
+            malformed_road = dict(valid_road())
+            malformed_road["osm_id"] = 43
+            malformed_road["drivable"] = malformed_drivable
+            write_json(root / "malformed-container.game.json", {
+                "format": "grand-bruxelles-osm-v1",
+                "roads": [valid_road(), malformed_road],
+                "buildings": [],
+            })
+            expect_build_fail(root, "source JSON type drift drivable")
+
+        # A rejected drivable road is still canonical source input. Invalid identity must
+        # not short-circuit validation of its geometry/width and hide structural source
+        # corruption inside rejected_drivable_record_count.
+        malformed_rejected = dict(valid_road())
+        malformed_rejected["osm_id"] = 0
+        malformed_rejected["points"] = "not-a-point-list"
+        write_json(root / "malformed-container.game.json", {
+            "format": "grand-bruxelles-osm-v1",
+            "roads": [valid_road(), malformed_rejected],
+            "buildings": [],
+        })
+        expect_build_fail(root, "malformed source points container")
+
+        malformed_rejected = dict(valid_road())
+        malformed_rejected["osm_id"] = 0
+        malformed_rejected["width"] = "7.0"
+        write_json(root / "malformed-container.game.json", {
+            "format": "grand-bruxelles-osm-v1",
+            "roads": [valid_road(), malformed_rejected],
+            "buildings": [],
+        })
+        expect_build_fail(root, "source JSON type drift width")
+
+        # Non-drivable records remain excluded from the destination catalog, but they still
+        # claim the canonical source schema. Malformed geometry/width must therefore fail
+        # source validation rather than being silently hidden by the eligibility filter.
+        malformed_non_drivable = dict(valid_road())
+        malformed_non_drivable["osm_id"] = 44
+        malformed_non_drivable["drivable"] = False
+        malformed_non_drivable["points"] = "not-a-point-list"
+        write_json(root / "malformed-container.game.json", {
+            "format": "grand-bruxelles-osm-v1",
+            "roads": [valid_road(), malformed_non_drivable],
+            "buildings": [],
+        })
+        expect_build_fail(root, "malformed source points container")
+
+        malformed_non_drivable = dict(valid_road())
+        malformed_non_drivable["osm_id"] = 45
+        malformed_non_drivable["drivable"] = False
+        malformed_non_drivable["width"] = "7.0"
+        write_json(root / "malformed-container.game.json", {
+            "format": "grand-bruxelles-osm-v1",
+            "roads": [valid_road(), malformed_non_drivable],
+            "buildings": [],
+        })
+        expect_build_fail(root, "source JSON type drift width")
+
     print("ROAD_DESTINATION_CATALOG_SOURCE_STRUCTURE_TEST_GREEN")
     return 0
 

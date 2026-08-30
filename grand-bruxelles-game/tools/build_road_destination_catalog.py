@@ -133,15 +133,24 @@ def road_signature(road: dict[str, Any]) -> dict[str, Any] | None:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-canonical source name")
     if raw_class.strip() != raw_class:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-canonical source class")
-    name = raw_name
-    road_class = raw_class
-    drivable = road.get("drivable") is True
-    if raw_osm_id <= 0 or not name or not drivable:
-        return None
+    raw_drivable = road.get("drivable")
+    if type(raw_drivable) is not bool:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift drivable")
+
+    # Every record that claims the canonical source format must remain structurally valid,
+    # even when it is not destination-eligible. Validate geometry and width before either
+    # drivable or identity filtering so malformed source cannot disappear from provenance.
     points = normalized_points(road.get("points"))
     width = require_source_number(road.get("width"), "width")
     if width <= 0.0:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-positive source width")
+
+    name = raw_name
+    road_class = raw_class
+    if not raw_drivable:
+        return None
+    if raw_osm_id <= 0 or not name:
+        return None
     return {
         "osm_id": raw_osm_id, "name": name, "class": road_class,
         "width": width, "drivable": True, "points": points,

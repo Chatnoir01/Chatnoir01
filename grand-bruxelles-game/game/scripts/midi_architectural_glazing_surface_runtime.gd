@@ -13,6 +13,7 @@ var _owned_materials: Dictionary = {}
 var _material: ShaderMaterial
 var _ready_complete := false
 var _identity_failure := false
+var _topology_failure := false
 var _enabled := false
 var _has_applied_once := false
 var _identity: Dictionary = {}
@@ -21,6 +22,7 @@ var _bind_in_progress := false
 var _tearing_down := false
 var _watched_tree: SceneTree
 var _midi_root: Node
+var _candidate_root: Node
 
 func _ready() -> void:
     _tearing_down = false
@@ -38,6 +40,7 @@ func _exit_tree() -> void:
     _bind_in_progress = false
     _release_material_ownership()
     _midi_root = null
+    _candidate_root = null
     _stop_watching()
 
 func _start_watching() -> void:
@@ -86,23 +89,41 @@ func _on_node_added(node: Node) -> void:
     _apply_when_subtree_ready(node)
 
 func _on_node_removed(node: Node) -> void:
-    if _tearing_down or _midi_root == null:
+    if _tearing_down:
         return
-    var removed_bound_root := node == _midi_root
-    if not removed_bound_root and is_instance_valid(_midi_root):
-        removed_bound_root = node.is_ancestor_of(_midi_root)
-    if not removed_bound_root:
+    var removed_bound_root := false
+    if _midi_root != null:
+        removed_bound_root = node == _midi_root
+        if not removed_bound_root and is_instance_valid(_midi_root):
+            removed_bound_root = node.is_ancestor_of(_midi_root)
+
+    var removed_candidate_root := false
+    if _candidate_root != null:
+        removed_candidate_root = node == _candidate_root
+        if not removed_candidate_root and is_instance_valid(_candidate_root):
+            removed_candidate_root = node.is_ancestor_of(_candidate_root)
+
+    if not removed_bound_root and not removed_candidate_root:
         return
-    _release_material_ownership()
+
+    if removed_bound_root:
+        _release_material_ownership()
+    else:
+        _targets.clear()
+
     _midi_root = null
+    _candidate_root = null
     _ready_complete = false
-    _identity_failure = false
+    if _topology_failure:
+        _identity_failure = false
+        _topology_failure = false
     _awaiting_midi = true
     _bind_in_progress = false
     _start_watching()
     call_deferred("_bind_existing_midi")
 
 func _apply_when_subtree_ready(midi: Node) -> void:
+    _candidate_root = midi
     for _frame: int in range(SUBTREE_READY_FRAMES):
         if _tearing_down or not is_inside_tree() or not is_instance_valid(midi):
             _bind_in_progress = false
@@ -111,6 +132,8 @@ func _apply_when_subtree_ready(midi: Node) -> void:
         _collect_targets(midi)
         if _targets.size() == EXPECTED_SURFACES:
             _midi_root = midi
+            _candidate_root = null
+            _topology_failure = false
             _apply_material()
             return
         var tree: SceneTree = get_tree()
@@ -122,6 +145,7 @@ func _apply_when_subtree_ready(midi: Node) -> void:
             _bind_in_progress = false
             return
     push_error("Midi glazing runtime: expected %d verified glazing surfaces, got %d after bounded Midi subtree population" % [EXPECTED_SURFACES, _targets.size()])
+    _topology_failure = true
     _identity_failure = true
     _ready_complete = true
     _finish_waiting()

@@ -1,0 +1,87 @@
+name: Grand Bruxelles Gare du Nord OSM environment persistence
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/gare-du-nord-source-truth
+    paths:
+      - 'grand-bruxelles-game/tools/extract_nord_osm_environment.py'
+      - '.github/workflows/grand-bruxelles-nord-osm-environment-persistence.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nord-osm-environment-persistence
+  cancel-in-progress: false
+
+jobs:
+  persist:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/gare-du-nord-source-truth
+          fetch-depth: 1
+
+      - name: Compile acquisition tools
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m py_compile \
+            tools/fetch_osm_slice.py \
+            tools/transform_osm_to_game.py \
+            tools/validate_nord_osm_context.py \
+            tools/extract_nord_osm_environment.py
+
+      - name: Acquire validated Nord OSM context
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/qa/nord_osm_persistence
+          mkdir -p artifacts/qa/nord_osm_persistence
+          python tools/fetch_osm_slice.py \
+            --bbox '50.8583895,4.3545482,50.8628851,4.3687525' \
+            --retries 4 \
+            --output artifacts/qa/nord_osm_persistence/nord.raw.json
+          python tools/transform_osm_to_game.py \
+            --input artifacts/qa/nord_osm_persistence/nord.raw.json \
+            --output artifacts/qa/nord_osm_persistence/nord.game.json \
+            --origin '50.860637490313074,4.361650664440722'
+          python tools/validate_nord_osm_context.py artifacts/qa/nord_osm_persistence/nord.game.json
+
+      - name: Normalize shared runtime environment
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python tools/extract_nord_osm_environment.py \
+            artifacts/qa/nord_osm_persistence/nord.game.json \
+            data/osm/zones/nord/environment.game.json
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          p = Path('data/osm/zones/nord/environment.game.json')
+          d = json.loads(p.read_text())
+          assert d['format'] == 'grand-bruxelles-osm-zone-environment-v1'
+          assert d['license'] == 'ODbL-1.0'
+          assert d['origin'] == {'lat': 50.860637490313074, 'lon': 4.361650664440722}
+          assert d.get('source_dimensions_measured') is False
+          counts = Counter(row['kind'] for row in d['environment_points'])
+          assert sum(counts.values()) >= 1
+          assert set(counts) <= {'tree', 'street_lamp', 'bollard'}
+          print(f'NORD_OSM_ENVIRONMENT_PERSISTENCE_OK points={sum(counts.values())} counts={dict(counts)} runtime_bound=false')
+          PY
+
+      - name: Persist deterministic environment snapshot
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/osm/zones/nord/environment.game.json
+          if git diff --cached --quiet; then
+            echo 'NORD_OSM_ENVIRONMENT_NO_CHANGE'
+            exit 0
+          fi
+          git commit -m 'data(nord): persist OSM street environment'
+          git push origin HEAD:feat/gare-du-nord-source-truth

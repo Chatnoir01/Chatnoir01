@@ -34,6 +34,11 @@ def validate_entries(entries, locked):
         assert type(bb) is list and len(bb)==4 and all(type(v) in (int,float) and not isinstance(v,bool) for v in bb)
         assert bb[0]<=bb[2] and bb[1]<=bb[3]
 
+def validate_source_artifact_row(r, x):
+    assert (r['municipality_id'],r['osm_relation_id'],r['artifact_id'],r['artifact_digest'],r['game_file_sha256'],r['road_count'],r['point_count'])==(x['id'],x['osm_relation_id'],x['artifact_id'],x['artifact_digest'],x['game_file_sha256'],x['road_count'],x['point_count'])
+    sha(r['artifact_digest'],prefix=True); sha(r['game_file_sha256'])
+    assert r['game_member'].endswith('_road_source.game.json') and '/' not in r['game_member'] and '\\' not in r['game_member']
+
 def load_and_validate():
     c=json.loads(CAT.read_text()); l=json.loads(LOCK.read_text())
     assert set(c)==ROOT_FIELDS and c['schema']=='grand-bruxelles-road-duplicate-candidate-crosswalk-batch-v1'
@@ -48,10 +53,7 @@ def load_and_validate():
     locked={r['niscode']:r for r in l['municipalities']}; src=c['source_artifacts']
     assert len(src)==len(locked)==16 and [r['niscode'] for r in src]==sorted(locked)
     for r in src:
-        x=locked[r['niscode']]
-        assert (r['municipality_id'],r['osm_relation_id'],r['artifact_id'],r['artifact_digest'],r['game_file_sha256'],r['road_count'],r['point_count'])==(x['id'],x['osm_relation_id'],x['artifact_id'],x['artifact_digest'],x['game_file_sha256'],x['road_count'],x['point_count'])
-        sha(r['artifact_digest'],prefix=True); sha(r['game_file_sha256'])
-        assert r['game_member'].endswith('_road_source.game.json') and '/' not in r['game_member'] and '\\' not in r['game_member']
+        validate_source_artifact_row(r,locked[r['niscode']])
     ac=c['accounting']
     assert ac['municipality_count']==16 and ac['road_membership_count']==19707 and ac['unique_osm_road_count']==19113
     assert ac['duplicate_osm_id_count']==586 and ac['duplicate_membership_excess']==594 and ac['point_count']==118185
@@ -81,3 +83,7 @@ def test_runtime_authorization_is_rejected():
     c,_,_,_=load_and_validate(); m=copy.deepcopy(c['authorization']); m['runtime_mount_authorized']=True; assert not all(m[k] is False for k in CLOSED)
 def test_frontier_cannot_claim_complete():
     c,_,_,_=load_and_validate(); m=copy.deepcopy(c['frontier']); m['complete']=True; assert m!=c['frontier']
+def test_source_artifact_parallel_semantics_are_rejected():
+    c,l,_,_=load_and_validate(); m=copy.deepcopy(c['source_artifacts'][0]); m['safe_spawn_ready']=True
+    locked={r['niscode']:r for r in l['municipalities']}
+    with pytest.raises(AssertionError): validate_source_artifact_row(m,locked[m['niscode']])

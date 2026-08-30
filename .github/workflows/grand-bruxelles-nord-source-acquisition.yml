@@ -48,6 +48,32 @@ jobs:
           python tools/fetch_urbis_nord.py --output-dir data/urbis/nord --retries 4
           python tools/validate_nord_city_machine_data.py data/urbis/nord
 
+      - name: Prove persisted Nord-local origin before commit
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('data/urbis/nord')
+          expected_e = 149500.0
+          expected_n = 172250.0
+
+          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          origin = manifest.get('game_origin', {})
+          if origin.get('e') != expected_e or origin.get('n') != expected_n:
+              raise SystemExit(f'NORD_ORIGIN_MANIFEST_MISMATCH {origin!r}')
+
+          for path in sorted(root.glob('*.game.json')):
+              doc = json.loads(path.read_text(encoding='utf-8'))
+              coord = doc.get('grand_bruxelles_coordinate_system', {})
+              if coord.get('origin_e') != expected_e or coord.get('origin_n') != expected_n:
+                  raise SystemExit(f'NORD_ORIGIN_GAME_MISMATCH file={path.name} coord={coord!r}')
+
+          print('NORD_ORIGIN_PERSISTENCE_PRECOMMIT_OK origin=(149500.0,172250.0)')
+          PY
+
       - name: Persist immutable source snapshot on feature branch
         shell: bash
         run: |

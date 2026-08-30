@@ -1,0 +1,309 @@
+name: Grand Bruxelles Gate-8 Alpha0125 Player A-B RED First
+
+on:
+  push:
+    branches: ["npc/gate8-alpha0125-player-ab-fed65c1"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-alpha0125-player-ab-red-first.yml"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_alpha0125_export_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  alpha0125-player-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      BASE_MAIN_SHA: "fed65c127f614f9435256cab69cf6fc0a56af867"
+      SOURCE_HEAD_SHA: "afcb7b352ed054d98fdf83eae3333ec82c814b3e"
+      ASSET_PACK_ARTIFACT_ID: "9710539659"
+      ASSET_PACK_ARTIFACT_DIGEST: "sha256:ce6fe32adf20838b853ef6f3e80f47bee194f21565cf4d35cad8f2c02f2941da"
+      ASSET_PACK_SHA256: "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+      ASSET_PACK_SIZE_BYTES: "81255948"
+      REMATCH_RUN_ID: "33270713349"
+      REMATCH_HEAD_SHA: "9defe931b0b51b3582c1e555ff80992f64f311fc"
+      REMATCH_ARTIFACT_ID: "9720026708"
+      REMATCH_ARTIFACT_DIGEST: "sha256:70ecea6e85c9a44d742f437dc8c1a1e00b6fb4a2b41c5b12f51d0b9e23b7fe71"
+      HISTORICAL_WITNESS_HEAD: "ccece65cbb2e3eb0d1f2c11876a621299b766717"
+      GATE8_SOURCE_DIR: "/tmp/gate8-alpha/source"
+      GATE8_REMATCH_EVIDENCE: "/tmp/gate8-alpha/rematch/result.json"
+      GATE8_ALPHA_RESULT: "/tmp/gate8-alpha/alpha-export.json"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      HOME: "/tmp/grand-bruxelles-alpha-home"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character/NPC QA scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-alpha0125-player-ab-red-first.yml' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_alpha0125_export_probe.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+          python3 -m py_compile grand-bruxelles-game/game/tests/gate8_variant01_alpha0125_export_probe.py
+          python3 - <<'PY'
+          import json
+          c=json.load(open('grand-bruxelles-game/data/qa/gate8_one_ring_blend_candidate_contract.json'))
+          assert c['verdict']=='FREEZE_ALPHA_0_125_AS_MECHANICAL_CANDIDATE_ONLY'
+          assert c['selected_candidate']['alpha']==0.125
+          assert c['authorization']['mhclo_mutation'] is False
+          assert c['authorization']['runtime_npc_mutation'] is False
+          assert c['authorization']['visual_approval'] is False
+          PY
+
+      - name: Materialize pinned generator and ephemeral Godot witness harness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE8_SOURCE_DIR" /tmp/gate8-alpha/rematch
+          for path in \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py \
+            grand-bruxelles-game/tools/fetch_mpfb_2017.py
+          do
+            out="$GATE8_SOURCE_DIR/$(basename "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${SOURCE_HEAD_SHA}" --jq .content | tr -d '\n' | base64 -d > "$out"
+            test -s "$out"
+          done
+          for path in \
+            grand-bruxelles-game/game/scripts/gate8_visual_loader.gd \
+            grand-bruxelles-game/game/tests/gate8_runtime_witness.gd \
+            grand-bruxelles-game/game/tests/gate8_runtime_witness.tscn
+          do
+            test ! -e "$path"
+            mkdir -p "$(dirname "$path")"
+            gh api "/repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${HISTORICAL_WITNESS_HEAD}" --jq .content | tr -d '\n' | base64 -d > "$path"
+            test -s "$path"
+          done
+          grep -q '^const CAPTURE_SIZE := Vector2i(1280, 720)$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const DISTANCES_M := \[2.0, 5.0, 8.0\]$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const REVIEW_THREE_QUARTER_YAW_DEGREES := 30.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+
+      - name: Download exact CC0 source pack and rematch evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-alpha/asset /tmp/gate8-alpha/rematch
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}" > /tmp/gate8-alpha/asset-meta.json
+          python3 - <<'PY'
+          import json, os
+          a=json.load(open('/tmp/gate8-alpha/asset-meta.json'))
+          assert not a['expired']
+          assert a['digest']==os.environ['ASSET_PACK_ARTIFACT_DIGEST']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ASSET_PACK_ARTIFACT_ID}/zip" > /tmp/gate8-alpha/asset.zip
+          unzip -q /tmp/gate8-alpha/asset.zip -d /tmp/gate8-alpha/asset
+          PACK="$(find /tmp/gate8-alpha/asset -type f -name 'makehuman_gate8_system_assets_cc0.zip' -print -quit)"
+          test -n "$PACK"
+          test "$(stat -c '%s' "$PACK")" = "$ASSET_PACK_SIZE_BYTES"
+          test "$(sha256sum "$PACK" | awk '{print $1}')" = "$ASSET_PACK_SHA256"
+          printf '%s\n' "$PACK" > /tmp/gate8-alpha/asset-pack-path.txt
+
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REMATCH_ARTIFACT_ID}" > /tmp/gate8-alpha/rematch-meta.json
+          python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/gate8-alpha/rematch-meta.json'))
+          assert not m['expired']
+          assert m['digest']==os.environ['REMATCH_ARTIFACT_DIGEST']
+          assert int(m['workflow_run']['id'])==int(os.environ['REMATCH_RUN_ID'])
+          assert m['workflow_run']['head_sha']==os.environ['REMATCH_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REMATCH_ARTIFACT_ID}/zip" > /tmp/gate8-alpha/rematch.zip
+          unzip -q /tmp/gate8-alpha/rematch.zip -d /tmp/gate8-alpha/rematch
+          test -s "$GATE8_REMATCH_EVIDENCE"
+
+      - name: Acquire Blender 4.2.23 and exact MPFB 2.0.17
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/gb-blender /tmp/gate8-alpha/blender-extensions
+          ARCHIVE=blender-4.2.23-linux-x64.tar.xz
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/${ARCHIVE}" -o "/tmp/${ARCHIVE}"
+          curl --fail --location --retry 3 --retry-all-errors "https://download.blender.org/release/Blender4.2/blender-4.2.23.sha256" -o /tmp/blender.sha256
+          grep " ${ARCHIVE}$" /tmp/blender.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum --check blender-linux.sha256)
+          tar -xJf "/tmp/${ARCHIVE}" -C /tmp/gb-blender
+          BLENDER_BIN="$(find /tmp/gb-blender -mindepth 2 -maxdepth 2 -type f -name blender -perm -111 | head -n 1)"
+          "$BLENDER_BIN" --version | tee /tmp/gate8-alpha/blender-version.txt
+          grep -q '^Blender 4\.2\.23' /tmp/gate8-alpha/blender-version.txt
+          printf '%s\n' "$BLENDER_BIN" > /tmp/gate8-alpha/blender-bin.txt
+          python3 "$GATE8_SOURCE_DIR/fetch_mpfb_2017.py" --output /tmp/gate8-alpha/mpfb.zip --manifest /tmp/gate8-alpha/mpfb.manifest.json --retries 3
+          "$BLENDER_BIN" --background --command extension repo-add gb_ci --name "Grand Bruxelles CI" --directory /tmp/gate8-alpha/blender-extensions --clear-all
+          "$BLENDER_BIN" --background --command extension install-file --repo gb_ci --enable /tmp/gate8-alpha/mpfb.zip
+
+      - name: Regenerate baseline and alpha0125 candidate from identical source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/gate8-alpha/blender-bin.txt)"
+          PACK="$(cat /tmp/gate8-alpha/asset-pack-path.txt)"
+          mkdir -p /tmp/gate8-alpha/baseline /tmp/gate8-alpha/candidate
+          "$BLENDER_BIN" --background --offline-mode \
+            --python "$GATE8_SOURCE_DIR/generate_mpfb_gate8_export_ready_glbs.py" \
+            -- --asset-pack "$PACK" --output-dir /tmp/gate8-alpha/baseline \
+            | tee /tmp/gate8-alpha/baseline-export.log
+          grep -q '^GB_GATE8 SUCCESS count=8 ' /tmp/gate8-alpha/baseline-export.log
+          "$BLENDER_BIN" --background --offline-mode \
+            --python grand-bruxelles-game/game/tests/gate8_variant01_alpha0125_export_probe.py \
+            -- --asset-pack "$PACK" --output-dir /tmp/gate8-alpha/candidate \
+            | tee /tmp/gate8-alpha/alpha-export.log
+          grep -q '^GATE8_ALPHA0125_EXPORT_OK ' /tmp/gate8-alpha/alpha-export.log
+          test -s "$GATE8_ALPHA_RESULT"
+          test "$(find /tmp/gate8-alpha/baseline -maxdepth 1 -name 'npc_gate_*.glb' | wc -l)" = "8"
+          test "$(find /tmp/gate8-alpha/candidate -maxdepth 1 -name 'npc_gate_*.glb' | wc -l)" = "8"
+
+      - name: Prove exact intervention isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          base=Path('/tmp/gate8-alpha/baseline'); cand=Path('/tmp/gate8-alpha/candidate')
+          def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+          rows=[]
+          for i in range(1,9):
+              name=f'npc_gate_{i:02d}.glb'; b=base/name; c=cand/name
+              assert b.is_file() and c.is_file()
+              rows.append({'variant':i,'baseline_sha256':sha(b),'candidate_sha256':sha(c),'identical':sha(b)==sha(c)})
+          assert rows[0]['identical'] is False, rows[0]
+          assert all(r['identical'] for r in rows[1:]), rows
+          Path('/tmp/gate8-alpha/isolation.json').write_text(json.dumps(rows,indent=2)+'\n')
+          print('GATE8_ALPHA0125_ISOLATION_OK changed=01 unchanged=02-08')
+          PY
+
+      - name: Install exact Godot 4.7.1 and import baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/gate8-alpha/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/gate8-alpha/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+          mkdir -p grand-bruxelles-game/game/assets/characters/civilians/gate8
+          cp /tmp/gate8-alpha/baseline/npc_gate_*.glb grand-bruxelles-game/game/assets/characters/civilians/gate8/
+          timeout 300s "$GODOT" --headless --editor --path grand-bruxelles-game --quit-after 1200 2>&1 | tee /tmp/gate8-alpha/import-baseline.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-alpha/import-baseline.log
+
+      - name: Render baseline and candidate 1280x720 witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb python3-pip >/dev/null
+          python3 -m pip install --quiet pillow
+          mkdir -p /tmp/gate8-alpha/baseline-frames /tmp/gate8-alpha/candidate-frames
+          export GATE8_WITNESS_DIR=/tmp/gate8-alpha/baseline-frames
+          timeout 240s xvfb-run -a "$GODOT" --path grand-bruxelles-game --rendering-method gl_compatibility --audio-driver Dummy res://game/tests/gate8_runtime_witness.tscn 2>&1 | tee /tmp/gate8-alpha/baseline-witness.log
+          grep -q '^GATE8_RUNTIME_WITNESS_OK captures=32 ' /tmp/gate8-alpha/baseline-witness.log
+          cp /tmp/gate8-alpha/candidate/npc_gate_01.glb grand-bruxelles-game/game/assets/characters/civilians/gate8/npc_gate_01.glb
+          rm -rf grand-bruxelles-game/.godot/imported
+          timeout 300s "$GODOT" --headless --editor --path grand-bruxelles-game --quit-after 1200 2>&1 | tee /tmp/gate8-alpha/import-candidate.log
+          export GATE8_WITNESS_DIR=/tmp/gate8-alpha/candidate-frames
+          timeout 240s xvfb-run -a "$GODOT" --path grand-bruxelles-game --rendering-method gl_compatibility --audio-driver Dummy res://game/tests/gate8_runtime_witness.tscn 2>&1 | tee /tmp/gate8-alpha/candidate-witness.log
+          grep -q '^GATE8_RUNTIME_WITNESS_OK captures=32 ' /tmp/gate8-alpha/candidate-witness.log
+          test "$(find /tmp/gate8-alpha/baseline-frames -name 'gate8-01-*.png' | wc -l)" = "4"
+          test "$(find /tmp/gate8-alpha/candidate-frames -name 'gate8-01-*.png' | wc -l)" = "4"
+
+      - name: Measure full-frame A-B without acceptance threshold
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageChops, ImageStat
+          bdir=Path('/tmp/gate8-alpha/baseline-frames'); cdir=Path('/tmp/gate8-alpha/candidate-frames')
+          rows=[]
+          for b in sorted(bdir.glob('gate8-01-*.png')):
+              c=cdir/b.name; assert c.is_file()
+              bi=Image.open(b).convert('RGB'); ci=Image.open(c).convert('RGB')
+              assert bi.size==(1280,720) and ci.size==(1280,720)
+              d=ImageChops.difference(bi,ci); stat=ImageStat.Stat(d); extrema=d.getextrema()
+              changed=sum(1 for px in d.getdata() if px != (0,0,0))
+              rows.append({'frame':b.name,'size':[1280,720],'changed_pixel_fraction':changed/(1280*720),'mean_abs_rgb_delta':[x/255.0 for x in stat.mean],'max_abs_rgb_delta':max(x[1] for x in extrema)/255.0})
+          assert len(rows)==4
+          assert any(r['changed_pixel_fraction']>0 for r in rows)
+          out={'format':'grand-bruxelles-gate8-alpha0125-player-ab-v1-red-first','engine':'Godot 4.7.1 stable','resolution':[1280,720],'variant':'npc_gate_01','alpha':0.125,'views':['2m-front','2m-three-quarter','5m-front','8m-front'],'frames':rows,'human_full_frame_review_required':True,'visual_approval':False,'canonical_asset_mutation':False,'runtime_npc_mutation':False,'production_activation':False,'next_safe_axis':'HUMAN_REVIEW_ALPHA0125_FULL_FRAME_AB'}
+          Path('/tmp/gate8-alpha/player-ab.json').write_text(json.dumps(out,indent=2)+'\n')
+          print('GATE8_ALPHA0125_PLAYER_AB_MEASURED frames=4 visual_approval=false')
+          PY
+
+      - name: Upload immutable RED-first A-B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-alpha0125-player-ab-v1-red-first
+          path: |
+            /tmp/gate8-alpha/player-ab.json
+            /tmp/gate8-alpha/alpha-export.json
+            /tmp/gate8-alpha/isolation.json
+            /tmp/gate8-alpha/baseline-frames/gate8-01-*.png
+            /tmp/gate8-alpha/candidate-frames/gate8-01-*.png
+            /tmp/gate8-alpha/baseline-export.log
+            /tmp/gate8-alpha/alpha-export.log
+            /tmp/gate8-alpha/baseline-witness.log
+            /tmp/gate8-alpha/candidate-witness.log
+            /tmp/gate8-alpha/import-baseline.log
+            /tmp/gate8-alpha/import-candidate.log
+            /tmp/gate8-alpha/blender-version.txt
+            /tmp/gate8-alpha/godot-version.txt
+            /tmp/gate8-alpha/mpfb.manifest.json
+            /tmp/gate8-alpha/asset-meta.json
+            /tmp/gate8-alpha/rematch-meta.json
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
+
+      - name: Prove canonical repository stayed clean
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf grand-bruxelles-game/game/assets/characters/civilians/gate8 grand-bruxelles-game/.godot
+          rm -f grand-bruxelles-game/game/scripts/gate8_visual_loader.gd grand-bruxelles-game/game/tests/gate8_runtime_witness.gd grand-bruxelles-game/game/tests/gate8_runtime_witness.tscn
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-alpha/post-cleanup.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('/tmp/gate8-alpha/post-cleanup.txt').read_text().splitlines()
+          allowed=[]
+          bad=[]
+          for line in lines:
+              path=line[3:]
+              if line.startswith('?? ') and (path.endswith('.uid') or path.endswith('.import')):
+                  allowed.append(path)
+              else:
+                  bad.append(line)
+          assert not bad, bad
+          for path in allowed:
+              Path(path).unlink(missing_ok=True)
+          PY
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+      - name: Fail closed pending human full-frame review
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s /tmp/gate8-alpha/player-ab.json
+          echo 'RED_FIRST_ALPHA0125_PLAYER_AB_REQUIRES_HUMAN_FULL_FRAME_REVIEW'
+          exit 1

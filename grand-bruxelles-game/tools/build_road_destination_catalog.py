@@ -139,12 +139,17 @@ def road_signature(road: dict[str, Any]) -> dict[str, Any] | None:
     name = raw_name
     road_class = raw_class
     drivable = raw_drivable
-    if raw_osm_id <= 0 or not name or not drivable:
+    if not drivable:
         return None
+    # A drivable record remains canonical source input even when its identity is rejected.
+    # Validate geometry/width before eligibility so malformed source structure cannot hide
+    # inside rejected_drivable_record_count.
     points = normalized_points(road.get("points"))
     width = require_source_number(road.get("width"), "width")
     if width <= 0.0:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-positive source width")
+    if raw_osm_id <= 0 or not name:
+        return None
     return {
         "osm_id": raw_osm_id, "name": name, "class": road_class,
         "width": width, "drivable": True, "points": points,

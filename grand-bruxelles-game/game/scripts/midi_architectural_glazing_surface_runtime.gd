@@ -202,6 +202,9 @@ func _release_material_ownership() -> void:
     _material = null
 
 func set_enhanced_material_enabled(enabled: bool) -> void:
+    if enabled and not _runtime_identity_allowed(_identity):
+        _enabled = false
+        return
     _enabled = enabled
     if _material == null:
         return

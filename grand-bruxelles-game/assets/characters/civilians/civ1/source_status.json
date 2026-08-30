@@ -1,5 +1,5 @@
 {
-  "format": "grand-bruxelles-civ1-runtime-packaging-v1",
+  "format": "grand-bruxelles-civ1-runtime-packaging-v2",
   "candidate_id": "CIV-1",
   "owner_verdict": "GARDER",
   "approved_review_pr": 1006,
@@ -10,7 +10,21 @@
   "character_source": {
     "repository": "https://github.com/ibrews/VitruvianGodot",
     "commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
-    "license": "CC0-1.0"
+    "license_claim": "MIXED",
+    "license_evidence": {
+      "license_path": "LICENSE",
+      "notice_path": "NOTICE.md",
+      "explicit_cc0_assets": [
+        "godot_project/vitruvian_head.glb",
+        "godot_project/vit_*.png"
+      ],
+      "tool_code_license": "MIT",
+      "unresolved_assets": [
+        "godot_project/vitruvian_body.glb",
+        "godot_project/hairtool_cards.glb",
+        "godot_project/vitruvian_hair.glb"
+      ]
+    }
   },
   "footwear_source": {
     "repository": "https://github.com/furqonat/makehuman-assets",
@@ -30,27 +44,34 @@
     "assets/characters/civilians/civ1/source/vitruvian_body.glb": {
       "upstream_path": "godot_project/vitruvian_body.glb",
       "git_blob_sha1": "09bcade1092e5a89b474e91e6013209d4c68c127",
-      "size_bytes": 6879364
+      "size_bytes": 6879364,
+      "license_scope_verified": false
     },
     "assets/characters/civilians/civ1/source/vitruvian_head.glb": {
       "upstream_path": "godot_project/vitruvian_head.glb",
       "git_blob_sha1": "0c810e209f09fc079086746f0813de9531d0f7fb",
-      "size_bytes": 10189832
+      "size_bytes": 10189832,
+      "license_scope_verified": true,
+      "license": "CC0-1.0"
     },
     "assets/characters/civilians/civ1/source/hairtool_cards.glb": {
       "upstream_path": "godot_project/hairtool_cards.glb",
       "git_blob_sha1": "04799adc868ba72e0fa1c1ab60c0442e12d5987e",
-      "size_bytes": 14839096
+      "size_bytes": 14839096,
+      "license_scope_verified": false
     },
     "assets/characters/civilians/civ1/source/vitruvian_hair.glb": {
       "upstream_path": "godot_project/vitruvian_hair.glb",
       "git_blob_sha1": "b6f63553ce9d5f2f83920b445f21831caf9017f1",
-      "size_bytes": 21189248
+      "size_bytes": 21189248,
+      "license_scope_verified": false
     },
     "assets/characters/civilians/civ1/source/shoes03.obj": {
       "upstream_path": "base/clothes/shoes03/shoes03.obj",
       "git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
-      "size_bytes": null
+      "size_bytes": null,
+      "license_scope_verified": true,
+      "license": "CC0-1.0"
     }
   },
   "runtime_scene": "assets/characters/civilians/civ1/civ1.tscn",
@@ -63,6 +84,6 @@
     "assets/characters/player/"
   ],
   "mixamo_payload_allowed": false,
-  "blocker": "canonical_source_and_runtime_package_not_committed",
-  "next_gate": "populate source_paths from the exact pinned upstream blobs, build a canonical Godot runtime package, record sha256 for every runtime file, then set source_package_present/runtime_package_present/production_authorized/activation_ready only after the packaging validator passes --require-ready"
+  "blocker": "license_scope_and_canonical_packages_not_verified",
+  "next_gate": "resolve explicit redistribution/license scope for vitruvian_body.glb, hairtool_cards.glb and vitruvian_hair.glb at the pinned commit; only then materialize license-verified blobs, build the canonical Godot runtime package, record SHA-256 for every runtime file and run the packaging validator --require-ready"
 }

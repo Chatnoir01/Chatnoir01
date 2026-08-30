@@ -211,7 +211,7 @@ jobs:
           grep -q '^4\.7\.1\.stable' /tmp/gate8-alpha/godot-version.txt
           echo "GODOT=$GODOT" >> "$GITHUB_ENV"
           mkdir -p grand-bruxelles-game/game/assets/characters/civilians/gate8
-          for i in $(seq -w 1 8); do
+          for i in $(seq -f '%02g' 1 8); do
             cp "$(find /tmp/gate8-alpha/baseline -type f -name npc_gate_${i}.glb -print -quit)" grand-bruxelles-game/game/assets/characters/civilians/gate8/
           done
           timeout 300s "$GODOT" --headless --editor --path grand-bruxelles-game --quit-after 1200 2>&1 | tee /tmp/gate8-alpha/import-baseline.log

@@ -19,23 +19,49 @@ def fail(message: str) -> None:
     raise AssertionError(message)
 
 
+def _handler(match: re.Match[str]) -> str:
+    return match.group(1) or match.group(2) or ""
+
+
 def handlers(pattern: re.Pattern[str], source: str) -> tuple[str, ...]:
-    found: list[str] = []
-    for match in pattern.finditer(source):
-        handler = match.group(1) or match.group(2)
-        if handler:
-            found.append(handler)
-    return tuple(found)
+    return tuple(_handler(match) for match in pattern.finditer(source) if _handler(match))
+
+
+def _connect_site_is_guarded(source: str, match: re.Match[str], handler: str) -> bool:
+    line_start = source.rfind("\n", 0, match.start()) + 1
+    previous_line_start = source.rfind("\n", 0, max(0, line_start - 1)) + 1
+    context = source[previous_line_start:match.start()]
+    direct_guard = re.compile(
+        rf"not\s+[^\n]*node_added\s*\.\s*is_connected\s*\(\s*{re.escape(handler)}\s*\)"
+    )
+    callable_guard = re.compile(
+        rf"not\s+[^\n]*node_added\s*\.\s*is_connected\s*\(\s*Callable\s*\(\s*self\s*,\s*[\"\']{re.escape(handler)}[\"\']\s*\)\s*\)"
+    )
+    return bool(direct_guard.search(context) or callable_guard.search(context))
 
 
 def validate_watcher_cardinality(source: str, rel_path: str) -> None:
-    connected = handlers(NODE_ADDED_CONNECT_RE, source)
+    connect_matches = list(NODE_ADDED_CONNECT_RE.finditer(source))
+    connected = tuple(_handler(match) for match in connect_matches)
     disconnected = handlers(NODE_ADDED_DISCONNECT_RE, source)
-    if len(connected) != 1:
+    if not connected:
+        fail(f"runtime must connect node_added: {rel_path}")
+    if len(set(connected)) != 1:
         fail(
-            f"runtime must connect node_added exactly once: {rel_path} "
-            f"sites={len(connected)} handlers={list(connected)}"
+            f"runtime connects node_added with multiple handlers: {rel_path} "
+            f"handlers={list(connected)}"
         )
+    if len(connect_matches) > 1:
+        unguarded = [
+            index
+            for index, match in enumerate(connect_matches, start=1)
+            if not _connect_site_is_guarded(source, match, connected[0])
+        ]
+        if unguarded:
+            fail(
+                f"multiple node_added connect sites require is_connected guards: {rel_path} "
+                f"sites={len(connect_matches)} unguarded={unguarded}"
+            )
     if not disconnected:
         fail(f"runtime must disconnect node_added on at least one cleanup path: {rel_path}")
     unexpected_disconnects = tuple(handler for handler in disconnected if handler != connected[0])
@@ -68,7 +94,6 @@ def main() -> None:
 
     callable_probe = "\n".join(
         (
-            'var callback := Callable(self, "_on_tree_node_added")',
             'node_added.connect(Callable(self, "_on_tree_node_added"))',
             'node_added.disconnect(Callable(self, "_on_tree_node_added"))',
         )
@@ -90,7 +115,18 @@ def main() -> None:
     except AssertionError:
         pass
     else:
-        fail("duplicate node_added subscription sites are not rejected")
+        fail("unguarded duplicate node_added subscription sites are not rejected")
+
+    guarded_rearm_probe = "\n".join(
+        (
+            "if not tree.node_added.is_connected(_on_node_added):",
+            "    tree.node_added.connect(_on_node_added)",
+            "if not tree.node_added.is_connected(_on_node_added):",
+            "    tree.node_added.connect(_on_node_added)",
+            "tree.node_added.disconnect(_on_node_added)",
+        )
+    )
+    validate_watcher_cardinality(guarded_rearm_probe, "synthetic_guarded_rearm.gd")
 
     alternate_cleanup_probe = "\n".join(
         (
@@ -145,7 +181,8 @@ def main() -> None:
     print(
         "SHARED_ENVIRONMENT_NODE_ADDED_LIFECYCLE_OK: "
         f"runtimes={len(runtimes)} watcher_cleanup=locked "
-        "single_subscription=locked multiline=locked callable=locked cleanup_handlers=locked"
+        "subscription_handlers=locked guarded_rearm=locked multiline=locked "
+        "callable=locked cleanup_handlers=locked"
     )
 
 

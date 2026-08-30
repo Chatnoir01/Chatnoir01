@@ -5,23 +5,28 @@
   "proof_schema": "grand-bruxelles-zone-promotion-proof-v1",
   "allowed_catalog_qualities": ["JOUABLE", "LABO", "LABO_BRUT"],
   "approved_jouable_decisions": ["KEEP_JOUABLE", "APPROVE_JOUABLE"],
-  "required_stages": [
+  "hard_required_stages": [
     "source_verified",
     "runtime_validated",
     "player_ground_collision",
+    "performance_exports_green"
+  ],
+  "visual_review_stages": [
     "hero_anchor_visible",
     "full_frame_player_proof",
-    "performance_exports_green",
     "human_visual_verdict"
   ],
   "policy": {
-    "human_only_promotion": true,
+    "human_only_promotion": false,
     "jouable_requires_proof": true,
-    "jouable_requires_human_pass": true,
+    "jouable_requires_human_pass": false,
+    "visual_findings_block_promotion": false,
+    "hard_failures_block_promotion": true,
     "city_machine_may_promote": false,
     "labo_data_ready_is_not_jouable": true,
     "labo_may_hold_approved_jouable_decision": false,
-    "missing_or_broken_evidence_fails_closed": true,
-    "proof_does_not_mean_realism_complete": true
+    "missing_or_broken_hard_evidence_fails_closed": true,
+    "proof_does_not_mean_realism_complete": true,
+    "visual_review_mode": "post_integration"
   }
 }

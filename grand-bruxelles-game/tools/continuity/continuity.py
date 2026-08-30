@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Grand Bruxelles continuity selector.
 
-Reads catalog + maturity registry + optional exported SIGNALER tickets.
+Reads catalog + maturity registry + optional exported À SIGNALER tickets.
 Oldest open report wins; otherwise run the registry's next upgrade lot.
-Never promotes M6 and never mutates city_machine/citygen outputs.
+M5 remains a mounted playable candidate and continues post-integration visual
+work instead of waiting for mandatory human approval. This selector does not
+mutate city_machine/citygen outputs and does not silently rewrite M6 state.
 """
 from __future__ import annotations
 import argparse, json
@@ -13,7 +15,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "data" / "qa" / "playable_zone_catalog.json"
 REGISTRY = ROOT / "data" / "qa" / "zone_maturity_registry.json"
-REPORT_SCHEMA = "grand-bruxelles-player-report-v1"
+REPORT_SCHEMA = "grand-bruxelles-player-report-v1"  # legacy/export compatibility
+RUNTIME_REPORT_SCHEMA = "grand-bruxelles-player-report-v2"
+REPORT_SCHEMAS = {REPORT_SCHEMA, RUNTIME_REPORT_SCHEMA}
 REPORT_SYNC_SCHEMA = "grand-bruxelles-continuity-report-sync-v1"
 CATALOG_SCHEMAS = {"grand-bruxelles-playable-zone-catalog-v1", "grand-bruxelles-playable-zone-catalog-v2"}
 MATURITY_ORDER = {"M0_NON_LISTED":0,"M1_LABO_BRUT":1,"M2_LABO_STABLE":2,"M3_LABO_LOOK":3,"M4_LABO_ALIVE":4,"M5_JOUABLE_READY":5,"M6_JOUABLE":6}
@@ -73,7 +77,7 @@ def read_reports(report_dir: Path | None) -> list[dict[str, Any]]:
     reports=[]
     for path in sorted(report_dir.glob("*.gbreport.json")):
         d=load_json(path)
-        if d.get("schema") != REPORT_SCHEMA: raise ValueError(f"unsupported report schema in {path}: {d.get('schema')!r}")
+        if d.get("schema") not in REPORT_SCHEMAS: raise ValueError(f"unsupported report schema in {path}: {d.get('schema')!r}")
         if d.get("status") != "open": raise ValueError(f"expected OPEN report export in {path}, got status={d.get('status')!r}")
         zone=d.get("zone", {})
         if not isinstance(zone, dict) or not str(zone.get("id", "")): raise ValueError(f"open report has no zone id: {path}")
@@ -117,12 +121,15 @@ def sync_snapshot(zone_id: str, report_dir: Path) -> dict[str, Any]:
             "captured_unix":int(r.get("captured_unix", 0)),
             "note":str(r.get("note", "")),
             "source_file":Path(str(r.get("_source_path", ""))).name,
+            "report_schema":str(r.get("schema", "")),
+            "kind":str(r.get("kind", "visual")),
+            "blocking":bool(r.get("blocking", False)),
         })
     return {
         "schema":REPORT_SYNC_SCHEMA,
         "state":"complete_snapshot",
         "zone_id":zone_id,
-        "source":"exported_SIGNALER_open_directory",
+        "source":"exported_A_SIGNALER_open_directory",
         "open_count":len(rows),
         "open_reports":rows,
         "oldest_open_report_id":rows[0]["id"] if rows else None,
@@ -140,6 +147,8 @@ def reports_from_sync(path: Path, zone_id: str) -> list[dict[str, Any]]:
             "captured_unix":int(row.get("captured_unix", 0)),
             "note":str(row.get("note", "")),
             "zone":{"id":zone_id},
+            "kind":str(row.get("kind", "visual")),
+            "blocking":bool(row.get("blocking", False)),
             "_source_path":path.as_posix(),
         })
     reports.sort(key=lambda r:(int(r.get("captured_unix",0)),str(r.get("id",""))))
@@ -150,11 +159,11 @@ def validate() -> None:
     if set(ids) != set(by_id): raise ValueError(f"catalogue/registry canonical zone mismatch: catalog={ids} registry={sorted(by_id)}")
     if reg.get("catalog_schema") not in (None, schema): raise ValueError("registry/catalog schema drift")
     midi=by_id["midi"]
-    if midi.get("maturity") != "M6_JOUABLE" or midi.get("target_maturity") != "M6_JOUABLE": raise ValueError("Midi human JOUABLE baseline may not silently regress")
+    if midi.get("maturity") != "M6_JOUABLE" or midi.get("target_maturity") != "M6_JOUABLE": raise ValueError("Midi JOUABLE baseline may not silently regress")
     visible_rows = load_json(CATALOG).get("zones", [])
     visible_count = len(visible_rows) if isinstance(visible_rows, list) else 0
     alias_count = sum(1 for row in visible_rows if isinstance(row, dict) and str(row.get("review_alias_of", "")).strip()) if isinstance(visible_rows, list) else 0
-    print(f"CONTINUITY_REGISTRY_OK zones={len(ids)} visible={visible_count} review_aliases={alias_count} catalog={schema} midi_baseline=M6 automation_ceiling=M5")
+    print(f"CONTINUITY_REGISTRY_OK zones={len(ids)} visible={visible_count} review_aliases={alias_count} catalog={schema} midi_baseline=M6 automation_ceiling=M5 review=POST_INTEGRATION")
 
 def next_lot(zone_id: str, report_dir: Path | None, report_sync: Path | None) -> dict[str, Any]:
     _, by_id = registry_rows()
@@ -170,10 +179,10 @@ def next_lot(zone_id: str, report_dir: Path | None, report_sync: Path | None) ->
         sync_complete=report_dir is not None
     if reports:
         r=reports[0]
-        return {"zone_id":zone_id,"decision":"fix_oldest_open_report","report_id":str(r.get("id","")),"captured_unix":int(r.get("captured_unix",0)),"note":str(r.get("note","")),"source_path":str(r.get("_source_path","")),"maturity":row["maturity"],"target_maturity":row["target_maturity"],"report_sync_complete":sync_complete}
-    if row["maturity"] == "M6_JOUABLE": return {"zone_id":zone_id,"decision":"protect_human_jouable_baseline","next_lot":"protect_baseline_only"}
-    if row["maturity"] == "M5_JOUABLE_READY": return {"zone_id":zone_id,"decision":"wait_human","next_lot":"human_jouable_decision"}
-    return {"zone_id":zone_id,"decision":"run_next_upgrade_lot","maturity":row["maturity"],"target_maturity":row["target_maturity"],"next_lot":row["next_lot"],"report_sync_required_before_M5":not sync_complete,"report_sync_complete":sync_complete}
+        return {"zone_id":zone_id,"decision":"fix_oldest_open_report","report_id":str(r.get("id","")),"captured_unix":int(r.get("captured_unix",0)),"note":str(r.get("note","")),"kind":str(r.get("kind","visual")),"blocking":bool(r.get("blocking",False)),"source_path":str(r.get("_source_path","")),"maturity":row["maturity"],"target_maturity":row["target_maturity"],"report_sync_complete":sync_complete,"review_mode":"post_integration"}
+    if row["maturity"] == "M6_JOUABLE": return {"zone_id":zone_id,"decision":"protect_jouable_baseline","next_lot":"protect_baseline_only","review_mode":"post_integration"}
+    if row["maturity"] == "M5_JOUABLE_READY": return {"zone_id":zone_id,"decision":"maintain_playable_candidate","next_lot":"post_integration_visual_debt","maturity":row["maturity"],"target_maturity":row["target_maturity"],"report_sync_complete":sync_complete,"review_mode":"post_integration"}
+    return {"zone_id":zone_id,"decision":"run_next_upgrade_lot","maturity":row["maturity"],"target_maturity":row["target_maturity"],"next_lot":row["next_lot"],"report_sync_required_before_M5":not sync_complete,"report_sync_complete":sync_complete,"review_mode":"post_integration"}
 
 def main() -> int:
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest="command",required=True); sub.add_parser("validate")

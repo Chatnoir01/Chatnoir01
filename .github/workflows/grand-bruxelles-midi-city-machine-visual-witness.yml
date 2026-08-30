@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-midi-city-machine-visual-witness.yml"
-      - "grand-bruxelles-game/game/tests/midi_city_machine_visual_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_city_machine_post_integration_witness_test.gd"
+      - "grand-bruxelles-game/game/scripts/player_issue_report_runtime.gd"
       - "grand-bruxelles-game/game/zones/midi/midi_city_machine_zone.gd"
       - "grand-bruxelles-game/game/scripts/zone_selector_runtime.gd"
       - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
@@ -64,7 +65,7 @@ jobs:
             exit 1
           fi
 
-      - name: Capture visible Midi City Machine LABO witness
+      - name: Capture post-integration playable candidate witness
         shell: bash
         run: |
           set -o pipefail
@@ -73,54 +74,54 @@ jobs:
             --display-driver x11 \
             --rendering-method gl_compatibility \
             --resolution 1280x720 \
-            --script res://game/tests/midi_city_machine_visual_witness_test.gd \
+            --script res://game/tests/midi_city_machine_post_integration_witness_test.gd \
             2>&1 | tee /tmp/midi-city-machine-visual.log
-          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_CITY_MACHINE_VISUAL_WITNESS_FAIL" /tmp/midi-city-machine-visual.log; then
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_CITY_MACHINE_POST_INTEGRATION_WITNESS_FAIL" /tmp/midi-city-machine-visual.log; then
             exit 1
           fi
-          grep -F "MIDI_CITY_MACHINE_VISUAL_WITNESS_OK" /tmp/midi-city-machine-visual.log
-          test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/midi_city_machine_arrival.png
-          test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/midi_city_machine_overview.png
-          test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/report.json
+          grep -F "MIDI_CITY_MACHINE_POST_INTEGRATION_WITNESS_OK" /tmp/midi-city-machine-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/playable_candidate_review_panel.png
+          test -s grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/report.json
 
-      - name: Validate human-review witness contract
+      - name: Validate post-integration review contract
         shell: bash
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
-          path = Path('grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/report.json')
+          path = Path('grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/report.json')
           report = json.loads(path.read_text(encoding='utf-8'))
-          assert report['format'] == 'grand-bruxelles-midi-city-machine-visual-witness-v1'
+          assert report['format'] == 'grand-bruxelles-midi-city-machine-post-integration-witness-v1'
           assert report['zone_id'] == 'midi_machine_labo'
-          assert report['review_alias_of'] == 'midi'
-          assert report['quality'] == 'LABO'
-          assert report['jouable'] is False
-          assert report['human_review_required'] is True
-          assert report['promotion_performed'] is False
-          assert report['production_selector_path'] is True
-          assert report['official_geometry_present'] is True
+          assert report['stored_quality'] == 'LABO'
+          assert report['playable_candidate_mounted'] is True
+          assert report['post_integration_review_available'] is True
+          assert report['review_panel_visible_in_capture'] is True
+          assert report['review_actions_present'] == ['GARDER', 'AMELIORER', 'REJETER', 'SIGNALER']
+          assert report['open_visual_report_created'] is True
+          assert report['open_visual_report_blocks_advancement'] is False
+          assert report['hard_geometry_gate_passed'] is True
           assert report['resolution'] == [1280, 720]
           assert int(report['stats'].get('buildings', 0)) > 0
           assert int(report['stats'].get('street_surfaces', 0)) > 0
-          print('MIDI_CITY_MACHINE_HUMAN_REVIEW_WITNESS_CONTRACT_OK promotion=false jouable=false captures=2')
+          print('MIDI_CITY_MACHINE_POST_INTEGRATION_CONTRACT_OK mounted=true panel=true visual_report_blocks=false hard_geometry=true')
           PY
 
       - name: Preserve logs
         if: always()
         run: |
-          mkdir -p grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness
-          test ! -f /tmp/midi-city-machine-visual.log || cp /tmp/midi-city-machine-visual.log grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/witness.log
-          test ! -f /tmp/midi-city-machine-visual-import.log || cp /tmp/midi-city-machine-visual-import.log grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/import.log
-          if [ ! -e grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/report.json ]; then
-            printf '%s\n' '{"format":"grand-bruxelles-midi-city-machine-visual-witness-v1","status":"witness_not_completed","zone_id":"midi_machine_labo","review_alias_of":"midi","quality":"LABO","jouable":false,"human_review_required":true,"promotion_performed":false}' > grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness/diagnostic.json
+          mkdir -p grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness
+          test ! -f /tmp/midi-city-machine-visual.log || cp /tmp/midi-city-machine-visual.log grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/witness.log
+          test ! -f /tmp/midi-city-machine-visual-import.log || cp /tmp/midi-city-machine-visual-import.log grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/import.log
+          if [ ! -e grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/report.json ]; then
+            printf '%s\n' '{"format":"grand-bruxelles-midi-city-machine-post-integration-witness-v1","status":"witness_not_completed","zone_id":"midi_machine_labo","playable_candidate_mounted":false}' > grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness/diagnostic.json
           fi
 
       - name: Upload owner-visible review evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: midi-city-machine-human-review-witness
-          path: grand-bruxelles-game/artifacts/qa/midi_city_machine_visual_witness
+          name: midi-city-machine-post-integration-witness
+          path: grand-bruxelles-game/artifacts/qa/midi_city_machine_post_integration_witness
           if-no-files-found: error
           retention-days: 30

@@ -67,7 +67,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: head
-      - name: Classify collision-only change
+      - name: Classify Midi surface scope
         id: scope
         shell: bash
         env:
@@ -77,41 +77,50 @@ jobs:
           set -euo pipefail
           git -C head fetch origin "$BASE_SHA" --depth=1
           mapfile -t changed < <(git -C head diff --name-only "$BASE_SHA" "$HEAD_SHA")
-          physics_only=true
+          mode=unrelated
           for path in "${changed[@]}"; do
             case "$path" in
-              grand-bruxelles-game/data/qa/rendered_main_baseline.json|\
+              grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json|\
+              grand-bruxelles-game/game/tests/midi_surface_semantics_ab_compare_test.gd|\
+              grand-bruxelles-game/tools/make_urbis_midi_runtime.py)
+                mode=visible_correction
+                ;;
               grand-bruxelles-game/game/scripts/urbis_midi_builder.gd|\
               grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd|\
               grand-bruxelles-game/game/tests/midi_official_street_surface_collision_test.gd|\
               grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd|\
               grand-bruxelles-game/game/tests/midi_surface_stability_capture_test.gd|\
               .github/workflows/grand-bruxelles-midi-official-street-collision.yml|\
-              .github/workflows/grand-bruxelles-midi-solid-world.yml|\
-              .github/workflows/grand-bruxelles-midi-surface-semantics.yml)
+              .github/workflows/grand-bruxelles-midi-solid-world.yml)
+                if [[ "$mode" != "visible_correction" ]]; then mode=stability; fi
                 ;;
-              *) physics_only=false ;;
+              *)
+                ;;
             esac
           done
-          echo "physics_only=$physics_only" >> "$GITHUB_OUTPUT"
-          printf 'MIDI_SURFACE_SCOPE: physics_only=%s files=%s\n' "$physics_only" "${changed[*]}"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          printf 'MIDI_SURFACE_SCOPE: mode=%s files=%s\n' "$mode" "${changed[*]}"
       - name: Install Godot 4.7.1
+        if: steps.scope.outputs.mode != 'unrelated'
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
             https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Install software renderer dependencies
+        if: steps.scope.outputs.mode != 'unrelated'
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
       - name: Install identical capture harnesses in base checkout
+        if: steps.scope.outputs.mode != 'unrelated'
         run: |
           cp head/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd \
              base/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd
           cp head/grand-bruxelles-game/game/tests/midi_surface_stability_capture_test.gd \
              base/grand-bruxelles-game/game/tests/midi_surface_stability_capture_test.gd
       - name: Import base and head projects
+        if: steps.scope.outputs.mode != 'unrelated'
         shell: bash
         run: |
           set -o pipefail
@@ -119,7 +128,7 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-head-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-surface-base-import.log /tmp/midi-surface-head-import.log; then exit 1; fi
       - name: Capture fixed player camera before and after
-        if: steps.scope.outputs.physics_only == 'true'
+        if: steps.scope.outputs.mode == 'stability'
         shell: bash
         run: |
           set -o pipefail
@@ -135,7 +144,7 @@ jobs:
           test -f /tmp/midi-surface-before.png
           test -f /tmp/midi-surface-after.png
       - name: Capture normal gameplay camera before and after
-        if: steps.scope.outputs.physics_only != 'true'
+        if: steps.scope.outputs.mode == 'visible_correction'
         shell: bash
         run: |
           set -o pipefail
@@ -149,7 +158,7 @@ jobs:
           test -f /tmp/midi-surface-before.png
           test -f /tmp/midi-surface-after.png
       - name: Enforce physics-only pixel stability
-        if: steps.scope.outputs.physics_only == 'true'
+        if: steps.scope.outputs.mode == 'stability'
         shell: bash
         run: |
           set -o pipefail
@@ -159,7 +168,7 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_STABILITY_AB_FAIL" /tmp/midi-surface-ab.log; then exit 1; fi
           grep -q "MIDI_SURFACE_STABILITY_AB_OK" /tmp/midi-surface-ab.log
       - name: Enforce broad player-visible correction
-        if: steps.scope.outputs.physics_only != 'true'
+        if: steps.scope.outputs.mode == 'visible_correction'
         shell: bash
         run: |
           set -o pipefail
@@ -169,14 +178,14 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_SEMANTICS_AB_FAIL" /tmp/midi-surface-ab.log; then exit 1; fi
           grep -q "MIDI_SURFACE_SEMANTICS_AB_OK" /tmp/midi-surface-ab.log
       - name: Stage A/B evidence
-        if: always()
+        if: ${{ always() && steps.scope.outputs.mode != 'unrelated' }}
         run: |
           mkdir -p head/grand-bruxelles-game/artifacts/qa/midi_surface_semantics_ab
           cp /tmp/midi-surface-before.png head/grand-bruxelles-game/artifacts/qa/midi_surface_semantics_ab/before.png 2>/dev/null || true
           cp /tmp/midi-surface-after.png head/grand-bruxelles-game/artifacts/qa/midi_surface_semantics_ab/after.png 2>/dev/null || true
           cp /tmp/midi-surface-ab.log head/grand-bruxelles-game/artifacts/qa/midi_surface_semantics_ab/metrics.log 2>/dev/null || true
       - name: Upload A/B evidence
-        if: always()
+        if: ${{ always() && steps.scope.outputs.mode != 'unrelated' }}
         uses: actions/upload-artifact@v4
         with:
           name: midi-surface-semantics-ab

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -8,6 +9,7 @@ CONTRACT_PATH = ROOT / "data" / "qa" / "shared_environment_lifecycle_contract.js
 EXPECTED = {
     "game/scripts/midi_blue_stone_surface_runtime.gd": "_on_node_removed",
     "game/scripts/midi_architectural_concrete_surface_runtime.gd": "_on_node_removed",
+    "game/scripts/midi_architectural_glazing_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_road_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_rail_surface_runtime.gd": "_on_node_removed",
@@ -22,6 +24,7 @@ EXPECTED = {
 HELPER_WATCHERS = {
     "game/scripts/midi_blue_stone_surface_runtime.gd",
     "game/scripts/midi_architectural_concrete_surface_runtime.gd",
+    "game/scripts/midi_architectural_glazing_surface_runtime.gd",
     "game/scripts/anneessens_osm_furniture_runtime.gd",
     "game/scripts/brussels_base_ground_surface_runtime.gd",
     "game/scripts/brussels_osm_facade_surface_runtime.gd",
@@ -41,6 +44,18 @@ HELPER_REBIND_TOKENS = {
         "_midi_root = null",
         "_ready_complete = false",
         "_awaiting_midi = true",
+        "_start_watching()",
+        'call_deferred("_bind_existing_midi")',
+    ),
+    "game/scripts/midi_architectural_glazing_surface_runtime.gd": (
+        "_release_material_ownership()",
+        "_midi_root = null",
+        "_candidate_root = null",
+        "_ready_complete = false",
+        "_identity_failure = false",
+        "_topology_failure = false",
+        "_awaiting_midi = true",
+        "_bind_in_progress = false",
         "_start_watching()",
         'call_deferred("_bind_existing_midi")',
     ),
@@ -77,6 +92,9 @@ STREET_FURNITURE_REBIND = {
     "game/scripts/brussels_street_lamp_runtime.gd",
     "game/scripts/brussels_bollard_runtime.gd",
 }
+NODE_REMOVED_CONNECT_RE = re.compile(
+    r"node_removed\s*\.\s*connect\s*\(\s*([_A-Za-z0-9]+)\s*\)"
+)
 
 
 def fail(message: str) -> None:
@@ -101,7 +119,25 @@ def function_body(source: str, function_name: str) -> str:
     return "\n".join(body)
 
 
+def connected_node_removed_handlers(source: str) -> tuple[str, ...]:
+    return tuple(match.group(1) for match in NODE_REMOVED_CONNECT_RE.finditer(source))
+
+
 def main() -> None:
+    discovery_probe = "\n".join(
+        (
+            "node_removed.connect(_on_node_removed)",
+            "node_removed.connect(",
+            "    _rogue_node_removed",
+            ")",
+        )
+    )
+    if connected_node_removed_handlers(discovery_probe) != (
+        "_on_node_removed",
+        "_rogue_node_removed",
+    ):
+        fail("node_removed watcher discovery does not enumerate multiline duplicate/rogue handlers")
+
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("node_removed_watcher_cleanup_required") is not True:
         fail("central lifecycle contract does not require node_removed cleanup")
@@ -114,6 +150,33 @@ def main() -> None:
     by_path = {entry.get("path"): entry for entry in runtimes if isinstance(entry, dict)}
 
     claimed: set[str] = set()
+    detected: dict[str, str] = {}
+    for entry in runtimes:
+        if not isinstance(entry, dict):
+            continue
+        rel_path = entry.get("path")
+        if not isinstance(rel_path, str):
+            continue
+        source_path = ROOT / rel_path
+        if not source_path.is_file():
+            fail(f"registered runtime source missing: {rel_path}")
+        source = source_path.read_text(encoding="utf-8")
+        handlers = connected_node_removed_handlers(source)
+        if handlers:
+            if len(handlers) != 1:
+                fail(
+                    f"runtime connects node_removed more than once: {rel_path} "
+                    f"handlers={list(handlers)}"
+                )
+            detected[rel_path] = handlers[0]
+            if entry.get("node_removed_cleanup_required") is not True:
+                fail(
+                    f"runtime connects node_removed without lifecycle declaration: "
+                    f"{rel_path} handler={handlers[0]}"
+                )
+            if entry.get("node_removed_cleanup_handler") != handlers[0]:
+                fail(f"runtime/contract node_removed handler mismatch: {rel_path}")
+
     for rel_path, handler in EXPECTED.items():
         entry = by_path.get(rel_path)
         if not isinstance(entry, dict):
@@ -122,6 +185,8 @@ def main() -> None:
             fail(f"node_removed cleanup requirement missing: {rel_path}")
         if entry.get("node_removed_cleanup_handler") != handler:
             fail(f"node_removed cleanup handler drifted: {rel_path}")
+        if detected.get(rel_path) != handler:
+            fail(f"node_removed runtime watcher missing or drifted: {rel_path}")
         claimed.add(rel_path)
 
         source_path = ROOT / rel_path
@@ -183,10 +248,18 @@ def main() -> None:
     } - claimed
     if unexpected:
         fail(f"unexpected node_removed lifecycle claims: {sorted(unexpected)}")
+    if set(detected) != claimed:
+        fail(
+            f"node_removed watcher discovery drifted: "
+            f"runtime_only={sorted(set(detected)-claimed)} "
+            f"contract_only={sorted(claimed-set(detected))}"
+        )
 
     print(
         "SHARED_ENVIRONMENT_NODE_REMOVED_LIFECYCLE_OK: "
-        f"runtimes={len(EXPECTED)} watcher_cleanup=locked retained_state_cleanup=locked helper_watchers={len(HELPER_WATCHERS)} street_furniture_rebind=locked"
+        f"runtimes={len(EXPECTED)} watcher_cleanup=locked retained_state_cleanup=locked "
+        f"helper_watchers={len(HELPER_WATCHERS)} street_furniture_rebind=locked "
+        f"discovery=single_handler_fail_closed multiline=locked"
     )
 
 

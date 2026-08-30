@@ -24,10 +24,8 @@ def write_status(root: Path, status: dict) -> None:
 
 
 def test_current_blocked_state_is_truthful() -> None:
-    errors = module.validate(ROOT)
-    assert not errors, errors
-    errors = module.validate(ROOT, require_ready=True)
-    assert "CIV-1 runtime packaging is not activation-ready" in errors
+    assert not module.validate(ROOT)
+    assert "CIV-1 runtime packaging is not activation-ready" in module.validate(ROOT, require_ready=True)
 
 
 def test_player_reuse_cannot_be_runtime_package() -> None:
@@ -47,7 +45,7 @@ def test_authorization_cannot_precede_package() -> None:
         assert "production authorization requires complete source and runtime packages" in module.validate(root)
 
 
-def test_unresolved_license_scope_blocks_source_materialization() -> None:
+def test_embedded_mixamo_payload_blocks_source_materialization() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp); status = copy.deepcopy(BASE); status["source_package_present"] = True
         for rel in status["source_paths"]:
@@ -55,7 +53,7 @@ def test_unresolved_license_scope_blocks_source_materialization() -> None:
         write_status(root, status)
         errors = module.validate(root)
         assert "source materialization requires verified license scope for every source blob" in errors
-        assert "source materialization forbidden while character license evidence remains unresolved" in errors
+        assert "source materialization forbidden while character license components remain unresolved" in errors
 
 
 def test_repo_level_cc0_regression_is_rejected() -> None:
@@ -64,19 +62,33 @@ def test_repo_level_cc0_regression_is_rejected() -> None:
         status["character_source"] = {"repository": module.EXPECTED["character_repo"], "commit": module.EXPECTED["character_commit"], "license": "CC0-1.0"}
         write_status(root, status)
         errors = module.validate(root)
-        assert "character source license claim must remain MIXED" in errors
+        assert "character source license claim must remain MIXED_BY_COMPONENT" in errors
         assert "character source license evidence missing" in errors
 
 
-def test_source_manifest_license_scope_drift_is_rejected() -> None:
+def test_readme_and_notice_evidence_drift_is_rejected() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp); status = copy.deepcopy(BASE)
-        first = status["source_paths"][0]
-        status["source_manifest"][first]["license_scope_verified"] = True
-        status["source_manifest"][first]["license"] = "CC0-1.0"
+        status["character_source"]["license_evidence"]["readme_git_blob_sha1"] = "0" * 40
         write_status(root, status)
-        errors = module.validate(root)
-        assert any("source manifest pin drift" in e or "source manifest metadata drift" in e for e in errors), errors
+        assert "character source license evidence drift: readme_git_blob_sha1" in module.validate(root)
+
+
+def test_canonical_rigged_hair_pin_is_required() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp); status = copy.deepcopy(BASE)
+        hair = "assets/characters/civilians/civ1/source/vitruvian_hair_rigged.glb"
+        status["source_manifest"][hair]["git_blob_sha1"] = "0" * 40
+        write_status(root, status)
+        assert f"source manifest pin drift: {hair}" in module.validate(root)
+
+
+def test_obsolete_hair_intermediate_cannot_reenter_manifest() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp); status = copy.deepcopy(BASE)
+        status["excluded_upstream_intermediates"] = ["godot_project/vitruvian_hair.glb"]
+        write_status(root, status)
+        assert "excluded upstream hair intermediates drift" in module.validate(root)
 
 
 def test_declared_runtime_requires_hash_and_file() -> None:
@@ -91,9 +103,11 @@ def main() -> int:
         test_current_blocked_state_is_truthful,
         test_player_reuse_cannot_be_runtime_package,
         test_authorization_cannot_precede_package,
-        test_unresolved_license_scope_blocks_source_materialization,
+        test_embedded_mixamo_payload_blocks_source_materialization,
         test_repo_level_cc0_regression_is_rejected,
-        test_source_manifest_license_scope_drift_is_rejected,
+        test_readme_and_notice_evidence_drift_is_rejected,
+        test_canonical_rigged_hair_pin_is_required,
+        test_obsolete_hair_intermediate_cannot_reenter_manifest,
         test_declared_runtime_requires_hash_and_file,
     ]
     for test in tests:

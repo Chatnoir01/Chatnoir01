@@ -94,8 +94,8 @@ func _run() -> void:
         _fail("Central LABO_BRUT selector contract missing")
         return
     var toggle := selector.get_node_or_null("ZoneSelectorToggle") as Button
-    if toggle == null or toggle.text != "CHANGER DE ZONE" or not toggle.visible:
-        _fail("CHANGER DE ZONE control is not player-visible")
+    if toggle == null or toggle.text != "ZONES" or not toggle.is_visible_in_tree():
+        _fail("production ZONES control is not player-visible")
         return
     await selector.call("_apply_zone", current_scene, zone)
     await _wait_frames(24)
@@ -149,16 +149,16 @@ func _run() -> void:
     overview_camera.queue_free()
     await process_frame
 
-    # Third witness keeps the real production UI visible and proves the player can
-    # leave Central through the persistent CHANGER DE ZONE control.
     var overlay := current_scene.get_node_or_null("CentralStationWitnessOverlay")
     if overlay != null:
         overlay.queue_free()
+    if selector is CanvasLayer:
+        (selector as CanvasLayer).visible = true
     selector.call("set_menu_open", false)
     await _wait_frames(3)
     toggle = selector.get_node_or_null("ZoneSelectorToggle") as Button
-    if toggle == null or not toggle.visible or toggle.text != "CHANGER DE ZONE":
-        _fail("CHANGER DE ZONE disappeared after Central activation")
+    if toggle == null or toggle.text != "ZONES" or not toggle.is_visible_in_tree():
+        _fail("production ZONES control disappeared after Central activation")
         return
     var ui_path := OUT_DIR + "/central_station_change_zone_button.png"
     if not await _capture(ui_path):
@@ -179,7 +179,7 @@ func _run() -> void:
         "arrival_capture": arrival_path,
         "overview_capture": overview_path,
         "change_zone_ui_capture": ui_path,
-        "change_zone_button": {"text": toggle.text, "visible": toggle.visible},
+        "change_zone_button": {"text": toggle.text, "visible_in_tree": toggle.is_visible_in_tree()},
         "stats": (stats as Dictionary).duplicate(true),
         "production_selector_path": true,
         "source_backed_visual_invariants": {"upper_bays": 9, "entrance_columns": 4, "bilingual_signage": true, "canopy": true}
@@ -191,5 +191,5 @@ func _run() -> void:
         return
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
-    print("CENTRAL_STATION_VISUAL_WITNESS_OK: urban_id=30201 quality=LABO_BRUT buildings=%d surfaces=%d bays=%d columns=%d captures=3 change_zone_button=true authoritative_urbis=false promotion=false" % [building_count, street_surface_count, bay_count, column_count])
+    print("CENTRAL_STATION_VISUAL_WITNESS_OK: urban_id=30201 quality=LABO_BRUT buildings=%d surfaces=%d bays=%d columns=%d captures=3 zones_button=true authoritative_urbis=false promotion=false" % [building_count, street_surface_count, bay_count, column_count])
     quit(0)

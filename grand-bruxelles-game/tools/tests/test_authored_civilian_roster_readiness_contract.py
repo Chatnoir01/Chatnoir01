@@ -12,8 +12,8 @@ def test_authored_civilian_roster_readiness_is_fail_closed() -> None:
     status = json.loads(STATUS_PATH.read_text(encoding="utf-8"))
     visual = VISUAL_PATH.read_text(encoding="utf-8")
 
-    assert contract["format"] == "grand-bruxelles-authored-civilian-roster-readiness-v4"
-    assert contract["base_main_sha"] == "440b6264d57b32f776c4855aa9a76b897605f3e5"
+    assert contract["format"] == "grand-bruxelles-authored-civilian-roster-readiness-v5"
+    assert contract["base_main_sha"] == "141ed7bcf8b8a47638ba4380189c1949fab2c57a"
     assert contract["candidate_id"] == status["candidate_id"] == "CIV-1"
     assert contract["owner_verdict"] == status["owner_verdict"] == "GARDER"
 
@@ -32,6 +32,21 @@ def test_authored_civilian_roster_readiness_is_fail_closed() -> None:
         assert sanitization.get(key) == expected, f"CIV-1 sanitization contract drift: {key}"
     assert sanitization["materialization_allowed_after_strip"] is False
     assert (ROOT / sanitization["tool"]).is_file()
+
+    sanitized_evidence = status.get("sanitized_body_evidence", {})
+    assert sanitized_evidence == contract["required_sanitized_body_evidence"]
+    assert sanitized_evidence["source_git_blob_sha1"] == status["source_manifest"]["assets/characters/civilians/civ1/source/vitruvian_body.glb"]["git_blob_sha1"]
+    assert sanitized_evidence["source_size_bytes"] == status["source_manifest"]["assets/characters/civilians/civ1/source/vitruvian_body.glb"]["size_bytes"]
+    assert sanitized_evidence["animations_removed"] > 0
+    assert len(sanitized_evidence["sanitized_sha256"]) == 64
+    assert sanitized_evidence["sanitized_size_bytes"] > 0
+    assert sanitized_evidence["sanitized_size_bytes"] < sanitized_evidence["source_size_bytes"]
+    assert sanitized_evidence["inventory_format"] == "grand-bruxelles-sanitized-glb-inventory-v2"
+    assert sanitized_evidence["reference_integrity"] == "validated"
+    assert sanitized_evidence["counts"] == {"meshes": 3, "skins": 1, "materials": 4}
+    assert sanitized_evidence["binary_committed"] is False
+    assert sanitized_evidence["godot_import_verified"] is False
+    assert sanitized_evidence["visual_approval_claimed"] is False
 
     unresolved = []
     for rel_path, entry in contract["required_source_manifest"].items():
@@ -74,7 +89,7 @@ def test_authored_civilian_roster_readiness_is_fail_closed() -> None:
     for rel_path in status["runtime_files"]:
         assert not (ROOT / rel_path).exists(), f"runtime payload appeared without readiness promotion: {rel_path}"
     assert status["runtime_sha256"] == {}
-    assert contract["verdict"] == "BLOCK_RUNTIME_PROMOTION_UNTIL_MIXAMO_PAYLOAD_IS_REMOVED_AND_AUTHORED_CIVILIAN_PACKAGE_READY"
+    assert contract["verdict"] == "BLOCK_RUNTIME_PROMOTION_UNTIL_GODOT_IMPORT_AND_AUTHORED_CIVILIAN_PACKAGE_READY"
     assert all(value is False for value in contract["authorizations"].values())
 
 

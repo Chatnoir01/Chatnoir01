@@ -58,6 +58,10 @@ def main() -> int:
         count_string["entry_count"] = str(count_string["entry_count"])
         expect_fail(count_string, "JSON type drift entry_count")
 
+        road_record_underflow = json.loads(json.dumps(base))
+        road_record_underflow["road_record_count"] = 0
+        expect_fail(road_record_underflow, "road/drivable accounting drift")
+
         entry_id_string = json.loads(json.dumps(base))
         entry_id_string["entries"]["42"]["osm_id"] = "42"
         expect_fail(entry_id_string, "JSON type drift entry osm_id")

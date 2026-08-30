@@ -1,0 +1,146 @@
+name: Grand Bruxelles Gate-8 Real Pose Safety Contract
+
+on:
+  push:
+    branches: ["npc/gate8-real-pose-safety-contract-e5535c4"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-real-pose-safety-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  real-pose-safety-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_MAIN_SHA: "e5535c442c87029f68ce46578f8c95f768341350"
+      SOURCE_RUN_ID: "33280590816"
+      SOURCE_HEAD_SHA: "1f9e971db20050648d8bf2d5ee0881e2d69e2d2f"
+      SOURCE_ARTIFACT_ID: "9722873911"
+      SOURCE_ARTIFACT_DIGEST: "sha256:b867f3b5d4bcfe0650b0c86455da6560f6836ce67d6d4d4612a691b6ba7048b1"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and one-file Character/NPC scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' '.github/workflows/grand-bruxelles-gate8-real-pose-safety-contract.yml' > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+
+      - name: Download exact RED-first posed-geometry evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-real-pose-safety/evidence
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}" > /tmp/gate8-real-pose-safety/meta.json
+          python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/gate8-real-pose-safety/meta.json'))
+          assert not m['expired']
+          assert m['digest']==os.environ['SOURCE_ARTIFACT_DIGEST']
+          assert int(m['workflow_run']['id'])==int(os.environ['SOURCE_RUN_ID'])
+          assert m['workflow_run']['head_sha']==os.environ['SOURCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > /tmp/gate8-real-pose-safety/evidence.zip
+          unzip -q /tmp/gate8-real-pose-safety/evidence.zip -d /tmp/gate8-real-pose-safety/evidence
+          test -s /tmp/gate8-real-pose-safety/evidence/result.json
+
+      - name: Lock real-pose safety verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math
+          r=json.load(open('/tmp/gate8-real-pose-safety/evidence/result.json'))
+          assert r['format']=='grand-bruxelles-gate8-variant01-real-posed-geometry-v1-red-first'
+          assert r['diagnostic_state']=='RED_FIRST_REAL_POSED_GEOMETRY_MEASURED_UNREVIEWED'
+          assert r['source_evidence_artifact_id']==9720026708
+          assert r['source_evidence_head_sha']=='9defe931b0b51b3582c1e555ff80992f64f311fc'
+          assert r['mpfb_release']=='2.0.17'
+          assert r['mpfb_release_commit']=='80919fa'
+          assert r['sportsuit_vertex_count']==1797
+          assert r['rig_bone_count']==53
+          assert r['focus_vertices']==[377,378,379,486,599,601,615,864]
+          assert r['stored_inversion_count']==0
+          assert r['rematched_inversion_count']==0
+
+          critical_stored=float(r['critical_edge_mean_stored_abs_strain'])
+          critical_rematched=float(r['critical_edge_mean_rematched_abs_strain'])
+          control_stored=float(r['control_edge_mean_stored_abs_strain'])
+          control_rematched=float(r['control_edge_mean_rematched_abs_strain'])
+          assert math.isclose(critical_stored,20.61501449715799,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(critical_rematched,1.0616027960369216,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(control_stored,0.21001134282314843,rel_tol=0.0,abs_tol=1e-12)
+          assert math.isclose(control_rematched,2.072543401946727,rel_tol=0.0,abs_tol=1e-12)
+          assert critical_rematched < critical_stored * 0.06
+          assert control_rematched > control_stored * 9.0
+
+          edges={tuple(x['edge']):x for x in r['local_edges']}
+          expected_edges={(377,486),(379,486),(486,601),(486,864),(378,601),(599,601),(601,615)}
+          assert set(edges)==expected_edges
+          assert edges[(486,601)]['rematched_abs_strain'] < edges[(486,601)]['stored_abs_strain']
+          assert edges[(599,601)]['rematched_abs_strain'] < edges[(599,601)]['stored_abs_strain']
+          assert edges[(601,615)]['rematched_abs_strain'] < edges[(601,615)]['stored_abs_strain']
+          for edge in ((377,486),(379,486),(486,864),(378,601)):
+              assert edges[edge]['rematched_abs_strain'] > edges[edge]['stored_abs_strain']
+
+          displacement=r['displacements']
+          assert float(displacement['601']['stored_vs_rematched_delta_m']) > 0.50
+          assert float(displacement['378']['stored_vs_rematched_delta_m']) > 0.46
+          assert max(float(v['stored_vs_rematched_delta_m']) for v in displacement.values()) > 0.50
+
+          assert r['canonical_asset_mutation'] is False
+          assert r['canonical_mhclo_mutation'] is False
+          assert r['canonical_generator_mutation'] is False
+          assert r['runtime_npc_mutation'] is False
+          assert r['production_activation_allowed'] is False
+          assert r['visual_approval_allowed'] is False
+
+          verdict={
+              'format':'grand-bruxelles-gate8-real-pose-safety-verdict-v1',
+              'source_artifact_id':9722873911,
+              'source_artifact_digest':'sha256:b867f3b5d4bcfe0650b0c86455da6560f6836ce67d6d4d4612a691b6ba7048b1',
+              'critical_mean_abs_strain':[critical_stored,critical_rematched],
+              'control_mean_abs_strain':[control_stored,control_rematched],
+              'stored_inversions':0,
+              'rematched_inversions':0,
+              'decision':'REJECT_GLOBAL_REMATCH_FOR_PRODUCTION',
+              'reason':'critical_cliffs_improve_but_control_edges_and_vertex_displacements_regress_materially',
+              'next_safe_axis':'CONSTRAIN_REMATCH_TO_TOPOLOGICALLY_SAFE_LOCAL_SUPPORT_AND_REMEASURE_REAL_POSE',
+              'canonical_asset_mutation':False,
+              'canonical_mhclo_mutation':False,
+              'runtime_npc_mutation':False,
+              'production_activation_allowed':False,
+              'visual_approval_allowed':False,
+          }
+          open('/tmp/gate8-real-pose-safety/verdict.json','w').write(json.dumps(verdict,indent=2,sort_keys=True)+'\n')
+          print('GATE8_REAL_POSE_SAFETY_OK',verdict['decision'],critical_stored,'->',critical_rematched,control_stored,'->',control_rematched)
+          PY
+
+      - name: Upload reviewed safety verdict
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-real-pose-safety-verdict-v1
+          path: |
+            /tmp/gate8-real-pose-safety/verdict.json
+            /tmp/gate8-real-pose-safety/meta.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Prove repository stayed clean
+        run: test -z "$(git status --porcelain)"

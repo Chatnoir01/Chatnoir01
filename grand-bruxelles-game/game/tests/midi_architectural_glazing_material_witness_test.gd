@@ -62,6 +62,20 @@ func _run() -> void:
         _fail("runtime guard must reject source contract when runtime_approved=false")
         return
 
+    # RED-first authorization regression: the public enable path must not bypass
+    # the same source/presentation contract used during initial application.
+    runtime.set_enhanced_material_enabled(false)
+    runtime.set("_identity", unapproved)
+    runtime.set_enhanced_material_enabled(true)
+    if runtime.enhanced_material_enabled():
+        _fail("runtime_approved=false bypassed by set_enhanced_material_enabled(true)")
+        return
+    runtime.set("_identity", approved)
+    runtime.set_enhanced_material_enabled(true)
+    if not runtime.enhanced_material_enabled():
+        _fail("approved identity could not re-enable glazing after authorization guard")
+        return
+
     var material := runtime.enhanced_material() as ShaderMaterial
     if material == null:
         _fail("candidate material missing")

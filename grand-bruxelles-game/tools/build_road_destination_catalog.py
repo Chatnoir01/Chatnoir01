@@ -68,6 +68,15 @@ def require_json_int(value: Any, label: str, *, minimum: int | None = None) -> i
     return value
 
 
+def require_json_number(value: Any, label: str) -> float:
+    if type(value) not in (int, float):
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: JSON type drift {label}")
+    number = float(value)
+    if not math.isfinite(number):
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-finite {label}")
+    return number
+
+
 def require_json_string(value: Any, label: str) -> str:
     if type(value) is not str:
         raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: JSON type drift {label}")
@@ -282,6 +291,13 @@ def validate_contract(catalog: dict[str, Any]) -> None:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: OSM id key/value drift {raw_osm_id!r}")
         if raw_entry.get("drivable") is not True:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: indexed road is not drivable {osm_id}")
+        entry_name = require_json_string(raw_entry.get("name"), "entry name")
+        entry_class = require_json_string(raw_entry.get("class"), "entry class")
+        if not entry_name or entry_name.strip() != entry_name:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical entry name osm_id={osm_id}")
+        if entry_class.strip() != entry_class:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical entry class osm_id={osm_id}")
+        require_json_number(raw_entry.get("width"), "entry width")
         require_json_int(raw_entry.get("point_count"), "point_count", minimum=2)
         geometry_sha256 = raw_entry.get("geometry_sha256")
         if type(geometry_sha256) is not str:

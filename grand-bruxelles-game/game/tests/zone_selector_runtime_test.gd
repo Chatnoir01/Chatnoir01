@@ -101,20 +101,27 @@ func _run() -> void:
         _fail("Central missing from change-zone runtime list")
         return
     var toggle := selector.get_node_or_null("ZoneSelectorToggle") as Button
-    if toggle == null or toggle.text != "ZONES" or not toggle.is_visible_in_tree():
-        _fail("production ZONES button not player-visible")
+    if toggle == null or toggle.text != "CHANGER DE ZONE" or not toggle.is_visible_in_tree():
+        _fail("production CHANGER DE ZONE button not player-visible")
         return
     var panel := selector.get_node_or_null("ZoneSelectorPanel") as PanelContainer
     if panel == null:
         _fail("zone selector panel missing")
         return
-    selector.call("set_menu_open", true)
+    toggle.emit_signal("pressed")
     await process_frame
+    if not panel.visible:
+        _fail("CHANGER DE ZONE button did not open selector panel")
+        return
     var central_button := panel.find_child("Zone_central", true, false) as Button
     if central_button == null or not central_button.is_visible_in_tree() or not central_button.text.contains("LABO_BRUT"):
         _fail("Central button not visible/honest in production selector")
         return
-    selector.call("set_menu_open", false)
+    toggle.emit_signal("pressed")
+    await process_frame
+    if panel.visible:
+        _fail("CHANGER DE ZONE button did not close selector panel")
+        return
     if not selector.has_method("reporting_runtime") or not selector.has_method("can_promote_zone"):
         _fail("reporting contract missing")
         return
@@ -204,5 +211,5 @@ func _run() -> void:
             return
         print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
         print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d central=LABO_BRUT zones_button=true central_button=true reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
+    print("ZONE_SELECTOR_OK: listed=%d central=LABO_BRUT change_zone_button=true central_button=true reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

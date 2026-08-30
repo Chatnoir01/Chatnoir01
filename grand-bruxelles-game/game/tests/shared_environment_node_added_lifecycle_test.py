@@ -25,19 +25,20 @@ def handlers(pattern: re.Pattern[str], source: str) -> tuple[str, ...]:
 def validate_watcher_cardinality(source: str, rel_path: str) -> None:
     connected = handlers(NODE_ADDED_CONNECT_RE, source)
     disconnected = handlers(NODE_ADDED_DISCONNECT_RE, source)
-    if not connected:
-        fail(f"registered runtime has no node_added.connect handler: {rel_path}")
-    unique_connected = set(connected)
-    unique_disconnected = set(disconnected)
-    if len(unique_connected) != 1:
+    if len(connected) != 1:
         fail(
-            f"runtime connects node_added to multiple handlers: {rel_path} "
-            f"handlers={sorted(unique_connected)}"
+            f"runtime must connect node_added exactly once: {rel_path} "
+            f"sites={len(connected)} handlers={list(connected)}"
         )
-    if unique_disconnected != unique_connected:
+    if len(disconnected) != 1:
+        fail(
+            f"runtime must disconnect node_added exactly once: {rel_path} "
+            f"sites={len(disconnected)} handlers={list(disconnected)}"
+        )
+    if disconnected != connected:
         fail(
             f"node_added watcher cleanup mismatch: {rel_path} "
-            f"connected={sorted(unique_connected)} disconnected={sorted(unique_disconnected)}"
+            f"connected={list(connected)} disconnected={list(disconnected)}"
         )
 
 
@@ -74,6 +75,20 @@ def main() -> None:
         pass
     else:
         fail("duplicate node_added subscription sites are not rejected")
+
+    duplicate_disconnect_probe = "\n".join(
+        (
+            "node_added.connect(_on_node_added)",
+            "node_added.disconnect(_on_node_added)",
+            "node_added.disconnect(_on_node_added)",
+        )
+    )
+    try:
+        validate_watcher_cardinality(duplicate_disconnect_probe, "synthetic_duplicate_disconnect.gd")
+    except AssertionError:
+        pass
+    else:
+        fail("duplicate node_added disconnect sites are not rejected")
 
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("node_added_watcher_cleanup_required") is not True:

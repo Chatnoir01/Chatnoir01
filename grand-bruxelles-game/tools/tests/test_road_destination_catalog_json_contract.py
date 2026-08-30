@@ -5,6 +5,7 @@ import importlib.util
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools" / "build_road_destination_catalog.py"
@@ -14,18 +15,25 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
-def write_document(path: Path) -> None:
+def write_document(
+    path: Path,
+    *,
+    name: str = "Rue Test",
+    road_class: str = "tertiary",
+    width: float = 7.0,
+    points: Any = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps({
             "format": "grand-bruxelles-osm-v1",
             "roads": [{
                 "osm_id": 42,
-                "name": "Rue Test",
-                "class": "tertiary",
-                "width": 7.0,
+                "name": name,
+                "class": road_class,
+                "width": width,
                 "drivable": True,
-                "points": [[0.0, 0.0], [10.0, 0.0]],
+                "points": points if points is not None else [[0.0, 0.0], [10.0, 0.0]],
             }],
             "buildings": [],
         }),
@@ -45,6 +53,15 @@ def expect_fail(catalog: dict, needle: str) -> None:
         assert needle in str(exc), str(exc)
     else:
         raise AssertionError(f"expected fail-closed rejection containing {needle!r}")
+
+
+def expect_build_fail(root: Path, needle: str) -> None:
+    try:
+        module.build_catalog(root)
+    except SystemExit as exc:
+        assert needle in str(exc), str(exc)
+    else:
+        raise AssertionError(f"expected source build rejection containing {needle!r}")
 
 
 def main() -> int:
@@ -109,6 +126,14 @@ def main() -> int:
         width_nan["entries"]["42"]["width"] = float("nan")
         expect_fail(width_nan, "non-finite entry width")
 
+        width_zero = json.loads(json.dumps(base))
+        width_zero["entries"]["42"]["width"] = 0.0
+        expect_fail(width_zero, "non-positive entry width")
+
+        width_negative = json.loads(json.dumps(base))
+        width_negative["entries"]["42"]["width"] = -7.0
+        expect_fail(width_negative, "non-positive entry width")
+
         top_level_parallel_semantic = json.loads(json.dumps(base))
         top_level_parallel_semantic["safe_spawn_ready"] = True
         expect_fail(top_level_parallel_semantic, "catalog field set drift")
@@ -120,6 +145,43 @@ def main() -> int:
         authorization_parallel_semantic = json.loads(json.dumps(base))
         authorization_parallel_semantic["authorization"]["playable"] = True
         expect_fail(authorization_parallel_semantic, "authorization field set drift")
+
+        # Source identity fields must be exact; the factory must never silently trim
+        # source values before hashing/indexing them into the derived catalog.
+        write_document(root / "a.game.json", name=" Rue Test")
+        expect_build_fail(root, "non-canonical source name")
+        write_document(root / "a.game.json", road_class="tertiary ")
+        expect_build_fail(root, "non-canonical source class")
+
+        # Width is geometry-adjacent source truth. Zero/negative widths must not be
+        # indexed as valid destination-road metadata and must not survive re-signing.
+        write_document(root / "a.game.json", width=0.0)
+        expect_build_fail(root, "non-positive source width")
+        write_document(root / "a.game.json", width=-7.0)
+        expect_build_fail(root, "non-positive source width")
+
+        # A source point must be exactly the locked 2D [x,z] tuple. Extra dimensions
+        # must never be silently dropped before geometry hashing/catalog materialization.
+        write_document(root / "a.game.json", points=[[0.0, 0.0, 99.0], [10.0, 0.0]])
+        expect_build_fail(root, "non-canonical source point dimension")
+
+        # Malformed point records are source corruption, not ordinary ineligibility.
+        # A drivable road with an object/scalar point must therefore fail closed.
+        write_document(root / "a.game.json", points=[[0.0, 0.0], {"x": 10.0, "z": 0.0}])
+        expect_build_fail(root, "malformed source point points[1]")
+
+        # The points container itself is source truth. A drivable road must not turn
+        # a malformed container or an underspecified one-point geometry into an
+        # ordinary rejected/ineligible record.
+        write_document(root / "a.game.json", points={"start": [0.0, 0.0], "end": [10.0, 0.0]})
+        expect_build_fail(root, "malformed source points container")
+        write_document(root / "a.game.json", points=[[0.0, 0.0]])
+        expect_build_fail(root, "insufficient source points")
+
+        # Geometry evidence must never be computed from a rounded representation of
+        # the source JSON number. This integer cannot be represented exactly as float.
+        write_document(root / "a.game.json", points=[[9007199254740993, 0.0], [10.0, 0.0]])
+        expect_build_fail(root, "lossy source number points[0][0]")
 
     print("ROAD_DESTINATION_CATALOG_JSON_CONTRACT_TEST_GREEN")
     return 0

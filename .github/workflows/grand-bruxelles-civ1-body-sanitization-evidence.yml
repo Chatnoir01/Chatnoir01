@@ -43,7 +43,7 @@ jobs:
             --require-animations | tee /tmp/civ1-evidence/strip.log
           grep -Fq 'GLB_ANIMATION_STRIP_OK' /tmp/civ1-evidence/strip.log
 
-      - name: Inventory sanitized body and prove reference integrity
+      - name: Inventory sanitized body and bind immutable measured identity
         working-directory: grand-bruxelles-game
         run: |
           python3 tools/inventory_sanitized_glb.py \
@@ -53,16 +53,38 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p = Path('/tmp/civ1-evidence/vitruvian_body_sanitized.inventory.json')
-          inv = json.loads(p.read_text(encoding='utf-8'))
+
+          inv = json.loads(Path('/tmp/civ1-evidence/vitruvian_body_sanitized.inventory.json').read_text(encoding='utf-8'))
+          status = json.loads(Path('assets/characters/civilians/civ1/source_status.json').read_text(encoding='utf-8'))
+          evidence = status['sanitized_body_evidence']
+
+          assert status['format'] == 'grand-bruxelles-civ1-runtime-packaging-v5'
           assert inv['format'] == 'grand-bruxelles-sanitized-glb-inventory-v2'
           assert inv['animations_present'] is False
           assert inv['reference_integrity'] == 'validated'
-          assert inv['counts']['meshes'] > 0
-          assert inv['counts']['skins'] > 0
-          assert inv['counts']['materials'] > 0
-          assert len(inv['sha256']) == 64
-          print(f"CIV1_SANITIZED_BODY_EVIDENCE_OK sha256={inv['sha256']} size_bytes={inv['size_bytes']} meshes={inv['counts']['meshes']} skins={inv['counts']['skins']} materials={inv['counts']['materials']}")
+          assert inv['sha256'] == evidence['sanitized_sha256'] == '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888'
+          assert inv['size_bytes'] == evidence['sanitized_size_bytes'] == 6780124
+          assert inv['counts']['meshes'] == evidence['counts']['meshes'] == 3
+          assert inv['counts']['skins'] == evidence['counts']['skins'] == 1
+          assert inv['counts']['materials'] == evidence['counts']['materials'] == 4
+          assert evidence['source_git_blob_sha1'] == '09bcade1092e5a89b474e91e6013209d4c68c127'
+          assert evidence['source_size_bytes'] == 6879364
+          assert evidence['animations_removed'] == 6
+          assert evidence['inventory_format'] == inv['format']
+          assert evidence['reference_integrity'] == inv['reference_integrity']
+          assert evidence['artifact_id'] == 9738218858
+          assert evidence['artifact_zip_sha256'] == '727a316a0fc5d76284882fb4216699f04a3ba958b47daa45f5f8d50dba6fae53'
+          assert evidence['binary_committed'] is False
+          assert evidence['godot_import_verified'] is False
+          assert evidence['visual_approval_claimed'] is False
+          assert status['production_authorized'] is False
+          assert status['activation_ready'] is False
+          assert status['runtime_package_present'] is False
+          print(
+              'CIV1_SANITIZED_BODY_EVIDENCE_PIN_OK '
+              f"sha256={inv['sha256']} size_bytes={inv['size_bytes']} "
+              f"meshes={inv['counts']['meshes']} skins={inv['counts']['skins']} materials={inv['counts']['materials']}"
+          )
           PY
 
       - name: Assert evidence is CI-only and repository remains fail-closed

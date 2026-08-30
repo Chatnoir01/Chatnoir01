@@ -76,7 +76,7 @@ jobs:
       - name: Commit verified compact runtime to same-repo PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          if git diff --quiet -- grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime; then
+          if [ -z "$(git status --porcelain -- grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime)" ]; then
             echo 'Compact Heysel runtime already deterministic and current.'
             exit 0
           fi

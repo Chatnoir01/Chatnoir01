@@ -9,6 +9,8 @@ on:
       - 'grand-bruxelles-game/tools/build_road_runtime_index.py'
       - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog.py'
       - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog_json_contract.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog_source_path.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog_source_structure.py'
       - 'grand-bruxelles-game/tools/tests/test_road_runtime_index.py'
       - '.github/workflows/grand-bruxelles-road-destination-catalog.yml'
   workflow_dispatch:
@@ -29,6 +31,8 @@ jobs:
           set -euo pipefail
           python3 tools/tests/test_road_destination_catalog.py
           python3 tools/tests/test_road_destination_catalog_json_contract.py
+          python3 tools/tests/test_road_destination_catalog_source_path.py
+          python3 tools/tests/test_road_destination_catalog_source_structure.py
           python3 tools/tests/test_road_runtime_index.py
 
       - name: Build deterministic catalog and runtime index twice
@@ -54,6 +58,7 @@ jobs:
           catalog = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
           index = json.loads(Path('artifacts/road-catalog/runtime-index-a.json').read_text(encoding='utf-8'))
           assert catalog['format'] == 'grand-bruxelles-road-destination-catalog-v1'
+          assert catalog['road_record_count'] >= catalog['drivable_record_count']
           assert catalog['drivable_record_count'] >= 140
           assert catalog['eligible_record_count'] >= 139
           assert catalog['entry_count'] >= 139

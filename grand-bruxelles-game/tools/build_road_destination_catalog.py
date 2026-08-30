@@ -169,15 +169,20 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
             continue
         roads = document.get("roads")
         if not isinstance(roads, list):
-            continue
+            raise SystemExit(
+                f"ROAD_DESTINATION_CATALOG_FAIL: malformed source roads container {path}"
+            )
         compatible_documents += 1
         relative = require_canonical_source_document_path(
             path.relative_to(source_root.parent.parent).as_posix(), "generated source document path"
         )
         document_digests[relative] = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
-        for raw_road in roads:
+        for road_index, raw_road in enumerate(roads):
             if not isinstance(raw_road, dict):
-                continue
+                raise SystemExit(
+                    "ROAD_DESTINATION_CATALOG_FAIL: malformed source road record "
+                    f"roads[{road_index}] in {path}"
+                )
             road_record_count += 1
             is_drivable = raw_road.get("drivable") is True
             if is_drivable:

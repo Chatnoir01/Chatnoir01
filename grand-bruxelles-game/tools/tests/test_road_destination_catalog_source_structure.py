@@ -67,6 +67,19 @@ def main() -> int:
         })
         expect_build_fail(root, "malformed source road record roads[1]")
 
+        # `drivable` is a canonical source-schema boolean. Values that merely resemble
+        # booleans must fail closed instead of being silently normalized to non-drivable.
+        for malformed_drivable in ("true", 1, None):
+            malformed_road = dict(valid_road())
+            malformed_road["osm_id"] = 43
+            malformed_road["drivable"] = malformed_drivable
+            write_json(root / "malformed-container.game.json", {
+                "format": "grand-bruxelles-osm-v1",
+                "roads": [valid_road(), malformed_road],
+                "buildings": [],
+            })
+            expect_build_fail(root, "source JSON type drift drivable")
+
     print("ROAD_DESTINATION_CATALOG_SOURCE_STRUCTURE_TEST_GREEN")
     return 0
 

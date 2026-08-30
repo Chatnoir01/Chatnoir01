@@ -1,0 +1,18 @@
+name: Grand Bruxelles Gate-8 One-Ring Blend Candidate
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/gate8_one_ring_blend_candidate_contract.json'
+      - 'grand-bruxelles-game/tools/tests/test_gate8_one_ring_blend_candidate_contract.py'
+      - '.github/workflows/grand-bruxelles-gate8-one-ring-blend-candidate.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify measured one-ring candidate contract
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_gate8_one_ring_blend_candidate_contract.py

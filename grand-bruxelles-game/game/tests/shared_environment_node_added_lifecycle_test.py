@@ -6,11 +6,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = ROOT / "data" / "qa" / "shared_environment_lifecycle_contract.json"
+_HANDLER_ARG = r'(?:Callable\s*\(\s*self\s*,\s*["\']([_A-Za-z0-9]+)["\']\s*\)|([_A-Za-z0-9]+))'
 NODE_ADDED_CONNECT_RE = re.compile(
-    r"node_added\s*\.\s*connect\s*\(\s*([_A-Za-z0-9]+)\s*\)"
+    rf"node_added\s*\.\s*connect\s*\(\s*{_HANDLER_ARG}\s*\)"
 )
 NODE_ADDED_DISCONNECT_RE = re.compile(
-    r"node_added\s*\.\s*disconnect\s*\(\s*([_A-Za-z0-9]+)\s*\)"
+    rf"node_added\s*\.\s*disconnect\s*\(\s*{_HANDLER_ARG}\s*\)"
 )
 
 
@@ -19,7 +20,12 @@ def fail(message: str) -> None:
 
 
 def handlers(pattern: re.Pattern[str], source: str) -> tuple[str, ...]:
-    return tuple(match.group(1) for match in pattern.finditer(source))
+    found: list[str] = []
+    for match in pattern.finditer(source):
+        handler = match.group(1) or match.group(2)
+        if handler:
+            found.append(handler)
+    return tuple(found)
 
 
 def validate_watcher_cardinality(source: str, rel_path: str) -> None:
@@ -59,6 +65,18 @@ def main() -> None:
         fail("node_added watcher discovery does not enumerate multiline connect sites")
     if handlers(NODE_ADDED_DISCONNECT_RE, discovery_probe) != ("_on_node_added",):
         fail("node_added watcher discovery does not detect multiline disconnect")
+
+    callable_probe = "\n".join(
+        (
+            'var callback := Callable(self, "_on_tree_node_added")',
+            'node_added.connect(Callable(self, "_on_tree_node_added"))',
+            'node_added.disconnect(Callable(self, "_on_tree_node_added"))',
+        )
+    )
+    if handlers(NODE_ADDED_CONNECT_RE, callable_probe) != ("_on_tree_node_added",):
+        fail("node_added watcher discovery does not detect Callable connect syntax")
+    if handlers(NODE_ADDED_DISCONNECT_RE, callable_probe) != ("_on_tree_node_added",):
+        fail("node_added watcher discovery does not detect Callable disconnect syntax")
 
     duplicate_subscription_probe = "\n".join(
         (
@@ -127,7 +145,7 @@ def main() -> None:
     print(
         "SHARED_ENVIRONMENT_NODE_ADDED_LIFECYCLE_OK: "
         f"runtimes={len(runtimes)} watcher_cleanup=locked "
-        "single_subscription=locked multiline=locked cleanup_handlers=locked"
+        "single_subscription=locked multiline=locked callable=locked cleanup_handlers=locked"
     )
 
 

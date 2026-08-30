@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'data' / 'qa' / 'brussels_missing_road_source_artifact_lock.json'
 EXPECTED_NIS = {'21002','21003','21005','21006','21007','21008','21009','21010','21011','21012','21014','21015','21016','21017','21018','21019'}
@@ -27,6 +29,11 @@ def require_git_sha(value: object, label: str) -> str:
     if type(value) is not str or len(value) != 40 or any(ch not in HEX for ch in value):
         raise AssertionError(f'{label}: invalid git sha')
     return value
+
+
+def test_artifact_digest_requires_explicit_sha256_prefix() -> None:
+    with pytest.raises(AssertionError, match='artifact_digest: invalid sha256'):
+        require_sha256('0' * 64, 'artifact_digest', prefix=True)
 
 
 def test_locked_batch_contract() -> None:

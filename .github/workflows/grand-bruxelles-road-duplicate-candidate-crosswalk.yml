@@ -1,0 +1,31 @@
+name: Grand Bruxelles Road Duplicate Candidate Crosswalk
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/brussels_missing_road_source_artifact_lock.json'
+      - 'grand-bruxelles-game/data/qa/brussels_missing_road_duplicate_candidate_crosswalk.json'
+      - 'grand-bruxelles-game/data/qa/road_duplicate_candidate_crosswalk/**'
+      - 'grand-bruxelles-game/tools/build_missing_road_duplicate_candidate_crosswalk.py'
+      - 'grand-bruxelles-game/tests/test_missing_road_duplicate_candidate_crosswalk.py'
+      - '.github/workflows/grand-bruxelles-road-duplicate-candidate-crosswalk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-duplicate-candidate-frontier:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Validate locked duplicate candidate frontier
+        run: python -m pytest -q tests/test_missing_road_duplicate_candidate_crosswalk.py

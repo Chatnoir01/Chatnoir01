@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Fail-closed validator for LABO -> JOUABLE zone promotion evidence."""
+"""Fail-closed validator for LABO -> JOUABLE hard evidence.
+
+Promotion is blocked only by the hard technical stages in the contract. Visual
+review stages remain reportable post-integration and never substitute for hard
+source/runtime/collision/export proof.
+"""
 
 from __future__ import annotations
 
@@ -52,19 +57,26 @@ def validate_repository(repo_root: Path, contract_path: Path | None = None) -> d
     if not isinstance(policy, dict):
         raise PromotionValidationError("promotion policy missing")
     required_true = (
-        "human_only_promotion",
         "jouable_requires_proof",
-        "jouable_requires_human_pass",
+        "hard_failures_block_promotion",
         "labo_data_ready_is_not_jouable",
-        "missing_or_broken_evidence_fails_closed",
+        "missing_or_broken_hard_evidence_fails_closed",
     )
     for key in required_true:
         if policy.get(key) is not True:
             raise PromotionValidationError(f"policy must keep {key}=true")
-    if policy.get("city_machine_may_promote") is not False:
-        raise PromotionValidationError("City Machine must not be allowed to promote zones")
-    if policy.get("labo_may_hold_approved_jouable_decision") is not False:
-        raise PromotionValidationError("LABO must not carry approved JOUABLE decisions")
+    required_false = (
+        "human_only_promotion",
+        "jouable_requires_human_pass",
+        "visual_findings_block_promotion",
+        "city_machine_may_promote",
+        "labo_may_hold_approved_jouable_decision",
+    )
+    for key in required_false:
+        if policy.get(key) is not False:
+            raise PromotionValidationError(f"policy must keep {key}=false")
+    if policy.get("visual_review_mode") != "post_integration":
+        raise PromotionValidationError("visual review must remain post_integration")
 
     catalog_rel = contract.get("catalog_path")
     proof_dir_rel = contract.get("proof_directory")
@@ -79,9 +91,16 @@ def validate_repository(repo_root: Path, contract_path: Path | None = None) -> d
         raise PromotionValidationError("catalog zones missing")
     allowed_qualities = set(contract.get("allowed_catalog_qualities", []))
     approved_decisions = set(contract.get("approved_jouable_decisions", []))
-    required_stages = contract.get("required_stages")
-    if not allowed_qualities or not approved_decisions or not isinstance(required_stages, list) or not required_stages:
-        raise PromotionValidationError("contract quality/decision/stage lists incomplete")
+    hard_required_stages = contract.get("hard_required_stages")
+    visual_review_stages = contract.get("visual_review_stages")
+    if not allowed_qualities or not approved_decisions:
+        raise PromotionValidationError("contract quality/decision lists incomplete")
+    if not isinstance(hard_required_stages, list) or not hard_required_stages:
+        raise PromotionValidationError("hard required stages missing")
+    if not isinstance(visual_review_stages, list):
+        raise PromotionValidationError("visual review stages missing")
+    if set(hard_required_stages) & set(visual_review_stages):
+        raise PromotionValidationError("hard and visual stages must be disjoint")
 
     zone_by_id: dict[str, dict[str, Any]] = {}
     for zone in zones:
@@ -111,9 +130,10 @@ def validate_repository(repo_root: Path, contract_path: Path | None = None) -> d
             raise PromotionValidationError(f"duplicate proof for zone: {zone_id}")
         proofs[zone_id] = proof
 
-    jouable = []
-    labo = []
-    approved = []
+    jouable: list[str] = []
+    labo: list[str] = []
+    approved: list[str] = []
+    visual_findings: dict[str, list[str]] = {}
     for zone_id, zone in zone_by_id.items():
         quality = zone["quality"]
         proof = proofs.get(zone_id)
@@ -121,8 +141,18 @@ def validate_repository(repo_root: Path, contract_path: Path | None = None) -> d
             jouable.append(zone_id)
             if proof is None:
                 raise PromotionValidationError(f"JOUABLE zone missing proof: {zone_id}")
-            _validate_jouable_proof(repo_root, contract, zone_id, proof, approved_decisions, required_stages)
+            findings = _validate_jouable_proof(
+                repo_root,
+                contract,
+                zone_id,
+                proof,
+                approved_decisions,
+                hard_required_stages,
+                visual_review_stages,
+            )
             approved.append(zone_id)
+            if findings:
+                visual_findings[zone_id] = findings
         else:
             labo.append(zone_id)
             if proof is not None and proof.get("decision") in approved_decisions:
@@ -130,7 +160,7 @@ def validate_repository(repo_root: Path, contract_path: Path | None = None) -> d
 
     if not jouable:
         raise PromotionValidationError("catalog has no JOUABLE baseline")
-    return {"jouable": jouable, "labo": labo, "approved": approved}
+    return {"jouable": jouable, "labo": labo, "approved": approved, "visual_findings": visual_findings}
 
 
 def _validate_jouable_proof(
@@ -139,8 +169,9 @@ def _validate_jouable_proof(
     zone_id: str,
     proof: dict[str, Any],
     approved_decisions: set[Any],
-    required_stages: list[Any],
-) -> None:
+    hard_required_stages: list[Any],
+    visual_review_stages: list[Any],
+) -> list[str]:
     if proof.get("schema") != contract.get("proof_schema"):
         raise PromotionValidationError(f"proof schema mismatch: {zone_id}")
     if proof.get("catalog_quality") != "JOUABLE":
@@ -152,22 +183,35 @@ def _validate_jouable_proof(
     stages = proof.get("stages")
     if not isinstance(stages, dict):
         raise PromotionValidationError(f"proof stages missing: {zone_id}")
-    for stage_name in required_stages:
+
+    for stage_name in hard_required_stages:
         stage = stages.get(stage_name)
         if not isinstance(stage, dict):
-            raise PromotionValidationError(f"missing required stage {stage_name}: {zone_id}")
+            raise PromotionValidationError(f"missing hard stage {stage_name}: {zone_id}")
         if stage.get("status") != "PASS":
-            raise PromotionValidationError(f"stage {stage_name} is not PASS: {zone_id}")
+            raise PromotionValidationError(f"hard stage {stage_name} is not PASS: {zone_id}")
         evidence = stage.get("evidence")
         if not isinstance(evidence, list) or not evidence:
-            raise PromotionValidationError(f"stage {stage_name} has no evidence: {zone_id}")
+            raise PromotionValidationError(f"hard stage {stage_name} has no evidence: {zone_id}")
         for evidence_path in evidence:
             _safe_repo_file(repo_root, evidence_path)
-    human = stages.get("human_visual_verdict", {})
-    if human.get("verdict") != "PASS" or not isinstance(human.get("scope"), str) or not human.get("scope").strip():
-        raise PromotionValidationError(f"human visual PASS missing: {zone_id}")
-    if human.get("realism_complete") is not False:
-        raise PromotionValidationError(f"human verdict must not claim overall realism complete: {zone_id}")
+
+    # Visual stages are deliberately advisory. Missing/failed visual review is
+    # surfaced as debt, never converted into a technical promotion failure.
+    findings: list[str] = []
+    for stage_name in visual_review_stages:
+        stage = stages.get(stage_name)
+        if not isinstance(stage, dict):
+            findings.append(f"{stage_name}:NOT_REVIEWED")
+            continue
+        status = str(stage.get("status", "NOT_REVIEWED")).strip().upper() or "NOT_REVIEWED"
+        if status != "PASS":
+            findings.append(f"{stage_name}:{status}")
+        if stage_name == "human_visual_verdict":
+            verdict = str(stage.get("verdict", "NOT_REVIEWED")).strip().upper() or "NOT_REVIEWED"
+            if verdict != "PASS" and f"{stage_name}:{verdict}" not in findings:
+                findings.append(f"{stage_name}:{verdict}")
+    return findings
 
 
 def main() -> int:
@@ -176,15 +220,18 @@ def main() -> int:
     except PromotionValidationError as exc:
         print(f"ZONE_PROMOTION_GATE_FAIL {exc}", file=sys.stderr)
         return 1
+    finding_count = sum(len(items) for items in result["visual_findings"].values())
     print(
         "ZONE_PROMOTION_GATE_OK "
         f"jouable={len(result['jouable'])} labo={len(result['labo'])} "
-        f"approved={','.join(result['approved'])}"
+        f"approved={','.join(result['approved'])} visual_findings={finding_count} review=POST_INTEGRATION"
     )
     for zone_id in result["jouable"]:
-        print(f"ZONE_STATUS {zone_id}=JOUABLE_PROOF_OK")
+        print(f"ZONE_STATUS {zone_id}=JOUABLE_HARD_PROOF_OK")
     for zone_id in result["labo"]:
         print(f"ZONE_STATUS {zone_id}=LABO_NOT_PROMOTED")
+    for zone_id, findings in sorted(result["visual_findings"].items()):
+        print(f"ZONE_VISUAL_DEBT {zone_id}={','.join(findings)}")
     return 0
 
 

@@ -1,0 +1,57 @@
+{
+  "schema": "grand-bruxelles-gate8-one-ring-blend-candidate-v1",
+  "production_base_sha": "5711ca48ac08d9e27e1263d44eb1898e52ee6fd9",
+  "source_run_id": 33287685742,
+  "source_head_sha": "62c2e641898e895b46b87398dd396237a5359483",
+  "artifact": {
+    "id": 9724959018,
+    "name": "gate8-one-ring-blend-sweep-v1-red-first",
+    "digest": "sha256:1c56a65c28cf07f52ea682f3a808edf1d25be4c555917f9c57e11f1d4ad3567a"
+  },
+  "generator": {
+    "blender": "4.2.23 LTS",
+    "mpfb": "2.0.17",
+    "mpfb_build": "20260722",
+    "source_pack_sha256": "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+  },
+  "candidate_strategy": "UNIFORM_LINEAR_BLEND_STORED_TO_REMATCHED_WEIGHTS_ACROSS_REVIEWED_ONE_RING",
+  "focus_vertices": [377, 378, 379, 486, 599, 601, 615, 864],
+  "stored_baseline": {
+    "critical_edge_mean_abs_strain": 20.61501449715799,
+    "control_edge_mean_abs_strain": 0.21001134282314843,
+    "control_edge_378_601_abs_strain": 0.7165112716322206,
+    "inversion_count": 0
+  },
+  "measured_candidates": [
+    {"alpha": 0.0625, "critical_edge_mean_abs_strain": 19.17005065709761, "control_edge_mean_abs_strain": 0.21423327400709247, "control_edge_378_601_abs_strain": 0.5406972934423873, "focus_vertex_max_delta_m": 0.03226612691424906, "focus_vertex_mean_delta_m": 0.012900841646222062, "inversion_count": 0},
+    {"alpha": 0.125, "critical_edge_mean_abs_strain": 17.725412522921065, "control_edge_mean_abs_strain": 0.20877274018148895, "control_edge_378_601_abs_strain": 0.30035489876373256, "focus_vertex_max_delta_m": 0.06453220512084126, "focus_vertex_mean_delta_m": 0.02580163470499073, "inversion_count": 0},
+    {"alpha": 0.25, "critical_edge_mean_abs_strain": 14.837486505108187, "control_edge_mean_abs_strain": 0.31343604677845466, "control_edge_378_601_abs_strain": 0.22084645573175554, "focus_vertex_max_delta_m": 0.1290645275008474, "focus_vertex_mean_delta_m": 0.051603108883168096, "inversion_count": 0},
+    {"alpha": 0.375, "critical_edge_mean_abs_strain": 11.952513801961308, "control_edge_mean_abs_strain": 0.5868906720455711, "control_edge_378_601_abs_strain": 0.7559049266469677, "focus_vertex_max_delta_m": 0.19359673021639054, "focus_vertex_mean_delta_m": 0.0774044293473749, "inversion_count": 0},
+    {"alpha": 0.5, "critical_edge_mean_abs_strain": 9.073495297862921, "control_edge_mean_abs_strain": 0.8719834576279677, "control_edge_378_601_abs_strain": 1.295156585759051, "focus_vertex_max_delta_m": 0.2581289864499197, "focus_vertex_mean_delta_m": 0.10320559290712614, "inversion_count": 0}
+  ],
+  "selected_candidate": {
+    "alpha": 0.125,
+    "critical_edge_mean_abs_strain": 17.725412522921065,
+    "control_edge_mean_abs_strain": 0.20877274018148895,
+    "control_edge_378_601_abs_strain": 0.30035489876373256,
+    "focus_vertex_max_delta_m": 0.06453220512084126,
+    "focus_vertex_mean_delta_m": 0.02580163470499073,
+    "inversion_count": 0,
+    "critical_reduction_fraction": 0.14016977648185935,
+    "control_mean_reduction_fraction": 0.005897789257518937,
+    "control_378_601_reduction_fraction": 0.5808092480115201
+  },
+  "verdict": "FREEZE_ALPHA_0_125_AS_MECHANICAL_CANDIDATE_ONLY",
+  "reason": "Alpha 0.125 is the only measured point that simultaneously reduces critical mean strain, control mean strain and the 378-601 control edge without local inversions. It remains mechanically unapproved for source mutation because the maximum one-ring vertex displacement is 0.06453220512084126 m and no player-view silhouette evidence exists.",
+  "authorization": {
+    "canonical_asset_mutation": false,
+    "mhclo_mutation": false,
+    "generator_mutation": false,
+    "runtime_npc_mutation": false,
+    "reweight_authorized": false,
+    "retarget_authorized": false,
+    "production_activation": false,
+    "visual_approval": false
+  },
+  "next_safe_axis": "ISOLATED_ALPHA_0_125_REAL_POSE_GEOMETRY_PLUS_PLAYER_VIEW_AB"
+}

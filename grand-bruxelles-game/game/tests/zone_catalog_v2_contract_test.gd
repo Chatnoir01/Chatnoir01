@@ -17,11 +17,17 @@ func _init() -> void:
     if not model is Dictionary:
         _fail("quality_model missing")
         return
-    if not bool((model as Dictionary).get("jouable_requires_human_promotion", false)):
-        _fail("JOUABLE human promotion law missing")
+    if bool((model as Dictionary).get("jouable_requires_human_promotion", true)):
+        _fail("JOUABLE still requires pre-integration human promotion")
         return
-    if not bool((model as Dictionary).get("open_player_report_blocks_jouable", false)):
-        _fail("OPEN report promotion block missing")
+    if bool((model as Dictionary).get("open_player_report_blocks_jouable", true)):
+        _fail("open visual player reports still block JOUABLE")
+        return
+    if not bool((model as Dictionary).get("hard_blocker_blocks_jouable", false)):
+        _fail("hard blocker promotion law missing")
+        return
+    if not bool((model as Dictionary).get("visual_findings_are_post_integration", false)):
+        _fail("post-integration visual review law missing")
         return
     var contract: Variant = document.get("listing_contract", {})
     if not contract is Dictionary:
@@ -32,8 +38,8 @@ func _init() -> void:
             _fail("listing contract gate missing: %s" % key)
             return
     var zones: Array = selector.call("parse_catalog_document", document)
-    if zones.size() != 9:
-        _fail("expected nine visible entries including Central LABO_BRUT, got %d" % zones.size())
+    if zones.size() != 8:
+        _fail("expected eight visible entries, got %d" % zones.size())
         return
     var midi := _zone_by_id(zones, "midi")
     if str(midi.get("quality", "")) != "JOUABLE" or str(midi.get("mode", "")) != "fast_travel" or str(midi.get("destination", "")) != "midi":
@@ -41,20 +47,13 @@ func _init() -> void:
         return
     var midi_machine_labo := _zone_by_id(zones, "midi_machine_labo")
     if str(midi_machine_labo.get("quality", "")) != "LABO":
-        _fail("Midi City Machine review entry lost LABO quality")
+        _fail("Midi City Machine candidate entry lost LABO quality")
         return
     if str(midi_machine_labo.get("review_alias_of", "")) != "midi":
-        _fail("Midi City Machine review alias ownership missing")
+        _fail("Midi City Machine candidate alias ownership missing")
         return
     if str(midi_machine_labo.get("mode", "")) != "script_zone" or str(midi_machine_labo.get("script", "")) != "res://game/zones/midi/midi_city_machine_zone.gd":
-        _fail("Midi City Machine review runtime contract drifted")
-        return
-    var central := _zone_by_id(zones, "central")
-    if str(central.get("quality", "")) != "LABO_BRUT" or str(central.get("mode", "")) != "script_zone":
-        _fail("Central LABO_BRUT visible catalog entry missing")
-        return
-    if str(central.get("script", "")) != "res://game/zones/central/central_station_context_labo.gd":
-        _fail("Central contextual LABO_BRUT script contract drifted")
+        _fail("Midi City Machine candidate runtime contract drifted")
         return
     var brut_doc := {
         "schema": "grand-bruxelles-playable-zone-catalog-v2",
@@ -89,7 +88,7 @@ func _init() -> void:
     if (selector.call("parse_catalog_document", legacy_doc) as Array).size() != 1:
         _fail("v1 backward compatibility was lost")
         return
-    print("ZONE_CATALOG_V2_OK: visible=9 canonical=8 review_aliases=1 central_brut=1 contextual_runtime=true midi=JOUABLE midi_machine_labo=LABO central=LABO_BRUT stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
+    print("ZONE_CATALOG_V2_OK: visible=8 canonical=7 review_aliases=1 midi=JOUABLE midi_machine_labo=LABO visual_reports=SOFT hard_blockers=BLOCKING review=POST_INTEGRATION stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
     selector.free()
     quit(0)
 

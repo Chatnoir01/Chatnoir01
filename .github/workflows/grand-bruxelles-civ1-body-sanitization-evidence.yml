@@ -1,0 +1,84 @@
+name: Grand Bruxelles CIV-1 Body Sanitization Evidence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json"
+      - "grand-bruxelles-game/tools/fetch_civ1_pinned_sources.py"
+      - "grand-bruxelles-game/tools/strip_glb_animations.py"
+      - "grand-bruxelles-game/tools/inventory_sanitized_glb.py"
+      - "grand-bruxelles-game/tests/test_fetch_civ1_pinned_sources_selection.py"
+      - ".github/workflows/grand-bruxelles-civ1-body-sanitization-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  civ1-body-sanitization-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Selection regression
+        run: python3 grand-bruxelles-game/tests/test_fetch_civ1_pinned_sources_selection.py
+
+      - name: Fetch exact pinned CIV-1 body only
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/fetch_civ1_pinned_sources.py --fetch \
+            --only assets/characters/civilians/civ1/source/vitruvian_body.glb | tee /tmp/civ1-fetch.log
+          grep -Eq '^(fetched_verified|already_verified) assets/characters/civilians/civ1/source/vitruvian_body.glb 09bcade1092e5a89b474e91e6013209d4c68c127$' /tmp/civ1-fetch.log
+          grep -Fq 'CIV1_PINNED_SOURCE_PLAN_OK files=1 network_fetch=true' /tmp/civ1-fetch.log
+          test "$(stat -c %s assets/characters/civilians/civ1/source/vitruvian_body.glb)" = "6879364"
+
+      - name: Strip embedded animations deterministically
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/civ1-evidence
+          python3 tools/strip_glb_animations.py \
+            assets/characters/civilians/civ1/source/vitruvian_body.glb \
+            /tmp/civ1-evidence/vitruvian_body_sanitized.glb \
+            --require-animations | tee /tmp/civ1-evidence/strip.log
+          grep -Fq 'GLB_ANIMATION_STRIP_OK' /tmp/civ1-evidence/strip.log
+
+      - name: Inventory sanitized body and prove reference integrity
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/inventory_sanitized_glb.py \
+            /tmp/civ1-evidence/vitruvian_body_sanitized.glb \
+            /tmp/civ1-evidence/vitruvian_body_sanitized.inventory.json | tee /tmp/civ1-evidence/inventory.log
+          grep -Fq 'GLB_SANITIZED_INVENTORY_OK' /tmp/civ1-evidence/inventory.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('/tmp/civ1-evidence/vitruvian_body_sanitized.inventory.json')
+          inv = json.loads(p.read_text(encoding='utf-8'))
+          assert inv['format'] == 'grand-bruxelles-sanitized-glb-inventory-v2'
+          assert inv['animations_present'] is False
+          assert inv['reference_integrity'] == 'validated'
+          assert inv['counts']['meshes'] > 0
+          assert inv['counts']['skins'] > 0
+          assert inv['counts']['materials'] > 0
+          assert len(inv['sha256']) == 64
+          print(f"CIV1_SANITIZED_BODY_EVIDENCE_OK sha256={inv['sha256']} size_bytes={inv['size_bytes']} meshes={inv['counts']['meshes']} skins={inv['counts']['skins']} materials={inv['counts']['materials']}")
+          PY
+
+      - name: Assert evidence is CI-only and repository remains fail-closed
+        working-directory: grand-bruxelles-game
+        run: |
+          git status --short
+          test ! -e assets/characters/civilians/civ1/civ1.tscn
+          python3 tools/validate_civ1_runtime_packaging.py
+
+      - name: Upload sanitized-body evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-sanitized-body-evidence-${{ github.sha }}
+          path: |
+            /tmp/civ1-evidence/vitruvian_body_sanitized.inventory.json
+            /tmp/civ1-evidence/strip.log
+            /tmp/civ1-evidence/inventory.log
+          if-no-files-found: error
+          retention-days: 14

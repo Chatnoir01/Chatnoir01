@@ -21,6 +21,7 @@ var _awaiting_midi := false
 var _bind_in_progress := false
 var _tearing_down := false
 var _watched_tree: SceneTree
+var _midi_root: Node
 
 func _ready() -> void:
     _tearing_down = false
@@ -34,8 +35,7 @@ func _ready() -> void:
         _ready_complete = true
         return
     _awaiting_midi = true
-    _watched_tree = get_tree()
-    _watched_tree.node_added.connect(_on_node_added)
+    _start_watching()
     call_deferred("_bind_existing_midi")
 
 func _exit_tree() -> void:
@@ -43,28 +43,70 @@ func _exit_tree() -> void:
     _awaiting_midi = false
     _bind_in_progress = false
     _release_material_ownership()
-    _disconnect_node_added_watcher()
+    _midi_root = null
+    _stop_watching()
 
-func _disconnect_node_added_watcher() -> void:
-    if _watched_tree != null and is_instance_valid(_watched_tree) and _watched_tree.node_added.is_connected(_on_node_added):
-        _watched_tree.node_added.disconnect(_on_node_added)
+func _start_watching() -> void:
+    if _tearing_down or not is_inside_tree():
+        return
+    var tree: SceneTree = get_tree()
+    if tree == null:
+        return
+    if _watched_tree != null and _watched_tree != tree:
+        _stop_watching()
+    _watched_tree = tree
+    if not _watched_tree.node_added.is_connected(_on_node_added):
+        _watched_tree.node_added.connect(_on_node_added)
+    if not _watched_tree.node_removed.is_connected(_on_node_removed):
+        _watched_tree.node_removed.connect(_on_node_removed)
+
+func _stop_watching() -> void:
+    if _watched_tree != null and is_instance_valid(_watched_tree):
+        if _watched_tree.node_added.is_connected(_on_node_added):
+            _watched_tree.node_added.disconnect(_on_node_added)
+        if _watched_tree.node_removed.is_connected(_on_node_removed):
+            _watched_tree.node_removed.disconnect(_on_node_removed)
     _watched_tree = null
 
 func _bind_existing_midi() -> void:
-    if _ready_complete or _identity_failure or _bind_in_progress or _tearing_down or not is_inside_tree():
+    if _identity_failure or _bind_in_progress or _tearing_down or not is_inside_tree():
         return
-    var midi := get_tree().root.get_node_or_null("GrandBruxelles/MidiHeroZone")
+    if _midi_root != null and is_instance_valid(_midi_root) and _midi_root.is_inside_tree():
+        return
+    var tree: SceneTree = get_tree()
+    if tree == null:
+        return
+    var midi := tree.root.get_node_or_null("GrandBruxelles/MidiHeroZone")
     if midi == null:
-        midi = get_tree().root.find_child("MidiHeroZone", true, false)
+        midi = tree.root.find_child("MidiHeroZone", true, false)
     if midi != null:
         _bind_in_progress = true
         _apply_when_subtree_ready(midi)
 
 func _on_node_added(node: Node) -> void:
-    if _ready_complete or _identity_failure or _bind_in_progress or _tearing_down or node.name != "MidiHeroZone":
+    if _identity_failure or _bind_in_progress or _tearing_down or node.name != "MidiHeroZone":
+        return
+    if _midi_root != null and is_instance_valid(_midi_root) and _midi_root.is_inside_tree():
         return
     _bind_in_progress = true
     _apply_when_subtree_ready(node)
+
+func _on_node_removed(node: Node) -> void:
+    if _tearing_down or _midi_root == null:
+        return
+    var removed_bound_root := node == _midi_root
+    if not removed_bound_root and is_instance_valid(_midi_root):
+        removed_bound_root = node.is_ancestor_of(_midi_root)
+    if not removed_bound_root:
+        return
+    _release_material_ownership()
+    _midi_root = null
+    _ready_complete = false
+    _identity_failure = false
+    _awaiting_midi = true
+    _bind_in_progress = false
+    _start_watching()
+    call_deferred("_bind_existing_midi")
 
 func _apply_when_subtree_ready(midi: Node) -> void:
     for _frame: int in range(SUBTREE_READY_FRAMES):
@@ -74,6 +116,7 @@ func _apply_when_subtree_ready(midi: Node) -> void:
         _targets.clear()
         _collect_targets(midi)
         if _targets.size() == EXPECTED_SURFACES:
+            _midi_root = midi
             _apply_material()
             return
         var tree: SceneTree = get_tree()
@@ -102,7 +145,6 @@ func _apply_material() -> void:
 func _finish_waiting() -> void:
     _awaiting_midi = false
     _bind_in_progress = false
-    _disconnect_node_added_watcher()
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):

@@ -1,0 +1,134 @@
+name: Grand Bruxelles Gate-8 Alpha0125 Player A-B Review
+
+on:
+  push:
+    branches: ["npc/gate8-alpha0125-visual-verdict-f2da555-r2"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-alpha0125-player-ab-review.yml"
+      - "grand-bruxelles-game/data/qa/gate8_alpha0125_player_ab_review_contract.json"
+      - "grand-bruxelles-game/tools/tests/test_gate8_alpha0125_player_ab_review_contract.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reviewed-player-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BASE_MAIN_SHA: "f2da5552898d1db4884b4e2983a6092070d203d1"
+      EVIDENCE_RUN_ID: "33294351954"
+      EVIDENCE_HEAD_SHA: "974c864164112b53bb93ddb7351df512ceaac5fd"
+      EVIDENCE_ARTIFACT_ID: "9726974286"
+      EVIDENCE_ARTIFACT_DIGEST: "sha256:4452a6279e5066df8191869a10256a65d62478e714e7c17bdb7015e70a432506"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live main and bounded Character/NPC evidence scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_MAIN_SHA"
+          git diff --name-only origin/main...HEAD | sort > /tmp/actual-scope.txt
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-alpha0125-player-ab-review.yml' \
+            'grand-bruxelles-game/data/qa/gate8_alpha0125_player_ab_review_contract.json' \
+            'grand-bruxelles-game/tools/tests/test_gate8_alpha0125_player_ab_review_contract.py' | sort > /tmp/expected-scope.txt
+          diff -u /tmp/expected-scope.txt /tmp/actual-scope.txt
+
+      - name: Validate immutable review contract against mechanical candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/tests/test_gate8_alpha0125_player_ab_review_contract.py
+
+      - name: Re-fetch exact historical artifact and verify provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-review
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ARTIFACT_ID}" > /tmp/gate8-review/meta.json
+          python3 - <<'PY'
+          import json, os
+          meta=json.load(open('/tmp/gate8-review/meta.json'))
+          assert not meta['expired']
+          assert meta['digest']==os.environ['EVIDENCE_ARTIFACT_DIGEST']
+          assert int(meta['workflow_run']['id'])==int(os.environ['EVIDENCE_RUN_ID'])
+          assert meta['workflow_run']['head_sha']==os.environ['EVIDENCE_HEAD_SHA']
+          PY
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ARTIFACT_ID}/zip" > /tmp/gate8-review/evidence.zip
+          unzip -q /tmp/gate8-review/evidence.zip -d /tmp/gate8-review/evidence
+
+      - name: Verify exact reviewed frames and full-frame measurements
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/gate8-review/evidence
+          echo 'bdd8f2512239d947412447cb78d9c30fed2c6545f53f05dda8dbbb532e51ce09  player-ab.json' | sha256sum -c -
+          echo '5cc6d79371f9201a823374f829cb1fb2a65043aec92a40816625a16a58e5bd44  baseline-frames/gate8-01-2m-3q.png' | sha256sum -c -
+          echo '83a2eff81b3895b42f2e874b7dca90f43d135cffb2928e04b94f7527cdaba2b5  baseline-frames/gate8-01-2m.png' | sha256sum -c -
+          echo '1d39c2f54ff7c8702c90ffb0687bc400bb253723c9026a7cbc84f0fd16e0e11e  baseline-frames/gate8-01-5m.png' | sha256sum -c -
+          echo 'a766f82a02883d16fa95d3c6b661deb920254c76140e75a3dde5415816f20f08  baseline-frames/gate8-01-8m.png' | sha256sum -c -
+          echo '48fc57b340a8624080db4576e95417b406fb5e396e3e28f2b33f81fde2d027eb  candidate-frames/gate8-01-2m-3q.png' | sha256sum -c -
+          echo 'c487ecce8c1a298b301d0144123df6ee9dd51c83746fcd528210d51a29c26b26  candidate-frames/gate8-01-2m.png' | sha256sum -c -
+          echo '829758c81cf545bb8ed2d29ccaf8ca79369d064066ce5ab352227b22506c8d3e  candidate-frames/gate8-01-5m.png' | sha256sum -c -
+          echo '86a5e49d26d9143723e8aae49c01ad1a3a6fe02302a5b9ad78296387a641fbe8  candidate-frames/gate8-01-8m.png' | sha256sum -c -
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          p=json.load(open('player-ab.json'))
+          assert p['engine']=='Godot 4.7.1 stable'
+          assert p['resolution']==[1280,720]
+          assert p['variant']=='npc_gate_01' and p['alpha']==0.125
+          assert p['human_full_frame_review_required'] is True
+          assert p['visual_approval'] is False
+          exact={
+            'gate8-01-2m-3q.png':(0.00015625,0.4549019607843137),
+            'gate8-01-2m.png':(0.00005099826388888889,0.0784313725490196),
+            'gate8-01-5m.png':(0.0000010850694444444444,0.25098039215686274),
+            'gate8-01-8m.png':(0.000002170138888888889,0.3176470588235294),
+          }
+          assert len(p['frames'])==4
+          for row in p['frames']:
+            assert (row['changed_pixel_fraction'],row['max_abs_rgb_delta'])==exact[row['frame']]
+          for folder in ('baseline-frames','candidate-frames'):
+            for name in exact:
+              raw=(Path(folder)/name).read_bytes()
+              assert raw[:8]==b'\x89PNG\r\n\x1a\n'
+              w,h=struct.unpack('>II',raw[16:24])
+              assert (w,h)==(1280,720)
+          PY
+
+      - name: Require frozen fail-closed visual verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          c=json.load(open('grand-bruxelles-game/data/qa/gate8_alpha0125_player_ab_review_contract.json'))
+          r=c['human_full_frame_review']
+          assert r['verdict']=='JETER_AS_PRODUCTION_VISUAL_FIX_KEEP_AS_MECHANICAL_DIAGNOSTIC'
+          assert r['gross_new_deformation'] is False
+          assert r['visible_credibility_improvement_at_2m'] is False
+          assert r['visible_credibility_improvement_at_5m'] is False
+          assert r['visible_credibility_improvement_at_8m'] is False
+          assert all(v is False for v in c['authorization'].values())
+          print('GATE8_ALPHA0125_VISUAL_REVIEW_LOCKED production_visual_fix=JETER mechanical_diagnostic=KEEP authorization=false')
+          PY
+
+      - name: Prove canonical repository stayed clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=all)"

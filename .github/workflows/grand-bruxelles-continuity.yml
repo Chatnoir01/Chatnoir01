@@ -19,25 +19,62 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Validate eight canonical zones plus one review alias
+      - name: Validate seven canonical zones plus visible review aliases
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py validate | tee /tmp/continuity-validate.log
-          grep -F "CONTINUITY_REGISTRY_OK zones=8 visible=9 review_aliases=1 central=M1 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5" /tmp/continuity-validate.log
+          grep -F "CONTINUITY_REGISTRY_OK zones=7 visible=8 review_aliases=1 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5 review=POST_INTEGRATION" /tmp/continuity-validate.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          registry = json.loads(Path('grand-bruxelles-game/data/qa/zone_maturity_registry.json').read_text(encoding='utf-8'))
+          policy = registry['policy']
+          assert policy['automation_ceiling'] == 'M5_JOUABLE_READY'
+          assert policy['m6_human_only'] is False
+          assert policy['visual_review'] == 'post_integration'
+          assert policy['visual_findings_block_promotion'] is False
+          assert policy['hard_blockers_block_promotion'] is True
+          assert set(registry['report_sync']['accepted_ticket_schemas']) == {
+              'grand-bruxelles-player-report-v1',
+              'grand-bruxelles-player-report-v2',
+          }
+          print('CONTINUITY_POST_INTEGRATION_POLICY_OK human_only=false visual=soft hard=blocking schemas=v1,v2')
+          PY
       - name: Prove deterministic next lots before report sync
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens | tee /tmp/anneessens-next.log
           grep -F '"next_lot": "report_ingest_then_ready_proof"' /tmp/anneessens-next.log
           grep -F '"report_sync_required_before_M5": true' /tmp/anneessens-next.log
-          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone central | tee /tmp/central-next.log
-          grep -F '"maturity": "M1_LABO_BRUT"' /tmp/central-next.log
-          grep -F '"target_maturity": "M5_JOUABLE_READY"' /tmp/central-next.log
-          grep -F '"next_lot": "central_official_urbis_regional_context"' /tmp/central-next.log
+          grep -F '"review_mode": "post_integration"' /tmp/anneessens-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone jette | tee /tmp/jette-next.log
           grep -F '"next_lot": "midi_material_kit"' /tmp/jette-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone midi | tee /tmp/midi-next.log
-          grep -F '"decision": "protect_human_jouable_baseline"' /tmp/midi-next.log
+          grep -F '"decision": "protect_jouable_baseline"' /tmp/midi-next.log
+      - name: Prove M5 stays active without mandatory human wait
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/tools/continuity/continuity.py')
+          spec = importlib.util.spec_from_file_location('gb_continuity_post_integration_test', path)
+          assert spec and spec.loader
+          continuity = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(continuity)
+          continuity.registry_rows = lambda: ({}, {
+              'synthetic_m5': {
+                  'maturity': 'M5_JOUABLE_READY',
+                  'target_maturity': 'M5_JOUABLE_READY',
+                  'next_lot': 'unused',
+              }
+          })
+          decision = continuity.next_lot('synthetic_m5', None, None)
+          assert decision['decision'] == 'maintain_playable_candidate'
+          assert decision['next_lot'] == 'post_integration_visual_debt'
+          assert decision['review_mode'] == 'post_integration'
+          print('CONTINUITY_M5_POST_INTEGRATION_OK decision=maintain_playable_candidate wait_human=false')
+          PY
       - name: Prove explicit empty Anneessens export becomes durable zero-open proof
         run: |
           set -euo pipefail
@@ -48,16 +85,19 @@ jobs:
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens --report-sync /tmp/anneessens-sync.json | tee /tmp/anneessens-after-sync.log
           grep -F '"report_sync_complete": true' /tmp/anneessens-after-sync.log
           grep -F '"report_sync_required_before_M5": false' /tmp/anneessens-after-sync.log
-      - name: Prove oldest synced Anneessens report wins
+      - name: Prove oldest v2 or v1 synced Anneessens report wins
         run: |
           set -euo pipefail
           mkdir -p /tmp/anneessens-open
           printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"new","status":"open","zone":{"id":"anneessens"},"captured_unix":200,"note":"newer"}' > /tmp/anneessens-open/new.gbreport.json
-          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"old","status":"open","zone":{"id":"anneessens"},"captured_unix":100,"note":"oldest"}' > /tmp/anneessens-open/old.gbreport.json
+          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v2","id":"old","status":"open","kind":"visual","blocking":false,"zone":{"id":"anneessens"},"captured_unix":100,"note":"oldest"}' > /tmp/anneessens-open/old.gbreport.json
           python3 grand-bruxelles-game/tools/continuity/continuity.py sync --zone anneessens --reports-dir /tmp/anneessens-open --out /tmp/anneessens-open-sync.json
+          grep -F '"report_schema": "grand-bruxelles-player-report-v2"' /tmp/anneessens-open-sync.json
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens --report-sync /tmp/anneessens-open-sync.json | tee /tmp/report-next.log
           grep -F '"decision": "fix_oldest_open_report"' /tmp/report-next.log
           grep -F '"report_id": "old"' /tmp/report-next.log
+          grep -F '"blocking": false' /tmp/report-next.log
+          grep -F '"review_mode": "post_integration"' /tmp/report-next.log
       - name: Reject malformed or foreign-zone exports
         run: |
           set -euo pipefail
@@ -66,7 +106,7 @@ jobs:
           if python3 grand-bruxelles-game/tools/continuity/continuity.py sync --zone anneessens --reports-dir /tmp/bad-schema --out /tmp/bad.json; then
             echo "malformed schema was incorrectly accepted" >&2; exit 1
           fi
-          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"jette-report","status":"open","zone":{"id":"jette"},"captured_unix":1}' > /tmp/foreign-zone/jette.gbreport.json
+          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v2","id":"jette-report","status":"open","kind":"visual","blocking":false,"zone":{"id":"jette"},"captured_unix":1}' > /tmp/foreign-zone/jette.gbreport.json
           if python3 grand-bruxelles-game/tools/continuity/continuity.py sync --zone anneessens --reports-dir /tmp/foreign-zone --out /tmp/foreign.json; then
             echo "foreign-zone export was incorrectly accepted" >&2; exit 1
           fi

@@ -1,0 +1,91 @@
+{
+  "schema": "grand-bruxelles-gate8-alpha0125-player-ab-review-v1",
+  "contract_base_sha": "f2da5552898d1db4884b4e2983a6092070d203d1",
+  "evidence": {
+    "workflow_run_id": 33294351954,
+    "head_sha": "974c864164112b53bb93ddb7351df512ceaac5fd",
+    "artifact_id": 9726974286,
+    "artifact_digest": "sha256:4452a6279e5066df8191869a10256a65d62478e714e7c17bdb7015e70a432506",
+    "artifact_name": "gate8-alpha0125-player-ab-v1-red-first",
+    "run_conclusion": "failure_after_artifact_upload_cleanup_only",
+    "engine": "Godot 4.7.1 stable",
+    "blender": "4.2.23 LTS",
+    "mpfb": "2.0.17",
+    "source_pack_sha256": "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a",
+    "variant": "npc_gate_01",
+    "alpha": 0.125,
+    "resolution": [1280, 720],
+    "frozen_pose_local_z_degrees": {
+      "upperarm_r": 35.0,
+      "clavicle_r": 12.0,
+      "spine_03": 4.0,
+      "spine_02": 2.0
+    }
+  },
+  "frames": [
+    {
+      "name": "gate8-01-2m-3q.png",
+      "view": "2m-three-quarter",
+      "changed_pixel_fraction": 0.00015625,
+      "max_abs_rgb_delta": 0.4549019607843137,
+      "baseline_sha256": "5cc6d79371f9201a823374f829cb1fb2a65043aec92a40816625a16a58e5bd44",
+      "candidate_sha256": "48fc57b340a8624080db4576e95417b406fb5e396e3e28f2b33f81fde2d027eb"
+    },
+    {
+      "name": "gate8-01-2m.png",
+      "view": "2m-front",
+      "changed_pixel_fraction": 0.00005099826388888889,
+      "max_abs_rgb_delta": 0.0784313725490196,
+      "baseline_sha256": "83a2eff81b3895b42f2e874b7dca90f43d135cffb2928e04b94f7527cdaba2b5",
+      "candidate_sha256": "c487ecce8c1a298b301d0144123df6ee9dd51c83746fcd528210d51a29c26b26"
+    },
+    {
+      "name": "gate8-01-5m.png",
+      "view": "5m-front",
+      "changed_pixel_fraction": 0.0000010850694444444444,
+      "max_abs_rgb_delta": 0.25098039215686274,
+      "baseline_sha256": "1d39c2f54ff7c8702c90ffb0687bc400bb253723c9026a7cbc84f0fd16e0e11e",
+      "candidate_sha256": "829758c81cf545bb8ed2d29ccaf8ca79369d064066ce5ab352227b22506c8d3e"
+    },
+    {
+      "name": "gate8-01-8m.png",
+      "view": "8m-front",
+      "changed_pixel_fraction": 0.000002170138888888889,
+      "max_abs_rgb_delta": 0.3176470588235294,
+      "baseline_sha256": "a766f82a02883d16fa95d3c6b661deb920254c76140e75a3dde5415816f20f08",
+      "candidate_sha256": "86a5e49d26d9143723e8aae49c01ad1a3a6fe02302a5b9ad78296387a641fbe8"
+    }
+  ],
+  "player_ab_json_sha256": "bdd8f2512239d947412447cb78d9c30fed2c6545f53f05dda8dbbb532e51ce09",
+  "human_full_frame_review": {
+    "performed": true,
+    "all_eight_frames_inspected": true,
+    "gross_new_deformation": false,
+    "visible_credibility_improvement_at_2m": false,
+    "visible_credibility_improvement_at_5m": false,
+    "visible_credibility_improvement_at_8m": false,
+    "largest_visible_delta_location": "localized shoulder-clothing edge in 2m three-quarter view",
+    "verdict": "JETER_AS_PRODUCTION_VISUAL_FIX_KEEP_AS_MECHANICAL_DIAGNOSTIC",
+    "reason": "The posed candidate is stable and introduces no gross deformation, but the alpha=0.125 change is visually negligible in the required 2-8 m player views. The strongest measured full-frame delta affects only 0.015625% of pixels in the 2 m three-quarter frame and there is no visible credibility improvement that justifies canonical source mutation."
+  },
+  "mechanical_context": {
+    "contract": "gate8_one_ring_blend_candidate_contract.json",
+    "critical_edge_mean_abs_strain_before": 20.61501449715799,
+    "critical_edge_mean_abs_strain_after": 17.725412522921065,
+    "critical_reduction_fraction": 0.14016977648185935,
+    "focus_vertex_max_delta_m": 0.06453220512084126,
+    "inversion_count": 0
+  },
+  "authorization": {
+    "canonical_asset_mutation": false,
+    "mhclo_mutation": false,
+    "generator_mutation": false,
+    "runtime_npc_mutation": false,
+    "reweight_authorized": false,
+    "retarget_authorized": false,
+    "production_activation": false,
+    "visual_approval": false,
+    "jouable": false
+  },
+  "next_safe_axis": "REJECT_UNIFORM_ALPHA0125_VISUAL_FIX_AND_TEST_A_MORE_LOCAL_TOPOLOGY_OR_SOURCE_FIT_CORRECTION_WITH_VISIBLE_2M_EVIDENCE"
+}

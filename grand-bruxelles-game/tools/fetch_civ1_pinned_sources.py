@@ -81,6 +81,17 @@ def load_plan(root: Path) -> list[dict]:
     return plan
 
 
+def select_plan(plan: list[dict], requested_paths: list[str] | None) -> list[dict]:
+    if not requested_paths:
+        return plan
+    requested = list(dict.fromkeys(requested_paths))
+    available = {item["relative_path"]: item for item in plan}
+    unknown = [path for path in requested if path not in available]
+    if unknown:
+        raise ValueError(f"requested CIV-1 source is not pinned: {', '.join(unknown)}")
+    return [available[path] for path in requested]
+
+
 def verify_file(path: Path, expected_blob: str, expected_size: int | None) -> None:
     if expected_size is not None and path.stat().st_size != expected_size:
         raise ValueError(f"source size mismatch for {path}: expected {expected_size}, got {path.stat().st_size}")
@@ -119,10 +130,17 @@ def fetch_one(root: Path, item: dict) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Plan or fetch the exact pinned CC0 source bytes for CIV-1")
     parser.add_argument("--fetch", action="store_true", help="perform network downloads; without this flag only print the immutable plan")
+    parser.add_argument(
+        "--only",
+        action="append",
+        default=[],
+        metavar="RELATIVE_PATH",
+        help="operate only on an exact pinned CIV-1 relative path; may be repeated",
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     try:
-        plan = load_plan(root)
+        plan = select_plan(load_plan(root), args.only)
         for item in plan:
             if args.fetch:
                 state = fetch_one(root, item)

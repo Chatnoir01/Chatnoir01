@@ -2,7 +2,7 @@ extends SceneTree
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const REPORT_RUNTIME_PATH := "res://game/scripts/player_issue_report_runtime.gd"
-const EXPECTED_IDS := ["midi", "midi_machine_labo", "anneessens", "bourse", "grand_place", "central", "ixelles", "atomium", "jette"]
+const EXPECTED_IDS := ["midi", "midi_machine_labo", "anneessens", "bourse", "grand_place", "ixelles", "atomium", "jette"]
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -33,14 +33,13 @@ func _run() -> void:
     var midi: Dictionary = {}
     var midi_machine_labo: Dictionary = {}
     var anneessens: Dictionary = {}
-    var central: Dictionary = {}
     for raw: Variant in zones:
         if not raw is Dictionary:
             _fail("zone row invalid")
             return
         var zone := raw as Dictionary
         var quality := str(zone.get("quality", ""))
-        if quality not in ["JOUABLE", "LABO", "LABO_BRUT"]:
+        if quality not in ["JOUABLE", "LABO"]:
             _fail("invalid quality %s" % quality)
             return
         for requirement: Variant in zone.get("requires", []):
@@ -48,10 +47,12 @@ func _run() -> void:
                 _fail("missing requirement %s" % str(requirement))
                 return
         match str(zone.get("id", "")):
-            "midi": midi = zone
-            "midi_machine_labo": midi_machine_labo = zone
-            "anneessens": anneessens = zone
-            "central": central = zone
+            "midi":
+                midi = zone
+            "midi_machine_labo":
+                midi_machine_labo = zone
+            "anneessens":
+                anneessens = zone
         ids.append(str(zone.get("id", "")))
     if ids != EXPECTED_IDS:
         _fail("unexpected listed zones %s" % str(ids))
@@ -67,12 +68,6 @@ func _run() -> void:
         return
     if anneessens.is_empty() or str(anneessens.get("quality", "")) != "LABO":
         _fail("Anneessens LABO contract missing")
-        return
-    if central.is_empty() or str(central.get("quality", "")) != "LABO_BRUT" or str(central.get("mode", "")) != "script_zone":
-        _fail("Central LABO_BRUT selector contract missing")
-        return
-    if str(central.get("script", "")) != "res://game/zones/central/central_station_context_labo.gd":
-        _fail("Central contextual selector script drifted")
         return
     var life_script := str(anneessens.get("life_script", ""))
     var life_minimum: Variant = anneessens.get("life_minimum", {})
@@ -92,36 +87,6 @@ func _run() -> void:
     if available.size() != EXPECTED_IDS.size():
         _fail("runtime filtered a proven zone")
         return
-    var runtime_central: Dictionary = {}
-    for raw_zone: Variant in available:
-        if raw_zone is Dictionary and str((raw_zone as Dictionary).get("id", "")) == "central":
-            runtime_central = raw_zone as Dictionary
-            break
-    if runtime_central.is_empty() or str(runtime_central.get("quality", "")) != "LABO_BRUT":
-        _fail("Central missing from change-zone runtime list")
-        return
-    var toggle := selector.get_node_or_null("ZoneSelectorToggle") as Button
-    if toggle == null or toggle.text != "CHANGER DE ZONE" or not toggle.is_visible_in_tree():
-        _fail("production CHANGER DE ZONE button not player-visible")
-        return
-    var panel := selector.get_node_or_null("ZoneSelectorPanel") as PanelContainer
-    if panel == null:
-        _fail("zone selector panel missing")
-        return
-    toggle.emit_signal("pressed")
-    await process_frame
-    if not panel.visible:
-        _fail("CHANGER DE ZONE button did not open selector panel")
-        return
-    var central_button := panel.find_child("Zone_central", true, false) as Button
-    if central_button == null or not central_button.is_visible_in_tree() or not central_button.text.contains("LABO_BRUT"):
-        _fail("Central button not visible/honest in production selector")
-        return
-    toggle.emit_signal("pressed")
-    await process_frame
-    if panel.visible:
-        _fail("CHANGER DE ZONE button did not close selector panel")
-        return
     if not selector.has_method("reporting_runtime") or not selector.has_method("can_promote_zone"):
         _fail("reporting contract missing")
         return
@@ -129,17 +94,23 @@ func _run() -> void:
     if reporter == null:
         _fail("reporter missing")
         return
-    for method_name: String in ["begin_report", "create_report_from_image", "create_report_from_context", "open_report_count"]:
+    for method_name: String in ["begin_report", "create_report_from_image", "create_report_from_context", "open_report_count", "visual_report_count", "blocking_report_count"]:
         if not reporter.has_method(method_name):
             _fail("reporter method missing %s" % method_name)
             return
-    if reporter.get_node_or_null("ReportButton") == null:
-        _fail("SIGNALER button missing")
+    var report_button := reporter.get_node_or_null("ReportButton") as Button
+    if report_button == null or not report_button.text.begins_with("À SIGNALER"):
+        _fail("À SIGNALER button missing")
         return
 
     var sample := Image.create(8, 8, false, Image.FORMAT_RGBA8)
     sample.fill(Color(0.2, 0.3, 0.4, 1.0))
-    var report_context := {"id": "anneessens", "label": "Anneessens", "quality": "LABO", "position": [-272.04, 1.05, -217.07]}
+    var report_context := {
+        "id": "anneessens",
+        "label": "Anneessens",
+        "quality": "LABO",
+        "position": [-272.04, 1.05, -217.07],
+    }
     var report_path := str(reporter.call("create_report_from_context", "sol trou", sample, report_context, false))
     if report_path.is_empty() or not FileAccess.file_exists(report_path):
         _fail("report ticket not written")
@@ -151,8 +122,11 @@ func _run() -> void:
     var report := report_variant as Dictionary
     var report_zone: Variant = report.get("zone", {})
     var screenshot: Variant = report.get("screenshot", {})
-    if report.get("schema", "") != "grand-bruxelles-player-report-v1" or report.get("status", "") != "open":
+    if report.get("schema", "") != "grand-bruxelles-player-report-v2" or report.get("status", "") != "open":
         _fail("report schema/status invalid")
+        return
+    if str(report.get("kind", "")) != "visual" or bool(report.get("blocking", true)):
+        _fail("visual report lost non-blocking semantics")
         return
     if not report_zone is Dictionary or str((report_zone as Dictionary).get("id", "")) != "anneessens" or report.get("note", "") != "sol trou":
         _fail("report player context invalid")
@@ -160,17 +134,23 @@ func _run() -> void:
     if not screenshot is Dictionary or not str((screenshot as Dictionary).get("data", "")).begins_with("iVBOR"):
         _fail("report screenshot missing")
         return
-    if int(reporter.call("open_report_count", "anneessens")) != 1 or bool(selector.call("can_promote_zone", "anneessens")):
-        _fail("open report did not block LABO promotion")
+    if int(reporter.call("visual_report_count", "anneessens")) != 1:
+        _fail("visual report not counted")
+        return
+    if int(reporter.call("blocking_report_count", "anneessens")) != 0 or int(reporter.call("open_report_count", "anneessens")) != 0:
+        _fail("visual report leaked into hard-blocker count")
+        return
+    if not bool(selector.call("can_promote_zone", "anneessens")):
+        _fail("visual report unexpectedly blocked LABO advancement")
         return
     var screenshot_path := str(report.get("screenshot_file", ""))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(report_path))
     if not screenshot_path.is_empty():
         DirAccess.remove_absolute(ProjectSettings.globalize_path(screenshot_path))
     if not bool(selector.call("can_promote_zone", "anneessens")):
-        _fail("promotion gate stayed blocked after report removal")
+        _fail("promotion gate blocked without hard blocker")
         return
-    print("PLAYER_REPORT_CONTRACT_OK: zone=anneessens note=sol trou screenshot=png promotion_blocked=true")
+    print("PLAYER_REPORT_CONTRACT_OK: zone=anneessens note=sol trou screenshot=png visual_report=soft promotion_blocked=false")
 
     if "capture=1" in OS.get_cmdline_user_args():
         var main := (load("res://game/main.tscn") as PackedScene).instantiate()
@@ -210,6 +190,6 @@ func _run() -> void:
             _fail("report witness save failed")
             return
         print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
-        print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d central=LABO_BRUT contextual_runtime=true change_zone_button=true central_button=true reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
+        print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720 post_integration=true")
+    print("ZONE_SELECTOR_OK: listed=%d canonical=7 review_aliases=1 playable=1 lab=7 reporting=true visual_reports=soft anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

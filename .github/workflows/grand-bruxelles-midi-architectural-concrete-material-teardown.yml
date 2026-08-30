@@ -7,6 +7,7 @@ on:
       - 'grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json'
       - 'grand-bruxelles-game/game/tests/shared_environment_material_ownership_teardown_test.py'
       - 'grand-bruxelles-game/game/tests/midi_architectural_concrete_material_teardown_test.gd'
+      - 'grand-bruxelles-game/game/tests/midi_architectural_concrete_scene_replacement_test.gd'
       - 'grand-bruxelles-game/data/visual/midi_architectural_concrete_material_identity.json'
       - '.github/workflows/grand-bruxelles-midi-architectural-concrete-material-teardown.yml'
   workflow_dispatch:
@@ -17,7 +18,7 @@ permissions:
 jobs:
   midi-architectural-concrete-material-teardown:
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,6 +75,16 @@ jobs:
           grep -q 'MIDI_ARCHITECTURAL_CONCRETE_MATERIAL_TEARDOWN_OK' /tmp/midi-concrete-teardown.log
           ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/midi-concrete-teardown.log
 
+      - name: Prove production-scene replacement rebind
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 180s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/midi_architectural_concrete_scene_replacement_test.gd 2>&1 | tee /tmp/midi-concrete-scene-replacement.log
+          grep -q 'MIDI_ARCHITECTURAL_CONCRETE_SCENE_REPLACEMENT_OK: surfaces=74 autoload_rebind=true geometry_changed=false' /tmp/midi-concrete-scene-replacement.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|Invalid call|previously freed|ObjectDB instances leaked|ERROR:' /tmp/midi-concrete-scene-replacement.log
+
       - name: Upload concrete teardown diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,3 +95,4 @@ jobs:
           path: |
             /tmp/midi-concrete-teardown-import.log
             /tmp/midi-concrete-teardown.log
+            /tmp/midi-concrete-scene-replacement.log

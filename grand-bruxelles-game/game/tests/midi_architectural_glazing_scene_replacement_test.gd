@@ -89,27 +89,28 @@ func _run() -> void:
     for _frame: int in range(4):
         await process_frame
 
-    var incomplete_scene := Node3D.new()
-    incomplete_scene.name = "TransientIncompleteMain"
-    var incomplete_midi := Node3D.new()
-    incomplete_midi.name = "MidiHeroZone"
-    incomplete_scene.add_child(incomplete_midi)
-    root.add_child(incomplete_scene)
+    # Exercise the glazing runtime's real bounded topology-failure path without
+    # advertising a fake MidiHeroZone to unrelated Midi material autoloads.
+    var incomplete_candidate := Node3D.new()
+    incomplete_candidate.name = "TransientIncompleteGlazingCandidate"
+    root.add_child(incomplete_candidate)
+    runtime.set("_bind_in_progress", true)
+    runtime.call("_apply_when_subtree_ready", incomplete_candidate)
 
     for _frame: int in range(FAILURE_WAIT_FRAMES):
         await process_frame
     if not bool(runtime.call("identity_failure")):
-        _fail("incomplete Midi subtree did not fail closed after bounded population wait")
+        _fail("incomplete glazing candidate did not fail closed after bounded population wait")
         return
 
-    incomplete_scene.queue_free()
+    incomplete_candidate.queue_free()
     for _frame: int in range(4):
         await process_frame
 
     var recovered_scene := packed.instantiate() as Node3D
     root.add_child(recovered_scene)
     if not await _wait_for_runtime_bind(runtime, recovered_scene, false):
-        _fail("runtime did not recover after failed incomplete Midi candidate was removed")
+        _fail("runtime did not recover after failed incomplete glazing candidate was removed")
         return
 
     print("MIDI_ARCHITECTURAL_GLAZING_SCENE_REPLACEMENT_OK: surfaces=%d autoload_rebind=true toggle_preserved=true topology_recovered=true geometry_changed=false" % EXPECTED_SURFACES)

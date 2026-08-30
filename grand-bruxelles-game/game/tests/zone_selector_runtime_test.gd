@@ -2,7 +2,7 @@ extends SceneTree
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const REPORT_RUNTIME_PATH := "res://game/scripts/player_issue_report_runtime.gd"
-const EXPECTED_IDS := ["midi", "midi_machine_labo", "anneessens", "bourse", "grand_place", "ixelles", "atomium", "jette"]
+const EXPECTED_IDS := ["midi", "midi_machine_labo", "anneessens", "bourse", "grand_place", "central", "ixelles", "atomium", "jette"]
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -33,13 +33,14 @@ func _run() -> void:
     var midi: Dictionary = {}
     var midi_machine_labo: Dictionary = {}
     var anneessens: Dictionary = {}
+    var central: Dictionary = {}
     for raw: Variant in zones:
         if not raw is Dictionary:
             _fail("zone row invalid")
             return
         var zone := raw as Dictionary
         var quality := str(zone.get("quality", ""))
-        if quality not in ["JOUABLE", "LABO"]:
+        if quality not in ["JOUABLE", "LABO", "LABO_BRUT"]:
             _fail("invalid quality %s" % quality)
             return
         for requirement: Variant in zone.get("requires", []):
@@ -53,6 +54,8 @@ func _run() -> void:
                 midi_machine_labo = zone
             "anneessens":
                 anneessens = zone
+            "central":
+                central = zone
         ids.append(str(zone.get("id", "")))
     if ids != EXPECTED_IDS:
         _fail("unexpected listed zones %s" % str(ids))
@@ -68,6 +71,12 @@ func _run() -> void:
         return
     if anneessens.is_empty() or str(anneessens.get("quality", "")) != "LABO":
         _fail("Anneessens LABO contract missing")
+        return
+    if central.is_empty() or str(central.get("quality", "")) != "LABO_BRUT" or str(central.get("mode", "")) != "script_zone":
+        _fail("Central LABO_BRUT selector contract missing")
+        return
+    if str(central.get("script", "")) != "res://game/zones/central/central_station_labo.gd":
+        _fail("Central selector script drifted")
         return
     var life_script := str(anneessens.get("life_script", ""))
     var life_minimum: Variant = anneessens.get("life_minimum", {})
@@ -86,6 +95,21 @@ func _run() -> void:
     var available: Array = selector.call("available_zones")
     if available.size() != EXPECTED_IDS.size():
         _fail("runtime filtered a proven zone")
+        return
+    var runtime_central: Dictionary = {}
+    for raw_zone: Variant in available:
+        if raw_zone is Dictionary and str((raw_zone as Dictionary).get("id", "")) == "central":
+            runtime_central = raw_zone as Dictionary
+            break
+    if runtime_central.is_empty() or str(runtime_central.get("quality", "")) != "LABO_BRUT":
+        _fail("Central missing from change-zone runtime list")
+        return
+    if selector.get_node_or_null("ZoneSelectorToggle") == null:
+        _fail("CHANGER DE ZONE button missing")
+        return
+    var toggle := selector.get_node("ZoneSelectorToggle") as Button
+    if toggle.text != "CHANGER DE ZONE" or not toggle.visible:
+        _fail("CHANGER DE ZONE button not player-visible")
         return
     if not selector.has_method("reporting_runtime") or not selector.has_method("can_promote_zone"):
         _fail("reporting contract missing")
@@ -181,5 +205,5 @@ func _run() -> void:
             return
         print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
         print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d canonical=7 review_aliases=1 playable=1 lab=7 reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
+    print("ZONE_SELECTOR_OK: listed=%d central=LABO_BRUT change_zone_button=true reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

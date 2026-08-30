@@ -10,45 +10,25 @@ import argparse
 import hashlib
 import json
 import math
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 FORMAT = "grand-bruxelles-road-destination-catalog-v1"
 SOURCE_FORMAT = "grand-bruxelles-osm-v1"
 CATALOG_FIELDS = frozenset({
-    "format",
-    "source_format",
-    "source_root",
-    "road_record_count",
-    "drivable_record_count",
-    "eligible_record_count",
-    "rejected_drivable_record_count",
-    "entry_count",
-    "duplicate_record_count",
-    "compatible_document_count",
-    "source_document_sha256",
-    "entries",
-    "authorization",
-    "catalog_sha256",
+    "format", "source_format", "source_root", "road_record_count",
+    "drivable_record_count", "eligible_record_count",
+    "rejected_drivable_record_count", "entry_count", "duplicate_record_count",
+    "compatible_document_count", "source_document_sha256", "entries",
+    "authorization", "catalog_sha256",
 })
 ENTRY_FIELDS = frozenset({
-    "osm_id",
-    "name",
-    "class",
-    "width",
-    "drivable",
-    "point_count",
-    "geometry_sha256",
-    "source_paths",
-    "source_file_count",
+    "osm_id", "name", "class", "width", "drivable", "point_count",
+    "geometry_sha256", "source_paths", "source_file_count",
 })
 AUTHORIZATION_FIELDS = frozenset({
-    "source_lookup_only",
-    "render_authorized",
-    "collision_authorized",
-    "runtime_mount_authorized",
-    "safe_spawn_authorized",
-    "jouable_authorized",
+    "source_lookup_only", "render_authorized", "collision_authorized",
+    "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized",
 })
 
 
@@ -94,6 +74,19 @@ def require_json_string(value: Any, label: str) -> str:
     return value
 
 
+def require_canonical_source_document_path(value: Any, label: str = "source document path") -> str:
+    """Require an exact canonical repository-relative POSIX path below data/osm/."""
+    source_path = require_json_string(value, label)
+    if not source_path or source_path.strip() != source_path or "\\" in source_path:
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical source document path {source_path!r}")
+    pure = PurePosixPath(source_path)
+    if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != source_path:
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical source document path {source_path!r}")
+    if not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical source document path {source_path!r}")
+    return source_path
+
+
 def normalized_points(raw_points: Any) -> list[list[float]]:
     if not isinstance(raw_points, list) or len(raw_points) < 2:
         return []
@@ -111,8 +104,6 @@ def road_signature(road: dict[str, Any]) -> dict[str, Any] | None:
     raw_osm_id = road.get("osm_id")
     if type(raw_osm_id) is not int:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift osm_id")
-    osm_id = raw_osm_id
-
     raw_name = road.get("name", "")
     raw_class = road.get("class", "")
     if type(raw_name) is not str:
@@ -123,16 +114,12 @@ def road_signature(road: dict[str, Any]) -> dict[str, Any] | None:
     road_class = raw_class.strip()
     drivable = road.get("drivable") is True
     points = normalized_points(road.get("points"))
-    if osm_id <= 0 or not name or not drivable or len(points) < 2:
+    if raw_osm_id <= 0 or not name or not drivable or len(points) < 2:
         return None
     width = require_source_number(road.get("width"), "width")
     return {
-        "osm_id": osm_id,
-        "name": name,
-        "class": road_class,
-        "width": width,
-        "drivable": True,
-        "points": points,
+        "osm_id": raw_osm_id, "name": name, "class": road_class,
+        "width": width, "drivable": True, "points": points,
     }
 
 
@@ -142,17 +129,12 @@ def discover_documents(source_root: Path) -> list[Path]:
 
 def build_catalog(source_root: Path) -> dict[str, Any]:
     source_root = source_root.resolve()
-    documents = discover_documents(source_root)
     entries: dict[int, dict[str, Any]] = {}
     document_digests: dict[str, str] = {}
-    compatible_documents = 0
-    road_record_count = 0
-    drivable_record_count = 0
-    eligible_record_count = 0
-    rejected_drivable_record_count = 0
-    duplicate_record_count = 0
+    compatible_documents = road_record_count = drivable_record_count = 0
+    eligible_record_count = rejected_drivable_record_count = duplicate_record_count = 0
 
-    for path in documents:
+    for path in discover_documents(source_root):
         try:
             raw_text = path.read_text(encoding="utf-8")
             document = json.loads(raw_text)
@@ -164,7 +146,9 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
         if not isinstance(roads, list):
             continue
         compatible_documents += 1
-        relative = path.relative_to(source_root.parent.parent).as_posix()
+        relative = require_canonical_source_document_path(
+            path.relative_to(source_root.parent.parent).as_posix(), "generated source document path"
+        )
         document_digests[relative] = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
         for raw_road in roads:
             if not isinstance(raw_road, dict):
@@ -180,7 +164,6 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
                 continue
             eligible_record_count += 1
             osm_id = signature["osm_id"]
-            geometry_sha256 = sha256_text(canonical_json(signature["points"]))
             semantic = {
                 "osm_id": osm_id,
                 "name": signature["name"],
@@ -188,7 +171,7 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
                 "width": signature["width"],
                 "drivable": True,
                 "point_count": len(signature["points"]),
-                "geometry_sha256": geometry_sha256,
+                "geometry_sha256": sha256_text(canonical_json(signature["points"])),
             }
             existing = entries.get(osm_id)
             if existing is None:
@@ -211,7 +194,7 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
         entry["source_file_count"] = len(entry["source_paths"])
         ordered_entries[str(osm_id)] = entry
 
-    payload = {
+    payload: dict[str, Any] = {
         "format": FORMAT,
         "source_format": SOURCE_FORMAT,
         "source_root": "data/osm",
@@ -266,11 +249,8 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     if type(authorization) is not dict or set(authorization) != AUTHORIZATION_FIELDS:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: authorization field set drift")
     for forbidden in (
-        "render_authorized",
-        "collision_authorized",
-        "runtime_mount_authorized",
-        "safe_spawn_authorized",
-        "jouable_authorized",
+        "render_authorized", "collision_authorized", "runtime_mount_authorized",
+        "safe_spawn_authorized", "jouable_authorized",
     ):
         if authorization.get(forbidden) is not False:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: {forbidden} must stay false")
@@ -283,11 +263,7 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     if compatible_documents != len(source_digests):
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: compatible document accounting drift")
     for raw_path, raw_digest in source_digests.items():
-        source_path = require_json_string(raw_path, "source document path").strip()
-        if source_path != raw_path:
-            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source document path whitespace drift {raw_path!r}")
-        if not source_path.startswith("data/osm/") or not source_path.endswith(".game.json"):
-            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid source document path {source_path!r}")
+        source_path = require_canonical_source_document_path(raw_path)
         if type(raw_digest) is not str:
             raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: JSON type drift source document SHA256")
         if not is_sha256(raw_digest):
@@ -306,8 +282,7 @@ def validate_contract(catalog: dict[str, Any]) -> None:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: OSM id key/value drift {raw_osm_id!r}")
         if raw_entry.get("drivable") is not True:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: indexed road is not drivable {osm_id}")
-        point_count = require_json_int(raw_entry.get("point_count"), "point_count", minimum=2)
-        del point_count
+        require_json_int(raw_entry.get("point_count"), "point_count", minimum=2)
         geometry_sha256 = raw_entry.get("geometry_sha256")
         if type(geometry_sha256) is not str:
             raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: JSON type drift geometry_sha256")
@@ -316,12 +291,10 @@ def validate_contract(catalog: dict[str, Any]) -> None:
         source_paths = raw_entry.get("source_paths")
         if not isinstance(source_paths, list) or not source_paths:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source paths missing {osm_id}")
-        normalized_source_paths: list[str] = []
-        for path in source_paths:
-            source_path = require_json_string(path, "source path").strip()
-            if source_path != path:
-                raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source path whitespace drift {osm_id}")
-            normalized_source_paths.append(source_path)
+        normalized_source_paths = [
+            require_canonical_source_document_path(path, f"source path osm_id={osm_id}")
+            for path in source_paths
+        ]
         if normalized_source_paths != sorted(set(normalized_source_paths)):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source paths not deterministic {osm_id}")
         source_file_count = require_json_int(raw_entry.get("source_file_count"), "source_file_count", minimum=1)
@@ -348,28 +321,15 @@ def validate_contract(catalog: dict[str, Any]) -> None:
 
 
 def validate_source_binding(catalog: dict[str, Any], source_root: Path) -> None:
-    """Re-derive the source catalog and fail closed if persisted evidence detached.
-
-    validate_contract() protects internal consistency. This second validation binds
-    that internally consistent catalog back to the current locked source bytes so a
-    recomputed/self-consistent catalog cannot claim stale road geometry or provenance.
-    """
+    """Re-derive source catalog and fail closed if persisted evidence detached."""
     validate_contract(catalog)
     rebuilt = build_catalog(source_root)
     validate_contract(rebuilt)
-
     if catalog.get("source_document_sha256") != rebuilt.get("source_document_sha256"):
-        raise SystemExit(
-            "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: source document digest mismatch"
-        )
-
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source binding drift: source document digest mismatch")
     accounting_keys = (
-        "road_record_count",
-        "drivable_record_count",
-        "eligible_record_count",
-        "rejected_drivable_record_count",
-        "entry_count",
-        "duplicate_record_count",
+        "road_record_count", "drivable_record_count", "eligible_record_count",
+        "rejected_drivable_record_count", "entry_count", "duplicate_record_count",
         "compatible_document_count",
     )
     for key in accounting_keys:
@@ -378,16 +338,10 @@ def validate_source_binding(catalog: dict[str, Any], source_root: Path) -> None:
                 "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: "
                 f"accounting mismatch key={key} stored={catalog.get(key)!r} rebuilt={rebuilt.get(key)!r}"
             )
-
     if catalog.get("entries") != rebuilt.get("entries"):
-        raise SystemExit(
-            "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: road entry/source geometry mismatch"
-        )
-
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source binding drift: road entry/source geometry mismatch")
     if catalog.get("catalog_sha256") != rebuilt.get("catalog_sha256"):
-        raise SystemExit(
-            "ROAD_DESTINATION_CATALOG_FAIL: source binding drift: catalog semantic SHA mismatch"
-        )
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source binding drift: catalog semantic SHA mismatch")
 
 
 def main() -> int:
@@ -395,7 +349,6 @@ def main() -> int:
     parser.add_argument("--source-root", type=Path, default=Path("data/osm"))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-
     catalog = build_catalog(args.source_root)
     validate_contract(catalog)
     validate_source_binding(catalog, args.source_root)

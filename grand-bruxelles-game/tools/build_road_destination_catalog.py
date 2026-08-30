@@ -51,12 +51,14 @@ def catalog_semantic_sha256(catalog: dict[str, Any]) -> str:
 
 
 def require_source_number(value: Any, label: str) -> float:
-    """Accept JSON numbers only; never normalize numeric strings or booleans."""
+    """Accept JSON numbers only; never normalize strings, booleans, or lossy integers."""
     if type(value) not in (int, float):
         raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift {label}")
     number = float(value)
     if not math.isfinite(number):
         raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-finite source number {label}")
+    if type(value) is int and int(number) != value:
+        raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: lossy source number {label}")
     return number
 
 
@@ -97,12 +99,20 @@ def require_canonical_source_document_path(value: Any, label: str = "source docu
 
 
 def normalized_points(raw_points: Any) -> list[list[float]]:
-    if not isinstance(raw_points, list) or len(raw_points) < 2:
-        return []
+    if not isinstance(raw_points, list):
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: malformed source points container")
+    if len(raw_points) < 2:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: insufficient source points")
     points: list[list[float]] = []
     for index, pair in enumerate(raw_points):
-        if not isinstance(pair, list) or len(pair) < 2:
-            return []
+        if not isinstance(pair, list):
+            raise SystemExit(
+                f"ROAD_DESTINATION_CATALOG_FAIL: malformed source point points[{index}]"
+            )
+        if len(pair) != 2:
+            raise SystemExit(
+                f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical source point dimension points[{index}]"
+            )
         x = require_source_number(pair[0], f"points[{index}][0]")
         z = require_source_number(pair[1], f"points[{index}][1]")
         points.append([x, z])
@@ -119,13 +129,19 @@ def road_signature(road: dict[str, Any]) -> dict[str, Any] | None:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift name")
     if type(raw_class) is not str:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: source JSON type drift class")
-    name = raw_name.strip()
-    road_class = raw_class.strip()
+    if raw_name.strip() != raw_name:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-canonical source name")
+    if raw_class.strip() != raw_class:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-canonical source class")
+    name = raw_name
+    road_class = raw_class
     drivable = road.get("drivable") is True
-    points = normalized_points(road.get("points"))
-    if raw_osm_id <= 0 or not name or not drivable or len(points) < 2:
+    if raw_osm_id <= 0 or not name or not drivable:
         return None
+    points = normalized_points(road.get("points"))
     width = require_source_number(road.get("width"), "width")
+    if width <= 0.0:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: non-positive source width")
     return {
         "osm_id": raw_osm_id, "name": name, "class": road_class,
         "width": width, "drivable": True, "points": points,
@@ -302,7 +318,9 @@ def validate_contract(catalog: dict[str, Any]) -> None:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical entry name osm_id={osm_id}")
         if entry_class.strip() != entry_class:
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical entry class osm_id={osm_id}")
-        require_json_number(raw_entry.get("width"), "entry width")
+        entry_width = require_json_number(raw_entry.get("width"), "entry width")
+        if entry_width <= 0.0:
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-positive entry width osm_id={osm_id}")
         require_json_int(raw_entry.get("point_count"), "point_count", minimum=2)
         geometry_sha256 = raw_entry.get("geometry_sha256")
         if type(geometry_sha256) is not str:

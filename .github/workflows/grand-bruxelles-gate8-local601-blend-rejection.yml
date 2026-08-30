@@ -1,0 +1,18 @@
+name: Grand Bruxelles Gate-8 Local601 Blend Rejection
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/gate8_local601_blend_rejection_contract.json'
+      - 'grand-bruxelles-game/tools/tests/test_gate8_local601_blend_rejection_contract.py'
+      - '.github/workflows/grand-bruxelles-gate8-local601-blend-rejection.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify measured rejection contract
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_gate8_local601_blend_rejection_contract.py

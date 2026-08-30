@@ -171,62 +171,51 @@ func _infer_active_zone_id(main: Node) -> String:
 func _build_ui() -> void:
     _toggle = Button.new()
     _toggle.name = "ZoneSelectorToggle"
-    _toggle.text = "CHANGER DE ZONE"
+    _toggle.text = "ZONES"
     _toggle.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-    _toggle.position = Vector2(-560.0, 18.0)
-    _toggle.size = Vector2(168.0, 42.0)
+    _toggle.position = Vector2(-500.0, 18.0)
+    _toggle.size = Vector2(108.0, 42.0)
     _toggle.pressed.connect(func() -> void: set_menu_open(not _panel.visible))
     add_child(_toggle)
 
     _panel = PanelContainer.new()
     _panel.name = "ZoneSelectorPanel"
     _panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-    _panel.position = Vector2(-590.0, 70.0)
-    _panel.size = Vector2(520.0, 470.0)
-    _panel.visible = false
+    _panel.position = Vector2(-382.0, 70.0)
+    _panel.size = Vector2(364.0, 540.0)
     add_child(_panel)
 
-    var margin := MarginContainer.new()
-    margin.add_theme_constant_override("margin_left", 18)
-    margin.add_theme_constant_override("margin_top", 16)
-    margin.add_theme_constant_override("margin_right", 18)
-    margin.add_theme_constant_override("margin_bottom", 16)
-    _panel.add_child(margin)
-
-    var root_box := VBoxContainer.new()
-    root_box.add_theme_constant_override("separation", 8)
-    margin.add_child(root_box)
-
+    var box := VBoxContainer.new()
+    box.add_theme_constant_override("separation", 9)
+    _panel.add_child(box)
     var title := Label.new()
-    title.text = "CHANGER DE ZONE"
-    title.add_theme_font_size_override("font_size", 22)
-    root_box.add_child(title)
-
-    _status = Label.new()
-    _status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    _status.text = "Choisis une zone disponible. Les zones LABO restent en revue et ne sont pas promues automatiquement."
-    root_box.add_child(_status)
-
-    var scroll := ScrollContainer.new()
-    scroll.custom_minimum_size = Vector2(0.0, 310.0)
-    scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-    root_box.add_child(scroll)
-
-    var zones_box := VBoxContainer.new()
-    zones_box.name = "ZoneSelectorButtons"
-    zones_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    zones_box.add_theme_constant_override("separation", 6)
-    scroll.add_child(zones_box)
+    title.text = "BRUXELLES · ZONES SUR MAIN"
+    title.add_theme_font_size_override("font_size", 20)
+    box.add_child(title)
+    var hint := Label.new()
+    hint.text = "JOUABLE = validé · LABO = à tester en jouant"
+    hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    box.add_child(hint)
 
     for zone: Dictionary in available_zones():
-        var zone_id := str(zone.get("id", ""))
         var button := Button.new()
-        button.name = "Zone_%s" % zone_id
-        button.text = "%s  —  %s" % [str(zone.get("label", zone_id)), str(zone.get("quality", "LABO"))]
+        button.name = "Zone_%s" % str(zone.get("id", "unknown"))
+        button.text = "%s  —  %s" % [str(zone.get("label", "Zone")), str(zone.get("quality", "LABO"))]
+        button.custom_minimum_size = Vector2(330.0, 44.0)
         button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-        button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-        button.pressed.connect(func() -> void: _on_zone_pressed(zone_id))
-        zones_box.add_child(button)
+        button.pressed.connect(_on_zone_pressed.bind(str(zone.get("id", ""))))
+        box.add_child(button)
+
+    _status = Label.new()
+    _status.name = "ZoneSelectorStatus"
+    _status.text = "Choisis une zone. Le menu ne liste que les runtimes présents."
+    _status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    box.add_child(_status)
+    var close := Button.new()
+    close.text = "FERMER"
+    close.pressed.connect(func() -> void: set_menu_open(false))
+    box.add_child(close)
+    _panel.visible = false
 
 func set_menu_open(open: bool) -> void:
     if _panel == null:
@@ -235,83 +224,160 @@ func set_menu_open(open: bool) -> void:
     if open:
         _previous_mouse_mode = Input.mouse_mode
         Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-    else:
+    elif not DisplayServer.is_touchscreen_available():
         Input.mouse_mode = _previous_mouse_mode
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
         set_menu_open(not _panel.visible)
         get_viewport().set_input_as_handled()
 
 func _zone_by_id(zone_id: String) -> Dictionary:
-    for raw: Variant in _catalog:
-        if raw is Dictionary and str((raw as Dictionary).get("id", "")) == zone_id:
-            return (raw as Dictionary).duplicate(true)
+    for zone: Dictionary in available_zones():
+        if str(zone.get("id", "")) == zone_id:
+            return zone
     return {}
 
 func _on_zone_pressed(zone_id: String) -> void:
     if _busy:
         return
     var zone := _zone_by_id(zone_id)
-    if zone.is_empty() or not _requirements_ready(zone):
-        _status.text = "Zone indisponible: %s" % zone_id
+    if zone.is_empty():
+        _status.text = "Zone indisponible : elle n'est plus listable."
         return
-    _pending_zone_id = zone_id
     _busy = true
+    _pending_zone_id = zone_id
+    _status.text = "CHARGEMENT · %s" % str(zone.get("label", zone_id))
     set_menu_open(false)
-    _status.text = "Chargement: %s" % str(zone.get("label", zone_id))
-    call_deferred("_reload_and_apply", zone)
+    call_deferred("_reload_main_for_pending")
 
-func _reload_and_apply(zone: Dictionary) -> void:
-    if get_tree().change_scene_to_file(MAIN_SCENE) != OK:
-        _busy = false
-        _status.text = "Échec chargement de la scène principale."
+func _reload_main_for_pending() -> void:
+    var error := get_tree().change_scene_to_file(MAIN_SCENE)
+    if error != OK:
+        _travel_failed("main scene reload failed: %s" % error)
         return
-    await get_tree().process_frame
-    for _attempt: int in range(240):
-        var main := get_tree().current_scene
-        if main != null and main.get_node_or_null("Player") != null:
-            await _apply_zone(main, zone)
-            _busy = false
-            return
+    call_deferred("_apply_pending_when_ready")
+
+func _apply_pending_when_ready() -> void:
+    for _attempt: int in range(180):
         await get_tree().process_frame
-    _busy = false
-    _status.text = "Échec: joueur indisponible."
+        var main := get_tree().current_scene
+        if main != null and main.scene_file_path == MAIN_SCENE and main.get_node_or_null("Player") != null:
+            var zone := _zone_by_id(_pending_zone_id)
+            if zone.is_empty():
+                _travel_failed("zone contract disappeared")
+                return
+            await _apply_zone(main, zone)
+            return
+    _travel_failed("main scene/player did not become ready")
 
 func _apply_zone(main: Node, zone: Dictionary) -> void:
     var player := main.get_node_or_null("Player") as CharacterBody3D
     if player == null:
+        _travel_failed("player missing")
         return
-    var zone_id := str(zone.get("id", ""))
     var mode := str(zone.get("mode", ""))
+    var ok := false
     if mode == "fast_travel":
-        var destination := str(zone.get("destination", ""))
-        if player.has_method("fast_travel"):
-            player.call("fast_travel", destination)
+        ok = bool(player.call("fast_travel_to", str(zone.get("destination", ""))))
     elif mode == "position":
-        var spawn: Array = zone.get("spawn", [])
-        if spawn.size() >= 3:
+        var spawn: Variant = zone.get("spawn", [])
+        if spawn is Array and spawn.size() >= 3:
             player.global_position = Vector3(float(spawn[0]), float(spawn[1]), float(spawn[2]))
             player.velocity = Vector3.ZERO
+            if player.has_method("_restore_runtime_hud"):
+                player.call("_restore_runtime_hud")
+            ok = true
     elif mode == "player_method":
         var method := str(zone.get("method", ""))
         if player.has_method(method):
-            player.call(method)
+            await player.call(method)
+            ok = true
+            if player.has_method("_restore_runtime_hud"):
+                player.call("_restore_runtime_hud")
     elif mode == "script_zone":
-        var script_path := str(zone.get("script", ""))
-        var script := load(script_path) as Script
-        if script == null:
-            push_error("Zone selector script load failed: %s" % script_path)
-            return
-        var instance := Node3D.new()
-        instance.name = "ZoneLab_%s" % zone_id
-        instance.set_script(script)
-        main.add_child(instance)
-        var spawn: Array = zone.get("spawn", [])
-        if spawn.size() >= 3:
-            player.global_position = Vector3(float(spawn[0]), float(spawn[1]), float(spawn[2]))
-            player.velocity = Vector3.ZERO
-    main.set_meta(ACTIVE_ZONE_ID_META, zone_id)
-    main.set_meta(ACTIVE_ZONE_LABEL_META, str(zone.get("label", zone_id)))
-    _active_zone_id = zone_id
+        ok = await _mount_script_zone(main, player, zone)
+    if not ok:
+        _travel_failed("zone runtime refused to load")
+        return
+    if not await _mount_life_if_required(main, zone):
+        _travel_failed("zone loaded but minimum LABO life contract failed")
+        return
+    _active_zone_id = str(zone.get("id", _active_zone_id))
+    _publish_active_zone(main, zone)
     _pending_zone_id = ""
+    _busy = false
+    _status.text = "%s · %s" % [str(zone.get("label", "Zone")), str(zone.get("quality", "LABO"))]
+    print("ZONE_VISIT_READY: id=%s quality=%s" % [str(zone.get("id", "")), str(zone.get("quality", ""))])
+
+func _publish_active_zone(main: Node, zone: Dictionary) -> void:
+    if main == null:
+        return
+    var zone_id := str(zone.get("id", "")).strip_edges()
+    var zone_label := str(zone.get("label", zone_id)).strip_edges()
+    if zone_id.is_empty() or zone_label.is_empty():
+        return
+    main.set_meta(ACTIVE_ZONE_ID_META, zone_id)
+    main.set_meta(ACTIVE_ZONE_LABEL_META, zone_label)
+
+func _mount_life_if_required(main: Node, zone: Dictionary) -> bool:
+    var script_path := str(zone.get("life_script", ""))
+    if script_path.is_empty():
+        return true
+    var script: Script = load(script_path)
+    if script == null:
+        return false
+    var life := Node3D.new()
+    life.name = "ZoneLife_%s" % str(zone.get("id", "zone"))
+    life.set_script(script)
+    main.add_child(life)
+    await get_tree().process_frame
+    if life.has_method("has_minimum_playable_life") and not bool(life.call("has_minimum_playable_life")):
+        life.queue_free()
+        return false
+    var minimum: Variant = zone.get("life_minimum", {})
+    if minimum is Dictionary and life.has_method("get_counts"):
+        var counts: Variant = life.call("get_counts")
+        if not counts is Dictionary:
+            life.queue_free()
+            return false
+        for key: Variant in (minimum as Dictionary).keys():
+            if int((counts as Dictionary).get(key, 0)) < int((minimum as Dictionary).get(key, 0)):
+                life.queue_free()
+                return false
+    return true
+
+func _mount_script_zone(main: Node, player: CharacterBody3D, zone: Dictionary) -> bool:
+    var script_path := str(zone.get("script", ""))
+    var script: Script = load(script_path)
+    if script == null:
+        return false
+    var lab := Node3D.new()
+    lab.name = "ZoneLab_%s" % str(zone.get("id", "zone"))
+    lab.set_script(script)
+    main.add_child(lab)
+    await get_tree().process_frame
+    var stats: Variant = lab.get("last_stats")
+    if not stats is Dictionary or int((stats as Dictionary).get("buildings", 0)) <= 0 or int((stats as Dictionary).get("street_surfaces", 0)) <= 0:
+        lab.queue_free()
+        return false
+    var spawn: Variant = zone.get("spawn", [])
+    if not spawn is Array or spawn.size() < 3:
+        lab.queue_free()
+        return false
+    player.global_position = Vector3(float(spawn[0]), float(spawn[1]), float(spawn[2]))
+    player.velocity = Vector3.ZERO
+    if player.has_method("_restore_runtime_hud"):
+        player.call("_restore_runtime_hud")
+    var location := main.get_node_or_null("LocationLabel")
+    if location != null and location.has_method("set_forced_label"):
+        location.call("set_forced_label", "%s · LABO" % str(zone.get("label", "ZONE")))
+    return true
+
+func _travel_failed(message: String) -> void:
+    push_error("Zone selector: %s" % message)
+    _pending_zone_id = ""
+    _busy = false
+    if _status != null:
+        _status.text = "INDISPONIBLE · non validé, non promu"
+    set_menu_open(true)

@@ -1,0 +1,51 @@
+name: Grand Bruxelles Base Ground Material Ownership
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_base_ground_material_ownership_test.gd'
+      - '.github/workflows/grand-bruxelles-base-ground-material-ownership.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  base-ground-material-ownership:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          test "$LIVE_MAIN_SHA" != "$HEAD_SHA"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          echo "BASE_GROUND_MATERIAL_OWNERSHIP_PROVENANCE_OK live_main=$LIVE_MAIN_SHA head=$HEAD_SHA"
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Run exact ownership regression
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/brussels_base_ground_material_ownership_test.gd \
+            2>&1 | tee /tmp/base-ground-material-ownership.log
+          grep -q 'BRUSSELS_BASE_GROUND_MATERIAL_OWNERSHIP_OK' /tmp/base-ground-material-ownership.log

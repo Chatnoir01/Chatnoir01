@@ -6,7 +6,8 @@ const ROAD_RUNTIME := preload("res://game/scripts/brussels_osm_road_surface_runt
 const SIDEWALK_RUNTIME := preload("res://game/scripts/brussels_osm_sidewalk_surface_runtime.gd")
 const RAIL_RUNTIME := preload("res://game/scripts/brussels_osm_rail_surface_runtime.gd")
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
-const EXPECTED_ZONE_IDS := ["anneessens", "atomium", "bourse", "grand_place", "ixelles", "jette", "midi"]
+const EXPECTED_OFFICIAL_ZONE_IDS := ["anneessens", "atomium", "bourse", "grand_place", "ixelles", "jette", "midi"]
+const EXPECTED_CANONICAL_ZONE_IDS := ["anneessens", "atomium", "bourse", "central", "grand_place", "ixelles", "jette", "midi"]
 
 func _init() -> void:
     if not _prove_catalog_coverage():
@@ -15,7 +16,7 @@ func _init() -> void:
         return
     if not _prove_runtime_bindings():
         return
-    print("BRUSSELS_GROUND_NETWORK_OFFICIAL_COVERAGE_OK: canonical_zones=7 review_aliases=1 layers=3 ixelles=road+sidewalk jette=street_surface+tram gaps=explicit geometry_changed=false")
+    print("BRUSSELS_GROUND_NETWORK_OFFICIAL_COVERAGE_OK: canonical_zones=8 official_covered=7 central=review_only_no_official_ground_claim review_aliases=1 layers=3 ixelles=road+sidewalk jette=street_surface+tram gaps=explicit geometry_changed=false")
     quit(0)
 
 func _prove_catalog_coverage() -> bool:
@@ -33,6 +34,7 @@ func _prove_catalog_coverage() -> bool:
     var canonical_ids: Array[String] = []
     var review_aliases: Dictionary = {}
     var alias_rows: Dictionary = {}
+    var central_row: Dictionary = {}
     for raw_zone: Variant in raw_zones as Array:
         if not raw_zone is Dictionary:
             return _fail("catalog zone row is not an object")
@@ -43,23 +45,33 @@ func _prove_catalog_coverage() -> bool:
             return _fail("catalog zone id is empty")
         if alias_of.is_empty():
             canonical_ids.append(zone_id)
+            if zone_id == "central":
+                central_row = zone
         else:
             review_aliases[zone_id] = alias_of
             alias_rows[zone_id] = zone
     canonical_ids.sort()
-    if canonical_ids != EXPECTED_ZONE_IDS:
+    if canonical_ids != EXPECTED_CANONICAL_ZONE_IDS:
         return _fail("unexpected canonical catalog zone ids: %s" % str(canonical_ids))
+    if central_row.is_empty():
+        return _fail("Central canonical review row missing")
+    if str(central_row.get("quality", "")) != "LABO_BRUT" or str(central_row.get("mode", "")) != "script_zone":
+        return _fail("Central must remain LABO_BRUT script_zone while official ground coverage is missing")
+    if str(central_row.get("script", "")) != "res://game/zones/central/central_station_labo.gd":
+        return _fail("Central review runtime contract drifted")
     if review_aliases.size() != 1 or str(review_aliases.get("midi_machine_labo", "")) != "midi":
         return _fail("unexpected ground-network review aliases: %s" % str(review_aliases))
     var midi_review: Variant = alias_rows.get("midi_machine_labo", {})
     if not midi_review is Dictionary or str((midi_review as Dictionary).get("quality", "")) != "LABO":
         return _fail("Midi City Machine review alias must stay LABO")
     var registry_ids: Array[String] = COVERAGE_REGISTRY.zone_ids()
-    if registry_ids != EXPECTED_ZONE_IDS:
-        return _fail("coverage registry diverges from canonical catalog: %s" % str(registry_ids))
+    if registry_ids != EXPECTED_OFFICIAL_ZONE_IDS:
+        return _fail("official coverage registry changed unexpectedly: %s" % str(registry_ids))
+    if "central" in registry_ids:
+        return _fail("Central must not claim official ground coverage before regional source data is mounted")
     if "midi_machine_labo" in registry_ids:
         return _fail("review alias must not become an independent ground-network owner")
-    for zone_id: String in EXPECTED_ZONE_IDS:
+    for zone_id: String in EXPECTED_OFFICIAL_ZONE_IDS:
         for layer_id: String in COVERAGE_REGISTRY.LAYERS:
             var entry: Dictionary = COVERAGE_REGISTRY.layer(zone_id, layer_id)
             if entry.is_empty():

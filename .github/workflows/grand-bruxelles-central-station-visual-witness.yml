@@ -78,13 +78,14 @@ jobs:
           assert report['human_review_required'] is True and report['promotion_performed'] is False
           assert report['authoritative_urbis_alignment'] is False and report['production_selector_path'] is True
           assert report['resolution'] == [1280, 720]
-          assert report['change_zone_button']['text'] == 'ZONES'
+          assert report['change_zone_button']['text'] == 'CHANGER DE ZONE'
           assert report['change_zone_button']['visible_in_tree'] is True
+          assert report['change_zone_button']['panel_opened'] is True
           assert int(report['stats'].get('buildings', 0)) == 1
           assert int(report['stats'].get('street_surfaces', 0)) == 1
           assert int(report['stats'].get('upper_bays', 0)) == 9
           assert int(report['stats'].get('entrance_columns', 0)) == 4
-          print('CENTRAL_STATION_HUMAN_REVIEW_WITNESS_CONTRACT_OK promotion=false jouable=false authoritative_urbis=false captures=3 zones_button=true')
+          print('CENTRAL_STATION_HUMAN_REVIEW_WITNESS_CONTRACT_OK promotion=false jouable=false authoritative_urbis=false captures=3 change_zone_button=true panel_opened=true')
           PY
       - name: Preserve logs
         if: always()

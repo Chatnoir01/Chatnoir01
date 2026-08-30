@@ -1,0 +1,52 @@
+{
+  "format": "grand-bruxelles-authored-civilian-roster-readiness-v1",
+  "base_main_sha": "67848b575f3ad5e0069482560e0d6eadf1f9596a",
+  "candidate_id": "CIV-1",
+  "source_status_path": "assets/characters/civilians/civ1/source_status.json",
+  "visual_runtime_path": "game/scripts/humanoid_visual.gd",
+  "owner_verdict": "GARDER",
+  "required_current_state": {
+    "production_authorized": false,
+    "activation_ready": false,
+    "source_package_present": false,
+    "runtime_package_present": false,
+    "blocker": "canonical_source_and_runtime_package_not_committed"
+  },
+  "required_character_source": {
+    "repository": "https://github.com/ibrews/VitruvianGodot",
+    "commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
+    "license": "CC0-1.0"
+  },
+  "required_footwear_source": {
+    "repository": "https://github.com/furqonat/makehuman-assets",
+    "commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
+    "license": "CC0-1.0"
+  },
+  "forbidden_civilian_runtime_sources": [
+    "assets/characters/player_character.glb",
+    "assets/characters/player/"
+  ],
+  "observed_main_runtime": {
+    "authored_character_is_player_only": true,
+    "npc_agent_uses_profiled_procedural_mesh": true,
+    "procedural_mesh_marker": "array_mesh_profiled_v2"
+  },
+  "promotion_requirements": [
+    "canonical CIV-1 source package is committed from the pinned CC0 upstream blobs",
+    "canonical CIV-1 runtime package is committed and every runtime file has SHA-256 provenance",
+    "source_status production_authorized and activation_ready are explicitly promoted by the packaging validator",
+    "civilian runtime does not reuse player_character.glb or assets/characters/player/",
+    "Godot 4.7.1 import proves skeleton, skin, materials and animations",
+    "player-view 1280x720 evidence proves authored civilian credibility at 2 m, 5 m and 8 m",
+    "grounding and gait evidence proves no foot sliding"
+  ],
+  "verdict": "BLOCK_RUNTIME_PROMOTION_UNTIL_AUTHORED_CIVILIAN_PACKAGE_READY",
+  "authorizations": {
+    "runtime_mutation": false,
+    "source_mutation": false,
+    "player_reuse": false,
+    "production": false,
+    "jouable": false,
+    "visual_approval": false
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "schema": "grand-bruxelles-gate8-local601-blend-rejection-v1",
+  "production_base_sha": "b293bf94de8ba1e4c9893295b6ebb6487b131c7c",
+  "source_run_id": 33285324003,
+  "source_head_sha": "20cee32fd459124ed5366298b92eb0ce35abeb81",
+  "artifact": {
+    "id": 9724240116,
+    "name": "gate8-local601-blend-sweep-v1-red-first",
+    "digest": "sha256:b9d981c8729052c9cd8ea3a37aeeaaac4b05b3fd3a6e877a669bb3f21b79fa06"
+  },
+  "generator": {
+    "blender": "4.2.23 LTS",
+    "mpfb": "2.0.17",
+    "mpfb_build": "20260722",
+    "source_pack_sha256": "6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a"
+  },
+  "candidate_strategy": "LINEAR_BLEND_STORED_TO_REMATCHED_WEIGHTS_AT_VERTEX_601_ONLY",
+  "stored_baseline": {
+    "critical_edge_mean_abs_strain": 20.61501449715799,
+    "control_edge_mean_abs_strain": 0.21001134282314843,
+    "control_edge_378_601_abs_strain": 0.7165112716322206
+  },
+  "candidates": [
+    {"alpha": 0.125, "critical_edge_mean_abs_strain": 18.286557749766875, "control_edge_mean_abs_strain": 1.146854283387467, "control_edge_378_601_abs_strain": 4.463883033889496, "vertex_601_delta_m": 0.06453225382849812, "inversions": 0},
+    {"alpha": 0.25, "critical_edge_mean_abs_strain": 15.958730808843766, "control_edge_mean_abs_strain": 2.491611027246464, "control_edge_378_601_abs_strain": 9.842910009325482, "vertex_601_delta_m": 0.1290645275008474, "inversions": 0},
+    {"alpha": 0.375, "critical_edge_mean_abs_strain": 13.631844591864258, "control_edge_mean_abs_strain": 3.836929981391146, "control_edge_378_601_abs_strain": 15.224185825904211, "vertex_601_delta_m": 0.19359673021639054, "inversions": 0},
+    {"alpha": 0.5, "critical_edge_mean_abs_strain": 11.306440049344651, "control_edge_mean_abs_strain": 5.182394063489682, "control_edge_378_601_abs_strain": 20.606042154298358, "vertex_601_delta_m": 0.2581290550014094, "inversions": 0},
+    {"alpha": 0.625, "critical_edge_mean_abs_strain": 8.983598681428624, "control_edge_mean_abs_strain": 6.527912761082248, "control_edge_378_601_abs_strain": 25.98811694466862, "vertex_601_delta_m": 0.32266126481263724, "inversions": 0},
+    {"alpha": 0.75, "critical_edge_mean_abs_strain": 6.6657391829992, "control_edge_mean_abs_strain": 7.873462434703332, "control_edge_378_601_abs_strain": 31.370315639152956, "vertex_601_delta_m": 0.3871935662663795, "inversions": 0},
+    {"alpha": 0.875, "critical_edge_mean_abs_strain": 4.359721196140131, "control_edge_mean_abs_strain": 9.219026704089043, "control_edge_378_601_abs_strain": 36.752572716695795, "vertex_601_delta_m": 0.4517257778300509, "inversions": 0}
+  ],
+  "verdict": "REJECT_SINGLE_VERTEX_601_BLEND_FAMILY_FOR_PRODUCTION",
+  "reason": "Every measured alpha reduces critical-edge strain but worsens the control neighborhood. Even alpha 0.125 increases control mean strain by >5.46x and edge 378-601 by >6.23x while reducing critical mean strain by only ~11.3%.",
+  "authorization": {
+    "canonical_asset_mutation": false,
+    "mhclo_mutation": false,
+    "generator_mutation": false,
+    "runtime_npc_mutation": false,
+    "reweight_authorized": false,
+    "retarget_authorized": false,
+    "production_activation": false,
+    "visual_approval": false
+  },
+  "next_safe_axis": "MULTI_VERTEX_TOPOLOGY_CONSTRAINED_SUPPORT"
+}

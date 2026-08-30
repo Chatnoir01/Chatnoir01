@@ -53,8 +53,8 @@ func _init() -> void:
     if str(central.get("quality", "")) != "LABO_BRUT" or str(central.get("mode", "")) != "script_zone":
         _fail("Central LABO_BRUT visible catalog entry missing")
         return
-    if str(central.get("script", "")) != "res://game/zones/central/central_station_labo.gd":
-        _fail("Central LABO_BRUT script contract drifted")
+    if str(central.get("script", "")) != "res://game/zones/central/central_station_context_labo.gd":
+        _fail("Central contextual LABO_BRUT script contract drifted")
         return
     var brut_doc := {
         "schema": "grand-bruxelles-playable-zone-catalog-v2",
@@ -89,7 +89,7 @@ func _init() -> void:
     if (selector.call("parse_catalog_document", legacy_doc) as Array).size() != 1:
         _fail("v1 backward compatibility was lost")
         return
-    print("ZONE_CATALOG_V2_OK: visible=9 canonical=7 review_aliases=1 central_brut=1 midi=JOUABLE midi_machine_labo=LABO central=LABO_BRUT stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
+    print("ZONE_CATALOG_V2_OK: visible=9 canonical=8 review_aliases=1 central_brut=1 contextual_runtime=true midi=JOUABLE midi_machine_labo=LABO central=LABO_BRUT stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
     selector.free()
     quit(0)
 

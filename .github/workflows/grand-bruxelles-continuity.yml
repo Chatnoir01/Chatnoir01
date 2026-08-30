@@ -19,17 +19,21 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Validate seven canonical zones plus visible review aliases
+      - name: Validate eight canonical zones plus one review alias
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py validate | tee /tmp/continuity-validate.log
-          grep -F "CONTINUITY_REGISTRY_OK zones=7 visible=8 review_aliases=1 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5" /tmp/continuity-validate.log
+          grep -F "CONTINUITY_REGISTRY_OK zones=8 visible=9 review_aliases=1 central=M1 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5" /tmp/continuity-validate.log
       - name: Prove deterministic next lots before report sync
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens | tee /tmp/anneessens-next.log
           grep -F '"next_lot": "report_ingest_then_ready_proof"' /tmp/anneessens-next.log
           grep -F '"report_sync_required_before_M5": true' /tmp/anneessens-next.log
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone central | tee /tmp/central-next.log
+          grep -F '"maturity": "M1_LABO_BRUT"' /tmp/central-next.log
+          grep -F '"target_maturity": "M5_JOUABLE_READY"' /tmp/central-next.log
+          grep -F '"next_lot": "central_official_urbis_regional_context"' /tmp/central-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone jette | tee /tmp/jette-next.log
           grep -F '"next_lot": "midi_material_kit"' /tmp/jette-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone midi | tee /tmp/midi-next.log

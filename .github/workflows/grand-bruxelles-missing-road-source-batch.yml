@@ -1,0 +1,119 @@
+name: Grand Bruxelles Missing Road Source Batch
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/source_plans/brussels_missing_road_source_registry.json'
+      - 'grand-bruxelles-game/tools/city_machine/acquire_municipality_road_source.py'
+      - '.github/workflows/grand-bruxelles-missing-road-source-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-registry:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate exact 16-commune missing-source registry
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('data/source_plans/brussels_missing_road_source_registry.json').read_text())
+          expected = ['21002','21003','21005','21006','21007','21008','21009','21010','21011','21012','21014','21015','21016','21017','21018','21019']
+          rows = p['municipalities']
+          assert p['schema'] == 'grand-bruxelles-missing-road-source-registry-v1'
+          assert [r['niscode'] for r in rows] == expected
+          assert len({r['osm_relation_id'] for r in rows}) == 16
+          assert all(isinstance(r['osm_relation_id'], int) and r['osm_relation_id'] > 0 for r in rows)
+          assert p['authorization']['source_acquisition_authorized'] is True
+          for key in ['source_registration_authorized','road_cell_mapping_authorized','render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized']:
+              assert p['authorization'][key] is False, key
+          print('BRUSSELS_MISSING_SOURCE_REGISTRY_OK communes=16')
+          PY
+
+  acquire-missing-road-sources:
+    needs: validate-registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - {nis: '21002', id: auderghem}
+          - {nis: '21003', id: berchem_sainte_agathe}
+          - {nis: '21005', id: etterbeek}
+          - {nis: '21006', id: evere}
+          - {nis: '21007', id: forest}
+          - {nis: '21008', id: ganshoren}
+          - {nis: '21009', id: ixelles}
+          - {nis: '21010', id: jette}
+          - {nis: '21011', id: koekelberg}
+          - {nis: '21012', id: molenbeek_saint_jean}
+          - {nis: '21014', id: saint_josse_ten_noode}
+          - {nis: '21015', id: schaerbeek}
+          - {nis: '21016', id: uccle}
+          - {nis: '21017', id: watermael_boitsfort}
+          - {nis: '21018', id: woluwe_saint_lambert}
+          - {nis: '21019', id: woluwe_saint_pierre}
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build locked municipality manifest
+        env:
+          NIS: ${{ matrix.nis }}
+          MUNICIPALITY_ID: ${{ matrix.id }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          registry = json.loads(Path('data/source_plans/brussels_missing_road_source_registry.json').read_text())
+          row = next(r for r in registry['municipalities'] if r['niscode'] == os.environ['NIS'] and r['id'] == os.environ['MUNICIPALITY_ID'])
+          payload = {
+            'schema': 'grand-bruxelles-municipality-road-source-acquisition-v1',
+            'municipality': row,
+            'source': {
+              'provider': registry['source']['provider'],
+              'license': registry['source']['license'],
+              'endpoint': registry['source']['endpoint'],
+              'query_scope': 'administrative_relation',
+              'highway_classes': ['motorway','trunk','primary','secondary','tertiary','unclassified','residential','living_street','service']
+            },
+            'game_frame': registry['game_frame'],
+            'authorization': registry['authorization']
+          }
+          Path('artifacts').mkdir(exist_ok=True)
+          Path(f"artifacts/{row['id']}.manifest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n')
+          PY
+      - name: Acquire source-backed roads
+        run: |
+          python tools/city_machine/acquire_municipality_road_source.py \
+            --manifest artifacts/${{ matrix.id }}.manifest.json \
+            --raw-output artifacts/${{ matrix.id }}_road_source.raw.json \
+            --game-output artifacts/${{ matrix.id }}_road_source.game.json \
+            --receipt-output artifacts/${{ matrix.id }}_road_source.receipt.json
+      - name: Upload immutable municipality candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-source-${{ matrix.nis }}-${{ matrix.id }}
+          path: |
+            grand-bruxelles-game/artifacts/${{ matrix.id }}.manifest.json
+            grand-bruxelles-game/artifacts/${{ matrix.id }}_road_source.raw.json
+            grand-bruxelles-game/artifacts/${{ matrix.id }}_road_source.game.json
+            grand-bruxelles-game/artifacts/${{ matrix.id }}_road_source.receipt.json
+          if-no-files-found: error
+          retention-days: 30

@@ -22,6 +22,25 @@ def handlers(pattern: re.Pattern[str], source: str) -> tuple[str, ...]:
     return tuple(match.group(1) for match in pattern.finditer(source))
 
 
+def validate_watcher_cardinality(source: str, rel_path: str) -> None:
+    connected = handlers(NODE_ADDED_CONNECT_RE, source)
+    disconnected = handlers(NODE_ADDED_DISCONNECT_RE, source)
+    if not connected:
+        fail(f"registered runtime has no node_added.connect handler: {rel_path}")
+    unique_connected = set(connected)
+    unique_disconnected = set(disconnected)
+    if len(unique_connected) != 1:
+        fail(
+            f"runtime connects node_added to multiple handlers: {rel_path} "
+            f"handlers={sorted(unique_connected)}"
+        )
+    if unique_disconnected != unique_connected:
+        fail(
+            f"node_added watcher cleanup mismatch: {rel_path} "
+            f"connected={sorted(unique_connected)} disconnected={sorted(unique_disconnected)}"
+        )
+
+
 def main() -> None:
     discovery_probe = "\n".join(
         (
@@ -41,6 +60,20 @@ def main() -> None:
         fail("node_added watcher discovery does not enumerate multiline connect sites")
     if handlers(NODE_ADDED_DISCONNECT_RE, discovery_probe) != ("_on_node_added",):
         fail("node_added watcher discovery does not detect multiline disconnect")
+
+    duplicate_subscription_probe = "\n".join(
+        (
+            "node_added.connect(_on_node_added)",
+            "node_added.connect(_on_node_added)",
+            "node_added.disconnect(_on_node_added)",
+        )
+    )
+    try:
+        validate_watcher_cardinality(duplicate_subscription_probe, "synthetic_duplicate_probe.gd")
+    except AssertionError:
+        pass
+    else:
+        fail("duplicate node_added subscription sites are not rejected")
 
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("node_added_watcher_cleanup_required") is not True:
@@ -67,27 +100,12 @@ def main() -> None:
         if not source_path.is_file():
             fail(f"registered lifecycle runtime missing: {rel_path}")
         source = source_path.read_text(encoding="utf-8")
-        connected = handlers(NODE_ADDED_CONNECT_RE, source)
-        disconnected = handlers(NODE_ADDED_DISCONNECT_RE, source)
-        if not connected:
-            fail(f"registered runtime has no node_added.connect handler: {rel_path}")
-        unique_connected = set(connected)
-        unique_disconnected = set(disconnected)
-        if len(unique_connected) != 1:
-            fail(
-                f"runtime connects node_added to multiple handlers: {rel_path} "
-                f"handlers={sorted(unique_connected)}"
-            )
-        if unique_disconnected != unique_connected:
-            fail(
-                f"node_added watcher cleanup mismatch: {rel_path} "
-                f"connected={sorted(unique_connected)} disconnected={sorted(unique_disconnected)}"
-            )
+        validate_watcher_cardinality(source, rel_path)
 
     print(
         "SHARED_ENVIRONMENT_NODE_ADDED_LIFECYCLE_OK: "
         f"runtimes={len(runtimes)} watcher_cleanup=locked "
-        "single_handler=locked multiline=locked"
+        "single_handler=locked multiline=locked subscription_cardinality=locked"
     )
 
 

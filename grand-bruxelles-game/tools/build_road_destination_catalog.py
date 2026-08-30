@@ -284,6 +284,8 @@ def validate_contract(catalog: dict[str, Any]) -> None:
         if type(raw_osm_id) is not str or not raw_osm_id.isdigit():
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: invalid OSM id {raw_osm_id!r}")
         osm_id = int(raw_osm_id)
+        if raw_osm_id != str(osm_id):
+            raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: non-canonical OSM id key {raw_osm_id!r}")
         if not isinstance(raw_entry, dict):
             raise SystemExit(f"ROAD_DESTINATION_CATALOG_FAIL: malformed entry {raw_osm_id!r}")
         if set(raw_entry) != ENTRY_FIELDS:

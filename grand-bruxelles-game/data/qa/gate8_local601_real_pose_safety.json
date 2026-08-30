@@ -1,0 +1,37 @@
+{
+  "format": "grand-bruxelles-gate8-local601-real-pose-safety-v1",
+  "production_base_sha": "c7d2c4981b17992e71c91fa53a9f7a2ac5502535",
+  "source_run_id": 33282981044,
+  "source_head_sha": "8af666d0b151bfc012b28655e8e4a455897368ba",
+  "artifact_id": 9723546302,
+  "artifact_digest": "sha256:99da25f988c5c472fab825c669146f7d0ac5281110fdad1eda76c6771b6eb277",
+  "candidate_strategy": "REMATCH_ONLY_SPORTSUIT_VERTEX_601_KEEP_OTHER_FOCUS_VERTICES_STORED",
+  "candidate_vertices": [601],
+  "measurements": {
+    "critical_edge_mean_stored_abs_strain": 20.61501449715799,
+    "critical_edge_mean_candidate_abs_strain": 2.0944442317053436,
+    "control_edge_mean_stored_abs_strain": 0.21001134282314843,
+    "control_edge_mean_candidate_abs_strain": 10.564601757671259,
+    "vertex_601_stored_vs_candidate_delta_m": 0.5162580450593068,
+    "stored_inversion_count": 0,
+    "candidate_inversion_count": 0,
+    "critical_edges": {
+      "486-601": {"stored_abs_strain": 32.03494339129067, "candidate_abs_strain": 3.996544157692062},
+      "599-601": {"stored_abs_strain": 13.897765937806966, "candidate_abs_strain": 0.9117541066046404},
+      "601-615": {"stored_abs_strain": 15.912334162376332, "candidate_abs_strain": 1.3750344308193276}
+    },
+    "control_edge_378_601": {
+      "stored_abs_strain": 0.7165112716322206,
+      "candidate_abs_strain": 42.13487293102466
+    }
+  },
+  "verdict": "REJECT_LOCAL601_REMATCH_FOR_PRODUCTION",
+  "reason": "Candidate improves all three critical cliffs but catastrophically regresses control edge 378-601 and moves vertex 601 by over half a meter in the frozen real pose.",
+  "next_safe_axis": "TEST_NEXT_SMALLEST_TOPOLOGY_CONSTRAINED_SUPPORT_STRATEGY",
+  "canonical_asset_mutation": false,
+  "canonical_mhclo_mutation": false,
+  "canonical_generator_mutation": false,
+  "runtime_npc_mutation": false,
+  "production_activation_allowed": false,
+  "visual_approval_allowed": false
+}

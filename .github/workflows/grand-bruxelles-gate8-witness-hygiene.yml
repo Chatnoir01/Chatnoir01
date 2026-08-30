@@ -20,6 +20,7 @@ jobs:
       HISTORICAL_WITNESS_HEAD: "ccece65cbb2e3eb0d1f2c11876a621299b766717"
       GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
       HOME: "/tmp/grand-bruxelles-gate8-hygiene-home"
+      GODOT_EPHEMERAL_ROGUE_TEXTURE: "grand-bruxelles-game/assets/characters/player_character_rogue_texture.png"
 
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test ! -e "$GODOT_EPHEMERAL_ROGUE_TEXTURE"
           for path in \
             grand-bruxelles-game/game/scripts/gate8_visual_loader.gd \
             grand-bruxelles-game/game/tests/gate8_runtime_witness.gd \
@@ -55,6 +57,7 @@ jobs:
             test -s "$path"
           done
           git status --porcelain --untracked-files=all | tee /tmp/status-after-materialize.txt
+          ! grep -Fq "$GODOT_EPHEMERAL_ROGUE_TEXTURE" /tmp/status-after-materialize.txt
 
       - name: Run exact Godot 4.7.1 editor import pass
         shell: bash
@@ -84,8 +87,13 @@ jobs:
               '?? grand-bruxelles-game/game/tests/gate8_runtime_witness.gd',
               '?? grand-bruxelles-game/game/tests/gate8_runtime_witness.tscn',
           )
+          allowed_exact={
+              '?? grand-bruxelles-game/assets/characters/player_character_rogue_texture.png',
+          }
           bad=[]
           for row in rows:
+              if row in allowed_exact:
+                  continue
               if row.startswith(allowed_prefixes):
                   continue
               if row.startswith('?? ') and (row.endswith('.uid') or row.endswith('.import')):
@@ -96,6 +104,7 @@ jobs:
           PY
           rm -rf grand-bruxelles-game/.godot
           rm -f \
+            "$GODOT_EPHEMERAL_ROGUE_TEXTURE" \
             grand-bruxelles-game/game/scripts/gate8_visual_loader.gd \
             grand-bruxelles-game/game/scripts/gate8_visual_loader.gd.uid \
             grand-bruxelles-game/game/tests/gate8_runtime_witness.gd \
@@ -105,7 +114,7 @@ jobs:
           find grand-bruxelles-game/game/scripts grand-bruxelles-game/game/tests -maxdepth 1 -type f \( -name 'gate8_visual_loader.gd.import' -o -name 'gate8_runtime_witness.gd.import' -o -name 'gate8_runtime_witness.tscn.import' \) -delete
           git status --porcelain --untracked-files=all | tee /tmp/status-after-cleanup.txt
           test -z "$(cat /tmp/status-after-cleanup.txt)"
-          echo 'GATE8_WITNESS_HYGIENE_OK canonical_tree_clean=true'
+          echo 'GATE8_WITNESS_HYGIENE_OK canonical_tree_clean=true rogue_texture_ephemeral=true'
 
       - name: Upload hygiene diagnostics
         if: always()

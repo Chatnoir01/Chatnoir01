@@ -1,0 +1,54 @@
+{
+  "format": "grand-bruxelles-urbis-wfs-v1",
+  "source": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+  "crs": "EPSG:31370",
+  "source_crs": "EPSG:31370",
+  "source_license": "CC0-1.0 (UrbIS vector layers used by this source root)",
+  "game_origin": {
+    "e": 149500.0,
+    "n": 172250.0,
+    "altitude": 0.0,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "bbox": [
+    149000.0,
+    172000.0,
+    150000.0,
+    172500.0
+  ],
+  "zone": "nord",
+  "promotion": "source_only_no_runtime_mutation",
+  "layers": {
+    "buildings": {
+      "wfs_name": "urbisvector:Buildings",
+      "features": 1015,
+      "file": "buildings.geojson",
+      "game_file": "buildings.game.json"
+    },
+    "street_surfaces": {
+      "wfs_name": "urbisvector:StreetSurfaces",
+      "features": 627,
+      "file": "street_surfaces.geojson",
+      "game_file": "street_surfaces.game.json"
+    },
+    "street_axes": {
+      "wfs_name": "urbisvector:StreetAxes",
+      "features": 168,
+      "file": "street_axes.geojson",
+      "game_file": "street_axes.game.json"
+    },
+    "tram_network": {
+      "wfs_name": "urbisvector:TramNetwork",
+      "features": 162,
+      "file": "tram_network.geojson",
+      "game_file": "tram_network.game.json"
+    },
+    "train_network": {
+      "wfs_name": "urbisvector:TrainNetwork",
+      "features": 162,
+      "file": "train_network.geojson",
+      "game_file": "train_network.game.json"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+name: Grand Bruxelles Road Destination Source Semantics
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json"
+      - "grand-bruxelles-game/tools/validate_road_destination_source_semantics.py"
+      - "grand-bruxelles-game/tools/tests/test_road_destination_source_semantics.py"
+      - ".github/workflows/grand-bruxelles-road-destination-source-semantics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-semantics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate exact destination source semantics
+        working-directory: grand-bruxelles-game
+        run: python tools/validate_road_destination_source_semantics.py
+      - name: Run semantic drift regressions
+        working-directory: grand-bruxelles-game
+        run: python tools/tests/test_road_destination_source_semantics.py

@@ -110,6 +110,30 @@ def test_string_bbox_coordinate_fails_closed() -> None:
         raise AssertionError("string bbox coordinate was coerced to numeric identity")
 
 
+def test_cell_manifest_path_drift_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    destination = readiness["destinations"][0]
+    destination["cell_manifest_path"] = "data/cell_manifests/bxl-e148000-n169500-s500.json"
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "cell manifest path drift" in str(exc)
+    else:
+        raise AssertionError("forged cell manifest path was accepted")
+
+
+def test_cell_manifest_sha256_drift_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    destination = readiness["destinations"][0]
+    destination["cell_manifest_sha256"] = "0" * 64
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "cell manifest sha256 drift" in str(exc)
+    else:
+        raise AssertionError("forged cell manifest SHA-256 was accepted")
+
+
 def test_root_jouable_authorization_true_fails_closed() -> None:
     readiness = json.loads(READINESS.read_text(encoding="utf-8"))
     readiness["authorization"]["jouable_authorized"] = True
@@ -227,6 +251,8 @@ if __name__ == "__main__":
     test_string_road_osm_id_fails_closed()
     test_string_destination_count_fails_closed()
     test_string_bbox_coordinate_fails_closed()
+    test_cell_manifest_path_drift_fails_closed()
+    test_cell_manifest_sha256_drift_fails_closed()
     test_root_jouable_authorization_true_fails_closed()
     test_root_boolean_control_alias_fails_closed()
     test_nested_boolean_control_alias_fails_closed()

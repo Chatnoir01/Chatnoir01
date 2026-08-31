@@ -10,6 +10,18 @@ func _fail(message: String) -> void:
     push_error("BRUSSELS_BOLLARD_DORMANT_MOUNT_FAIL: %s" % message)
     quit(1)
 
+func _collision_state_matches(root_node: Node, expected_disabled: bool) -> bool:
+    var collision_body := root_node.get_node_or_null("BollardCollisions")
+    if collision_body == null:
+        return false
+    var count := 0
+    for child: Node in collision_body.get_children():
+        if child is CollisionShape3D:
+            count += 1
+            if (child as CollisionShape3D).disabled != expected_disabled:
+                return false
+    return count == EXPECTED_COUNT
+
 func _run() -> void:
     var runtime := root.get_node_or_null("BrusselsBollardRuntime")
     if runtime == null:
@@ -23,6 +35,13 @@ func _run() -> void:
         return
     if bool(runtime.call("ready_complete")):
         _fail("bollard runtime completed without a legitimate production mount")
+        return
+
+    # Disable before the legitimate mount exists. Newly created owned colliders must
+    # inherit the same state instead of becoming invisible-but-solid.
+    runtime.call("set_visual_enabled", false)
+    if bool(runtime.call("visual_enabled")):
+        _fail("bollard visual state did not retain pre-bind disabled state")
         return
 
     var viewport := SubViewport.new()
@@ -61,9 +80,50 @@ func _run() -> void:
     if not bool(runtime.call("source_positions_unchanged")):
         _fail("bollard source placement contract changed")
         return
-    if main_mount.get_node_or_null("BrusselsSourceBackedBollards") == null:
+    var bollard_root := main_mount.get_node_or_null("BrusselsSourceBackedBollards")
+    if bollard_root == null:
         _fail("bollard runtime mounted outside the legitimate Main scene")
         return
 
-    print("BRUSSELS_BOLLARD_DORMANT_MOUNT_OK: points=%d collisions=%d batches=%d nested_mount=true dormant_absence=true source_positions_unchanged=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, EXPECTED_COUNT, 2])
+    if not _collision_state_matches(bollard_root, true):
+        _fail("pre-bind hidden bollards retained active owned collisions")
+        return
+
+    runtime.call("set_visual_enabled", true)
+    if not bool(runtime.call("visual_enabled")):
+        _fail("bollard visual state did not enable")
+        return
+    if not _collision_state_matches(bollard_root, false):
+        _fail("visible bollards did not restore owned collisions")
+        return
+
+    runtime.call("set_visual_enabled", false)
+    if bool(runtime.call("visual_enabled")):
+        _fail("bollard visual state did not disable")
+        return
+    if not _collision_state_matches(bollard_root, true):
+        _fail("hidden bollards retained active owned collisions")
+        return
+
+    # A foreign collider may coexist under the runtime-owned StaticBody3D during
+    # integration/debugging. Visibility toggles must never mutate a collider that
+    # the bollard runtime did not create and explicitly mark as its own.
+    var collision_body := bollard_root.get_node_or_null("BollardCollisions")
+    if collision_body == null:
+        _fail("owned collision body missing before owner-isolation probe")
+        return
+    var foreign_collision := CollisionShape3D.new()
+    foreign_collision.name = "ForeignCollisionProbe"
+    foreign_collision.shape = BoxShape3D.new()
+    foreign_collision.disabled = false
+    foreign_collision.set_meta("owner_runtime", "foreign-test-owner")
+    collision_body.add_child(foreign_collision)
+
+    runtime.call("set_visual_enabled", true)
+    runtime.call("set_visual_enabled", false)
+    if foreign_collision.disabled:
+        _fail("bollard visibility toggle mutated a foreign collision owner")
+        return
+
+    print("BRUSSELS_BOLLARD_DORMANT_MOUNT_OK: points=%d collisions=%d batches=%d nested_mount=true dormant_absence=true source_positions_unchanged=true visibility_collision_sync=true prebind_inheritance=true collision_owner_isolation=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, EXPECTED_COUNT, 2])
     quit(0)

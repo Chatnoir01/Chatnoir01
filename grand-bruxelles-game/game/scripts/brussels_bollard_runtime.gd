@@ -3,6 +3,8 @@ extends Node
 const DATA_PATH := "res://data/osm/fontainas_bollards.game.json"
 const ASSET := preload("res://game/scripts/brussels_bollard_asset.gd")
 const POSITION_EPSILON_METERS := 0.0005
+const COLLISION_OWNER_META := "owner_runtime"
+const COLLISION_OWNER_ID := "BrusselsBollardRuntime"
 
 var _root: Node3D = null
 var _scene: Node3D = null
@@ -153,6 +155,9 @@ func _point_base_position(raw: Variant) -> Variant:
         return null
     return Vector3(float(position_value[0]), 0.0, float(position_value[1]))
 
+func _is_owned_collision(node: Node) -> bool:
+    return node is CollisionShape3D and str(node.get_meta(COLLISION_OWNER_META, "")) == COLLISION_OWNER_ID
+
 func _build() -> void:
     if _tearing_down:
         return
@@ -238,19 +243,27 @@ func _build() -> void:
         collision.position = base_position + Vector3(0.0, ASSET.COLLISION_HEIGHT * 0.5, 0.0)
         collision.set_meta("osm_id", int(point.get("osm_id", 0)))
         collision.set_meta("source_base_position", base_position)
+        collision.set_meta(COLLISION_OWNER_META, COLLISION_OWNER_ID)
         _collision_body.add_child(collision)
 
-    set_visual_enabled(_visual_enabled)
+    _apply_enabled_state()
     _ready_complete = true
     _disconnect_scene_watch()
     print("BRUSSELS_BOLLARD_READY: points=%d collisions=%d batches=%d family=%s source=OSM license=ODbL-1.0 event_driven=true" % [point_count(), collision_count(), visual_batch_count(), ASSET.ASSET_FAMILY])
 
+func _apply_enabled_state() -> void:
+    if is_instance_valid(_body_batch):
+        _body_batch.visible = _visual_enabled
+    if is_instance_valid(_cap_batch):
+        _cap_batch.visible = _visual_enabled
+    if is_instance_valid(_collision_body):
+        for child: Node in _collision_body.get_children():
+            if _is_owned_collision(child):
+                (child as CollisionShape3D).disabled = not _visual_enabled
+
 func set_visual_enabled(enabled: bool) -> void:
     _visual_enabled = enabled
-    if is_instance_valid(_body_batch):
-        _body_batch.visible = enabled
-    if is_instance_valid(_cap_batch):
-        _cap_batch.visible = enabled
+    _apply_enabled_state()
 
 func visual_enabled() -> bool:
     return _visual_enabled
@@ -269,7 +282,7 @@ func collision_count() -> int:
         return 0
     var count := 0
     for child: Node in _collision_body.get_children():
-        if child is CollisionShape3D:
+        if _is_owned_collision(child):
             count += 1
     return count
 
@@ -315,9 +328,16 @@ func source_positions_unchanged() -> bool:
     if not _placement_contract_matches_source():
         return false
 
+    var owned_collisions: Array[CollisionShape3D] = []
+    for child: Node in _collision_body.get_children():
+        if _is_owned_collision(child):
+            owned_collisions.append(child as CollisionShape3D)
+    if owned_collisions.size() != _source_positions.size():
+        return false
+
     for index: int in range(_source_positions.size()):
         var source_base := _source_positions[index]
-        var collision := _collision_body.get_child(index) as CollisionShape3D
+        var collision := owned_collisions[index]
         if collision == null:
             return false
         if not _same_source_xz(collision.position, source_base):

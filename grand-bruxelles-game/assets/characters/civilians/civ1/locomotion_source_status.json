@@ -1,0 +1,56 @@
+{
+  "format": "grand-bruxelles-civ1-locomotion-source-audit-v1",
+  "candidate_id": "CIV-1",
+  "base_main_sha": "1cc26a9ee8605afa547e49b6ae730b0fe3d6cfc1",
+  "production_authorized": false,
+  "retarget_authorized": false,
+  "activation_ready": false,
+  "visual_approval_claimed": false,
+  "player_character_reuse_forbidden": true,
+  "mixamo_forbidden": true,
+  "sources": [
+    {
+      "id": "quaternius_universal_animation_library_standard_1_0",
+      "store": "Godot Asset Store",
+      "store_url": "https://store.godotengine.org/asset/quaternius/universal-animation-library/",
+      "license": "CC0-1.0",
+      "publisher": "Quaternius",
+      "publisher_marked_unstable": true,
+      "archive_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+      "archive_size_bytes": 14541205,
+      "godot_4_7_1_preflight_demonstrated": true,
+      "source_animation_count": 46,
+      "exact_idle_candidates": ["Crouch_Idle", "Idle", "Idle_Talking", "Idle_Torch", "Pistol_Idle", "Sitting_Idle", "Spell_Simple_Idle", "Swim_Idle"],
+      "exact_walk_candidates": ["Walk", "Walk_Formal"],
+      "exact_run_candidates": [],
+      "review_only_run_candidates": ["Jog_Fwd", "Sprint"],
+      "state": "BLOCKED_NO_EXACT_RUN",
+      "direct_adoption_allowed": false,
+      "semantic_alias_auto_promotion_allowed": false
+    },
+    {
+      "id": "kaykit_character_animations_1_2",
+      "license": "CC0-1.0",
+      "archive_sha256": "c9d3fbea492dc6edd0903939369a564c2240b892430bcd99e0aee4876110bb8f",
+      "godot_4_7_1_characterization_demonstrated": true,
+      "skeleton_bones": ["Body", "Head", "armLeft", "handSlotLeft", "armRight", "handSlotRight"],
+      "state": "REJECTED_NON_HUMANOID_FOR_CIV1_RETARGET",
+      "direct_adoption_allowed": false
+    },
+    {
+      "id": "quaternius_ik_rigged_1_0",
+      "asset_library_url": "https://godotengine.org/asset-library/asset/5235",
+      "license": "CC0-1.0",
+      "declared_godot_compatibility": "4.6+",
+      "upstream_commit_from_asset_download": "5c4dae72e49ad4e5959571e00a25d3d872cacba5",
+      "state": "AUDIT_REQUIRED_BEFORE_USE",
+      "godot_4_7_1_demonstrated": false,
+      "exact_idle_walk_run_catalog_verified": false,
+      "civ1_52_bone_retarget_verified": false,
+      "direct_adoption_allowed": false
+    }
+  ],
+  "selected_source": "",
+  "blocker": "no_independently_licensed_exact_idle_walk_run_trio_verified_for_civ1",
+  "next_gate": "characterize Quaternius_IK_Rigged exact archive/catalog under Godot 4.7.1; if unsuitable, perform explicit semantic review of Quaternius Jog_Fwd versus Sprint before any retarget A/B"
+}

@@ -247,11 +247,13 @@ func _run() -> void:
             var source_record := _transform_record(source_pose, source_rest, source_hips_pose)
             source_record["source_motion_from_rest"] = _v3(source_pose.origin - source_rest.origin)
             source_record.erase("target_motion_from_rest")
-            source_record["source_hips_relative_origin"] = source_record.pop("hips_relative_origin")
+            source_record["source_hips_relative_origin"] = source_record["hips_relative_origin"]
+            source_record.erase("hips_relative_origin")
             var target_record := _transform_record(target_pose, target_rest, target_hips_pose)
             target_record["target_motion_from_rest"] = _v3(target_pose.origin - target_rest.origin)
             target_record.erase("source_motion_from_rest")
-            target_record["target_hips_relative_origin"] = target_record.pop("hips_relative_origin")
+            target_record["target_hips_relative_origin"] = target_record["hips_relative_origin"]
+            target_record.erase("hips_relative_origin")
             bones[semantic] = {"source": source_record, "target": target_record}
         model_space_samples.append({"sample_index": sample_idx, "time_s": t, "bones": bones})
 

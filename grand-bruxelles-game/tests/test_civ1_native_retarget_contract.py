@@ -43,6 +43,8 @@ def main() -> None:
         "CIV1_NATIVE_RETARGET_OK",
         "target_left_support_candidate",
         "target_right_support_candidate",
+        "native_support_improves_manual_baseline",
+        "assert improved is True",
     ):
         require(workflow, token)
 

@@ -43,8 +43,6 @@ def fail(message: str) -> None:
 
 
 def _number(value: Any, label: str) -> float:
-    # Coordinates are identity-bearing JSON numbers. Never normalize strings,
-    # booleans, nulls, or other coercible values into spatial identity.
     if type(value) not in (int, float):
         fail(f"invalid {label}")
     number = float(value)
@@ -56,8 +54,6 @@ def _number(value: Any, label: str) -> float:
 
 
 def _road_id(value: Any) -> int:
-    # OSM IDs are canonical JSON integers. Never normalize booleans, numeric
-    # strings, floats, or other coercible values into an identity.
     if type(value) is not int or value <= 0:
         fail("invalid road identity")
     return value
@@ -80,6 +76,46 @@ def _require_closed_authorization(
             fail(f"{label} authorization rail drift: {key} must remain false")
 
 
+def _require_no_unknown_boolean_controls(
+    payload: dict[str, Any],
+    known_boolean_keys: frozenset[str],
+    label: str,
+    skipped_direct_objects: frozenset[str] = frozenset(),
+) -> None:
+    """Reject boolean aliases outside canonical control-plane rails, recursively.
+
+    Direct ``*_authorized`` fields are intentionally left to the exact authorization
+    validator so added top-level rail keys retain the stronger rail-drift diagnostic.
+    Canonical nested authorization objects may be skipped explicitly because they are
+    validated separately. Any boolean hidden deeper in otherwise extensible metadata,
+    including nested ``*_authorized`` aliases, is control-bearing and fails closed.
+    """
+    unknown: list[str] = []
+
+    def walk(value: Any, path: str, depth: int) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f"{path}.{key}" if path else key
+                if depth == 0 and key in skipped_direct_objects:
+                    continue
+                if type(child) is bool:
+                    if depth == 0 and (
+                        key in known_boolean_keys or key.endswith("_authorized")
+                    ):
+                        continue
+                    unknown.append(child_path)
+                    continue
+                walk(child, child_path, depth + 1)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                child_path = f"{path}[{index}]" if path else f"[{index}]"
+                walk(child, child_path, depth + 1)
+
+    walk(payload, "", 0)
+    if unknown:
+        fail(f"{label} unknown boolean control field(s): {sorted(unknown)}")
+
+
 def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     road_id = _road_id(destination.get("road_osm_id"))
     if destination.get("destination_id") != f"road-{road_id}":
@@ -89,6 +125,11 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     if destination.get("cell_crs") != EXPECTED_CRS:
         fail(f"cell CRS drift {road_id}")
 
+    _require_no_unknown_boolean_controls(
+        destination,
+        DESTINATION_AUTHORIZATION_RAILS,
+        "destination",
+    )
     destination_authorization = {
         key: value
         for key, value in destination.items()
@@ -129,6 +170,12 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
 
 
 def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
+    _require_no_unknown_boolean_controls(
+        readiness,
+        frozenset(),
+        "readiness root",
+        skipped_direct_objects=frozenset({"authorization", "destinations"}),
+    )
     _require_closed_authorization(
         readiness.get("authorization"),
         ROOT_AUTHORIZATION_RAILS,

@@ -4,6 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PROBE = ROOT / "tools" / "godot_civ1_native_retarget_probe.gd"
 WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-civ1-native-retarget.yml"
+CHAIN_PROBE = ROOT / "tools" / "godot_civ1_leg_chain_diagnostic.gd"
+CHAIN_WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-civ1-leg-chain-diagnostic.yml"
 
 
 def require(text: str, token: str) -> None:
@@ -13,9 +15,13 @@ def require(text: str, token: str) -> None:
 def main() -> None:
     assert PROBE.exists(), "native RetargetModifier3D probe missing"
     assert WORKFLOW.exists(), "native retarget workflow missing"
+    assert CHAIN_PROBE.exists(), "bilateral leg-chain diagnostic probe missing"
+    assert CHAIN_WORKFLOW.exists(), "bilateral leg-chain diagnostic workflow missing"
 
     probe = PROBE.read_text(encoding="utf-8")
     workflow = WORKFLOW.read_text(encoding="utf-8")
+    chain_probe = CHAIN_PROBE.read_text(encoding="utf-8")
+    chain_workflow = CHAIN_WORKFLOW.read_text(encoding="utf-8")
 
     for token in (
         "RetargetModifier3D.new()",
@@ -44,17 +50,7 @@ def main() -> None:
         '"low_height_segment_start_indices"',
         '"low_height_windows"',
         '"wraps_cycle"',
-        '"leg_chain_rest_diagnostics"',
-        '"leg_chain_pose_diagnostics"',
-        '"LeftUpperLeg"',
-        '"LeftLowerLeg"',
-        '"LeftFoot"',
-        '"RightUpperLeg"',
-        '"RightLowerLeg"',
-        '"RightFoot"',
-        '"rest_local_rotation_delta_deg"',
-        '"pose_local_rotation_delta_deg"',
-        '"grand-bruxelles-civ1-native-retarget-v4"',
+        '"grand-bruxelles-civ1-native-retarget-v3"',
         '"diagnostic_only": true',
         '"run_alias_selected": false',
         '"world_ground_assumed": false',
@@ -85,13 +81,43 @@ def main() -> None:
         "low_height_sample_times_s",
         "low_height_segment_start_indices",
         "low_height_windows",
+        "assert improved is True",
+    ):
+        require(workflow, token)
+
+    for token in (
+        "RetargetModifier3D.new()",
+        "SkeletonProfile.new()",
+        "SAMPLE_COUNT := 121",
+        '"grand-bruxelles-civ1-leg-chain-diagnostic-v1"',
+        '"leg_chain_rest_diagnostics"',
+        '"leg_chain_pose_diagnostics"',
+        '"LeftUpperLeg"',
+        '"LeftLowerLeg"',
+        '"LeftFoot"',
+        '"RightUpperLeg"',
+        '"RightLowerLeg"',
+        '"RightFoot"',
+        '"rest_local_rotation_delta_deg"',
+        '"pose_local_rotation_delta_deg"',
+        '"diagnostic_only": true',
+        '"runtime_authorized": false',
+        '"visual_approval_claimed": false',
+    ):
+        require(chain_probe, token)
+
+    for token in (
+        "Godot_v4.7.1-stable_linux.x86_64.zip",
+        "CIV1_LEG_CHAIN_DIAGNOSTIC_OK",
         "leg_chain_rest_diagnostics",
         "leg_chain_pose_diagnostics",
         "rest_local_rotation_delta_deg",
         "pose_local_rotation_delta_deg",
-        "assert improved is True",
+        "diagnostic_only",
+        "runtime_authorized",
+        "visual_approval_claimed",
     ):
-        require(workflow, token)
+        require(chain_workflow, token)
 
     print("CIV1_NATIVE_RETARGET_CONTRACT_OK")
 

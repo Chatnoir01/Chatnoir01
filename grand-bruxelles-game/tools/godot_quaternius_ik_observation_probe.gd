@@ -162,9 +162,13 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
     var right_range := 0.0
     var have_first := false
     player.play(animation_name)
+    # Godot applies play()/seek() through AnimationMixer; force an immediate evaluation
+    # before reading Skeleton3D poses in the same headless frame.
+    player.advance(0.0)
     for sample_index in range(SAMPLE_COUNT):
         var t := animation.length * float(sample_index) / float(SAMPLE_COUNT - 1)
         player.seek(t, true)
+        player.advance(0.0)
         skeleton.force_update_bone_child_transform(left_idx)
         skeleton.force_update_bone_child_transform(right_idx)
         var left_pos := skeleton.get_bone_global_pose(left_idx).origin

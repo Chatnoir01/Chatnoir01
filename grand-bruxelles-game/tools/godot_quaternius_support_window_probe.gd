@@ -58,49 +58,64 @@ func _low_mask(samples: Array[Vector3]) -> Dictionary:
     var max_y: float = ys.max()
     var threshold: float = min_y + (max_y - min_y) * LOW_BAND_FRACTION
     var mask: Array[bool] = []
-    # Keep t == animation.length for pose-range evidence, but exclude it from the
-    # support/contact mask because looped playback can resolve that endpoint to t=0.
     for i in range(samples.size() - 1):
         mask.append(samples[i].y <= threshold)
+    return {"min_y_m": min_y, "max_y_m": max_y, "vertical_range_m": max_y - min_y, "threshold_y_m": threshold, "mask": mask}
+
+func _window_from_indices(samples: Array[Vector3], indices: Array[int], dt: float, wraps_cycle: bool) -> Dictionary:
+    var path_m := 0.0
+    var segment_speeds: Array[float] = []
+    for i in range(1, indices.size()):
+        var a := indices[i - 1]
+        var b := indices[i]
+        var horizontal := Vector2(samples[b].x - samples[a].x, samples[b].z - samples[a].z).length()
+        path_m += horizontal
+        segment_speeds.append(horizontal / maxf(dt, 0.000001))
+    var start := indices[0]
+    var end := indices[indices.size() - 1]
+    var displacement := Vector2(samples[end].x - samples[start].x, samples[end].z - samples[start].z).length()
     return {
-        "min_y_m": min_y,
-        "max_y_m": max_y,
-        "vertical_range_m": max_y - min_y,
-        "threshold_y_m": threshold,
-        "mask": mask,
+        "start_index": start,
+        "end_index": end,
+        "wraps_cycle": wraps_cycle,
+        "sample_count": indices.size(),
+        "duration_seconds": float(indices.size()) * dt,
+        "horizontal_displacement_m": displacement,
+        "horizontal_path_m": path_m,
+        "segment_speed_mps_median": _percentile(segment_speeds, 0.5),
+        "segment_speed_mps_max": segment_speeds.max() if not segment_speeds.is_empty() else 0.0,
+        "sample_indices": indices,
     }
 
 func _window_metrics(samples: Array[Vector3], mask: Array[bool], dt: float) -> Dictionary:
-    var windows: Array[Dictionary] = []
+    var segments: Array = []
     var selected_count := 0
     var i := 0
     while i < mask.size():
         if not mask[i]:
             i += 1
             continue
-        var start := i
-        while i + 1 < mask.size() and mask[i + 1]:
+        var indices: Array[int] = []
+        while i < mask.size() and mask[i]:
+            indices.append(i)
+            selected_count += 1
             i += 1
-        var end := i
-        selected_count += end - start + 1
-        var path_m := 0.0
-        var segment_speeds: Array[float] = []
-        for j in range(start + 1, end + 1):
-            var horizontal := Vector2(samples[j].x - samples[j - 1].x, samples[j].z - samples[j - 1].z).length()
-            path_m += horizontal
-            segment_speeds.append(horizontal / maxf(dt, 0.000001))
-        var displacement := Vector2(samples[end].x - samples[start].x, samples[end].z - samples[start].z).length()
-        windows.append({
-            "start_index": start,
-            "end_index": end,
-            "sample_count": end - start + 1,
-            "duration_seconds": float(end - start + 1) * dt,
-            "horizontal_displacement_m": displacement,
-            "horizontal_path_m": path_m,
-            "segment_speed_mps_median": _percentile(segment_speeds, 0.5),
-            "segment_speed_mps_max": segment_speeds.max() if not segment_speeds.is_empty() else 0.0,
-        })
-        i += 1
+        segments.append(indices)
+    var windows: Array[Dictionary] = []
+    if segments.size() >= 2 and mask[0] and mask[mask.size() - 1]:
+        var wrapped: Array[int] = []
+        var tail: Array[int] = segments[segments.size() - 1]
+        var head: Array[int] = segments[0]
+        wrapped.append_array(tail)
+        wrapped.append_array(head)
+        for s in range(1, segments.size() - 1):
+            var middle: Array[int] = segments[s]
+            windows.append(_window_from_indices(samples, middle, dt, false))
+        windows.append(_window_from_indices(samples, wrapped, dt, true))
+    else:
+        for segment in segments:
+            var indices: Array[int] = segment
+            windows.append(_window_from_indices(samples, indices, dt, false))
     var durations: Array[float] = []
     var displacements: Array[float] = []
     var paths: Array[float] = []
@@ -150,32 +165,17 @@ func _measure(player: AnimationPlayer, skeleton: Skeleton3D, animation_name: Str
     var neither_count := 0
     var unilateral_count := 0
     for i in range(left_mask.size()):
-        if left_mask[i] and right_mask[i]:
-            overlap_count += 1
-        elif not left_mask[i] and not right_mask[i]:
-            neither_count += 1
-        else:
-            unilateral_count += 1
+        if left_mask[i] and right_mask[i]: overlap_count += 1
+        elif not left_mask[i] and not right_mask[i]: neither_count += 1
+        else: unilateral_count += 1
     return {
         "valid": true,
         "animation": str(animation_name),
         "length_seconds": animation.length,
         "sample_count": SAMPLE_COUNT,
         "terminal_loop_sample_excluded_from_support_mask": true,
-        "left_foot": {
-            "min_y_m": left_low["min_y_m"],
-            "max_y_m": left_low["max_y_m"],
-            "vertical_range_m": left_low["vertical_range_m"],
-            "low_band_threshold_y_m": left_low["threshold_y_m"],
-            "support_windows": _window_metrics(left, left_mask, dt),
-        },
-        "right_foot": {
-            "min_y_m": right_low["min_y_m"],
-            "max_y_m": right_low["max_y_m"],
-            "vertical_range_m": right_low["vertical_range_m"],
-            "low_band_threshold_y_m": right_low["threshold_y_m"],
-            "support_windows": _window_metrics(right, right_mask, dt),
-        },
+        "left_foot": {"min_y_m": left_low["min_y_m"], "max_y_m": left_low["max_y_m"], "vertical_range_m": left_low["vertical_range_m"], "low_band_threshold_y_m": left_low["threshold_y_m"], "support_windows": _window_metrics(left, left_mask, dt)},
+        "right_foot": {"min_y_m": right_low["min_y_m"], "max_y_m": right_low["max_y_m"], "vertical_range_m": right_low["vertical_range_m"], "low_band_threshold_y_m": right_low["threshold_y_m"], "support_windows": _window_metrics(right, right_mask, dt)},
         "bilateral_support_fraction": float(overlap_count) / float(maxi(left_mask.size(), 1)),
         "unilateral_support_fraction": float(unilateral_count) / float(maxi(left_mask.size(), 1)),
         "neither_low_fraction": float(neither_count) / float(maxi(left_mask.size(), 1)),
@@ -196,23 +196,15 @@ func _run() -> void:
     _collect_players(instance, players)
     var selected: AnimationPlayer = null
     for player in players:
-        if player.has_animation(TARGET_ANIMATIONS[0]) and player.has_animation(TARGET_ANIMATIONS[1]):
-            selected = player
-            break
-    if selected == null:
-        quit(4)
-        return
+        if player.has_animation(TARGET_ANIMATIONS[0]) and player.has_animation(TARGET_ANIMATIONS[1]): selected = player; break
+    if selected == null: quit(4); return
     var skeleton_node := selected.get_node_or_null(selected.root_node)
-    if not (skeleton_node is Skeleton3D):
-        quit(5)
-        return
+    if not (skeleton_node is Skeleton3D): quit(5); return
     var skeleton := skeleton_node as Skeleton3D
     var rows: Array[Dictionary] = []
     for name in TARGET_ANIMATIONS:
         var animation := selected.get_animation(name)
-        if animation == null:
-            quit(6)
-            return
+        if animation == null: quit(6); return
         rows.append(await _measure(selected, skeleton, StringName(name), animation))
     var payload := {
         "format": "grand-bruxelles-quaternius-support-window-v1",
@@ -232,9 +224,7 @@ func _run() -> void:
         "visual_approval_claimed": false,
     }
     var out := FileAccess.open(_output_path, FileAccess.WRITE)
-    if out == null:
-        quit(7)
-        return
+    if out == null: quit(7); return
     out.store_string(JSON.stringify(payload, "  "))
     out.close()
     print("QUATERNIUS_SUPPORT_WINDOW_OK measurements=%d" % rows.size())

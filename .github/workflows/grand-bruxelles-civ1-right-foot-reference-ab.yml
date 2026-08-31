@@ -139,12 +139,41 @@ jobs:
           normalized_left=p['target_left_support_candidate']
           assert baseline_left['low_height_sample_indices']==normalized_left['low_height_sample_indices']
 
+          source_right=p['source_right_support_candidate']
           baseline_right=baseline['target_right_support_candidate']
           normalized_right=p['target_right_support_candidate']
           right_median_improved=normalized_right['median_horizontal_speed_mps'] < baseline_right['median_horizontal_speed_mps']
           right_p90_improved=normalized_right['p90_horizontal_speed_mps'] < baseline_right['p90_horizontal_speed_mps']
           assert right_median_improved is True, (baseline_right,normalized_right)
           assert right_p90_improved is True, (baseline_right,normalized_right)
+
+          # Phase evidence is relative A/B only: no production threshold is invented.
+          source_low=set(source_right['low_height_sample_indices'])
+          baseline_low=set(baseline_right['low_height_sample_indices'])
+          normalized_low=set(normalized_right['low_height_sample_indices'])
+          baseline_right_source_overlap_samples=len(source_low & baseline_low)
+          normalized_right_source_overlap_samples=len(source_low & normalized_low)
+          right_overlap_improved=normalized_right_source_overlap_samples > baseline_right_source_overlap_samples
+          assert right_overlap_improved is True, (
+              baseline_right_source_overlap_samples,
+              normalized_right_source_overlap_samples,
+          )
+
+          def primary_window_center(candidate):
+              windows=candidate['low_height_windows']
+              assert windows, candidate
+              primary=max(windows,key=lambda w:int(w['sample_count']))
+              assert primary['wraps_cycle'] is False, primary
+              return (float(primary['start_index'])+float(primary['end_index']))/2.0
+
+          source_center=primary_window_center(source_right)
+          baseline_right_primary_center_error_samples=abs(primary_window_center(baseline_right)-source_center)
+          normalized_right_primary_center_error_samples=abs(primary_window_center(normalized_right)-source_center)
+          right_phase_center_improved=normalized_right_primary_center_error_samples < baseline_right_primary_center_error_samples
+          assert right_phase_center_improved is True, (
+              baseline_right_primary_center_error_samples,
+              normalized_right_primary_center_error_samples,
+          )
 
           assert p['diagnostic_only'] is True and p['run_alias_selected'] is False
           assert p['world_ground_assumed'] is False and p['grounding_verified'] is False
@@ -157,10 +186,16 @@ jobs:
           print('normalized_right_p90_mps',normalized_right['p90_horizontal_speed_mps'])
           print('baseline_right_low_samples',baseline_right['low_height_sample_count'])
           print('normalized_right_low_samples',normalized_right['low_height_sample_count'])
+          print('baseline_right_source_overlap_samples',baseline_right_source_overlap_samples)
+          print('normalized_right_source_overlap_samples',normalized_right_source_overlap_samples)
+          print('baseline_right_primary_center_error_samples',baseline_right_primary_center_error_samples)
+          print('normalized_right_primary_center_error_samples',normalized_right_primary_center_error_samples)
           print('normalized_right_median_improves_baseline',right_median_improved)
           print('normalized_right_p90_improves_baseline',right_p90_improved)
+          print('normalized_right_overlap_improves_baseline',right_overlap_improved)
+          print('normalized_right_phase_center_improves_baseline',right_phase_center_improved)
           print('target_right_foot_length_preserved',p['target_right_foot_length_preserved'])
-          print('classification','diagnostic-only actual target-rest A-B with post-rest pose reset; no grounding/foot-slide/runtime claim')
+          print('classification','diagnostic-only RightFoot reference A-B: phase and speed improvement required; no grounding/foot-slide/runtime claim')
           PY
 
       - name: Upload RightFoot reference A-B evidence

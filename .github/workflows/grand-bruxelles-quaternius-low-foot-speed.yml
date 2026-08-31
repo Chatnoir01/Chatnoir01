@@ -92,6 +92,8 @@ jobs:
                   m=r[side]
                   assert m['vertical_range_m']>0.0
                   assert m['low_band_sample_count']>0
+                  assert m['terminal_loop_sample_excluded_from_speed'] is True
+                  assert 120 not in m['selected_sample_indices']
                   assert m['low_band_horizontal_speed_mps_median']>=0.0
                   assert m['low_band_horizontal_speed_mps_p90']>=m['low_band_horizontal_speed_mps_median']
                   assert m['low_band_horizontal_speed_mps_max']>=m['low_band_horizontal_speed_mps_p90']

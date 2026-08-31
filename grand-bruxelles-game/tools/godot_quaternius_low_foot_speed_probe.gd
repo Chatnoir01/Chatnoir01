@@ -59,7 +59,10 @@ func _foot_metrics(samples: Array[Vector3], dt: float) -> Dictionary:
     var threshold: float = min_y + (max_y - min_y) * LOW_BAND_FRACTION
     var speeds: Array[float] = []
     var selected_indices: Array[int] = []
-    for i in range(1, samples.size()):
+    # SAMPLE_COUNT includes t == animation.length for pose-range evidence. On looped
+    # animations Godot may resolve that endpoint back to the cycle start, so never
+    # use the terminal duplicate/wrap sample as a finite-difference speed endpoint.
+    for i in range(1, samples.size() - 1):
         if samples[i].y <= threshold:
             var horizontal := Vector2(samples[i].x - samples[i - 1].x, samples[i].z - samples[i - 1].z).length()
             speeds.append(horizontal / maxf(dt, 0.000001))
@@ -75,6 +78,7 @@ func _foot_metrics(samples: Array[Vector3], dt: float) -> Dictionary:
         "low_band_horizontal_speed_mps_p90": _percentile(speeds, 0.9),
         "low_band_horizontal_speed_mps_max": speeds.max() if not speeds.is_empty() else 0.0,
         "selected_sample_indices": selected_indices,
+        "terminal_loop_sample_excluded_from_speed": true,
     }
 
 func _measure(player: AnimationPlayer, skeleton: Skeleton3D, animation_name: StringName, animation: Animation) -> Dictionary:

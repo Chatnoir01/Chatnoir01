@@ -19,11 +19,20 @@ def main() -> None:
 
     for token in (
         "RetargetModifier3D.new()",
+        "target_skeleton.reparent(modifier, true)",
+        "target_skeleton.get_parent() == modifier",
         "set_use_global_pose(false)",
         "set_position_enabled(false)",
         "set_rotation_enabled(true)",
         "set_scale_enabled(false)",
         "SkeletonProfile.new()",
+        "MIN_FOOT_RANGE_M := 0.05",
+        '"source_left_foot_range_m"',
+        '"source_right_foot_range_m"',
+        '"target_left_foot_range_m"',
+        '"target_right_foot_range_m"',
+        '"source_bilateral_motion_verified"',
+        '"target_bilateral_motion_verified"',
         '"grand-bruxelles-civ1-native-retarget-v1"',
         '"diagnostic_only": true',
         '"run_alias_selected": false',
@@ -43,7 +52,10 @@ def main() -> None:
         "CIV1_NATIVE_RETARGET_OK",
         "target_left_support_candidate",
         "target_right_support_candidate",
-        "native_support_improves_manual_baseline",
+        "target_bilateral_motion_verified",
+        "source_bilateral_motion_verified",
+        "target_left_foot_range_m",
+        "target_right_foot_range_m",
         "assert improved is True",
     ):
         require(workflow, token)

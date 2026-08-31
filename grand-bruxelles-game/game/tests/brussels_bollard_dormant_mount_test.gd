@@ -105,5 +105,25 @@ func _run() -> void:
         _fail("hidden bollards retained active owned collisions")
         return
 
-    print("BRUSSELS_BOLLARD_DORMANT_MOUNT_OK: points=%d collisions=%d batches=%d nested_mount=true dormant_absence=true source_positions_unchanged=true visibility_collision_sync=true prebind_inheritance=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, EXPECTED_COUNT, 2])
+    # A foreign collider may coexist under the runtime-owned StaticBody3D during
+    # integration/debugging. Visibility toggles must never mutate a collider that
+    # the bollard runtime did not create and explicitly mark as its own.
+    var collision_body := bollard_root.get_node_or_null("BollardCollisions")
+    if collision_body == null:
+        _fail("owned collision body missing before owner-isolation probe")
+        return
+    var foreign_collision := CollisionShape3D.new()
+    foreign_collision.name = "ForeignCollisionProbe"
+    foreign_collision.shape = BoxShape3D.new()
+    foreign_collision.disabled = false
+    foreign_collision.set_meta("owner_runtime", "foreign-test-owner")
+    collision_body.add_child(foreign_collision)
+
+    runtime.call("set_visual_enabled", true)
+    runtime.call("set_visual_enabled", false)
+    if foreign_collision.disabled:
+        _fail("bollard visibility toggle mutated a foreign collision owner")
+        return
+
+    print("BRUSSELS_BOLLARD_DORMANT_MOUNT_OK: points=%d collisions=%d batches=%d nested_mount=true dormant_absence=true source_positions_unchanged=true visibility_collision_sync=true prebind_inheritance=true collision_owner_isolation=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, EXPECTED_COUNT, 2])
     quit(0)

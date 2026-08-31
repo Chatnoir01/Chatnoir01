@@ -5,6 +5,7 @@ const SOURCE_SCENE_SUFFIX := "Models_with_rigging/Master_Rigged.tscn"
 const TARGET_SCENE := "res://civ1_body.glb"
 const SAMPLE_COUNT := 121
 const MAX_NORMALIZED_FOOT_MOTION_GAIN := 1.5
+const TARGET_SUPPORT_BAND_FRACTION := 0.10
 
 const REQUIRED_SEMANTICS := [
     "Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
@@ -155,6 +156,49 @@ func _range_m(points: Array[Vector3]) -> float:
         max_v.z = maxf(max_v.z, p.z)
     return min_v.distance_to(max_v)
 
+func _percentile(values: Array[float], fraction: float) -> float:
+    if values.is_empty():
+        return 0.0
+    var ordered := values.duplicate()
+    ordered.sort()
+    var idx := clampi(int(round(fraction * float(ordered.size() - 1))), 0, ordered.size() - 1)
+    return ordered[idx]
+
+func _support_metrics(points: Array[Vector3], animation_length: float) -> Dictionary:
+    var usable_count := points.size() - 1
+    var min_y := INF
+    var max_y := -INF
+    for i in range(usable_count):
+        min_y = minf(min_y, points[i].y)
+        max_y = maxf(max_y, points[i].y)
+    var threshold := min_y + ((max_y - min_y) * TARGET_SUPPORT_BAND_FRACTION)
+    var low_samples := 0
+    for i in range(usable_count):
+        if points[i].y <= threshold:
+            low_samples += 1
+    var dt := animation_length / float(SAMPLE_COUNT - 1)
+    var speeds: Array[float] = []
+    var horizontal_path := 0.0
+    for i in range(usable_count - 1):
+        if points[i].y <= threshold and points[i + 1].y <= threshold:
+            var a := Vector2(points[i].x, points[i].z)
+            var b := Vector2(points[i + 1].x, points[i + 1].z)
+            var distance := a.distance_to(b)
+            horizontal_path += distance
+            speeds.append(distance / dt if dt > 0.0 else 0.0)
+    return {
+        "support_band_fraction": TARGET_SUPPORT_BAND_FRACTION,
+        "min_y_m": min_y,
+        "max_y_m": max_y,
+        "threshold_y_m": threshold,
+        "low_height_sample_count": low_samples,
+        "low_height_segment_count": speeds.size(),
+        "horizontal_path_m": horizontal_path,
+        "median_horizontal_speed_mps": _percentile(speeds, 0.50),
+        "p90_horizontal_speed_mps": _percentile(speeds, 0.90),
+        "max_horizontal_speed_mps": _percentile(speeds, 1.00),
+    }
+
 func _write_payload(payload: Dictionary) -> bool:
     var out := FileAccess.open(_output_path, FileAccess.WRITE)
     if out == null:
@@ -283,10 +327,13 @@ func _run() -> void:
     var left_gain_vs_leg := target_left_range / leg_scaled_source_left if leg_scaled_source_left > 0.000001 else 999.0
     var right_gain_vs_leg := target_right_range / leg_scaled_source_right if leg_scaled_source_right > 0.000001 else 999.0
     var motion_plausible := left_gain_vs_leg <= MAX_NORMALIZED_FOOT_MOTION_GAIN and right_gain_vs_leg <= MAX_NORMALIZED_FOOT_MOTION_GAIN
-    var transfer_ok := applied_per_sample == REQUIRED_SEMANTICS.size() and target_left_range > 0.05 and target_right_range > 0.05 and motion_plausible
+    var target_left_support := _support_metrics(target_left_points, animation.length)
+    var target_right_support := _support_metrics(target_right_points, animation.length)
+    var support_measurement_ready := int(target_left_support["low_height_segment_count"]) > 0 and int(target_right_support["low_height_segment_count"]) > 0
+    var transfer_ok := applied_per_sample == REQUIRED_SEMANTICS.size() and target_left_range > 0.05 and target_right_range > 0.05 and motion_plausible and support_measurement_ready
 
     var payload := {
-        "format": "grand-bruxelles-civ1-sprint-pose-transfer-v3",
+        "format": "grand-bruxelles-civ1-sprint-pose-transfer-v4",
         "godot_version": Engine.get_version_info(),
         "source_animation": SOURCE_ANIMATION,
         "transfer_method": "rest_normalized_rotation_scaled_hips_translation",
@@ -319,6 +366,10 @@ func _run() -> void:
         "right_motion_gain_vs_leg_scaled_source": right_gain_vs_leg,
         "max_normalized_foot_motion_gain": MAX_NORMALIZED_FOOT_MOTION_GAIN,
         "motion_plausibility_passed": motion_plausible,
+        "target_left_support_candidate": target_left_support,
+        "target_right_support_candidate": target_right_support,
+        "target_support_candidate_measurement_ready": support_measurement_ready,
+        "terminal_loop_sample_excluded_from_speed": true,
         "animation_transferred": transfer_ok,
         "diagnostic_only": true,
         "run_alias_selected": false,
@@ -333,7 +384,7 @@ func _run() -> void:
         quit(11)
         return
     if not transfer_ok:
-        push_error("CIV1_SPRINT_POSE_TRANSFER_FAIL: bilateral motion missing or amplified beyond side-specific leg plausibility gate")
+        push_error("CIV1_SPRINT_POSE_TRANSFER_FAIL: bilateral motion, plausibility, or target support measurement gate failed")
         quit(12)
         return
     print("CIV1_SPRINT_POSE_TRANSFER_OK")

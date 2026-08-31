@@ -17,6 +17,8 @@ var _enhanced_trees_enabled := true
 var _manual_binding := false
 var _watching_tree := false
 var _tearing_down := false
+var _tree_activation_initialized := false
+var _tree_active := false
 
 func _ready() -> void:
     _tearing_down = false
@@ -47,7 +49,8 @@ func _process(_delta: float) -> void:
     if not is_instance_valid(_root):
         _build_once()
     if is_instance_valid(_root) and is_instance_valid(_player):
-        _root.visible = Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
+        var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
+        _apply_tree_activation(active)
 
 func _start_watching() -> void:
     if _tearing_down or not is_inside_tree() or _manual_binding or _watching_tree:
@@ -79,6 +82,8 @@ func _release_owned_root() -> void:
     _root = null
     _trees.clear()
     _tree_materials.clear()
+    _tree_activation_initialized = false
+    _tree_active = false
 
 func _on_tree_node_added(node: Node) -> void:
     if _tearing_down or not is_inside_tree() or _manual_binding or is_instance_valid(_scene):
@@ -212,8 +217,27 @@ func _build_once() -> void:
         _add_tree(int(point.get("osm_id", 0)), Vector3(float(position[0]), 0.0, float(position[1])))
         built += 1
 
-    _root.visible = Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
+    _tree_activation_initialized = false
+    var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
+    _apply_tree_activation(active)
     print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0" % [built, TREE_ASSET.ASSET_FAMILY])
+
+func _apply_tree_activation(active: bool) -> void:
+    if not is_instance_valid(_root):
+        _tree_active = active
+        _tree_activation_initialized = false
+        return
+    if _tree_activation_initialized and _tree_active == active:
+        return
+    _tree_active = active
+    _tree_activation_initialized = true
+    _root.visible = active
+    for tree: StaticBody3D in _trees:
+        if not is_instance_valid(tree):
+            continue
+        var collision := tree.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if collision != null:
+            collision.disabled = not active
 
 func _add_tree(osm_id: int, world_position: Vector3) -> void:
     var tree := StaticBody3D.new()

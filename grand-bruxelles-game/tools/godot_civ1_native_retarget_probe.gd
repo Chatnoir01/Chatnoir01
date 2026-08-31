@@ -190,8 +190,6 @@ func _support_metrics(points: Array[Vector3], animation_length: float) -> Dictio
             "wraps_cycle": false,
         })
 
-    # Join a support window that crosses the loop seam. Sample 120 is intentionally
-    # excluded, so seam adjacency is between usable samples 119 and 0.
     if windows.size() >= 2 and int(windows[0]["start_index"]) == 0 and int(windows[-1]["end_index"]) == usable_count - 1:
         var first := windows[0]
         var last := windows[-1]
@@ -352,14 +350,20 @@ func _run() -> void:
     var source_right_range := _range_m(source_right_points)
     var target_left_range := _range_m(target_left_points)
     var target_right_range := _range_m(target_right_points)
+    var source_left_support := _support_metrics(source_left_points, animation.length)
+    var source_right_support := _support_metrics(source_right_points, animation.length)
     var left_support := _support_metrics(target_left_points, animation.length)
     var right_support := _support_metrics(target_right_points, animation.length)
     var target_moves := target_left_range > MIN_FOOT_RANGE_M and target_right_range > MIN_FOOT_RANGE_M
     var source_moves := source_left_range > MIN_FOOT_RANGE_M and source_right_range > MIN_FOOT_RANGE_M
     var measurement_ready := target_moves and source_moves and int(left_support["low_height_segment_count"]) > 0 and int(right_support["low_height_segment_count"]) > 0
+    var left_source_samples := int(source_left_support["low_height_sample_count"])
+    var right_source_samples := int(source_right_support["low_height_sample_count"])
+    var left_support_ratio := float(left_support["low_height_sample_count"]) / float(left_source_samples) if left_source_samples > 0 else 0.0
+    var right_support_ratio := float(right_support["low_height_sample_count"]) / float(right_source_samples) if right_source_samples > 0 else 0.0
 
     var payload := {
-        "format": "grand-bruxelles-civ1-native-retarget-v2",
+        "format": "grand-bruxelles-civ1-native-retarget-v3",
         "godot_version": Engine.get_version_info(),
         "source_animation": SOURCE_ANIMATION,
         "sample_count": SAMPLE_COUNT,
@@ -377,8 +381,12 @@ func _run() -> void:
         "target_right_foot_range_m": target_right_range,
         "source_bilateral_motion_verified": source_moves,
         "target_bilateral_motion_verified": target_moves,
+        "source_left_support_candidate": source_left_support,
+        "source_right_support_candidate": source_right_support,
         "target_left_support_candidate": left_support,
         "target_right_support_candidate": right_support,
+        "left_support_sample_ratio_target_over_source": left_support_ratio,
+        "right_support_sample_ratio_target_over_source": right_support_ratio,
         "target_support_candidate_measurement_ready": measurement_ready,
         "manual_baseline_left_median_mps": 6.845175,
         "manual_baseline_left_p90_mps": 33.326307,

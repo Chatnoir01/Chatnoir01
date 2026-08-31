@@ -65,7 +65,7 @@ jobs:
           "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/qio/evidence/import.log
           "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_observation_probe.gd -- /tmp/qio/evidence/observation-context.json 2>&1 | tee /tmp/qio/evidence/probe.log
           grep -Fq 'QUATERNIUS_IK_OBSERVATION_PROBE_OK' /tmp/qio/evidence/probe.log
-      - name: Validate deterministic observation domains and applied poses fail-closed
+      - name: Validate deterministic direct imported-track pose proof fail-closed
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -73,7 +73,7 @@ jobs:
           from pathlib import Path
           p = json.loads(Path('/tmp/qio/evidence/observation-context.json').read_text(encoding='utf-8'))
           v = p['godot_version']
-          assert p['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v3'
+          assert p['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v4'
           assert (v['major'], v['minor'], v['patch'], v['status']) == (4, 7, 1, 'stable')
           assert p['sample_count'] == 61
           assert p['semantic_selection_allowed'] is False
@@ -92,15 +92,13 @@ jobs:
               assert o['animation'] in targets
               assert o['track_count'] > 0
               assert o['leg_chain_track_count'] == len(o['leg_chain_tracks'])
-              assert o['animated_left_chain_track_count'] >= 0
-              assert o['animated_right_chain_track_count'] >= 0
               assert o['pose_contact_ground_truth'] is False
               assert o['semantic_selection_allowed'] is False
               for t in o['leg_chain_tracks']:
                   assert t['path'] and t['side'] in {'left','right'}
                   assert t['method'] in {'position_track_interpolate','rotation_track_interpolate'}
           bilateral = [o for o in observations if o['bilateral_chain_motion']]
-          assert bilateral, 'no context shows bilateral source leg-chain motion; retain RED and inspect source tracks'
+          assert bilateral, 'no context shows bilateral source leg-chain motion'
           refs = p['reference_context_candidates']
           assert len(refs) == 3, f'expected exactly 3 deterministic Master reference contexts, got {len(refs)}'
           by_id = {o['observation_id']: o for o in observations}
@@ -108,29 +106,34 @@ jobs:
           for ref in refs:
               o = by_id[ref]
               m = o['pose_measurement']
-              assert m['valid'] is True, f'applied pose path invalid for {ref}: {m}'
+              assert m['valid'] is True, f'pose path invalid for {ref}: {m}'
               assert m['left_foot_bone'] == 'LeftFoot' and m['right_foot_bone'] == 'RightFoot'
-              assert len(m['pose_samples']) == 61
-              assert m['left_foot_pose_range_m'] >= 0.0 and m['right_foot_pose_range_m'] >= 0.0
-              assert isinstance(m['linked_animation_trees'], list)
-              assert m['linked_animation_tree_count'] >= 0
-              assert m['tree_state_restored_after_measurement'] is True, f'AnimationTree state leaked for {ref}: {m}'
               assert m['root_restored_after_measurement'] is True, f'AnimationPlayer root leaked for {ref}: {m}'
-              assert m['bilateral_foot_pose_motion'] is True, f'feet remain static after direct player/root/tree ownership A/B for {ref}: {m}'
+              assert m['tree_state_restored_after_measurement'] is True, f'AnimationTree state leaked for {ref}: {m}'
+              direct = m['direct_track_pose_measurement']
+              assert direct['valid'] is True
+              assert direct['method'] == 'direct_imported_transform_tracks_to_skeleton'
+              assert direct['minimum_applied_track_count'] > 0, f'no imported transform tracks resolved to skeleton for {ref}: {direct}'
+              assert direct['direct_pose_state_restored_after_measurement'] is True, f'direct evaluator leaked pose state for {ref}: {direct}'
+              assert len(direct['pose_samples']) == 61
+              assert direct['left_foot_pose_range_m'] > p['pose_motion_epsilon_m'], f'left foot static under direct imported-track evaluation for {ref}: {direct}'
+              assert direct['right_foot_pose_range_m'] > p['pose_motion_epsilon_m'], f'right foot static under direct imported-track evaluation for {ref}: {direct}'
+              assert direct['bilateral_foot_pose_motion'] is True
+              assert m['bilateral_foot_pose_motion'] is True
               pose_rows.append({
                   'observation_id': ref,
                   'animation': o['animation'],
                   'skeleton_path': m['skeleton_path'],
-                  'left_foot_pose_range_m': m['left_foot_pose_range_m'],
-                  'right_foot_pose_range_m': m['right_foot_pose_range_m'],
-                  'bilateral_foot_pose_motion': m['bilateral_foot_pose_motion'],
+                  'selected_pose_measurement_method': m['selected_pose_measurement_method'],
+                  'animation_player_bilateral_foot_pose_motion': m['animation_player_bilateral_foot_pose_motion'],
+                  'direct_left_foot_pose_range_m': direct['left_foot_pose_range_m'],
+                  'direct_right_foot_pose_range_m': direct['right_foot_pose_range_m'],
+                  'minimum_applied_track_count': direct['minimum_applied_track_count'],
                   'linked_animation_tree_count': m['linked_animation_tree_count'],
-                  'linked_animation_trees': m['linked_animation_trees'],
-                  'tree_override_used': m['tree_override_used'],
-                  'tree_state_restored_after_measurement': m['tree_state_restored_after_measurement'],
+                  'direct_pose_state_restored_after_measurement': direct['direct_pose_state_restored_after_measurement'],
               })
           Path('/tmp/qio/evidence/observation-summary.json').write_text(json.dumps({
-              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v3',
+              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v4',
               'observation_count': len(observations),
               'bilateral_motion_observation_count': len(bilateral),
               'reference_context_candidates': refs,

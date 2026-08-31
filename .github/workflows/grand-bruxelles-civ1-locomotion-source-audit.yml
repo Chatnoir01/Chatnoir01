@@ -1,0 +1,24 @@
+name: Grand Bruxelles CIV-1 Locomotion Source Audit
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/assets/characters/civilians/civ1/locomotion_source_status.json'
+      - 'grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv'
+      - 'grand-bruxelles-game/tests/civ1_locomotion_source_audit_test.py'
+      - '.github/workflows/grand-bruxelles-civ1-locomotion-source-audit.yml'
+  workflow_dispatch:
+
+jobs:
+  civ1-locomotion-source-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fail close CIV-1 locomotion source selection
+        run: python grand-bruxelles-game/tests/civ1_locomotion_source_audit_test.py
+      - name: Preserve repository-wide asset provenance coverage
+        run: python grand-bruxelles-game/tools/validate_asset_provenance.py

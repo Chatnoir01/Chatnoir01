@@ -83,25 +83,33 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1child/evidence/right-foot-child-inventory.json').read_text())
           v=p['godot_version']
-          assert p['format']=='grand-bruxelles-civ1-right-foot-child-inventory-v1'
+          assert p['format']=='grand-bruxelles-civ1-right-foot-child-inventory-v2'
           assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
           assert p['source_skeleton_bone_count'] > 0
           assert p['target_skeleton_bone_count'] > 0
           for side in ('source','target'):
-              foot=p[f'{side}_right_foot']
-              assert 'rightfoot' in foot['normalized_name'] or foot['normalized_name']=='rfoot'
-              for key in ('local_rest_origin','global_rest_origin'):
-                  value=foot[key]
-                  assert len(value)==3 and all(math.isfinite(float(x)) for x in value)
+              for foot_name in ('right_foot','left_foot'):
+                  foot=p[f'{side}_{foot_name}']
+                  expected='rightfoot' if foot_name=='right_foot' else 'leftfoot'
+                  alias='rfoot' if foot_name=='right_foot' else 'lfoot'
+                  assert expected in foot['normalized_name'] or foot['normalized_name']==alias
+                  for key,size in (('local_rest_origin',3),('global_rest_origin',3),('local_rest_basis_quat_xyzw',4),('global_rest_basis_quat_xyzw',4)):
+                      value=foot[key]
+                      assert len(value)==size and all(math.isfinite(float(x)) for x in value)
               for group in ('direct_children','descendants'):
                   for r in p[f'{side}_right_foot_{group}']:
                       assert int(r['index']) >= 0
                       assert isinstance(r['name'],str) and r['name']
-                      for key in ('local_rest_origin','global_rest_origin'):
+                      for key,size in (('local_rest_origin',3),('global_rest_origin',3),('local_rest_basis_quat_xyzw',4),('global_rest_basis_quat_xyzw',4)):
                           value=r[key]
-                          assert len(value)==3 and all(math.isfinite(float(x)) for x in value), (side,r['name'],key,value)
+                          assert len(value)==size and all(math.isfinite(float(x)) for x in value), (side,r['name'],key,value)
               for r in p[f'{side}_toe_like_descendants']:
                   assert 'toe' in r['normalized_name'] or 'ball' in r['normalized_name']
+          basis=p['bilateral_rest_basis']
+          for key in (
+              'right_source_target_local_delta_deg','left_source_target_local_delta_deg','right_minus_left_local_delta_deg',
+              'right_source_target_global_delta_deg','left_source_target_global_delta_deg','right_minus_left_global_delta_deg'):
+              assert math.isfinite(float(basis[key])), (key,basis[key])
           assert p['diagnostic_only'] is True
           assert p['runtime_authorized'] is False
           assert p['visual_approval_claimed'] is False
@@ -111,7 +119,9 @@ jobs:
           print('target_right_foot_descendants',[(r['name'],r['normalized_name']) for r in p['target_right_foot_descendants']])
           print('source_toe_like_descendants',[(r['name'],r['normalized_name']) for r in p['source_toe_like_descendants']])
           print('target_toe_like_descendants',[(r['name'],r['normalized_name']) for r in p['target_toe_like_descendants']])
-          print('classification','diagnostic-only RightFoot child inventory; Toe is evidence-driven, never assumed')
+          print('bilateral_rest_basis',basis)
+          print('right_minus_left_global_delta_deg',basis['right_minus_left_global_delta_deg'])
+          print('classification','diagnostic-only bilateral Foot rest-basis evidence; no promotion threshold invented')
           PY
 
       - name: Upload RightFoot child inventory evidence

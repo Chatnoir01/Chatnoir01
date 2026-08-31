@@ -1,0 +1,29 @@
+name: Grand Bruxelles Road Destination Source Membership
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/validate_road_destination_source_membership.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_destination_source_membership.py'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - '.github/workflows/grand-bruxelles-road-destination-source-membership.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  road-destination-source-membership:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate road destination source membership
+        working-directory: grand-bruxelles-game
+        run: python tools/tests/test_road_destination_source_membership.py

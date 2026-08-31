@@ -80,6 +80,28 @@ def _require_closed_authorization(
             fail(f"{label} authorization rail drift: {key} must remain false")
 
 
+def _require_no_unknown_boolean_controls(
+    payload: dict[str, Any],
+    known_boolean_keys: frozenset[str],
+    label: str,
+) -> None:
+    """Reject boolean aliases outside the canonical control-plane rails.
+
+    A new boolean field is control-bearing by construction: accepting it without a
+    named contract would let semantically equivalent aliases such as ``jouable`` or
+    ``playable`` bypass the fail-closed ``*_authorized`` rails. Metadata additions
+    remain possible with non-boolean values until their semantics are explicitly
+    reviewed and promoted into the schema.
+    """
+    unknown = sorted(
+        key
+        for key, value in payload.items()
+        if type(value) is bool and key not in known_boolean_keys
+    )
+    if unknown:
+        fail(f"{label} unknown boolean control field(s): {unknown}")
+
+
 def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     road_id = _road_id(destination.get("road_osm_id"))
     if destination.get("destination_id") != f"road-{road_id}":
@@ -89,6 +111,11 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     if destination.get("cell_crs") != EXPECTED_CRS:
         fail(f"cell CRS drift {road_id}")
 
+    _require_no_unknown_boolean_controls(
+        destination,
+        DESTINATION_AUTHORIZATION_RAILS,
+        "destination",
+    )
     destination_authorization = {
         key: value
         for key, value in destination.items()

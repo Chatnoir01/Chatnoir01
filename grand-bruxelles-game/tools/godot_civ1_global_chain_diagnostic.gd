@@ -4,6 +4,7 @@ const SOURCE_ANIMATION := "UAL1_Standard/Sprint"
 const SOURCE_SCENE_SUFFIX := "Models_with_rigging/Master_Rigged.tscn"
 const TARGET_SCENE := "res://civ1_body.glb"
 const SAMPLE_COUNT := 121
+const PHASE_DIVERGENCE_MATERIAL_SAMPLES := 12
 const SEMANTICS := [
     "Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
     "RightUpperLeg", "RightLowerLeg", "RightFoot",
@@ -13,6 +14,10 @@ const SEMANTICS := [
 ]
 const DIAGNOSTIC_BONES := [
     "Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+    "RightUpperLeg", "RightLowerLeg", "RightFoot",
+]
+const PHASE_CHAIN_ORDER := [
+    "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
     "RightUpperLeg", "RightLowerLeg", "RightFoot",
 ]
 const SEMANTIC_PARENT := {
@@ -123,6 +128,52 @@ func _transform_record(pose: Transform3D, rest: Transform3D, hips_pose: Transfor
         "source_motion_from_rest": _v3(pose.origin - rest.origin),
         "target_motion_from_rest": _v3(pose.origin - rest.origin),
         "hips_relative_origin": _v3(pose.origin - hips_pose.origin),
+    }
+
+func _signed_circular_delta(target_index: int, source_index: int, cycle_samples: int) -> int:
+    var delta := target_index - source_index
+    var half := cycle_samples / 2
+    while delta > half:
+        delta -= cycle_samples
+    while delta < -half:
+        delta += cycle_samples
+    return delta
+
+func _vertical_phase_summary(samples: Array[Dictionary], animation_length: float) -> Dictionary:
+    var cycle_samples := SAMPLE_COUNT - 1
+    var summary := {}
+    var first_material := ""
+    for semantic in PHASE_CHAIN_ORDER:
+        var source_min_index := -1
+        var target_min_index := -1
+        var source_min_y := INF
+        var target_min_y := INF
+        for sample_index in range(cycle_samples):
+            var pair: Dictionary = samples[sample_index]["bones"][semantic]
+            var source_y := float(pair["source"]["source_hips_relative_origin"][1])
+            var target_y := float(pair["target"]["target_hips_relative_origin"][1])
+            if source_y < source_min_y:
+                source_min_y = source_y
+                source_min_index = sample_index
+            if target_y < target_min_y:
+                target_min_y = target_y
+                target_min_index = sample_index
+        var phase_delta_samples := _signed_circular_delta(target_min_index, source_min_index, cycle_samples)
+        var phase_delta_seconds := float(phase_delta_samples) * animation_length / float(cycle_samples)
+        var material := abs(phase_delta_samples) > PHASE_DIVERGENCE_MATERIAL_SAMPLES
+        summary[semantic] = {
+            "source_vertical_min_sample_index": source_min_index,
+            "target_vertical_min_sample_index": target_min_index,
+            "phase_delta_samples": phase_delta_samples,
+            "phase_delta_seconds": phase_delta_seconds,
+            "material_phase_divergence": material,
+        }
+        if first_material.is_empty() and material:
+            first_material = semantic
+    return {
+        "per_bone": summary,
+        "material_threshold_samples": PHASE_DIVERGENCE_MATERIAL_SAMPLES,
+        "first_material_divergence_joint": first_material,
     }
 
 func _write_payload(payload: Dictionary) -> bool:
@@ -257,8 +308,9 @@ func _run() -> void:
             bones[semantic] = {"source": source_record, "target": target_record}
         model_space_samples.append({"sample_index": sample_idx, "time_s": t, "bones": bones})
 
+    var phase_vertical_summary := _vertical_phase_summary(model_space_samples, animation.length)
     var payload := {
-        "format": "grand-bruxelles-civ1-global-chain-diagnostic-v1",
+        "format": "grand-bruxelles-civ1-global-chain-diagnostic-v2",
         "godot_version": Engine.get_version_info(),
         "source_animation": SOURCE_ANIMATION,
         "sample_count": SAMPLE_COUNT,
@@ -269,6 +321,8 @@ func _run() -> void:
         "scale_enabled": false,
         "diagnostic_bones": DIAGNOSTIC_BONES,
         "model_space_samples": model_space_samples,
+        "phase_vertical_summary": phase_vertical_summary,
+        "first_material_divergence_joint": phase_vertical_summary["first_material_divergence_joint"],
         "diagnostic_only": true,
         "runtime_authorized": false,
         "visual_approval_claimed": false,

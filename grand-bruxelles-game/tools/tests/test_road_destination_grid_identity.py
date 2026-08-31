@@ -177,6 +177,47 @@ def test_unknown_boolean_control_alias_fails_closed() -> None:
         raise AssertionError("unknown boolean control alias bypassed destination authorization rails")
 
 
+def _assert_destination_provenance_drift_fails(field: str, forged: str) -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    readiness["destinations"][0][field] = forged
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "destination source provenance drift" in str(exc)
+        assert field in str(exc)
+    else:
+        raise AssertionError(f"destination {field} provenance drift did not fail closed")
+
+
+def test_destination_source_path_drift_fails_closed() -> None:
+    _assert_destination_provenance_drift_fails("source_path", "data/osm/unrelated.game.json")
+
+
+def test_destination_source_provider_drift_fails_closed() -> None:
+    _assert_destination_provenance_drift_fails("source_provider", "Unverified provider")
+
+
+def test_destination_source_license_drift_fails_closed() -> None:
+    _assert_destination_provenance_drift_fails("source_license", "UNKNOWN")
+
+
+def test_destination_source_sha256_drift_fails_closed() -> None:
+    _assert_destination_provenance_drift_fails("source_sha256", "0" * 64)
+
+
+def test_root_source_sha256_drift_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    readiness["corrected_frame_source_sha256"] = "f" * 64
+    for destination in readiness["destinations"]:
+        destination["source_sha256"] = "f" * 64
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "catalog source provenance drift" in str(exc)
+    else:
+        raise AssertionError("catalog and all destinations could drift to the same forged source SHA")
+
+
 if __name__ == "__main__":
     test_real_readiness_grid_identity_is_exact()
     test_forged_grid_cell_id_fails_closed()
@@ -192,4 +233,9 @@ if __name__ == "__main__":
     test_destination_render_authorization_true_fails_closed()
     test_unknown_destination_authorization_rail_fails_closed()
     test_unknown_boolean_control_alias_fails_closed()
+    test_destination_source_path_drift_fails_closed()
+    test_destination_source_provider_drift_fails_closed()
+    test_destination_source_license_drift_fails_closed()
+    test_destination_source_sha256_drift_fails_closed()
+    test_root_source_sha256_drift_fails_closed()
     print("ROAD_CELL_GRID_IDENTITY_TEST_OK")

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/godot_quaternius_ik_observation_probe.gd"
+      - "grand-bruxelles-game/tools/godot_quaternius_frame_settled_pose_probe.gd"
       - "grand-bruxelles-game/tests/test_quaternius_ik_observation_contract.py"
       - ".github/workflows/grand-bruxelles-quaternius-ik-observation-context.yml"
   workflow_dispatch:
@@ -14,7 +15,7 @@ permissions:
 jobs:
   observe:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Contract regression
@@ -43,7 +44,7 @@ jobs:
           "$GODOT_BIN" --version | tee /tmp/qio/evidence/godot-version.log
           grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/qio/evidence/godot-version.log
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
-      - name: Import and measure per-rig animation contexts
+      - name: Import and measure source tracks plus frame-settled applied poses
         run: |
           set -euo pipefail
           PROJECT_FILE="$(find /tmp/qio/source -name project.godot -type f -print -quit)"
@@ -61,60 +62,101 @@ jobs:
           EOF
           fi
           cp grand-bruxelles-game/tools/godot_quaternius_ik_observation_probe.gd "$PROJECT_ROOT/gb_observation_probe.gd"
+          cp grand-bruxelles-game/tools/godot_quaternius_frame_settled_pose_probe.gd "$PROJECT_ROOT/gb_frame_settled_pose_probe.gd"
           printf '%s\n' "$PROJECT_ROOT" > /tmp/qio/evidence/project-root.txt
           "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/qio/evidence/import.log
           "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_observation_probe.gd -- /tmp/qio/evidence/observation-context.json 2>&1 | tee /tmp/qio/evidence/probe.log
           grep -Fq 'QUATERNIUS_IK_OBSERVATION_PROBE_OK' /tmp/qio/evidence/probe.log
-      - name: Validate deterministic observation domains fail-closed
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_frame_settled_pose_probe.gd -- /tmp/qio/evidence/frame-settled-pose.json 2>&1 | tee /tmp/qio/evidence/frame-settled-probe.log
+          grep -Fq 'QUATERNIUS_FRAME_SETTLED_POSE_OK' /tmp/qio/evidence/frame-settled-probe.log
+      - name: Validate source-track and canonical frame-settled pose proof
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p = json.loads(Path('/tmp/qio/evidence/observation-context.json').read_text(encoding='utf-8'))
-          v = p['godot_version']
-          assert p['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v1'
+          source = json.loads(Path('/tmp/qio/evidence/observation-context.json').read_text(encoding='utf-8'))
+          frame = json.loads(Path('/tmp/qio/evidence/frame-settled-pose.json').read_text(encoding='utf-8'))
+          v = source['godot_version']
+          assert source['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v4'
+          assert frame['format'] == 'grand-bruxelles-quaternius-frame-settled-pose-v1'
           assert (v['major'], v['minor'], v['patch'], v['status']) == (4, 7, 1, 'stable')
-          assert p['sample_count'] == 61
-          assert p['semantic_selection_allowed'] is False
-          assert p['civ1_retarget_authorized'] is False
-          assert p['grounding_verified'] is False
-          assert p['foot_slide_verified'] is False
-          assert p['visual_approval_claimed'] is False
-          observations = p['observations']
-          assert observations
+          fv = frame['godot_version']
+          assert (fv['major'], fv['minor'], fv['patch'], fv['status']) == (4, 7, 1, 'stable')
+          assert source['sample_count'] == frame['sample_count'] == 61
+          assert source['semantic_selection_allowed'] is False
+          assert source['civ1_retarget_authorized'] is False
+          assert source['grounding_verified'] is False
+          assert source['foot_slide_verified'] is False
+          assert frame['semantic_selection_allowed'] is False
+          assert frame['civ1_retarget_authorized'] is False
+          assert frame['grounding_verified'] is False
+          assert frame['foot_slide_verified'] is False
+          assert frame['visual_approval_claimed'] is False
+
+          observations = source['observations']
           ids = [o['observation_id'] for o in observations]
-          assert len(ids) == len(set(ids)), 'observation IDs must be unique per scene/player/animation context'
+          assert observations and len(ids) == len(set(ids))
           targets = {'UAL1_Standard/Walk','UAL1_Standard/Jog_Fwd','UAL1_Standard/Sprint'}
           assert targets.issubset({o['animation'] for o in observations})
-          for o in observations:
-              assert o['scene_path'] and o['animation_player_path']
-              assert o['animation'] in targets
-              assert o['track_count'] > 0
-              assert o['leg_chain_track_count'] == len(o['leg_chain_tracks'])
-              assert o['animated_left_chain_track_count'] >= 0
-              assert o['animated_right_chain_track_count'] >= 0
-              assert o['pose_contact_ground_truth'] is False
-              assert o['semantic_selection_allowed'] is False
-              for t in o['leg_chain_tracks']:
-                  assert t['path'] and t['side'] in {'left','right'}
-                  assert t['method'] in {'position_track_interpolate','rotation_track_interpolate'}
           bilateral = [o for o in observations if o['bilateral_chain_motion']]
-          assert bilateral, 'no context shows bilateral source leg-chain motion; retain RED and inspect source tracks'
-          refs = p['reference_context_candidates']
-          assert len(refs) <= 3
-          Path('/tmp/qio/evidence/observation-summary.json').write_text(json.dumps({
-              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v1',
+          assert bilateral, 'no context shows bilateral source leg-chain motion'
+          refs = source['reference_context_candidates']
+          assert len(refs) == 3
+          by_id = {o['observation_id']: o for o in observations}
+          direct_rows = []
+          for ref in refs:
+              m = by_id[ref]['pose_measurement']
+              assert m['valid'] is True
+              direct = m['direct_track_pose_measurement']
+              assert direct['valid'] is True
+              assert direct['method'] == 'direct_imported_transform_tracks_to_skeleton'
+              assert direct['minimum_applied_track_count'] > 0, f'no imported transform tracks resolved for {ref}'
+              direct_rows.append({
+                  'observation_id': ref,
+                  'minimum_applied_track_count': direct['minimum_applied_track_count'],
+                  'same_transaction_left_global_m': direct['left_foot_pose_range_m'],
+                  'same_transaction_right_global_m': direct['right_foot_pose_range_m'],
+                  'same_transaction_restored': direct['direct_pose_state_restored_after_measurement'],
+              })
+
+          frame_rows = frame['measurements']
+          assert len(frame_rows) == 3
+          assert {r['animation'] for r in frame_rows} == targets
+          for r in frame_rows:
+              assert r['valid'] is True
+              assert r['sample_count'] == 61
+              assert len(r['samples']) == 61
+              assert r['settlement_method'] == 'process_frame_after_scene_mount_and_each_seek'
+              assert r['bilateral_local_pose_motion'] is True, f'local pose static after frame settlement: {r}'
+              assert r['bilateral_global_pose_motion'] is True, f'global pose static after frame settlement: {r}'
+              assert r['left_foot_global_position_range_m'] > 0
+              assert r['right_foot_global_position_range_m'] > 0
+
+          summary = {
+              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v5',
               'observation_count': len(observations),
               'bilateral_motion_observation_count': len(bilateral),
               'reference_context_candidates': refs,
+              'same_transaction_direct_diagnostic': direct_rows,
+              'canonical_pose_method': frame['settlement_method'],
+              'canonical_frame_settled_measurements': [{
+                  'animation': r['animation'],
+                  'left_local_position_m': r['left_foot_local_position_range_m'],
+                  'right_local_position_m': r['right_foot_local_position_range_m'],
+                  'left_global_position_m': r['left_foot_global_position_range_m'],
+                  'right_global_position_m': r['right_foot_global_position_range_m'],
+                  'left_local_rotation_deg': r['left_foot_local_rotation_range_deg'],
+                  'right_local_rotation_deg': r['right_foot_local_rotation_range_deg'],
+              } for r in frame_rows],
               'semantic_selection_allowed': False,
               'civ1_retarget_authorized': False,
               'grounding_verified': False,
               'foot_slide_verified': False,
               'visual_approval_claimed': False,
-          }, indent=2), encoding='utf-8')
-          print('QUATERNIUS_IK_OBSERVATION_CONTEXT_OK', 'observations=',len(observations),'bilateral=',len(bilateral),'refs=',len(refs))
+          }
+          Path('/tmp/qio/evidence/observation-summary.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
+          print('QUATERNIUS_IK_OBSERVATION_CONTEXT_OK frame_settled_pose=canonical')
           PY
       - name: Keep source ephemeral
         run: |
@@ -133,7 +175,9 @@ jobs:
             /tmp/qio/evidence/project-root.txt
             /tmp/qio/evidence/import.log
             /tmp/qio/evidence/probe.log
+            /tmp/qio/evidence/frame-settled-probe.log
             /tmp/qio/evidence/observation-context.json
+            /tmp/qio/evidence/frame-settled-pose.json
             /tmp/qio/evidence/observation-summary.json
           if-no-files-found: warn
           retention-days: 14

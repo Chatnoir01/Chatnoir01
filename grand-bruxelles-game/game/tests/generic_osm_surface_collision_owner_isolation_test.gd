@@ -13,6 +13,15 @@ func _fail(message: String) -> void:
     push_error("GENERIC_OSM_SURFACE_COLLISION_OWNER_FAIL: %s" % message)
     quit(1)
 
+func _owned_body(roads_root: Node) -> StaticBody3D:
+    var found: StaticBody3D = null
+    for child: Node in roads_root.get_children():
+        if child is StaticBody3D and str(child.get_meta(OWNER_META, "")) == OWNER_ID:
+            if found != null:
+                return null
+            found = child as StaticBody3D
+    return found
+
 func _run() -> void:
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -49,16 +58,9 @@ func _run() -> void:
         _fail("foreign same-name node metadata was mutated")
         return
 
-    var owned_body: StaticBody3D = null
-    for child: Node in roads_root.get_children():
-        if child is StaticBody3D and str(child.get_meta(OWNER_META, "")) == OWNER_ID:
-            if owned_body != null:
-                _fail("multiple owned support bodies mounted")
-                return
-            owned_body = child as StaticBody3D
-
+    var owned_body := _owned_body(roads_root)
     if owned_body == null:
-        _fail("owned player support was suppressed by foreign same-name node")
+        _fail("owned player support was suppressed by foreign same-name node or duplicated")
         return
     if int(owned_body.get_meta("road_support_surfaces", 0)) <= 0:
         _fail("owned support has no road surfaces")
@@ -96,5 +98,41 @@ func _run() -> void:
         _fail("runtime remount readiness lost owned triangle count")
         return
 
-    print("GENERIC_OSM_SURFACE_COLLISION_OWNER_OK: foreign_same_name_preserved=true owned_support_present=true remount_state_restored=true roads=%d triangles=%d owner=%s" % [int(owned_body.get_meta("road_support_surfaces", 0)), int(owned_body.get_meta("support_triangle_count", 0)), OWNER_ID])
+    # A body bearing our owner marker but violating our immutable collision
+    # contract must not permanently suppress canonical support after hot reload.
+    # Because it is explicitly ours, the runtime may discard and rebuild it;
+    # the foreign same-name sentinel above must remain untouched.
+    var corrupted_body := owned_body
+    corrupted_body.collision_layer = 1
+    player.collision_mask &= ~SUPPORT_COLLISION_LAYER
+    var recovery := Node.new()
+    recovery.name = "GenericOsmSurfaceCollisionRuntimeInvalidOwnedRecoveryProbe"
+    recovery.set_script(RUNTIME_SCRIPT)
+    scene.add_child(recovery)
+
+    for _frame: int in range(16):
+        await physics_frame
+
+    if is_instance_valid(corrupted_body) and corrupted_body.get_parent() == roads_root:
+        _fail("invalid owned support survived recovery instead of being replaced")
+        return
+    var recovered_body := _owned_body(roads_root)
+    if recovered_body == null:
+        _fail("invalid owned support suppressed canonical rebuild")
+        return
+    if recovered_body.collision_layer != SUPPORT_COLLISION_LAYER or recovered_body.collision_mask != 0:
+        _fail("recovered support collision contract is invalid")
+        return
+    if (player.collision_mask & SUPPORT_COLLISION_LAYER) == 0:
+        _fail("invalid-owned recovery did not restore Player collision mask")
+        return
+    var recovery_readiness: Dictionary = recovery.call("readiness")
+    if not bool(recovery_readiness.get("ready", false)):
+        _fail("invalid-owned recovery rebuilt support but readiness remained false")
+        return
+    if not is_instance_valid(foreign) or foreign.get_parent() != roads_root:
+        _fail("invalid-owned recovery touched foreign same-name node")
+        return
+
+    print("GENERIC_OSM_SURFACE_COLLISION_OWNER_OK: foreign_same_name_preserved=true owned_support_present=true remount_state_restored=true invalid_owned_recovered=true roads=%d triangles=%d owner=%s" % [int(recovered_body.get_meta("road_support_surfaces", 0)), int(recovered_body.get_meta("support_triangle_count", 0)), OWNER_ID])
     quit(0)

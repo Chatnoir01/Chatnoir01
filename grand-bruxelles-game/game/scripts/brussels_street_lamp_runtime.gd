@@ -3,6 +3,8 @@ extends Node
 const DATA_PATH := "res://data/osm/corridor_street_lamps.game.json"
 const ASSET := preload("res://game/scripts/brussels_street_lamp_asset.gd")
 const POSITION_EPSILON_METERS := 0.0005
+const COLLISION_OWNER_META := "owner_runtime"
+const COLLISION_OWNER_ID := "BrusselsStreetLampRuntime"
 
 var _root: Node3D = null
 var _scene: Node3D = null
@@ -157,6 +159,9 @@ func _point_base_position(raw: Variant) -> Variant:
         return null
     return Vector3(float(position_value[0]), 0.0, float(position_value[1]))
 
+func _is_owned_collision(node: Node) -> bool:
+    return node is CollisionShape3D and str(node.get_meta(COLLISION_OWNER_META, "")) == COLLISION_OWNER_ID
+
 func _build_batch(name: String, mesh: Mesh, transforms: Array[Transform3D]) -> MultiMeshInstance3D:
     var multimesh := MultiMesh.new()
     multimesh.transform_format = MultiMesh.TRANSFORM_3D
@@ -237,18 +242,29 @@ func _build() -> void:
         collision.position = base_position + Vector3(0.0, ASSET.COLLISION_HEIGHT * 0.5, 0.0)
         collision.set_meta("osm_id", int(point.get("osm_id", 0)))
         collision.set_meta("source_base_position", base_position)
+        collision.set_meta(COLLISION_OWNER_META, COLLISION_OWNER_ID)
         _collision_body.add_child(collision)
 
-    set_visual_enabled(_visual_enabled)
+    _apply_enabled_state()
     _ready_complete = true
     _disconnect_scene_watch()
     print("BRUSSELS_STREET_LAMP_READY: points=%d collisions=%d batches=%d family=%s source=OSM license=ODbL-1.0 event_driven=true" % [point_count(), collision_count(), visual_batch_count(), ASSET.ASSET_FAMILY])
 
-func set_visual_enabled(enabled: bool) -> void:
-    _visual_enabled = enabled
+func _apply_enabled_state() -> void:
     for batch: MultiMeshInstance3D in [_pole_batch, _arm_batch, _luminaire_batch]:
         if is_instance_valid(batch):
-            batch.visible = enabled
+            batch.visible = _visual_enabled
+    if is_instance_valid(_collision_body):
+        for child: Node in _collision_body.get_children():
+            if _is_owned_collision(child):
+                (child as CollisionShape3D).disabled = not _visual_enabled
+
+func set_visual_enabled(enabled: bool) -> void:
+    _visual_enabled = enabled
+    _apply_enabled_state()
+
+func visual_enabled() -> bool:
+    return _visual_enabled
 
 func ready_complete() -> bool:
     return _ready_complete
@@ -264,7 +280,7 @@ func collision_count() -> int:
         return 0
     var count := 0
     for child: Node in _collision_body.get_children():
-        if child is CollisionShape3D:
+        if _is_owned_collision(child):
             count += 1
     return count
 
@@ -299,8 +315,18 @@ func _placement_contract_matches_source() -> bool:
 func source_positions_unchanged() -> bool:
     if not _placement_contract_matches_source() or collision_count() != _source_positions.size():
         return false
+    if not is_instance_valid(_collision_body):
+        return false
+
+    var owned_collisions: Array[CollisionShape3D] = []
+    for child: Node in _collision_body.get_children():
+        if _is_owned_collision(child):
+            owned_collisions.append(child as CollisionShape3D)
+    if owned_collisions.size() != _source_positions.size():
+        return false
+
     for index: int in range(_source_positions.size()):
-        var collision := _collision_body.get_child(index) as CollisionShape3D
+        var collision := owned_collisions[index]
         if collision == null or not _same_source_xz(collision.position, _source_positions[index]):
             return false
         var metadata_position: Variant = collision.get_meta("source_base_position", null)

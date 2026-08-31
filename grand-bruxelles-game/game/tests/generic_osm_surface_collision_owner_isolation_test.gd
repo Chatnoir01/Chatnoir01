@@ -3,6 +3,8 @@ extends SceneTree
 const BODY_NAME := "GenericOsmSurfaceCollisionBody"
 const OWNER_META := "grand_bruxelles_owner"
 const OWNER_ID := "generic_osm_surface_collision_runtime"
+const SUPPORT_COLLISION_LAYER := 1 << 19
+const RUNTIME_SCRIPT := preload("res://game/scripts/generic_osm_surface_collision_runtime.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -27,7 +29,8 @@ func _run() -> void:
     if roads_root == null:
         _fail("GeneratedRoads production root missing")
         return
-    if scene.get_node_or_null("Player") == null:
+    var player := scene.get_node_or_null("Player") as CharacterBody3D
+    if player == null:
         _fail("canonical Player missing")
         return
 
@@ -72,5 +75,31 @@ func _run() -> void:
         _fail("owned support lost visible-surface contract")
         return
 
-    print("GENERIC_OSM_SURFACE_COLLISION_OWNER_OK: foreign_same_name_preserved=true owned_support_present=true roads=%d triangles=%d owner=%s" % [int(owned_body.get_meta("road_support_surfaces", 0)), int(owned_body.get_meta("support_triangle_count", 0)), OWNER_ID])
+    # Reproduce a runtime remount/hot-reload after the owned support already
+    # exists. The remounted runtime must restore the Player's opt-in mask and
+    # expose truthful readiness rather than returning in a dormant state.
+    player.collision_mask &= ~SUPPORT_COLLISION_LAYER
+    var remount := Node.new()
+    remount.name = "GenericOsmSurfaceCollisionRuntimeRemountProbe"
+    remount.set_script(RUNTIME_SCRIPT)
+    scene.add_child(remount)
+
+    for _frame: int in range(8):
+        await physics_frame
+
+    if (player.collision_mask & SUPPORT_COLLISION_LAYER) == 0:
+        _fail("runtime remount found owned support but did not restore Player collision mask")
+        return
+    var remount_readiness: Dictionary = remount.call("readiness")
+    if not bool(remount_readiness.get("ready", false)):
+        _fail("runtime remount found owned support but readiness remained false")
+        return
+    if int(remount_readiness.get("road_collisions", 0)) != int(owned_body.get_meta("road_support_surfaces", 0)):
+        _fail("runtime remount readiness lost owned road surface count")
+        return
+    if int(remount_readiness.get("triangle_count", 0)) != int(owned_body.get_meta("support_triangle_count", 0)):
+        _fail("runtime remount readiness lost owned triangle count")
+        return
+
+    print("GENERIC_OSM_SURFACE_COLLISION_OWNER_OK: foreign_same_name_preserved=true owned_support_present=true remount_state_restored=true roads=%d triangles=%d owner=%s" % [int(owned_body.get_meta("road_support_surfaces", 0)), int(owned_body.get_meta("support_triangle_count", 0)), OWNER_ID])
     quit(0)

@@ -25,7 +25,7 @@ def main() -> None:
         "source_to_target_scale_ratio",
         "target_left_foot_range_m",
         "target_right_foot_range_m",
-        '"animation_transferred": true',
+        '"animation_transferred": transfer_ok',
         '"world_ground_assumed": false',
         '"grounding_verified": false',
         '"foot_slide_verified": false',
@@ -39,6 +39,7 @@ def main() -> None:
         "f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767",
         "c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba",
         "pose-transfer.json",
+        "assert p['animation_transferred'] is True",
         "target_left_foot_range_m",
         "target_right_foot_range_m",
     ):

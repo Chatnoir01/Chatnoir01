@@ -34,7 +34,7 @@ TARGETS = {
         "helper": "_release_material_ownership",
         "required_helper_tokens": ["_ground.material == _enhanced_material", "_ground.material = _legacy_material", "_ground = null", "_legacy_material = null", "_enhanced_material = null"],
         "apply_function": "_set_material_state",
-        "required_apply_tokens": ["_ground.material = _enhanced_material if enabled else _legacy_material"],
+        "required_apply_tokens": ["var current := _ground.material", "current == _legacy_material or current == _enhanced_material", "_ground.material = _enhanced_material", "current == _enhanced_material or current == _legacy_material", "_ground.material = _legacy_material"],
     },
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": {
         "family": "brussels_osm_sidewalk_surface_v1",

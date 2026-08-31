@@ -140,24 +140,82 @@ func _support_metrics(points: Array[Vector3], animation_length: float) -> Dictio
         min_y = minf(min_y, points[i].y)
         max_y = maxf(max_y, points[i].y)
     var threshold := min_y + ((max_y - min_y) * SUPPORT_BAND_FRACTION)
-    var low_samples := 0
-    for i in range(usable_count):
-        if points[i].y <= threshold:
-            low_samples += 1
     var dt := animation_length / float(SAMPLE_COUNT - 1)
+    var low_indices: Array[int] = []
+    var low_times: Array[float] = []
+    var low_mask: Array[bool] = []
+    low_mask.resize(usable_count)
+    for i in range(usable_count):
+        var is_low := points[i].y <= threshold
+        low_mask[i] = is_low
+        if is_low:
+            low_indices.append(i)
+            low_times.append(float(i) * dt)
+
+    var segment_start_indices: Array[int] = []
     var speeds: Array[float] = []
     var path_m := 0.0
     for i in range(usable_count - 1):
-        if points[i].y <= threshold and points[i + 1].y <= threshold:
+        if low_mask[i] and low_mask[i + 1]:
             var a := Vector2(points[i].x, points[i].z)
             var b := Vector2(points[i + 1].x, points[i + 1].z)
             var distance := a.distance_to(b)
             path_m += distance
             speeds.append(distance / dt if dt > 0.0 else 0.0)
+            segment_start_indices.append(i)
+
+    var windows: Array[Dictionary] = []
+    if not low_indices.is_empty():
+        var start := low_indices[0]
+        var previous := start
+        for cursor in range(1, low_indices.size()):
+            var current := low_indices[cursor]
+            if current != previous + 1:
+                windows.append({
+                    "start_index": start,
+                    "end_index": previous,
+                    "sample_count": previous - start + 1,
+                    "start_time_s": float(start) * dt,
+                    "end_time_s": float(previous) * dt,
+                    "wraps_cycle": false,
+                })
+                start = current
+            previous = current
+        windows.append({
+            "start_index": start,
+            "end_index": previous,
+            "sample_count": previous - start + 1,
+            "start_time_s": float(start) * dt,
+            "end_time_s": float(previous) * dt,
+            "wraps_cycle": false,
+        })
+
+    # Join a support window that crosses the loop seam. Sample 120 is intentionally
+    # excluded, so seam adjacency is between usable samples 119 and 0.
+    if windows.size() >= 2 and int(windows[0]["start_index"]) == 0 and int(windows[-1]["end_index"]) == usable_count - 1:
+        var first := windows[0]
+        var last := windows[-1]
+        var merged := {
+            "start_index": int(last["start_index"]),
+            "end_index": int(first["end_index"]),
+            "sample_count": int(last["sample_count"]) + int(first["sample_count"]),
+            "start_time_s": float(last["start_time_s"]),
+            "end_time_s": float(first["end_time_s"]),
+            "wraps_cycle": true,
+        }
+        windows.remove_at(windows.size() - 1)
+        windows.remove_at(0)
+        windows.push_front(merged)
+
     return {
         "support_band_fraction": SUPPORT_BAND_FRACTION,
-        "low_height_sample_count": low_samples,
+        "low_height_threshold_y": threshold,
+        "low_height_sample_count": low_indices.size(),
+        "low_height_sample_indices": low_indices,
+        "low_height_sample_times_s": low_times,
         "low_height_segment_count": speeds.size(),
+        "low_height_segment_start_indices": segment_start_indices,
+        "low_height_windows": windows,
         "horizontal_path_m": path_m,
         "median_horizontal_speed_mps": _percentile(speeds, 0.50),
         "p90_horizontal_speed_mps": _percentile(speeds, 0.90),
@@ -230,8 +288,6 @@ func _run() -> void:
     for semantic in SEMANTICS:
         source_names[semantic] = source_skeleton.get_bone_name(int(source_map[semantic]))
 
-    # RetargetModifier3D matches by profile bone name. Keep the animated source names
-    # untouched and rename only the disposable sanitized target skeleton in-memory.
     for semantic in SEMANTICS:
         target_skeleton.set_bone_name(int(target_map[semantic]), StringName("GB_TMP_" + semantic))
     for semantic in SEMANTICS:
@@ -249,8 +305,6 @@ func _run() -> void:
         profile.set_required(i, true)
     profile.set_scale_base_bone(StringName(source_names["Hips"]))
 
-    # RetargetModifier3D owns the child-skeleton inventory it retargets. The target
-    # must therefore be a child of the modifier, not a sibling under the source.
     var modifier := RetargetModifier3D.new()
     modifier.profile = profile
     modifier.set_use_global_pose(false)
@@ -305,7 +359,7 @@ func _run() -> void:
     var measurement_ready := target_moves and source_moves and int(left_support["low_height_segment_count"]) > 0 and int(right_support["low_height_segment_count"]) > 0
 
     var payload := {
-        "format": "grand-bruxelles-civ1-native-retarget-v1",
+        "format": "grand-bruxelles-civ1-native-retarget-v2",
         "godot_version": Engine.get_version_info(),
         "source_animation": SOURCE_ANIMATION,
         "sample_count": SAMPLE_COUNT,

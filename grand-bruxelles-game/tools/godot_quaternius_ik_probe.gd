@@ -51,7 +51,7 @@ func _init() -> void:
     animation_metric_conflicts.sort()
     kinematic_metric_conflicts.sort()
     var payload := {
-        "format": "grand-bruxelles-quaternius-ik-godot-characterization-v4",
+        "format": "grand-bruxelles-quaternius-ik-godot-characterization-v5",
         "godot_version": Engine.get_version_info(),
         "scene_candidates": scene_paths,
         "loaded_scene_count": scene_count,
@@ -119,7 +119,7 @@ func _record_animation(player: AnimationPlayer, animation_name: StringName) -> v
             if not animation_metric_conflicts.has(key):
                 animation_metric_conflicts.append(key)
     if key in KINEMATIC_TARGETS:
-        _record_kinematics(key, animation)
+        _record_kinematics(player, animation_name, key, animation)
 
 func _is_foot_path(track_path: String) -> bool:
     var normalized := track_path.to_lower().replace("_", "").replace("-", "")
@@ -131,7 +131,7 @@ func _is_foot_path(track_path: String) -> bool:
 func _horizontal_distance(a: Vector3, b: Vector3) -> float:
     return Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z))
 
-func _contact_proxy(samples: Array, track_path: String, animation_length: float) -> Dictionary:
+func _contact_proxy(samples: Array, track_path: String, animation_length: float, method: String) -> Dictionary:
     if samples.is_empty():
         return {}
     var min_y: float = INF
@@ -170,7 +170,7 @@ func _contact_proxy(samples: Array, track_path: String, animation_length: float)
         mean_contact_slide_speed_mps = contiguous_slide_m / (float(contiguous_pair_count) * sample_dt)
     return {
         "path": track_path,
-        "method": "local_position_low_height_contact_proxy",
+        "method": method,
         "sample_count": samples.size(),
         "min_local_y_m": min_y,
         "max_local_y_m": max_y,
@@ -187,9 +187,70 @@ func _contact_proxy(samples: Array, track_path: String, animation_length: float)
         "foot_slide_verified": false,
     }
 
-func _record_kinematics(animation_name: String, animation: Animation) -> void:
+func _foot_pose_targets(player: AnimationPlayer, animation: Animation) -> Array[Dictionary]:
+    var targets: Array[Dictionary] = []
+    var seen: Dictionary = {}
+    var animation_root := player.get_node_or_null(player.root_node)
+    if animation_root == null:
+        return targets
+    for track_index in range(animation.get_track_count()):
+        var raw_path := animation.track_get_path(track_index)
+        var track_path := str(raw_path)
+        if not _is_foot_path(track_path) or raw_path.get_subname_count() < 1:
+            continue
+        var target_node := animation_root.get_node_or_null(raw_path.get_concatenated_names())
+        if not (target_node is Skeleton3D):
+            continue
+        var skeleton := target_node as Skeleton3D
+        var bone_name := str(raw_path.get_subname(0))
+        var bone_index := skeleton.find_bone(bone_name)
+        if bone_index < 0:
+            continue
+        var target_key := "%d:%d" % [skeleton.get_instance_id(), bone_index]
+        if seen.has(target_key):
+            continue
+        seen[target_key] = true
+        targets.append({
+            "skeleton": skeleton,
+            "bone_index": bone_index,
+            "bone_name": bone_name,
+            "path": track_path,
+        })
+    return targets
+
+func _sample_skeleton_foot_contacts(player: AnimationPlayer, animation_name: StringName, animation: Animation) -> Array[Dictionary]:
+    var targets := _foot_pose_targets(player, animation)
+    var samples_by_target: Array = []
+    for _target in targets:
+        samples_by_target.append([])
+    if targets.is_empty():
+        return []
+    player.play(animation_name)
+    for sample_index in range(KINEMATIC_SAMPLE_COUNT):
+        var alpha := float(sample_index) / float(KINEMATIC_SAMPLE_COUNT - 1)
+        var sample_time := animation.length * alpha
+        player.seek(sample_time, true)
+        for target_index in range(targets.size()):
+            var target: Dictionary = targets[target_index]
+            var skeleton := target["skeleton"] as Skeleton3D
+            skeleton.force_update_all_bone_transforms()
+            var bone_index := int(target["bone_index"])
+            var pose_position := skeleton.get_bone_global_pose(bone_index).origin
+            var target_samples: Array = samples_by_target[target_index]
+            target_samples.append(pose_position)
+    player.stop()
+    var proxies: Array[Dictionary] = []
+    for target_index in range(targets.size()):
+        var target: Dictionary = targets[target_index]
+        var target_samples: Array = samples_by_target[target_index]
+        var proxy := _contact_proxy(target_samples, str(target["path"]), animation.length, "skeleton_space_pose_low_height_contact_proxy")
+        proxy["bone_name"] = str(target["bone_name"])
+        proxies.append(proxy)
+    proxies.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["bone_name"]) < str(b["bone_name"]))
+    return proxies
+
+func _record_kinematics(player: AnimationPlayer, animation_name_id: StringName, animation_name: String, animation: Animation) -> void:
     var sampled_position_tracks: Array[Dictionary] = []
-    var foot_contact_proxies: Array[Dictionary] = []
     for track_index in range(animation.get_track_count()):
         if animation.track_get_type(track_index) != Animation.TYPE_POSITION_3D:
             continue
@@ -200,7 +261,7 @@ func _record_kinematics(animation_name: String, animation: Animation) -> void:
         var start := start_value as Vector3
         var max_local_displacement_m := 0.0
         var end := start
-        var samples: Array = []
+        var sample_count := 0
         for sample_index in range(KINEMATIC_SAMPLE_COUNT):
             var alpha := float(sample_index) / float(KINEMATIC_SAMPLE_COUNT - 1)
             var sample_time := animation.length * alpha
@@ -208,20 +269,18 @@ func _record_kinematics(animation_name: String, animation: Animation) -> void:
             if not (value is Vector3):
                 continue
             var position := value as Vector3
-            samples.append(position)
+            sample_count += 1
             max_local_displacement_m = max(max_local_displacement_m, start.distance_to(position))
             if sample_index == KINEMATIC_SAMPLE_COUNT - 1:
                 end = position
         sampled_position_tracks.append({
             "path": track_path,
-            "sample_count": samples.size(),
+            "sample_count": sample_count,
             "max_local_displacement_m": max_local_displacement_m,
             "end_to_start_local_displacement_m": start.distance_to(end),
         })
-        if _is_foot_path(track_path) and samples.size() == KINEMATIC_SAMPLE_COUNT:
-            foot_contact_proxies.append(_contact_proxy(samples, track_path, animation.length))
     sampled_position_tracks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["path"]) < str(b["path"]))
-    foot_contact_proxies.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["path"]) < str(b["path"]))
+    var foot_contact_proxies := _sample_skeleton_foot_contacts(player, animation_name_id, animation)
     var metric := {
         "animation": animation_name,
         "length_seconds": animation.length,
@@ -230,6 +289,7 @@ func _record_kinematics(animation_name: String, animation: Animation) -> void:
         "sampled_position_tracks": sampled_position_tracks,
         "foot_contact_proxy_count": foot_contact_proxies.size(),
         "foot_contact_proxies": foot_contact_proxies,
+        "contact_proxy_space": "skeleton_space_animated_pose",
         "contact_proxy_semantic_selection_allowed": false,
         "grounding_verified": false,
         "foot_slide_verified": false,

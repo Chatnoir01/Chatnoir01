@@ -1,0 +1,23 @@
+name: Grand Bruxelles Corridor Tree Preowner Source Lock
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd'
+      - 'grand-bruxelles-game/data/osm/zones/anneessens/environment.game.json'
+      - 'grand-bruxelles-game/data/osm/anneessens_environment_points.game.json'
+      - 'grand-bruxelles-game/tests/shared_environment_corridor_tree_preowner_source_lock_test.py'
+      - '.github/workflows/grand-bruxelles-corridor-tree-preowner-source-lock.yml'
+  workflow_dispatch:
+
+jobs:
+  source-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate exact Anneessens preowner source lock
+        run: python grand-bruxelles-game/tests/shared_environment_corridor_tree_preowner_source_lock_test.py

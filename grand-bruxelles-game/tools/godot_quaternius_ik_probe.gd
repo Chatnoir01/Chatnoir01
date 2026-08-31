@@ -41,8 +41,10 @@ func _init() -> void:
         if instance == null:
             load_failures.append(path)
             continue
+        root.add_child(instance)
         scene_count += 1
         _walk(instance)
+        root.remove_child(instance)
         instance.free()
     var animations := animation_names.keys()
     animations.sort()

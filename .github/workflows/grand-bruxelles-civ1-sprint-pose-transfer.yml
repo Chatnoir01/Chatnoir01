@@ -26,10 +26,7 @@ jobs:
           BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
           curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1pose/source/vitruvian_body.glb
           test "$(stat -c '%s' /tmp/civ1pose/source/vitruvian_body.glb)" = "6879364"
-          python3 grand-bruxelles-game/tools/strip_glb_animations.py \
-            /tmp/civ1pose/source/vitruvian_body.glb \
-            /tmp/civ1pose/source/civ1_body.glb \
-            --require-animations | tee /tmp/civ1pose/evidence/sanitize.log
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1pose/source/vitruvian_body.glb /tmp/civ1pose/source/civ1_body.glb --require-animations | tee /tmp/civ1pose/evidence/sanitize.log
           echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1pose/source/civ1_body.glb' | sha256sum -c -
           test "$(stat -c '%s' /tmp/civ1pose/source/civ1_body.glb)" = "6780124"
       - name: Fetch exact CC0 Quaternius source archive
@@ -60,18 +57,10 @@ jobs:
         run: |
           set -euo pipefail
           PROJECT_FILE="$(find /tmp/civ1pose/quaternius -name project.godot -type f -print -quit)"
-          if [ -n "$PROJECT_FILE" ]; then
-            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
-          else
+          if [ -n "$PROJECT_FILE" ]; then PROJECT_ROOT="$(dirname "$PROJECT_FILE")"; else
             PROJECT_ROOT="$(find /tmp/civ1pose/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
             test -n "$PROJECT_ROOT"
-            cat > "$PROJECT_ROOT/project.godot" <<'EOF'
-          [application]
-          config/name="CIV1SprintPoseTransfer"
-          [rendering]
-          renderer/rendering_method="gl_compatibility"
-          renderer/rendering_method.mobile="gl_compatibility"
-          EOF
+            printf '[application]\nconfig/name="CIV1SprintPoseTransfer"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
           fi
           cp /tmp/civ1pose/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
           cp grand-bruxelles-game/tools/godot_civ1_sprint_pose_transfer.gd "$PROJECT_ROOT/gb_civ1_sprint_pose_transfer.gd"
@@ -86,24 +75,24 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1pose/evidence/pose-transfer.json').read_text())
           v=p['godot_version']
-          assert p['format']=='grand-bruxelles-civ1-sprint-pose-transfer-v1'
+          assert p['format']=='grand-bruxelles-civ1-sprint-pose-transfer-v2'
           assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
           assert p['source_animation']=='UAL1_Standard/Sprint'
-          assert p['transfer_method']=='rest_normalized_global_delta'
+          assert p['transfer_method']=='rest_normalized_rotation_scaled_hips_translation'
           assert p['sample_count']==121
-          assert p['source_bone_count']==65
-          assert p['target_bone_count']==52
+          assert p['source_bone_count']==65 and p['target_bone_count']==52
           assert p['mapped_required_bones']==19
           assert 0.2 < p['source_to_target_scale_ratio'] < 5.0
-          assert p['target_left_foot_range_m'] > 0.05
-          assert p['target_right_foot_range_m'] > 0.05
+          assert p['source_left_foot_range_m'] > 0.05 and p['source_right_foot_range_m'] > 0.05
+          assert p['target_left_foot_range_m'] > 0.05 and p['target_right_foot_range_m'] > 0.05
+          assert p['max_normalized_foot_motion_gain']==1.5
+          assert p['left_motion_gain_vs_scaled_source'] <= 1.5
+          assert p['right_motion_gain_vs_scaled_source'] <= 1.5
+          assert p['motion_plausibility_passed'] is True
           assert p['animation_transferred'] is True
-          assert p['diagnostic_only'] is True
-          assert p['run_alias_selected'] is False
-          assert p['world_ground_assumed'] is False
-          assert p['grounding_verified'] is False
-          assert p['foot_slide_verified'] is False
-          assert p['runtime_authorized'] is False
+          assert p['diagnostic_only'] is True and p['run_alias_selected'] is False
+          assert p['world_ground_assumed'] is False and p['grounding_verified'] is False
+          assert p['foot_slide_verified'] is False and p['runtime_authorized'] is False
           assert p['visual_approval_claimed'] is False
           print('CIV1_SPRINT_POSE_TRANSFER_EVIDENCE_OK')
           PY

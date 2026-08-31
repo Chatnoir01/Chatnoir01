@@ -3,6 +3,8 @@ extends SceneTree
 var scene_paths: Array[String] = []
 var load_failures: Array[String] = []
 var animation_names: Dictionary = {}
+var animation_metrics: Dictionary = {}
+var animation_metric_conflicts: Array[String] = []
 var bone_names: Dictionary = {}
 var scene_count := 0
 var skeleton_count := 0
@@ -34,8 +36,9 @@ func _init() -> void:
     animations.sort()
     var bones := bone_names.keys()
     bones.sort()
+    animation_metric_conflicts.sort()
     var payload := {
-        "format": "grand-bruxelles-quaternius-ik-godot-characterization-v1",
+        "format": "grand-bruxelles-quaternius-ik-godot-characterization-v2",
         "godot_version": Engine.get_version_info(),
         "scene_candidates": scene_paths,
         "loaded_scene_count": scene_count,
@@ -46,6 +49,8 @@ func _init() -> void:
         "skinned_mesh_count": skinned_mesh_count,
         "bone_names": bones,
         "animation_names": animations,
+        "animation_metrics": animation_metrics,
+        "animation_metric_conflicts": animation_metric_conflicts,
     }
     var output := FileAccess.open(args[0], FileAccess.WRITE)
     if output == null:
@@ -54,7 +59,7 @@ func _init() -> void:
         return
     output.store_string(JSON.stringify(payload, "  "))
     output.close()
-    print("QUATERNIUS_IK_GODOT_PROBE_OK scenes=%d skeletons=%d animations=%d" % [scene_count, skeleton_count, animations.size()])
+    print("QUATERNIUS_IK_GODOT_PROBE_OK scenes=%d skeletons=%d animations=%d metric_conflicts=%d" % [scene_count, skeleton_count, animations.size(), animation_metric_conflicts.size()])
     quit(0)
 
 func _scan_dir(path: String) -> void:
@@ -77,6 +82,25 @@ func _scan_dir(path: String) -> void:
             scene_paths.append(child)
     dir.list_dir_end()
 
+func _record_animation(player: AnimationPlayer, animation_name: StringName) -> void:
+    var key := str(animation_name)
+    animation_names[key] = true
+    var animation := player.get_animation(animation_name)
+    if animation == null:
+        return
+    var metric := {
+        "length_seconds": animation.length,
+        "loop_mode": int(animation.loop_mode),
+        "track_count": animation.get_track_count(),
+    }
+    if not animation_metrics.has(key):
+        animation_metrics[key] = metric
+        return
+    var previous: Dictionary = animation_metrics[key]
+    if not is_equal_approx(float(previous["length_seconds"]), float(metric["length_seconds"])) or int(previous["loop_mode"]) != int(metric["loop_mode"]) or int(previous["track_count"]) != int(metric["track_count"]):
+        if not animation_metric_conflicts.has(key):
+            animation_metric_conflicts.append(key)
+
 func _walk(node: Node) -> void:
     if node is Skeleton3D:
         skeleton_count += 1
@@ -87,7 +111,7 @@ func _walk(node: Node) -> void:
         animation_player_count += 1
         var player := node as AnimationPlayer
         for animation_name in player.get_animation_list():
-            animation_names[str(animation_name)] = true
+            _record_animation(player, animation_name)
     if node is MeshInstance3D:
         mesh_instance_count += 1
         var mesh_instance := node as MeshInstance3D

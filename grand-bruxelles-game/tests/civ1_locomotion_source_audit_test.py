@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 STATUS = Path("grand-bruxelles-game/assets/characters/civilians/civ1/locomotion_source_status.json")
-EXPECTED_BASE = "b91ddc2b761ec0f2370556693eb983a83120a2dc"
+EXPECTED_BASE = "0d8a0cff0f7362aee359c0ea25ec3ba988640ed5"
 
 
 def require(condition: bool, message: str) -> None:
@@ -12,7 +12,7 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> None:
     data = json.loads(STATUS.read_text(encoding="utf-8"))
-    require(data["format"] == "grand-bruxelles-civ1-locomotion-source-audit-v1", "format drift")
+    require(data["format"] == "grand-bruxelles-civ1-locomotion-source-audit-v2", "format drift")
     require(data["base_main_sha"] == EXPECTED_BASE, "base main drift")
     require(data["production_authorized"] is False, "production must remain closed")
     require(data["retarget_authorized"] is False, "retarget must remain closed")
@@ -52,11 +52,32 @@ def main() -> None:
     require(ik["license"] == "CC0-1.0", "IK candidate license drift")
     require(ik["declared_godot_compatibility"] == "4.6+", "IK declared compatibility drift")
     require(ik["upstream_commit_from_asset_download"] == "5c4dae72e49ad4e5959571e00a25d3d872cacba5", "IK upstream commit drift")
-    require(ik["state"] == "AUDIT_REQUIRED_BEFORE_USE", "IK candidate must remain audit-only")
-    require(ik["godot_4_7_1_demonstrated"] is False, "IK Godot 4.7.1 must not be claimed")
-    require(ik["exact_idle_walk_run_catalog_verified"] is False, "IK locomotion catalog must not be claimed")
-    require(ik["civ1_52_bone_retarget_verified"] is False, "IK CIV-1 retarget must not be claimed")
+    require(ik["archive_sha256"] == "f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767", "IK archive SHA drift")
+    require(ik["archive_size_bytes"] == 38687957, "IK archive size drift")
+    require(ik["archive_cc0_text_matches"] == ["quaternius_ik_rigged_with_animations/LICENSE", "quaternius_ik_rigged_with_animations/README.md"], "IK archive CC0 evidence drift")
+    require(ik["godot_4_7_1_demonstrated"] is True, "IK Godot 4.7.1 proof lost")
+    require(ik["measured_loaded_scene_count"] == 5, "IK loaded scene count drift")
+    require(ik["measured_load_failure_count"] == 1, "IK load failure count drift")
+    require(ik["measured_skeleton_count"] == 5, "IK skeleton count drift")
+    require(ik["measured_unique_bone_count"] == 65, "IK unique bone count drift")
+    require(ik["measured_animation_player_count"] == 3, "IK AnimationPlayer count drift")
+    require(ik["measured_mesh_instance_count"] == 15, "IK mesh count drift")
+    require(ik["measured_skinned_mesh_count"] == 15, "IK skinned mesh count drift")
+    require(ik["source_animation_count"] == 45, "IK animation catalog drift")
+    require(ik["exact_idle_candidates"] == ["UAL1_Standard/Idle"], "IK exact idle drift")
+    require(ik["exact_walk_candidates"] == ["UAL1_Standard/Walk"], "IK exact walk drift")
+    require(ik["exact_run_candidates"] == [], "IK exact run must remain absent")
+    require(ik["review_only_run_candidates"] == ["UAL1_Standard/Jog_Fwd", "UAL1_Standard/Sprint"], "IK review-only run drift")
+    require(ik["exact_idle_walk_run_catalog_verified"] is True, "IK catalog characterization must stay proven")
+    require(ik["state"] == "BLOCKED_NO_EXACT_RUN", "IK measured rejection drift")
+    require(ik["characterization_workflow_run_id"] == 33353446737, "IK run identity drift")
+    require(ik["characterization_artifact_id"] == 9744361128, "IK artifact identity drift")
+    require(ik["characterization_artifact_zip_sha256"] == "711095546e1d9ebd024b03fbe7b33a852e918612667924e902d50ff317ab9b98", "IK artifact digest drift")
+    require(ik["civ1_52_bone_retarget_verified"] is False, "IK CIV-1 retarget must remain unproven")
+    require(ik["grounding_verified"] is False, "IK grounding must remain unproven")
+    require(ik["foot_slide_verified"] is False, "IK foot-slide must remain unproven")
     require(ik["direct_adoption_allowed"] is False, "IK direct adoption must remain blocked")
+    require(ik["semantic_alias_auto_promotion_allowed"] is False, "IK semantic alias autopromotion forbidden")
 
     print("CIV1_LOCOMOTION_SOURCE_AUDIT_OK")
 

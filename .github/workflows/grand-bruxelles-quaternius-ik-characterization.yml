@@ -1,0 +1,178 @@
+name: Grand Bruxelles Quaternius IK Characterization
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_quaternius_ik_probe.gd"
+      - "grand-bruxelles-game/tests/test_quaternius_ik_characterization_contract.py"
+      - ".github/workflows/grand-bruxelles-quaternius-ik-characterization.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  characterize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_quaternius_ik_characterization_contract.py
+      - name: Fetch exact commit-pinned candidate archive
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/qik/source /tmp/qik/evidence
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/qik/source.zip
+          sha256sum /tmp/qik/source.zip | tee /tmp/qik/evidence/archive-sha256.txt
+          stat -c '%s' /tmp/qik/source.zip | tee /tmp/qik/evidence/archive-size.txt
+          unzip -q /tmp/qik/source.zip -d /tmp/qik/source
+          find /tmp/qik/source -type f -printf '%P\n' | sort > /tmp/qik/evidence/archive-files.txt
+          test -s /tmp/qik/evidence/archive-files.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import hashlib
+          archive = Path('/tmp/qik/source.zip')
+          roots = sorted(p for p in Path('/tmp/qik/source').iterdir() if p.is_dir())
+          license_candidates = []
+          cc0_matches = []
+          for path in Path('/tmp/qik/source').rglob('*'):
+              if not path.is_file():
+                  continue
+              upper = path.name.upper()
+              if upper.startswith(('LICENSE', 'COPYING', 'README')):
+                  rel = path.relative_to('/tmp/qik/source').as_posix()
+                  license_candidates.append(rel)
+                  try:
+                      text = path.read_text(encoding='utf-8', errors='ignore').lower()
+                  except Exception:
+                      continue
+                  if 'cc0' in text or 'creative commons zero' in text:
+                      cc0_matches.append(rel)
+          payload = {
+              'format': 'grand-bruxelles-quaternius-ik-source-intake-v1',
+              'asset_library_url': 'https://godotengine.org/asset-library/asset/5235',
+              'asset_library_license': 'CC0-1.0',
+              'source_repository': 'https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations',
+              'source_commit': '5c4dae72e49ad4e5959571e00a25d3d872cacba5',
+              'archive_sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
+              'archive_size_bytes': archive.stat().st_size,
+              'archive_root_count': len(roots),
+              'license_text_candidates': sorted(license_candidates),
+              'archive_cc0_text_matches': sorted(cc0_matches),
+              'binary_committed': False,
+              'direct_adoption_allowed': False,
+          }
+          Path('/tmp/qik/evidence/source-intake.json').write_text(json.dumps(payload, indent=2), encoding='utf-8')
+          print('QUATERNIUS_IK_SOURCE_INTAKE_OK', payload['archive_sha256'], payload['archive_size_bytes'])
+          PY
+      - name: Install exact official Godot 4.7.1 Linux editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/qik/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/qik/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/qik/engine
+          GODOT_BIN=/tmp/qik/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/qik/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/qik/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Import and probe candidate in isolation
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/qik/source -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/qik/source -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            cat > "$PROJECT_ROOT/project.godot" <<'EOF'
+          [application]
+          config/name="QuaterniusIKCharacterization"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          fi
+          cp grand-bruxelles-game/tools/godot_quaternius_ik_probe.gd "$PROJECT_ROOT/gb_probe.gd"
+          printf '%s\n' "$PROJECT_ROOT" > /tmp/qik/evidence/project-root.txt
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit | tee /tmp/qik/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_probe.gd -- /tmp/qik/evidence/godot-characterization.json | tee /tmp/qik/evidence/probe.log
+          grep -Fq 'QUATERNIUS_IK_GODOT_PROBE_OK' /tmp/qik/evidence/probe.log
+      - name: Classify exact locomotion semantics without promotion
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          source = json.loads(Path('/tmp/qik/evidence/source-intake.json').read_text(encoding='utf-8'))
+          probe = json.loads(Path('/tmp/qik/evidence/godot-characterization.json').read_text(encoding='utf-8'))
+          version = probe['godot_version']
+          assert (version['major'], version['minor'], version['patch'], version['status']) == (4, 7, 1, 'stable')
+          assert probe['loaded_scene_count'] > 0
+          assert probe['skeleton_count'] > 0
+          assert probe['animation_player_count'] > 0
+          names = sorted(set(str(name) for name in probe['animation_names']))
+          def leaf(name: str) -> str:
+              return name.rsplit('/', 1)[-1].strip().casefold()
+          exact_idle = [name for name in names if leaf(name) == 'idle']
+          exact_walk = [name for name in names if leaf(name) == 'walk']
+          exact_run = [name for name in names if leaf(name) == 'run']
+          trio = bool(exact_idle and exact_walk and exact_run)
+          evidence = {
+              'format': 'grand-bruxelles-quaternius-ik-characterization-v1',
+              'source_commit': source['source_commit'],
+              'archive_sha256': source['archive_sha256'],
+              'archive_size_bytes': source['archive_size_bytes'],
+              'asset_library_license': source['asset_library_license'],
+              'archive_cc0_text_matches': source['archive_cc0_text_matches'],
+              'godot_version': {'major': 4, 'minor': 7, 'patch': 1, 'status': 'stable'},
+              'loaded_scene_count': probe['loaded_scene_count'],
+              'load_failure_count': len(probe['load_failures']),
+              'skeleton_count': probe['skeleton_count'],
+              'unique_bone_count': len(probe['bone_names']),
+              'animation_player_count': probe['animation_player_count'],
+              'mesh_instance_count': probe['mesh_instance_count'],
+              'skinned_mesh_count': probe['skinned_mesh_count'],
+              'animation_count': len(names),
+              'exact_idle_candidates': exact_idle,
+              'exact_walk_candidates': exact_walk,
+              'exact_run_candidates': exact_run,
+              'exact_idle_walk_run_trio_present': trio,
+              'characterization_state': 'PREFLIGHT_EXACT_TRIO_FOUND' if trio else 'BLOCKED_NO_EXACT_IDLE_WALK_RUN_TRIO',
+              'civ1_52_bone_retarget_verified': False,
+              'grounding_verified': False,
+              'foot_slide_verified': False,
+              'production_authorized': False,
+              'retarget_authorized': False,
+              'direct_adoption_allowed': False,
+              'visual_approval_claimed': False,
+          }
+          Path('/tmp/qik/evidence/characterization-summary.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
+          print('QUATERNIUS_IK_CHARACTERIZATION_OK', evidence['characterization_state'], 'animations=', evidence['animation_count'])
+          PY
+      - name: Keep candidate ephemeral and production closed
+        run: |
+          set -euo pipefail
+          test ! -e grand-bruxelles-game/assets/characters/civilians/civ1/source/quaternius_ik_rigged.zip
+          git diff --exit-code
+      - name: Upload characterization evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: quaternius-ik-characterization-${{ github.sha }}
+          path: |
+            /tmp/qik/evidence/archive-sha256.txt
+            /tmp/qik/evidence/archive-size.txt
+            /tmp/qik/evidence/archive-files.txt
+            /tmp/qik/evidence/source-intake.json
+            /tmp/qik/evidence/godot-version.log
+            /tmp/qik/evidence/project-root.txt
+            /tmp/qik/evidence/import.log
+            /tmp/qik/evidence/probe.log
+            /tmp/qik/evidence/godot-characterization.json
+            /tmp/qik/evidence/characterization-summary.json
+          if-no-files-found: error
+          retention-days: 14

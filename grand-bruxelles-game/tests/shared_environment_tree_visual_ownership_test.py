@@ -18,11 +18,15 @@ def main() -> None:
     require('str(node.get_meta(VISUAL_OWNER_META, "")) == VISUAL_OWNER_ID' in text, "owned-visual predicate is not identity based")
     require("func _mark_owned_tree_visual(node: Node) -> void:" in text, "owned-visual marker is missing")
     require("node.set_meta(VISUAL_OWNER_META, VISUAL_OWNER_ID)" in text, "visual nodes are not marked with the exact owner")
-    require("if existing != null and _is_owned_tree_visual(existing):" in text, "cleanup is not fail-closed on owner identity")
-    require("_mark_owned_tree_visual(legacy)" in text, "legacy visual is not marked before ownership-sensitive teardown")
-    require("TREE_ASSET.populate(tree, osm_id, _tree_materials)" in text, "enhanced Brussels tree population was removed")
-    require("geometry_changed" not in text.lower(), "test scope must not manufacture geometry semantics")
-    print("SHARED_ENVIRONMENT_TREE_VISUAL_OWNERSHIP_OK: exact_owner_cleanup=locked foreign_same_name=preserved normal_tree_population=preserved")
+    require("func _remove_owned_tree_visuals(tree: StaticBody3D) -> void:" in text, "owner-scoped cleanup helper is missing")
+    require("for child: Node in tree.get_children():" in text, "cleanup does not enumerate actual children")
+    require("if not _is_owned_tree_visual(child):" in text, "cleanup is not fail-closed on owner identity")
+    require("_remove_owned_tree_visuals(tree)" in text, "tree rebuild does not use owner-scoped cleanup")
+    require("var enhanced_visual := TREE_ASSET.populate(tree, osm_id, _tree_materials)" in text, "enhanced Brussels tree population is not captured for ownership")
+    require("_mark_owned_tree_visual(enhanced_visual)" in text, "enhanced visual is not owner-marked")
+    require("_mark_owned_tree_visual(legacy)" in text, "legacy visual is not owner-marked")
+    require("tree.get_node_or_null(child_name)" not in text, "name-only destructive lookup remains in tree visual rebuild")
+    print("SHARED_ENVIRONMENT_TREE_VISUAL_OWNERSHIP_OK: exact_owner_cleanup=locked foreign_same_name=preserved enhanced_and_legacy=owned")
 
 
 if __name__ == "__main__":

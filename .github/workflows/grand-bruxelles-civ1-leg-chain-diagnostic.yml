@@ -81,6 +81,10 @@ jobs:
           python3 - <<'PY' | tee /tmp/civ1leg/evidence/classification.log
           import json
           from pathlib import Path
+
+          REST_BILATERAL_DIFF_MAX_DEG = 1.0
+          POSE_REPRO_ERROR_MAX_DEG = 0.05
+
           p=json.loads(Path('/tmp/civ1leg/evidence/leg-chain.json').read_text())
           v=p['godot_version']
           assert p['format']=='grand-bruxelles-civ1-leg-chain-diagnostic-v1'
@@ -102,11 +106,39 @@ jobs:
               for metric in ('pose_local_rotation_delta_deg','source_pose_from_rest_deg','target_pose_from_rest_deg'):
                   m=pose[bone][metric]
                   assert 0.0 <= m['min_deg'] <= m['mean_deg'] <= m['max_deg'] <= 180.000001, (bone,metric,m)
+
+          pairs=(('UpperLeg','LeftUpperLeg','RightUpperLeg'),('LowerLeg','LeftLowerLeg','RightLowerLeg'),('Foot','LeftFoot','RightFoot'))
+          rest_pair_diffs={}
+          for label,left,right in pairs:
+              rest_pair_diffs[label]=abs(float(rest[left]['rest_local_rotation_delta_deg'])-float(rest[right]['rest_local_rotation_delta_deg']))
+          max_rest_pair_diff=max(rest_pair_diffs.values())
+          rest_bilateral_symmetry_passed=max_rest_pair_diff <= REST_BILATERAL_DIFF_MAX_DEG
+
+          pose_repro_errors={}
+          for bone in required:
+              source_mean=float(pose[bone]['source_pose_from_rest_deg']['mean_deg'])
+              target_mean=float(pose[bone]['target_pose_from_rest_deg']['mean_deg'])
+              pose_repro_errors[bone]=abs(source_mean-target_mean)
+          max_pose_repro_error=max(pose_repro_errors.values())
+          pose_excursion_reproduction_passed=max_pose_repro_error <= POSE_REPRO_ERROR_MAX_DEG
+
+          # The already-failing support gate is asymmetric, but the measured local rest mismatch is not.
+          # Fail closed if future evidence contradicts that causal classification.
+          right_rest_frame_materially_worse=not rest_bilateral_symmetry_passed
+          assert rest_bilateral_symmetry_passed, (rest_pair_diffs, REST_BILATERAL_DIFF_MAX_DEG)
+          assert pose_excursion_reproduction_passed, (pose_repro_errors, POSE_REPRO_ERROR_MAX_DEG)
+          assert right_rest_frame_materially_worse is False
+
           assert p['diagnostic_only'] is True
           assert p['runtime_authorized'] is False
           assert p['visual_approval_claimed'] is False
           print('leg_chain_rest_diagnostics',rest)
           print('leg_chain_pose_diagnostics',pose)
+          print('rest_pair_abs_diff_deg',rest_pair_diffs)
+          print('rest_bilateral_symmetry_passed',rest_bilateral_symmetry_passed,'max_abs_diff_deg',max_rest_pair_diff)
+          print('pose_repro_error_mean_deg',pose_repro_errors)
+          print('pose_excursion_reproduction_passed',pose_excursion_reproduction_passed,'max_mean_error_deg',max_pose_repro_error)
+          print('right_rest_frame_materially_worse',right_rest_frame_materially_worse)
           PY
 
       - name: Upload bilateral leg-chain evidence

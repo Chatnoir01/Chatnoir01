@@ -24,6 +24,7 @@ def main() -> None:
     require("FOOT_TARGET_TOKENS" in probe and "leftfoot" in probe and "rightfoot" in probe, "bilateral foot targets are not pinned")
     require("CONTACT_HEIGHT_BAND_RATIO" in probe and "CONTACT_HEIGHT_BAND_MIN_M" in probe, "contact threshold is not deterministic")
     require("player.seek" in probe and "get_bone_global_pose" in probe and "force_update_bone_child_transform" in probe, "animated Skeleton3D pose sampling is missing")
+    require("NodePath(str(raw_path.get_concatenated_names()))" in probe, "Godot 4.7 foot target lookup must convert StringName to NodePath explicitly")
     require("skeleton.force_update_all_bone_transforms()" not in probe, "deprecated all-bone refresh call must not regress under Godot 4.7 warnings-as-errors")
     require("skeleton_space_pose_low_height_contact_proxy" in probe, "skeleton-space contact proxy method is not explicit")
     require("contact_sample_fraction" in probe and "contiguous_contact_slide_m" in probe and "mean_contact_slide_speed_mps" in probe, "contact-aware slide metrics missing")

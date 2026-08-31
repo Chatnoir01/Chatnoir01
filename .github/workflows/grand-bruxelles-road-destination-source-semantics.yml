@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -27,4 +29,4 @@ jobs:
         run: python tools/validate_road_destination_source_semantics.py
       - name: Run semantic drift regressions
         working-directory: grand-bruxelles-game
-        run: python -m pytest -q tools/tests/test_road_destination_source_semantics.py
+        run: python tools/tests/test_road_destination_source_semantics.py

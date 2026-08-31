@@ -20,6 +20,8 @@ def main() -> None:
     require("leftfoot" in probe and "rightfoot" in probe and "leftleg" in probe and "rightleg" in probe, "bilateral leg chain is not pinned")
     require("bilateral_chain_motion" in probe, "bilateral motion proof missing")
     require("player.seek" in probe and "player.advance(0.0)" in probe and "force_update_bone_child_transform" in probe, "exact AnimationPlayer/Skeleton pose application path missing immediate mixer evaluation")
+    require("original_root_node" in probe and "selected_diagnostic_root_node" in probe and "root_override_used" in probe, "AnimationMixer root binding A/B evidence missing")
+    require('player.root_node = NodePath("..")' in probe and "player.root_node = original_root" in probe, "diagnostic root fallback must be temporary and restored")
     require("get_bone_global_pose" in probe and "pose_samples" in probe, "bilateral sampled bone poses missing")
     require("left_foot_pose_range_m" in probe and "right_foot_pose_range_m" in probe, "bilateral foot pose motion metrics missing")
     require('"semantic_selection_allowed": false' in probe, "diagnostic must not select run semantics")

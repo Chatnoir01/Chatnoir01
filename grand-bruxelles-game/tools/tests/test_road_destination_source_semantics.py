@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VALIDATOR = ROOT / "tools" / "validate_road_destination_grid_identity.py"
+VALIDATOR = ROOT / "tools" / "validate_road_destination_source_semantics.py"
 READINESS = ROOT / "data" / "provenance" / "brussels_road_destination_readiness_catalog.json"
 
-spec = importlib.util.spec_from_file_location("road_grid_identity", VALIDATOR)
+spec = importlib.util.spec_from_file_location("road_destination_source_semantics", VALIDATOR)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -35,6 +35,12 @@ def _assert_semantic_drift_fails(field: str, forged: object) -> None:
             f"destination {field} could drift away from exact OSM source truth: "
             f"{original!r} -> {forged!r}"
         )
+
+
+def test_real_destination_semantics_match_exact_source() -> None:
+    result = module.validate_readiness(_readiness())
+    assert result["destination_count"] == 96
+    assert result["source_road_count"] == 140
 
 
 def test_destination_road_name_must_match_exact_source_record() -> None:

@@ -85,7 +85,7 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1native/evidence/native-retarget.json').read_text())
           v=p['godot_version']
-          assert p['format']=='grand-bruxelles-civ1-native-retarget-v2'
+          assert p['format']=='grand-bruxelles-civ1-native-retarget-v3'
           assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
           assert p['source_animation']=='UAL1_Standard/Sprint'
           assert p['sample_count']==121 and p['mapped_required_bones']==19
@@ -100,7 +100,8 @@ jobs:
               assert p[key] > p['minimum_foot_range_m'], (key,p[key])
           assert p['target_support_candidate_measurement_ready'] is True
           assert p['terminal_loop_sample_excluded_from_speed'] is True
-          for key in ('target_left_support_candidate','target_right_support_candidate'):
+          support_keys=('source_left_support_candidate','source_right_support_candidate','target_left_support_candidate','target_right_support_candidate')
+          for key in support_keys:
               m=p[key]
               assert m['support_band_fraction']==0.10
               assert m['low_height_sample_count'] >= 2
@@ -118,21 +119,28 @@ jobs:
               assert m['median_horizontal_speed_mps'] >= 0.0
               assert m['p90_horizontal_speed_mps'] >= m['median_horizontal_speed_mps']
               assert m['max_horizontal_speed_mps'] >= m['p90_horizontal_speed_mps']
+          sl=p['source_left_support_candidate']; sr=p['source_right_support_candidate']
+          left=p['target_left_support_candidate']; right=p['target_right_support_candidate']
+          expected_left_ratio=left['low_height_sample_count']/sl['low_height_sample_count']
+          expected_right_ratio=right['low_height_sample_count']/sr['low_height_sample_count']
+          assert abs(p['left_support_sample_ratio_target_over_source']-expected_left_ratio) < 1e-9
+          assert abs(p['right_support_sample_ratio_target_over_source']-expected_right_ratio) < 1e-9
           assert p['diagnostic_only'] is True and p['run_alias_selected'] is False
           assert p['world_ground_assumed'] is False and p['grounding_verified'] is False
           assert p['foot_slide_verified'] is False and p['runtime_authorized'] is False
           assert p['visual_approval_claimed'] is False
-          left=p['target_left_support_candidate']; right=p['target_right_support_candidate']
           improved=(left['median_horizontal_speed_mps'] < p['manual_baseline_left_median_mps'] and
                     left['p90_horizontal_speed_mps'] < p['manual_baseline_left_p90_mps'] and
                     right['median_horizontal_speed_mps'] < p['manual_baseline_right_median_mps'] and
                     right['p90_horizontal_speed_mps'] < p['manual_baseline_right_p90_mps'])
           print('source foot ranges',p['source_left_foot_range_m'],p['source_right_foot_range_m'])
           print('target foot ranges',p['target_left_foot_range_m'],p['target_right_foot_range_m'])
-          print('left support windows',left['low_height_windows'])
-          print('right support windows',right['low_height_windows'])
-          print('left low indices',left['low_height_sample_indices'])
-          print('right low indices',right['low_height_sample_indices'])
+          print('source left support windows',sl['low_height_windows'])
+          print('source right support windows',sr['low_height_windows'])
+          print('target left support windows',left['low_height_windows'])
+          print('target right support windows',right['low_height_windows'])
+          print('left_support_sample_ratio_target_over_source',p['left_support_sample_ratio_target_over_source'])
+          print('right_support_sample_ratio_target_over_source',p['right_support_sample_ratio_target_over_source'])
           print('native_support_improves_manual_baseline='+str(improved).lower())
           print('left median/p90',left['median_horizontal_speed_mps'],left['p90_horizontal_speed_mps'])
           print('right median/p90',right['median_horizontal_speed_mps'],right['p90_horizontal_speed_mps'])

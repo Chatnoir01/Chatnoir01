@@ -73,9 +73,14 @@ func _initialize() -> void:
 	if args.size() != 1:
 		fail("expected_one_output_path")
 		return
+	var version := Engine.get_version_info()
 	var evidence := {
 		"format": "grand-bruxelles-civ1-godot-import-evidence-v1",
-		"godot_version": Engine.get_version_info().get("string", "unknown"),
+		"godot_version": version.get("string", "unknown"),
+		"godot_major": version.get("major", -1),
+		"godot_minor": version.get("minor", -1),
+		"godot_patch": version.get("patch", -1),
+		"godot_status": version.get("status", "unknown"),
 		"source_resource": BODY_PATH,
 		"skeleton_count": state.skeleton_count,
 		"bone_count": state.bone_count,

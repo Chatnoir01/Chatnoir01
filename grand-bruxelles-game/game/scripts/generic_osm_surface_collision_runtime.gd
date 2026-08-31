@@ -46,11 +46,12 @@ func _scene_root_for(node: Node) -> Node:
         current = current.get_parent()
     return current
 
-func _find_owned_body(roads_root: Node) -> StaticBody3D:
+func _find_owned_bodies(roads_root: Node) -> Array[StaticBody3D]:
+    var owned: Array[StaticBody3D] = []
     for child: Node in roads_root.get_children():
         if child is StaticBody3D and str(child.get_meta(OWNER_META, "")) == OWNER_ID:
-            return child as StaticBody3D
-    return null
+            owned.append(child as StaticBody3D)
+    return owned
 
 func _restore_from_owned_body(body: StaticBody3D, player: CharacterBody3D) -> bool:
     var road_count := int(body.get_meta("road_support_surfaces", 0))
@@ -104,14 +105,20 @@ func _bind_when_ready() -> void:
         # node may legitimately use BODY_NAME and must neither suppress nor be
         # mutated by this runtime. When our support already exists (for example
         # after a runtime remount/hot reload), restore the Player opt-in mask and
-        # local readiness from the owned body's immutable contract. If our own
-        # body has drifted, discard only that owned node and rebuild from the
-        # still-visible canonical OSM surfaces instead of returning dormant.
-        var existing_owned := _find_owned_body(roads_root)
-        if existing_owned != null:
-            if _restore_from_owned_body(existing_owned, player):
+        # local readiness from the owned body's immutable contract. Multiple
+        # owned bodies are never adopted: duplicated Player support can double
+        # grounding collisions, so detach every owned duplicate synchronously
+        # and rebuild one canonical body from currently visible source surfaces.
+        var existing_owned := _find_owned_bodies(roads_root)
+        if existing_owned.size() == 1:
+            if _restore_from_owned_body(existing_owned[0], player):
                 return
-            _discard_invalid_owned_body(existing_owned, roads_root)
+            _discard_invalid_owned_body(existing_owned[0], roads_root)
+        elif existing_owned.size() > 1:
+            var duplicate_count := existing_owned.size()
+            for owned_body: StaticBody3D in existing_owned:
+                _discard_invalid_owned_body(owned_body, roads_root)
+            print("GENERIC_OSM_SURFACE_COLLISIONS_RECOVERY: duplicate_owned_supports_discarded=%d owner=%s" % [duplicate_count, OWNER_ID])
 
         var support_faces := PackedVector3Array()
         var road_count := 0

@@ -82,9 +82,10 @@ jobs:
           import json, math
           from pathlib import Path
 
+          PHASE_DIVERGENCE_MATERIAL_SAMPLES = 12
           p=json.loads(Path('/tmp/civ1global/evidence/global-chain.json').read_text())
           v=p['godot_version']
-          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v1'
+          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v2'
           assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
           assert p['source_animation']=='UAL1_Standard/Sprint'
           assert p['sample_count']==121
@@ -92,6 +93,7 @@ jobs:
           assert p['use_global_pose'] is False
           assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
           required=('Hips','LeftUpperLeg','LeftLowerLeg','LeftFoot','RightUpperLeg','RightLowerLeg','RightFoot')
+          phase_bones=('LeftUpperLeg','LeftLowerLeg','LeftFoot','RightUpperLeg','RightLowerLeg','RightFoot')
           assert set(p['diagnostic_bones'])==set(required)
           samples=p['model_space_samples']
           assert len(samples)==121
@@ -115,12 +117,44 @@ jobs:
                   vectors=[s['bones'][foot][side][key] for s in samples]
                   span=max(math.sqrt(sum(float(x)*float(x) for x in v)) for v in vectors)
                   assert span > 0.05, (foot,side,span)
+
+          phase=p['phase_vertical_summary']
+          assert phase['material_threshold_samples']==PHASE_DIVERGENCE_MATERIAL_SAMPLES
+          per_bone=phase['per_bone']
+          assert set(per_bone)==set(phase_bones)
+          first=''
+          for bone in phase_bones:
+              row=per_bone[bone]
+              for key in ('source_vertical_min_sample_index','target_vertical_min_sample_index','phase_delta_samples','phase_delta_seconds','material_phase_divergence'):
+                  assert key in row, (bone,key,row)
+              assert 0 <= int(row['source_vertical_min_sample_index']) < 120
+              assert 0 <= int(row['target_vertical_min_sample_index']) < 120
+              assert abs(int(row['phase_delta_samples'])) <= 60
+              assert math.isfinite(float(row['phase_delta_seconds']))
+              expected=abs(int(row['phase_delta_samples'])) > PHASE_DIVERGENCE_MATERIAL_SAMPLES
+              assert row['material_phase_divergence'] is expected
+              if not first and expected:
+                  first=bone
+          assert first == 'RightFoot', (first,per_bone)
+          assert phase['first_material_divergence_joint']==first
+          assert p['first_material_divergence_joint']==first
+          right=per_bone['RightFoot']
+          assert int(right['source_vertical_min_sample_index'])==59, right
+          assert int(right['target_vertical_min_sample_index'])==86, right
+          assert int(right['phase_delta_samples'])==27, right
+          assert abs(float(right['phase_delta_seconds'])-0.15) < 0.002, right
+          for bone in ('LeftUpperLeg','LeftLowerLeg','LeftFoot','RightUpperLeg','RightLowerLeg'):
+              assert abs(int(per_bone[bone]['phase_delta_samples'])) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES, (bone,per_bone[bone])
+
           assert p['diagnostic_only'] is True
           assert p['runtime_authorized'] is False
           assert p['visual_approval_claimed'] is False
           print('global_chain_sample_count',len(samples))
           print('global_chain_motion_nonzero',True)
-          print('classification','diagnostic-only; inspect first bilateral model-space phase divergence')
+          print('first_material_divergence_joint',first)
+          print('right_foot_phase_delta_samples',right['phase_delta_samples'])
+          print('right_foot_phase_delta_seconds',right['phase_delta_seconds'])
+          print('classification','diagnostic-only; RightFoot is first material model-space vertical phase divergence')
           PY
 
       - name: Upload model-space chain evidence

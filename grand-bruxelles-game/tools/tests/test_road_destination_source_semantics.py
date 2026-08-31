@@ -70,3 +70,18 @@ def test_destination_source_local_bbox_must_match_exact_source_record() -> None:
     bbox = list(readiness["destinations"][0]["source_local_bbox"])
     bbox[0] -= 1.0
     _assert_semantic_drift_fails("source_local_bbox", bbox)
+
+
+def main() -> None:
+    test_real_destination_semantics_match_exact_source()
+    test_destination_road_name_must_match_exact_source_record()
+    test_destination_road_class_must_match_exact_source_record()
+    test_destination_road_width_must_match_exact_source_record()
+    test_destination_source_point_count_must_match_exact_source_record()
+    test_destination_source_points_hash_must_match_exact_source_record()
+    test_destination_source_local_bbox_must_match_exact_source_record()
+    print("ROAD_DESTINATION_SOURCE_SEMANTICS_REGRESSIONS_OK tests=7")
+
+
+if __name__ == "__main__":
+    main()

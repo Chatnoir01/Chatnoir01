@@ -49,7 +49,7 @@ func _init() -> void:
             reference_candidates.append(str(observation["observation_id"]))
     reference_candidates.sort()
     var payload := {
-        "format": "grand-bruxelles-quaternius-ik-observation-context-v3",
+        "format": "grand-bruxelles-quaternius-ik-observation-context-v4",
         "godot_version": Engine.get_version_info(),
         "sample_count": SAMPLE_COUNT,
         "position_motion_epsilon_m": MOTION_POSITION_EPS_M,
@@ -177,11 +177,7 @@ func _linked_animation_tree_inventory(scene_root: Node, player: AnimationPlayer)
         if is_linked:
             linked.append(tree)
             linked_original_active.append(tree.active)
-    return {
-        "rows": rows,
-        "linked": linked,
-        "linked_original_active": linked_original_active,
-    }
+    return {"rows": rows, "linked": linked, "linked_original_active": linked_original_active}
 
 func _measure_pose_with_current_root(player: AnimationPlayer, skeleton: Skeleton3D, left_idx: int, right_idx: int, animation_name: StringName, animation: Animation) -> Dictionary:
     var samples: Array[Dictionary] = []
@@ -220,6 +216,109 @@ func _measure_pose_with_current_root(player: AnimationPlayer, skeleton: Skeleton
         "pose_samples": samples,
     }
 
+func _bone_name_from_track_path(track_path: NodePath) -> String:
+    var bone_name := str(track_path.get_concatenated_subnames())
+    if bone_name.contains(":"):
+        bone_name = bone_name.split(":", false, 1)[0]
+    return bone_name
+
+func _apply_animation_tracks_to_skeleton(animation: Animation, skeleton: Skeleton3D, time_seconds: float) -> int:
+    var applied := 0
+    for track_index in range(animation.get_track_count()):
+        var track_path: NodePath = animation.track_get_path(track_index)
+        var bone_name := _bone_name_from_track_path(track_path)
+        if bone_name.is_empty():
+            continue
+        var bone_idx := skeleton.find_bone(bone_name)
+        if bone_idx < 0:
+            continue
+        var track_type := animation.track_get_type(track_index)
+        if track_type == Animation.TYPE_POSITION_3D:
+            var position_value: Variant = animation.position_track_interpolate(track_index, time_seconds)
+            if position_value is Vector3:
+                skeleton.set_bone_pose_position(bone_idx, position_value as Vector3)
+                applied += 1
+        elif track_type == Animation.TYPE_ROTATION_3D:
+            var rotation_value: Variant = animation.rotation_track_interpolate(track_index, time_seconds)
+            if rotation_value is Quaternion:
+                skeleton.set_bone_pose_rotation(bone_idx, rotation_value as Quaternion)
+                applied += 1
+        elif track_type == Animation.TYPE_SCALE_3D:
+            var scale_value: Variant = animation.scale_track_interpolate(track_index, time_seconds)
+            if scale_value is Vector3:
+                skeleton.set_bone_pose_scale(bone_idx, scale_value as Vector3)
+                applied += 1
+    return applied
+
+func _measure_direct_track_pose(animation: Animation, skeleton: Skeleton3D, left_idx: int, right_idx: int) -> Dictionary:
+    var bone_count := skeleton.get_bone_count()
+    var saved_positions: Array[Vector3] = []
+    var saved_rotations: Array[Quaternion] = []
+    var saved_scales: Array[Vector3] = []
+    for bone_idx in range(bone_count):
+        saved_positions.append(skeleton.get_bone_pose_position(bone_idx))
+        saved_rotations.append(skeleton.get_bone_pose_rotation(bone_idx))
+        saved_scales.append(skeleton.get_bone_pose_scale(bone_idx))
+
+    var samples: Array[Dictionary] = []
+    var left_first := Vector3.ZERO
+    var right_first := Vector3.ZERO
+    var left_range := 0.0
+    var right_range := 0.0
+    var have_first := false
+    var min_applied_track_count := 2147483647
+    for sample_index in range(SAMPLE_COUNT):
+        for bone_idx in range(bone_count):
+            skeleton.reset_bone_pose(bone_idx)
+        var t := animation.length * float(sample_index) / float(SAMPLE_COUNT - 1)
+        var applied_track_count := _apply_animation_tracks_to_skeleton(animation, skeleton, t)
+        min_applied_track_count = mini(min_applied_track_count, applied_track_count)
+        skeleton.force_update_bone_child_transform(left_idx)
+        skeleton.force_update_bone_child_transform(right_idx)
+        var left_pos := skeleton.get_bone_global_pose(left_idx).origin
+        var right_pos := skeleton.get_bone_global_pose(right_idx).origin
+        if not have_first:
+            left_first = left_pos
+            right_first = right_pos
+            have_first = true
+        left_range = maxf(left_range, left_first.distance_to(left_pos))
+        right_range = maxf(right_range, right_first.distance_to(right_pos))
+        samples.append({
+            "sample_index": sample_index,
+            "time_seconds": t,
+            "applied_track_count": applied_track_count,
+            "left_foot_global_pose": [left_pos.x, left_pos.y, left_pos.z],
+            "right_foot_global_pose": [right_pos.x, right_pos.y, right_pos.z],
+        })
+
+    for bone_idx in range(bone_count):
+        skeleton.set_bone_pose_position(bone_idx, saved_positions[bone_idx])
+        skeleton.set_bone_pose_rotation(bone_idx, saved_rotations[bone_idx])
+        skeleton.set_bone_pose_scale(bone_idx, saved_scales[bone_idx])
+    skeleton.force_update_bone_child_transform(left_idx)
+    skeleton.force_update_bone_child_transform(right_idx)
+
+    var restored := true
+    for bone_idx in range(bone_count):
+        if skeleton.get_bone_pose_position(bone_idx).distance_to(saved_positions[bone_idx]) > 0.000001:
+            restored = false
+        if rad_to_deg(skeleton.get_bone_pose_rotation(bone_idx).angle_to(saved_rotations[bone_idx])) > 0.0001:
+            restored = false
+        if skeleton.get_bone_pose_scale(bone_idx).distance_to(saved_scales[bone_idx]) > 0.000001:
+            restored = false
+    if min_applied_track_count == 2147483647:
+        min_applied_track_count = 0
+    return {
+        "valid": true,
+        "method": "direct_imported_transform_tracks_to_skeleton",
+        "minimum_applied_track_count": min_applied_track_count,
+        "left_foot_pose_range_m": left_range,
+        "right_foot_pose_range_m": right_range,
+        "bilateral_foot_pose_motion": left_range > POSE_MOTION_EPS_M and right_range > POSE_MOTION_EPS_M,
+        "pose_samples": samples,
+        "direct_pose_state_restored_after_measurement": restored,
+    }
+
 func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringName, animation: Animation, scene_root: Node) -> Dictionary:
     var original_root: NodePath = player.root_node
     var skeleton_node := player.get_node_or_null(original_root)
@@ -234,42 +333,23 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
     var tree_inventory := _linked_animation_tree_inventory(scene_root, player)
     var linked_trees: Array[AnimationTree] = tree_inventory["linked"]
     var linked_original_active: Array[bool] = tree_inventory["linked_original_active"]
-
     var original_measurement := _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
-    var selected_measurement: Dictionary = original_measurement
-    var selected_root := original_root
-    var root_override_used := false
     var fallback_measurement: Dictionary = {}
     var tree_disabled_measurement: Dictionary = {}
     var tree_disabled_fallback_measurement: Dictionary = {}
-    var tree_override_used := false
 
     if not bool(original_measurement.get("bilateral_foot_pose_motion", false)):
         player.root_node = NodePath("..")
         fallback_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
-        if bool(fallback_measurement.get("bilateral_foot_pose_motion", false)):
-            selected_measurement = fallback_measurement
-            selected_root = NodePath("..")
-            root_override_used = true
         player.root_node = original_root
 
-    if not bool(selected_measurement.get("bilateral_foot_pose_motion", false)) and not linked_trees.is_empty():
+    if not bool(original_measurement.get("bilateral_foot_pose_motion", false)) and not linked_trees.is_empty():
         for tree in linked_trees:
             tree.active = false
         tree_disabled_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
-        if bool(tree_disabled_measurement.get("bilateral_foot_pose_motion", false)):
-            selected_measurement = tree_disabled_measurement
-            selected_root = original_root
-            tree_override_used = true
-        else:
-            player.root_node = NodePath("..")
-            tree_disabled_fallback_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
-            if bool(tree_disabled_fallback_measurement.get("bilateral_foot_pose_motion", false)):
-                selected_measurement = tree_disabled_fallback_measurement
-                selected_root = NodePath("..")
-                root_override_used = true
-                tree_override_used = true
-            player.root_node = original_root
+        player.root_node = NodePath("..")
+        tree_disabled_fallback_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
+        player.root_node = original_root
         for index in range(linked_trees.size()):
             var tree := linked_trees[index]
             var original_active := linked_original_active[index]
@@ -280,6 +360,14 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
     for index in range(linked_trees.size()):
         if linked_trees[index].active != linked_original_active[index]:
             tree_state_restored = false
+
+    var direct_track_pose_measurement := _measure_direct_track_pose(animation, skeleton, left_idx, right_idx)
+    var player_bilateral := bool(original_measurement.get("bilateral_foot_pose_motion", false)) or bool(fallback_measurement.get("bilateral_foot_pose_motion", false)) or bool(tree_disabled_measurement.get("bilateral_foot_pose_motion", false)) or bool(tree_disabled_fallback_measurement.get("bilateral_foot_pose_motion", false))
+    var selected_measurement: Dictionary = original_measurement
+    var selected_method := "animation_player_original_root"
+    if not player_bilateral:
+        selected_measurement = direct_track_pose_measurement
+        selected_method = "direct_imported_transform_tracks_to_skeleton"
 
     return {
         "valid": true,
@@ -292,17 +380,21 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
         "right_foot_pose_range_m": selected_measurement["right_foot_pose_range_m"],
         "bilateral_foot_pose_motion": selected_measurement["bilateral_foot_pose_motion"],
         "pose_samples": selected_measurement["pose_samples"],
+        "selected_pose_measurement_method": selected_method,
+        "animation_player_bilateral_foot_pose_motion": player_bilateral,
         "original_root_node": str(original_root),
-        "selected_diagnostic_root_node": str(selected_root),
-        "root_override_used": root_override_used,
+        "selected_diagnostic_root_node": str(original_root),
+        "root_override_used": not fallback_measurement.is_empty(),
         "linked_animation_trees": tree_inventory["rows"],
         "linked_animation_tree_count": linked_trees.size(),
-        "tree_override_used": tree_override_used,
+        "tree_override_used": not tree_disabled_measurement.is_empty(),
         "tree_state_restored_after_measurement": tree_state_restored,
         "original_root_pose_range_m": [original_measurement["left_foot_pose_range_m"], original_measurement["right_foot_pose_range_m"]],
         "fallback_root_pose_range_m": [] if fallback_measurement.is_empty() else [fallback_measurement["left_foot_pose_range_m"], fallback_measurement["right_foot_pose_range_m"]],
         "tree_disabled_original_root_pose_range_m": [] if tree_disabled_measurement.is_empty() else [tree_disabled_measurement["left_foot_pose_range_m"], tree_disabled_measurement["right_foot_pose_range_m"]],
         "tree_disabled_fallback_root_pose_range_m": [] if tree_disabled_fallback_measurement.is_empty() else [tree_disabled_fallback_measurement["left_foot_pose_range_m"], tree_disabled_fallback_measurement["right_foot_pose_range_m"]],
+        "direct_track_pose_measurement": direct_track_pose_measurement,
+        "direct_pose_state_restored_after_measurement": direct_track_pose_measurement["direct_pose_state_restored_after_measurement"],
         "root_restored_after_measurement": player.root_node == original_root,
     }
 

@@ -131,8 +131,8 @@ func _transform_record(pose: Transform3D, rest: Transform3D, hips_pose: Transfor
     }
 
 func _signed_circular_delta(target_index: int, source_index: int, cycle_samples: int) -> int:
-    var delta := target_index - source_index
-    var half := cycle_samples / 2
+    var delta: int = target_index - source_index
+    var half: int = int(cycle_samples / 2)
     while delta > half:
         delta -= cycle_samples
     while delta < -half:
@@ -140,27 +140,27 @@ func _signed_circular_delta(target_index: int, source_index: int, cycle_samples:
     return delta
 
 func _vertical_phase_summary(samples: Array[Dictionary], animation_length: float) -> Dictionary:
-    var cycle_samples := SAMPLE_COUNT - 1
+    var cycle_samples: int = SAMPLE_COUNT - 1
     var summary := {}
     var first_material := ""
     for semantic in PHASE_CHAIN_ORDER:
-        var source_min_index := -1
-        var target_min_index := -1
-        var source_min_y := INF
-        var target_min_y := INF
+        var source_min_index: int = -1
+        var target_min_index: int = -1
+        var source_min_y: float = INF
+        var target_min_y: float = INF
         for sample_index in range(cycle_samples):
             var pair: Dictionary = samples[sample_index]["bones"][semantic]
-            var source_y := float(pair["source"]["source_hips_relative_origin"][1])
-            var target_y := float(pair["target"]["target_hips_relative_origin"][1])
+            var source_y: float = float(pair["source"]["source_hips_relative_origin"][1])
+            var target_y: float = float(pair["target"]["target_hips_relative_origin"][1])
             if source_y < source_min_y:
                 source_min_y = source_y
                 source_min_index = sample_index
             if target_y < target_min_y:
                 target_min_y = target_y
                 target_min_index = sample_index
-        var phase_delta_samples := _signed_circular_delta(target_min_index, source_min_index, cycle_samples)
-        var phase_delta_seconds := float(phase_delta_samples) * animation_length / float(cycle_samples)
-        var material := abs(phase_delta_samples) > PHASE_DIVERGENCE_MATERIAL_SAMPLES
+        var phase_delta_samples: int = _signed_circular_delta(target_min_index, source_min_index, cycle_samples)
+        var phase_delta_seconds: float = float(phase_delta_samples) * animation_length / float(cycle_samples)
+        var material: bool = abs(phase_delta_samples) > PHASE_DIVERGENCE_MATERIAL_SAMPLES
         summary[semantic] = {
             "source_vertical_min_sample_index": source_min_index,
             "target_vertical_min_sample_index": target_min_index,

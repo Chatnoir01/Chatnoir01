@@ -43,8 +43,6 @@ def fail(message: str) -> None:
 
 
 def _number(value: Any, label: str) -> float:
-    # Coordinates are identity-bearing JSON numbers. Never normalize strings,
-    # booleans, nulls, or other coercible values into spatial identity.
     if type(value) not in (int, float):
         fail(f"invalid {label}")
     number = float(value)
@@ -56,8 +54,6 @@ def _number(value: Any, label: str) -> float:
 
 
 def _road_id(value: Any) -> int:
-    # OSM IDs are canonical JSON integers. Never normalize booleans, numeric
-    # strings, floats, or other coercible values into an identity.
     if type(value) is not int or value <= 0:
         fail("invalid road identity")
     return value
@@ -85,13 +81,13 @@ def _require_no_unknown_boolean_controls(
     known_boolean_keys: frozenset[str],
     label: str,
 ) -> None:
-    """Reject boolean aliases outside the canonical control-plane rails.
+    """Reject boolean aliases outside canonical control-plane rails.
 
     ``*_authorized`` fields are intentionally left to the exact authorization-rail
-    validator below so an added authorization key keeps the stronger rail-drift
-    diagnostic. Other boolean aliases such as ``jouable`` or ``playable`` are
-    control-bearing by construction and therefore fail closed until explicitly
-    reviewed and added to the schema. Non-boolean metadata remains extensible.
+    validator so added authorization keys retain the stronger rail-drift diagnostic.
+    Other boolean aliases are control-bearing by construction and fail closed until
+    explicitly reviewed and added to the schema. Non-boolean metadata remains
+    extensible.
     """
     unknown = sorted(
         key
@@ -158,6 +154,11 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
 
 
 def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
+    _require_no_unknown_boolean_controls(
+        readiness,
+        frozenset(),
+        "readiness root",
+    )
     _require_closed_authorization(
         readiness.get("authorization"),
         ROOT_AUTHORIZATION_RAILS,

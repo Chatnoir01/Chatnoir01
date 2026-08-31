@@ -70,20 +70,25 @@ jobs:
           inventory = json.loads(Path('/tmp/civ1-godot/evidence/inventory.json').read_text(encoding='utf-8'))
           proof = json.loads(Path('/tmp/civ1-godot/evidence/godot-import.json').read_text(encoding='utf-8'))
           evidence = status['sanitized_body_evidence']
-          assert inventory['sha256'] == evidence['sanitized_sha256'] == '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888'
-          assert inventory['size_bytes'] == evidence['sanitized_size_bytes'] == 6780124
+          pinned = status['godot_import_evidence']
+          assert inventory['sha256'] == evidence['sanitized_sha256'] == pinned['sanitized_body_sha256'] == '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888'
+          assert inventory['size_bytes'] == evidence['sanitized_size_bytes'] == pinned['sanitized_body_size_bytes'] == 6780124
           assert inventory['reference_integrity'] == 'validated'
           assert proof['format'] == 'grand-bruxelles-civ1-godot-import-evidence-v1'
           assert (proof['godot_major'], proof['godot_minor'], proof['godot_patch'], proof['godot_status']) == (4, 7, 1, 'stable')
-          assert proof['integrity'] == 'validated'
-          assert proof['skeleton_count'] == 1
-          assert proof['bone_count'] > 0
-          assert proof['mesh_instance_count'] > 0
-          assert proof['skinned_mesh_count'] > 0
-          assert proof['surface_count'] > 0
-          assert proof['material_surface_count'] > 0
-          assert evidence['godot_import_verified'] is False
+          assert pinned['godot_version'] == {'major': 4, 'minor': 7, 'patch': 1, 'status': 'stable'}
+          assert pinned['godot_linux_zip_sha256'] == 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba'
+          assert proof['integrity'] == pinned['integrity'] == 'validated'
+          assert pinned['counts']['skeletons'] == proof['skeleton_count'] == 1
+          assert pinned['counts']['bones'] == proof['bone_count'] == 52
+          assert pinned['counts']['mesh_instances'] == proof['mesh_instance_count'] == 3
+          assert pinned['counts']['skinned_meshes'] == proof['skinned_mesh_count'] == 3
+          assert pinned['counts']['surfaces'] == proof['surface_count'] == 4
+          assert pinned['counts']['material_surfaces'] == proof['material_surface_count'] == 4
+          assert evidence['godot_import_verified'] is True
+          assert pinned['runtime_promoted'] is False
           assert evidence['visual_approval_claimed'] is False
+          assert pinned['visual_approval_claimed'] is False
           assert status['production_authorized'] is False
           assert status['activation_ready'] is False
           assert status['runtime_package_present'] is False

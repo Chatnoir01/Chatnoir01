@@ -190,7 +190,7 @@ func _contact_proxy(samples: Array, track_path: String, animation_length: float,
 func _foot_pose_targets(player: AnimationPlayer, animation: Animation) -> Array[Dictionary]:
     var targets: Array[Dictionary] = []
     var seen: Dictionary = {}
-    var animation_root := player.get_node_or_null(player.root_node)
+    var animation_root := player.get_node_or_null(NodePath(str(player.root_node)))
     if animation_root == null:
         return targets
     for track_index in range(animation.get_track_count()):

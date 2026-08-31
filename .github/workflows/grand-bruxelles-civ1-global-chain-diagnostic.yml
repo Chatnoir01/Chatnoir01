@@ -95,12 +95,16 @@ jobs:
           assert set(p['diagnostic_bones'])==set(required)
           samples=p['model_space_samples']
           assert len(samples)==121
+          source_keys={'model_origin','model_rotation_xyzw','source_motion_from_rest','source_hips_relative_origin'}
+          target_keys={'model_origin','model_rotation_xyzw','target_motion_from_rest','target_hips_relative_origin'}
           for i,sample in enumerate(samples):
               assert sample['sample_index']==i
               assert math.isfinite(float(sample['time_s']))
               assert set(sample['bones'])==set(required)
               for bone in required:
                   pair=sample['bones'][bone]
+                  assert set(pair['source'])==source_keys, (i,bone,'source',pair['source'].keys())
+                  assert set(pair['target'])==target_keys, (i,bone,'target',pair['target'].keys())
                   for side in ('source','target'):
                       record=pair[side]
                       for key,value in record.items():

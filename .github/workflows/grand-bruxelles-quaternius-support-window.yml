@@ -1,0 +1,127 @@
+name: Grand Bruxelles Quaternius Support Window
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_quaternius_support_window_probe.gd"
+      - "grand-bruxelles-game/tests/test_quaternius_support_window_contract.py"
+      - ".github/workflows/grand-bruxelles-quaternius-support-window.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  support-window:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_quaternius_support_window_contract.py
+      - name: Fetch exact CC0 source archive
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/qsw/source /tmp/qsw/evidence
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/qsw/source.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/qsw/source.zip' | sha256sum -c -
+          test "$(stat -c '%s' /tmp/qsw/source.zip)" = "38687957"
+          unzip -q /tmp/qsw/source.zip -d /tmp/qsw/source
+          grep -Eqi 'cc0|creative commons zero' "$(find /tmp/qsw/source -iname 'LICENSE*' -type f -print -quit)"
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/qsw/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/qsw/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/qsw/engine
+          GODOT_BIN=/tmp/qsw/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/qsw/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/qsw/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Import and run support-window probe
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/qsw/source -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/qsw/source -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            cat > "$PROJECT_ROOT/project.godot" <<'EOF'
+          [application]
+          config/name="QuaterniusSupportWindow"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          fi
+          cp grand-bruxelles-game/tools/godot_quaternius_support_window_probe.gd "$PROJECT_ROOT/gb_support_window_probe.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/qsw/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_support_window_probe.gd -- /tmp/qsw/evidence/support-window.json 2>&1 | tee /tmp/qsw/evidence/probe.log
+          grep -Fq 'QUATERNIUS_SUPPORT_WINDOW_OK' /tmp/qsw/evidence/probe.log
+      - name: Validate support-window evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/qsw/evidence/support-window.json').read_text())
+          v=p['godot_version']
+          assert p['format']=='grand-bruxelles-quaternius-support-window-v1'
+          assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
+          assert p['sample_count']==121
+          assert p['support_definition']=='contiguous_source_relative_bottom_10_percent_windows_per_foot'
+          assert p['diagnostic_only'] is True
+          assert p['world_ground_assumed'] is False
+          assert p['contact_verified'] is False
+          assert p['semantic_selection_allowed'] is False
+          assert p['selected_run_alias']==''
+          assert p['civ1_retarget_authorized'] is False
+          assert p['grounding_verified'] is False
+          assert p['foot_slide_verified'] is False
+          assert p['visual_approval_claimed'] is False
+          rows=p['measurements']
+          assert len(rows)==2
+          by_name={r['animation']:r for r in rows}
+          assert set(by_name)=={'UAL1_Standard/Jog_Fwd','UAL1_Standard/Sprint'}
+          for r in rows:
+              assert r['valid'] is True
+              assert r['sample_count']==121
+              assert r['terminal_loop_sample_excluded_from_support_mask'] is True
+              for foot in ('left_foot','right_foot'):
+                  f=r[foot]
+                  assert f['vertical_range_m'] > 0.01
+                  w=f['support_windows']
+                  assert w['window_count'] >= 1
+                  assert 0 < w['selected_sample_count'] < 120
+                  assert 0.0 < w['selected_fraction'] < 1.0
+                  assert len(w['windows'])==w['window_count']
+                  for window in w['windows']:
+                      assert 0 <= window['start_index'] < 120
+                      assert 0 <= window['end_index'] < 120
+                      assert isinstance(window['wraps_cycle'], bool)
+                      if not window['wraps_cycle']:
+                          assert window['start_index'] <= window['end_index']
+                      assert window['sample_count'] >= 1
+                      assert len(window['sample_indices']) == window['sample_count']
+                      assert window['duration_seconds'] > 0.0
+                      assert window['horizontal_displacement_m'] >= 0.0
+                      assert window['horizontal_path_m'] >= window['horizontal_displacement_m'] - 1e-9
+              total=r['bilateral_support_fraction']+r['unilateral_support_fraction']+r['neither_low_fraction']
+              assert abs(total-1.0) < 1e-6
+          sprint=by_name['UAL1_Standard/Sprint']
+          assert sprint['left_foot']['support_windows']['window_count']==1
+          assert sprint['left_foot']['support_windows']['windows'][0]['wraps_cycle'] is True
+          assert sprint['left_foot']['support_windows']['windows'][0]['start_index'] > sprint['left_foot']['support_windows']['windows'][0]['end_index']
+          print('QUATERNIUS_SUPPORT_WINDOW_EVIDENCE_OK')
+          PY
+      - name: Upload support-window evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quaternius-support-window-evidence
+          path: /tmp/qsw/evidence
+          if-no-files-found: warn

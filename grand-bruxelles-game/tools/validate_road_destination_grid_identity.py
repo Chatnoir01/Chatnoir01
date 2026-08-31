@@ -2,9 +2,10 @@
 """Fail-closed canonical identity check for registered road destination cells.
 
 This verifier is evidence-only. It binds the redundant grid_cell_id carried by the
-road readiness catalog to the exact canonical cell_id and EPSG:31370 bbox, and
-proves that the catalog remains on the existing closed authorization rails. It does
-not authorize runtime mounting, rendering, collision, safe spawn, or JOUABLE.
+road readiness catalog to the exact canonical cell_id and EPSG:31370 bbox, locks
+each destination to the canonical source provenance, and proves that the catalog
+remains on the existing closed authorization rails. It does not authorize runtime
+mounting, rendering, collision, safe spawn, or JOUABLE.
 """
 from __future__ import annotations
 
@@ -16,6 +17,10 @@ from typing import Any
 
 CELL_ID_RE = re.compile(r"^bxl-e(-?\d+)-n(-?\d+)-s(\d+)$")
 EXPECTED_CRS = "EPSG:31370"
+EXPECTED_SOURCE_PATH = "data/osm/vertical_slice_01.game.json"
+EXPECTED_SOURCE_PROVIDER = "OpenStreetMap contributors via Overpass API"
+EXPECTED_SOURCE_LICENSE = "ODbL-1.0"
+EXPECTED_SOURCE_SHA256 = "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
 ROOT_AUTHORIZATION_RAILS = frozenset(
     {
         "collision_authorized",
@@ -36,6 +41,12 @@ DESTINATION_AUTHORIZATION_RAILS = frozenset(
         "safe_spawn_authorized",
     }
 )
+EXPECTED_DESTINATION_PROVENANCE = {
+    "source_path": EXPECTED_SOURCE_PATH,
+    "source_provider": EXPECTED_SOURCE_PROVIDER,
+    "source_license": EXPECTED_SOURCE_LICENSE,
+    "source_sha256": EXPECTED_SOURCE_SHA256,
+}
 
 
 def fail(message: str) -> None:
@@ -116,6 +127,16 @@ def _require_no_unknown_boolean_controls(
         fail(f"{label} unknown boolean control field(s): {sorted(unknown)}")
 
 
+def _require_destination_provenance(destination: dict[str, Any], road_id: int) -> None:
+    for field, expected in EXPECTED_DESTINATION_PROVENANCE.items():
+        actual = destination.get(field)
+        if actual != expected:
+            fail(
+                "destination source provenance drift "
+                f"{road_id}: {field} stored={actual!r} expected={expected!r}"
+            )
+
+
 def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     road_id = _road_id(destination.get("road_osm_id"))
     if destination.get("destination_id") != f"road-{road_id}":
@@ -124,6 +145,7 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
         fail(f"readiness drift {road_id}")
     if destination.get("cell_crs") != EXPECTED_CRS:
         fail(f"cell CRS drift {road_id}")
+    _require_destination_provenance(destination, road_id)
 
     _require_no_unknown_boolean_controls(
         destination,
@@ -176,6 +198,12 @@ def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
         "readiness root",
         skipped_direct_objects=frozenset({"authorization", "destinations"}),
     )
+    if readiness.get("corrected_frame_source_sha256") != EXPECTED_SOURCE_SHA256:
+        fail(
+            "catalog source provenance drift: corrected_frame_source_sha256 "
+            f"stored={readiness.get('corrected_frame_source_sha256')!r} "
+            f"expected={EXPECTED_SOURCE_SHA256!r}"
+        )
     _require_closed_authorization(
         readiness.get("authorization"),
         ROOT_AUTHORIZATION_RAILS,

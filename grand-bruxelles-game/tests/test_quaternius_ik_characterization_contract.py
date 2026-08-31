@@ -25,6 +25,8 @@ def main() -> None:
     require("CONTACT_HEIGHT_BAND_RATIO" in probe and "CONTACT_HEIGHT_BAND_MIN_M" in probe, "contact threshold is not deterministic")
     require("player.seek" in probe and "get_bone_global_pose" in probe and "force_update_bone_child_transform" in probe, "animated Skeleton3D pose sampling is missing")
     require("NodePath(str(raw_path.get_concatenated_names()))" in probe, "Godot 4.7 foot target lookup must convert StringName to NodePath explicitly")
+    require("root.add_child(instance)" in probe and "root.remove_child(instance)" in probe, "pose sampling must run with the candidate instance inside the live SceneTree")
+    require(probe.index("root.add_child(instance)") < probe.index("_walk(instance)"), "candidate must enter SceneTree before AnimationPlayer sampling")
     require("skeleton.force_update_all_bone_transforms()" not in probe, "deprecated all-bone refresh call must not regress under Godot 4.7 warnings-as-errors")
     require("skeleton_space_pose_low_height_contact_proxy" in probe, "skeleton-space contact proxy method is not explicit")
     require("contact_sample_fraction" in probe and "contiguous_contact_slide_m" in probe and "mean_contact_slide_speed_mps" in probe, "contact-aware slide metrics missing")
@@ -40,7 +42,7 @@ def main() -> None:
     require("actions/upload-artifact@v4" in workflow and "godot-characterization.json" in workflow, "measured evidence artifact is not published")
     require("if: always()" in workflow, "diagnostic evidence must upload even when the Godot probe is RED")
     require("2>&1 | tee /tmp/qik/evidence/probe.log" in workflow, "Godot probe diagnostics must capture stderr as well as stdout")
-    print("QUATERNIUS_IK_CHARACTERIZATION_CONTRACT_OK: v5_skeleton_pose_contact=locked_fail_closed")
+    print("QUATERNIUS_IK_CHARACTERIZATION_CONTRACT_OK: v5_live_tree_skeleton_pose_contact=locked_fail_closed")
 
 
 if __name__ == "__main__":

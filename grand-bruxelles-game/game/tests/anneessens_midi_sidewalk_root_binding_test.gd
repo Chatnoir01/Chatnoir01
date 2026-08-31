@@ -48,6 +48,17 @@ func _assert_proxy_contract(node: Node, label: String) -> bool:
         return false
     return true
 
+func _assert_collision_state(kit: Node, expected_enabled: bool, label: String) -> bool:
+    for child: Node in kit.get_children():
+        if not child is CSGBox3D:
+            _fail("%s: non-CSG sidewalk child leaked into kit" % label)
+            return false
+        var pavement := child as CSGBox3D
+        if pavement.use_collision != expected_enabled:
+            _fail("%s: sidewalk collision state mismatch for %s: got=%s expected=%s" % [label, pavement.name, pavement.use_collision, expected_enabled])
+            return false
+    return true
+
 func _run() -> void:
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -110,5 +121,19 @@ func _run() -> void:
         if not _assert_proxy_contract(pavement, pavement.name):
             return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: sidewalks=%d collisions=%d current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true" % [sidewalk_count, collision_count])
+    runtime.call("set_sidewalks_enabled", false)
+    if kit.visible:
+        _fail("disabled sidewalk kit remained visible")
+        return
+    if not _assert_collision_state(kit, false, "disabled"):
+        return
+
+    runtime.call("set_sidewalks_enabled", true)
+    if not kit.visible:
+        _fail("re-enabled sidewalk kit remained hidden")
+        return
+    if not _assert_collision_state(kit, true, "re-enabled"):
+        return
+
+    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: sidewalks=%d collisions=%d toggle_collision_sync=true current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true" % [sidewalk_count, collision_count])
     quit(0)

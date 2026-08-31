@@ -13,6 +13,7 @@ var _scene: Node3D = null
 var _root: Node3D = null
 var _sidewalk_count := 0
 var _collision_count := 0
+var _sidewalks_enabled := true
 var _manual_binding := false
 var _bind_scheduled := false
 var _watching_tree := false
@@ -133,6 +134,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _collision_count = 0
     _root = Node3D.new()
     _root.name = "AnneessensMidiSidewalkKit"
+    _root.visible = _sidewalks_enabled
     _root.set_meta("zone", "anneessens")
     _root.set_meta("source", SOURCE_NAME)
     _root.set_meta("license", SOURCE_LICENSE)
@@ -185,7 +187,7 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.name = "AnneessensSidewalk_%s_%s" % [road.name, "L" if side < 0.0 else "R"]
         pavement.size = Vector3(width, SIDEWALK_HEIGHT_M, road.size.z)
         pavement.material = material
-        pavement.use_collision = true
+        pavement.use_collision = _sidewalks_enabled
         pavement.set_meta("source_road", road.name)
         pavement.set_meta("source", SOURCE_NAME)
         pavement.set_meta("license", SOURCE_LICENSE)
@@ -209,5 +211,11 @@ func diagnostic_collision_count() -> int:
     return _collision_count
 
 func set_sidewalks_enabled(enabled: bool) -> void:
-    if is_instance_valid(_root):
-        _root.visible = enabled
+    _sidewalks_enabled = enabled
+    if not is_instance_valid(_root):
+        return
+    _root.visible = enabled
+    for child: Node in _root.get_children():
+        if child is CSGBox3D:
+            var pavement := child as CSGBox3D
+            pavement.use_collision = enabled

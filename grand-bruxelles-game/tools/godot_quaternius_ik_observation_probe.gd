@@ -39,7 +39,7 @@ func _init() -> void:
             load_failures.append(scene_path)
             continue
         root.add_child(instance)
-        _walk_scene(instance, scene_path, str(instance.name))
+        _walk_scene(instance, scene_path, str(instance.name), instance)
         root.remove_child(instance)
         instance.free()
     observations.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["observation_id"]) < str(b["observation_id"]))
@@ -49,7 +49,7 @@ func _init() -> void:
             reference_candidates.append(str(observation["observation_id"]))
     reference_candidates.sort()
     var payload := {
-        "format": "grand-bruxelles-quaternius-ik-observation-context-v2",
+        "format": "grand-bruxelles-quaternius-ik-observation-context-v3",
         "godot_version": Engine.get_version_info(),
         "sample_count": SAMPLE_COUNT,
         "position_motion_epsilon_m": MOTION_POSITION_EPS_M,
@@ -95,11 +95,11 @@ func _scan_dir(path: String) -> void:
             scene_paths.append(child)
     dir.list_dir_end()
 
-func _walk_scene(node: Node, scene_path: String, relative_node_path: String) -> void:
+func _walk_scene(node: Node, scene_path: String, relative_node_path: String, scene_root: Node) -> void:
     if node is AnimationPlayer:
-        _inspect_player(node as AnimationPlayer, scene_path, relative_node_path)
+        _inspect_player(node as AnimationPlayer, scene_path, relative_node_path, scene_root)
     for child in node.get_children():
-        _walk_scene(child, scene_path, relative_node_path.path_join(str(child.name)))
+        _walk_scene(child, scene_path, relative_node_path.path_join(str(child.name)), scene_root)
 
 func _normalized_path(value: String) -> String:
     return value.to_lower().replace("_", "").replace("-", "").replace(" ", "")
@@ -145,6 +145,44 @@ func _sample_rotation_motion(animation: Animation, track_index: int) -> Dictiona
             max_angle_deg = maxf(max_angle_deg, rad_to_deg(first.angle_to(value as Quaternion)))
     return {"valid": true, "max_angle_deg": max_angle_deg, "animated": max_angle_deg > MOTION_ROTATION_EPS_DEG}
 
+func _collect_animation_trees(node: Node, result: Array[AnimationTree]) -> void:
+    if node is AnimationTree:
+        result.append(node as AnimationTree)
+    for child in node.get_children():
+        _collect_animation_trees(child, result)
+
+func _linked_animation_tree_inventory(scene_root: Node, player: AnimationPlayer) -> Dictionary:
+    var trees: Array[AnimationTree] = []
+    _collect_animation_trees(scene_root, trees)
+    var rows: Array[Dictionary] = []
+    var linked: Array[AnimationTree] = []
+    var linked_original_active: Array[bool] = []
+    for tree in trees:
+        var raw_path: Variant = tree.get("anim_player")
+        var anim_player_path := NodePath("")
+        if raw_path is NodePath:
+            anim_player_path = raw_path as NodePath
+        elif raw_path != null:
+            anim_player_path = NodePath(str(raw_path))
+        var linked_node: Node = null
+        if not anim_player_path.is_empty():
+            linked_node = tree.get_node_or_null(anim_player_path)
+        var is_linked := linked_node == player
+        rows.append({
+            "tree_path": str(scene_root.get_path_to(tree)),
+            "anim_player_path": str(anim_player_path),
+            "active": tree.active,
+            "linked_to_observed_player": is_linked,
+        })
+        if is_linked:
+            linked.append(tree)
+            linked_original_active.append(tree.active)
+    return {
+        "rows": rows,
+        "linked": linked,
+        "linked_original_active": linked_original_active,
+    }
+
 func _measure_pose_with_current_root(player: AnimationPlayer, skeleton: Skeleton3D, left_idx: int, right_idx: int, animation_name: StringName, animation: Animation) -> Dictionary:
     var samples: Array[Dictionary] = []
     var left_first := Vector3.ZERO
@@ -182,7 +220,7 @@ func _measure_pose_with_current_root(player: AnimationPlayer, skeleton: Skeleton
         "pose_samples": samples,
     }
 
-func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringName, animation: Animation) -> Dictionary:
+func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringName, animation: Animation, scene_root: Node) -> Dictionary:
     var original_root: NodePath = player.root_node
     var skeleton_node := player.get_node_or_null(original_root)
     if not (skeleton_node is Skeleton3D):
@@ -193,15 +231,20 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
     if left_idx < 0 or right_idx < 0:
         return {"valid": false, "reason": "foot_bones_missing", "left_index": left_idx, "right_index": right_idx, "original_root_node": str(original_root)}
 
+    var tree_inventory := _linked_animation_tree_inventory(scene_root, player)
+    var linked_trees: Array[AnimationTree] = tree_inventory["linked"]
+    var linked_original_active: Array[bool] = tree_inventory["linked_original_active"]
+
     var original_measurement := _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
     var selected_measurement: Dictionary = original_measurement
     var selected_root := original_root
     var root_override_used := false
     var fallback_measurement: Dictionary = {}
+    var tree_disabled_measurement: Dictionary = {}
+    var tree_disabled_fallback_measurement: Dictionary = {}
+    var tree_override_used := false
 
     if not bool(original_measurement.get("bilateral_foot_pose_motion", false)):
-        # The imported library tracks target `%GeneralSkeleton:<bone>`. Test the scene parent
-        # as AnimationMixer root without mutating the source asset permanently.
         player.root_node = NodePath("..")
         fallback_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
         if bool(fallback_measurement.get("bilateral_foot_pose_motion", false)):
@@ -209,6 +252,34 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
             selected_root = NodePath("..")
             root_override_used = true
         player.root_node = original_root
+
+    if not bool(selected_measurement.get("bilateral_foot_pose_motion", false)) and not linked_trees.is_empty():
+        for tree in linked_trees:
+            tree.active = false
+        tree_disabled_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
+        if bool(tree_disabled_measurement.get("bilateral_foot_pose_motion", false)):
+            selected_measurement = tree_disabled_measurement
+            selected_root = original_root
+            tree_override_used = true
+        else:
+            player.root_node = NodePath("..")
+            tree_disabled_fallback_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
+            if bool(tree_disabled_fallback_measurement.get("bilateral_foot_pose_motion", false)):
+                selected_measurement = tree_disabled_fallback_measurement
+                selected_root = NodePath("..")
+                root_override_used = true
+                tree_override_used = true
+            player.root_node = original_root
+        for index in range(linked_trees.size()):
+            var tree := linked_trees[index]
+            var original_active := linked_original_active[index]
+            tree.active = original_active
+
+    player.root_node = original_root
+    var tree_state_restored := true
+    for index in range(linked_trees.size()):
+        if linked_trees[index].active != linked_original_active[index]:
+            tree_state_restored = false
 
     return {
         "valid": true,
@@ -224,12 +295,18 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
         "original_root_node": str(original_root),
         "selected_diagnostic_root_node": str(selected_root),
         "root_override_used": root_override_used,
+        "linked_animation_trees": tree_inventory["rows"],
+        "linked_animation_tree_count": linked_trees.size(),
+        "tree_override_used": tree_override_used,
+        "tree_state_restored_after_measurement": tree_state_restored,
         "original_root_pose_range_m": [original_measurement["left_foot_pose_range_m"], original_measurement["right_foot_pose_range_m"]],
         "fallback_root_pose_range_m": [] if fallback_measurement.is_empty() else [fallback_measurement["left_foot_pose_range_m"], fallback_measurement["right_foot_pose_range_m"]],
+        "tree_disabled_original_root_pose_range_m": [] if tree_disabled_measurement.is_empty() else [tree_disabled_measurement["left_foot_pose_range_m"], tree_disabled_measurement["right_foot_pose_range_m"]],
+        "tree_disabled_fallback_root_pose_range_m": [] if tree_disabled_fallback_measurement.is_empty() else [tree_disabled_fallback_measurement["left_foot_pose_range_m"], tree_disabled_fallback_measurement["right_foot_pose_range_m"]],
         "root_restored_after_measurement": player.root_node == original_root,
     }
 
-func _inspect_player(player: AnimationPlayer, scene_path: String, relative_player_path: String) -> void:
+func _inspect_player(player: AnimationPlayer, scene_path: String, relative_player_path: String, scene_root: Node) -> void:
     var player_path := relative_player_path
     var root_path := str(player.root_node)
     for animation_name in TARGET_ANIMATIONS:
@@ -279,7 +356,7 @@ func _inspect_player(player: AnimationPlayer, scene_path: String, relative_playe
         tracks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["path"]) < str(b["path"]))
         var pose_measurement: Dictionary = {"valid": false, "reason": "non_reference_scene"}
         if scene_path.ends_with(REFERENCE_SCENE_SUFFIX):
-            pose_measurement = _sample_applied_foot_poses(player, StringName(animation_name), animation)
+            pose_measurement = _sample_applied_foot_poses(player, StringName(animation_name), animation, scene_root)
         var observation_id := "%s|%s|%s" % [scene_path, player_path, animation_name]
         observations.append({
             "observation_id": observation_id,

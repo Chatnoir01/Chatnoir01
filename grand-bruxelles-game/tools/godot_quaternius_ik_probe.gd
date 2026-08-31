@@ -134,22 +134,22 @@ func _horizontal_distance(a: Vector3, b: Vector3) -> float:
 func _contact_proxy(samples: Array, track_path: String, animation_length: float) -> Dictionary:
     if samples.is_empty():
         return {}
-    var min_y := INF
-    var max_y := -INF
+    var min_y: float = INF
+    var max_y: float = -INF
     for raw_sample in samples:
         var sample := raw_sample as Vector3
-        min_y = min(min_y, sample.y)
-        max_y = max(max_y, sample.y)
-    var height_range := max_y - min_y
-    var contact_band := max(CONTACT_HEIGHT_BAND_MIN_M, height_range * CONTACT_HEIGHT_BAND_RATIO)
-    var contact_threshold := min_y + contact_band
+        min_y = minf(min_y, sample.y)
+        max_y = maxf(max_y, sample.y)
+    var height_range: float = max_y - min_y
+    var contact_band: float = maxf(CONTACT_HEIGHT_BAND_MIN_M, height_range * CONTACT_HEIGHT_BAND_RATIO)
+    var contact_threshold: float = min_y + contact_band
     var contact_indices: Array[int] = []
     for index in range(samples.size()):
         var sample := samples[index] as Vector3
         if sample.y <= contact_threshold:
             contact_indices.append(index)
-    var contiguous_slide_m := 0.0
-    var max_step_slide_m := 0.0
+    var contiguous_slide_m: float = 0.0
+    var max_step_slide_m: float = 0.0
     var contiguous_pair_count := 0
     for offset in range(1, contact_indices.size()):
         var previous_index := contact_indices[offset - 1]
@@ -158,14 +158,14 @@ func _contact_proxy(samples: Array, track_path: String, animation_length: float)
             continue
         var previous_sample := samples[previous_index] as Vector3
         var current_sample := samples[current_index] as Vector3
-        var slide := _horizontal_distance(previous_sample, current_sample)
+        var slide: float = _horizontal_distance(previous_sample, current_sample)
         contiguous_slide_m += slide
-        max_step_slide_m = max(max_step_slide_m, slide)
+        max_step_slide_m = maxf(max_step_slide_m, slide)
         contiguous_pair_count += 1
-    var sample_dt := 0.0
+    var sample_dt: float = 0.0
     if samples.size() > 1:
         sample_dt = animation_length / float(samples.size() - 1)
-    var mean_contact_slide_speed_mps := 0.0
+    var mean_contact_slide_speed_mps: float = 0.0
     if contiguous_pair_count > 0 and sample_dt > 0.0:
         mean_contact_slide_speed_mps = contiguous_slide_m / (float(contiguous_pair_count) * sample_dt)
     return {

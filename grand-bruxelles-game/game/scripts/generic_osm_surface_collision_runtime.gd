@@ -6,6 +6,8 @@ const HEIGHT_EPSILON_M := 0.001
 const MAX_BIND_FRAMES := 240
 const BODY_NAME := "GenericOsmSurfaceCollisionBody"
 const SHAPE_NAME := "GenericOsmTopSupport"
+const OWNER_META := "grand_bruxelles_owner"
+const OWNER_ID := "generic_osm_surface_collision_runtime"
 # Dedicated layer 20 keeps the generic player-support mesh out of shared
 # traffic/NPC/camera collision queries. The canonical Player opts in at runtime.
 const SUPPORT_COLLISION_LAYER := 1 << 19
@@ -44,13 +46,22 @@ func _scene_root_for(node: Node) -> Node:
         current = current.get_parent()
     return current
 
+func _find_owned_body(roads_root: Node) -> StaticBody3D:
+    for child: Node in roads_root.get_children():
+        if child is StaticBody3D and str(child.get_meta(OWNER_META, "")) == OWNER_ID:
+            return child as StaticBody3D
+    return null
+
 func _bind_when_ready() -> void:
     for _attempt: int in range(MAX_BIND_FRAMES):
         await get_tree().physics_frame
         var roads_root := get_tree().root.find_child("GeneratedRoads", true, false) as Node3D
         if roads_root == null:
             continue
-        if roads_root.get_node_or_null(BODY_NAME) != null:
+        # Authority is explicit ownership, never a shared child name. A foreign
+        # node may legitimately use BODY_NAME and must neither suppress nor be
+        # mutated by this runtime.
+        if _find_owned_body(roads_root) != null:
             return
 
         var scene_root := _scene_root_for(roads_root)
@@ -94,6 +105,7 @@ func _bind_when_ready() -> void:
 
         var collision_body := StaticBody3D.new()
         collision_body.name = BODY_NAME
+        collision_body.set_meta(OWNER_META, OWNER_ID)
         # The support is a Player-only grounding query surface. Keeping it on a
         # dedicated layer prevents traffic, NPCs, SpringArm and other layer-1
         # consumers from being perturbed by a physics-only Environment fix.
@@ -120,7 +132,7 @@ func _bind_when_ready() -> void:
         _sidewalk_surfaces = sidewalk_count
         _triangle_count = int(support_faces.size() / 3)
         _ready_complete = true
-        print("GENERIC_OSM_SURFACE_COLLISIONS_READY: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d support_mode=top_surfaces_only visible_surfaces_only=true player_only_collision=true collision_layer=%d collision_mask=%d source_geometry_changed=false source_height_inferred=false visual_output_changed=false render_geometry_count=0" % [_road_surfaces, _sidewalk_surfaces, _triangle_count, SUPPORT_COLLISION_LAYER, SUPPORT_COLLISION_MASK])
+        print("GENERIC_OSM_SURFACE_COLLISIONS_READY: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d support_mode=top_surfaces_only visible_surfaces_only=true player_only_collision=true collision_layer=%d collision_mask=%d source_geometry_changed=false source_height_inferred=false visual_output_changed=false render_geometry_count=0 owner=%s" % [_road_surfaces, _sidewalk_surfaces, _triangle_count, SUPPORT_COLLISION_LAYER, SUPPORT_COLLISION_MASK, OWNER_ID])
         return
     push_error("GENERIC_OSM_SURFACE_COLLISIONS_FAIL: GeneratedRoads or canonical Player unavailable")
 
@@ -141,4 +153,5 @@ func readiness() -> Dictionary:
         "source_height_inferred": false,
         "visual_output_changed": false,
         "render_geometry_count": 0,
+        "owner": OWNER_ID,
     }

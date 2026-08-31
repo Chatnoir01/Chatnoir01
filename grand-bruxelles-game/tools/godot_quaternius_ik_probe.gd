@@ -198,7 +198,7 @@ func _foot_pose_targets(player: AnimationPlayer, animation: Animation) -> Array[
         var track_path := str(raw_path)
         if not _is_foot_path(track_path) or raw_path.get_subname_count() < 1:
             continue
-        var target_node := animation_root.get_node_or_null(raw_path.get_concatenated_names())
+        var target_node := animation_root.get_node_or_null(NodePath(str(raw_path.get_concatenated_names())))
         if not (target_node is Skeleton3D):
             continue
         var skeleton := target_node as Skeleton3D

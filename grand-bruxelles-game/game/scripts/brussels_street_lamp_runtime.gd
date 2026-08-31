@@ -62,16 +62,29 @@ func _is_production_scene(node: Node) -> bool:
     var candidate := node as Node3D
     return candidate.has_node("BrusselsOSM") and candidate.has_node("UrbISMidiExact")
 
+func _is_authoritative_production_scene(node: Node) -> bool:
+    if not _is_production_scene(node) or not is_inside_tree():
+        return false
+    var candidate := node as Node3D
+    if get_tree().current_scene == candidate:
+        return true
+    var parent := candidate.get_parent()
+    if parent == get_tree().root:
+        return true
+    # Preserve the already-gated dormant/subviewport mount contract while rejecting
+    # arbitrary nested anchor clones under foreign scene owners.
+    return str(candidate.name) == "Main" and parent is Viewport
+
 func _discover_production_scene() -> Node3D:
     if _tearing_down or not is_inside_tree():
         return null
     var current := get_tree().current_scene
-    if _is_production_scene(current):
+    if _is_authoritative_production_scene(current):
         return current as Node3D
     var osm_roots := get_tree().root.find_children("BrusselsOSM", "Node3D", true, false)
     for osm_node: Node in osm_roots:
         var candidate := osm_node.get_parent()
-        if _is_production_scene(candidate):
+        if _is_authoritative_production_scene(candidate):
             return candidate as Node3D
     return null
 

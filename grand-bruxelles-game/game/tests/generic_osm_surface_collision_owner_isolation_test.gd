@@ -22,6 +22,13 @@ func _owned_body(roads_root: Node) -> StaticBody3D:
             found = child as StaticBody3D
     return found
 
+func _owned_body_count(roads_root: Node) -> int:
+    var count := 0
+    for child: Node in roads_root.get_children():
+        if child is StaticBody3D and str(child.get_meta(OWNER_META, "")) == OWNER_ID:
+            count += 1
+    return count
+
 func _run() -> void:
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -134,5 +141,52 @@ func _run() -> void:
         _fail("invalid-owned recovery touched foreign same-name node")
         return
 
-    print("GENERIC_OSM_SURFACE_COLLISION_OWNER_OK: foreign_same_name_preserved=true owned_support_present=true remount_state_restored=true invalid_owned_recovered=true roads=%d triangles=%d owner=%s" % [int(recovered_body.get_meta("road_support_surfaces", 0)), int(recovered_body.get_meta("support_triangle_count", 0)), OWNER_ID])
+    # Duplicate ownership is also unsafe: two Player-only support bodies can
+    # double the same grounding surface after a remount/race. A new runtime
+    # instance must converge the owned set back to exactly one canonical body.
+    var duplicate_owned := StaticBody3D.new()
+    duplicate_owned.name = "%sDuplicate" % BODY_NAME
+    duplicate_owned.set_meta(OWNER_META, OWNER_ID)
+    duplicate_owned.collision_layer = SUPPORT_COLLISION_LAYER
+    duplicate_owned.collision_mask = 0
+    duplicate_owned.set_meta("road_support_surfaces", int(recovered_body.get_meta("road_support_surfaces", 0)))
+    duplicate_owned.set_meta("sidewalk_support_surfaces", int(recovered_body.get_meta("sidewalk_support_surfaces", 0)))
+    duplicate_owned.set_meta("support_triangle_count", int(recovered_body.get_meta("support_triangle_count", 0)))
+    var duplicate_shape := CollisionShape3D.new()
+    duplicate_shape.shape = ConcavePolygonShape3D.new()
+    duplicate_owned.add_child(duplicate_shape)
+    roads_root.add_child(duplicate_owned)
+
+    if _owned_body_count(roads_root) != 2:
+        _fail("duplicate-owner test setup did not create exactly two owned supports")
+        return
+
+    player.collision_mask &= ~SUPPORT_COLLISION_LAYER
+    var duplicate_recovery := Node.new()
+    duplicate_recovery.name = "GenericOsmSurfaceCollisionRuntimeDuplicateOwnerRecoveryProbe"
+    duplicate_recovery.set_script(RUNTIME_SCRIPT)
+    scene.add_child(duplicate_recovery)
+
+    for _frame: int in range(16):
+        await physics_frame
+
+    if _owned_body_count(roads_root) != 1:
+        _fail("duplicate owned supports were not consolidated to one canonical support")
+        return
+    var deduplicated_body := _owned_body(roads_root)
+    if deduplicated_body == null:
+        _fail("duplicate-owner recovery did not leave one valid owned support")
+        return
+    if (player.collision_mask & SUPPORT_COLLISION_LAYER) == 0:
+        _fail("duplicate-owner recovery did not restore Player collision mask")
+        return
+    var duplicate_recovery_readiness: Dictionary = duplicate_recovery.call("readiness")
+    if not bool(duplicate_recovery_readiness.get("ready", false)):
+        _fail("duplicate-owner recovery converged ownership but readiness remained false")
+        return
+    if not is_instance_valid(foreign) or foreign.get_parent() != roads_root:
+        _fail("duplicate-owner recovery touched foreign same-name node")
+        return
+
+    print("GENERIC_OSM_SURFACE_COLLISION_OWNER_OK: foreign_same_name_preserved=true owned_support_present=true remount_state_restored=true invalid_owned_recovered=true duplicate_owned_recovered=true roads=%d triangles=%d owner=%s" % [int(deduplicated_body.get_meta("road_support_surfaces", 0)), int(deduplicated_body.get_meta("support_triangle_count", 0)), OWNER_ID])
     quit(0)

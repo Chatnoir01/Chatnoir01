@@ -19,7 +19,7 @@ def main() -> None:
     require("rotation_track_interpolate" in probe and "position_track_interpolate" in probe, "raw leg-chain motion diagnostics missing")
     require("leftfoot" in probe and "rightfoot" in probe and "leftleg" in probe and "rightleg" in probe, "bilateral leg chain is not pinned")
     require("bilateral_chain_motion" in probe, "bilateral motion proof missing")
-    require("player.seek" in probe and "force_update_bone_child_transform" in probe, "exact AnimationPlayer/Skeleton pose application path missing")
+    require("player.seek" in probe and "player.advance(0.0)" in probe and "force_update_bone_child_transform" in probe, "exact AnimationPlayer/Skeleton pose application path missing immediate mixer evaluation")
     require("get_bone_global_pose" in probe and "pose_samples" in probe, "bilateral sampled bone poses missing")
     require("left_foot_pose_range_m" in probe and "right_foot_pose_range_m" in probe, "bilateral foot pose motion metrics missing")
     require('"semantic_selection_allowed": false' in probe, "diagnostic must not select run semantics")

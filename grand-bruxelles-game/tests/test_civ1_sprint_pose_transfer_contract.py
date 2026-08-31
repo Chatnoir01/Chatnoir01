@@ -19,12 +19,16 @@ def main() -> None:
     status = STATUS.read_text()
 
     for token in (
-        "grand-bruxelles-civ1-sprint-pose-transfer-v1",
+        "grand-bruxelles-civ1-sprint-pose-transfer-v2",
         "UAL1_Standard/Sprint",
-        "rest_normalized_global_delta",
-        "source_to_target_scale_ratio",
+        "rest_normalized_rotation_scaled_hips_translation",
+        "MAX_NORMALIZED_FOOT_MOTION_GAIN := 1.5",
+        "source_left_foot_range_m",
+        "source_right_foot_range_m",
         "target_left_foot_range_m",
         "target_right_foot_range_m",
+        "left_motion_gain_vs_scaled_source",
+        "right_motion_gain_vs_scaled_source",
         '"animation_transferred": transfer_ok',
         '"world_ground_assumed": false',
         '"grounding_verified": false',
@@ -39,9 +43,8 @@ def main() -> None:
         "f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767",
         "c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba",
         "pose-transfer.json",
+        "assert p['motion_plausibility_passed'] is True",
         "assert p['animation_transferred'] is True",
-        "target_left_foot_range_m",
-        "target_right_foot_range_m",
     ):
         require(workflow, token)
 

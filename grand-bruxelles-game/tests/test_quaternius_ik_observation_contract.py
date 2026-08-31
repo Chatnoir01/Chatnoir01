@@ -13,7 +13,7 @@ def require(condition: bool, message: str) -> None:
 def main() -> None:
     probe = PROBE.read_text(encoding="utf-8")
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    require("grand-bruxelles-quaternius-ik-observation-context-v2" in probe, "pose-application probe format not pinned")
+    require("grand-bruxelles-quaternius-ik-observation-context-v3" in probe, "AnimationTree ownership diagnostic probe format not pinned")
     require("observation_id" in probe and "scene_path" in probe and "animation_player_path" in probe, "deterministic observation identity missing")
     require("Master_Rigged.tscn" in probe and "reference_context_candidates" in probe, "reference context remains implicit")
     require("rotation_track_interpolate" in probe and "position_track_interpolate" in probe, "raw leg-chain motion diagnostics missing")
@@ -22,6 +22,9 @@ def main() -> None:
     require("player.seek" in probe and "player.advance(0.0)" in probe and "force_update_bone_child_transform" in probe, "exact AnimationPlayer/Skeleton pose application path missing immediate mixer evaluation")
     require("original_root_node" in probe and "selected_diagnostic_root_node" in probe and "root_override_used" in probe, "AnimationMixer root binding A/B evidence missing")
     require('player.root_node = NodePath("..")' in probe and "player.root_node = original_root" in probe, "diagnostic root fallback must be temporary and restored")
+    require("AnimationTree" in probe and "linked_animation_trees" in probe, "AnimationTree ownership inventory missing")
+    require("tree.active = false" in probe and "tree.active = original_active" in probe, "linked active AnimationTree A/B must be temporary and restored")
+    require("tree_state_restored_after_measurement" in probe, "AnimationTree state restoration evidence missing")
     require("get_bone_global_pose" in probe and "pose_samples" in probe, "bilateral sampled bone poses missing")
     require("left_foot_pose_range_m" in probe and "right_foot_pose_range_m" in probe, "bilateral foot pose motion metrics missing")
     require('"semantic_selection_allowed": false' in probe, "diagnostic must not select run semantics")
@@ -31,11 +34,12 @@ def main() -> None:
     require("f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767" in workflow, "source archive digest is not pinned")
     require("Godot_v4.7.1-stable_linux.x86_64.zip" in workflow, "Godot 4.7.1 is not pinned")
     require("reference_context_candidates" in workflow and "bilateral_chain_motion" in workflow, "workflow does not validate observation identity/motion")
+    require("linked_animation_trees" in workflow and "tree_state_restored_after_measurement" in workflow, "workflow does not validate AnimationTree ownership/restoration")
     require("pose_samples" in workflow and "left_foot_pose_range_m" in workflow and "right_foot_pose_range_m" in workflow, "workflow does not validate applied foot poses")
     require("semantic_selection_allowed" in workflow and "False" in workflow, "workflow must remain fail-closed")
     require("actions/upload-artifact@v4" in workflow and "observation-context.json" in workflow, "diagnostic artifact is not preserved")
     require("if: always()" in workflow, "RED diagnostics must be retained")
-    print("QUATERNIUS_IK_OBSERVATION_CONTRACT_OK: per_rig_pose_application=locked_fail_closed")
+    print("QUATERNIUS_IK_OBSERVATION_CONTRACT_OK: animation_tree_ownership_ab=locked_fail_closed")
 
 
 if __name__ == "__main__":

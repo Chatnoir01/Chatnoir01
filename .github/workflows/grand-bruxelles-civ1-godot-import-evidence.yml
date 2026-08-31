@@ -1,0 +1,130 @@
+name: Grand Bruxelles CIV-1 Godot Import Evidence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json"
+      - "grand-bruxelles-game/tools/fetch_civ1_pinned_sources.py"
+      - "grand-bruxelles-game/tools/strip_glb_animations.py"
+      - "grand-bruxelles-game/tools/inventory_sanitized_glb.py"
+      - "grand-bruxelles-game/tools/godot_civ1_import_probe.gd"
+      - "grand-bruxelles-game/tests/test_civ1_godot_import_evidence_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-godot-import-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  civ1-godot-import-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_godot_import_evidence_contract.py
+
+      - name: Fetch and sanitize exact pinned CIV-1 body
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-godot/project /tmp/civ1-godot/evidence
+          python3 tools/fetch_civ1_pinned_sources.py --fetch \
+            --only assets/characters/civilians/civ1/source/vitruvian_body.glb | tee /tmp/civ1-godot/evidence/fetch.log
+          grep -Eq '^(fetched_verified|already_verified) assets/characters/civilians/civ1/source/vitruvian_body.glb 09bcade1092e5a89b474e91e6013209d4c68c127$' /tmp/civ1-godot/evidence/fetch.log
+          test "$(stat -c %s assets/characters/civilians/civ1/source/vitruvian_body.glb)" = "6879364"
+          python3 tools/strip_glb_animations.py \
+            assets/characters/civilians/civ1/source/vitruvian_body.glb \
+            /tmp/civ1-godot/project/vitruvian_body_sanitized.glb \
+            --require-animations | tee /tmp/civ1-godot/evidence/strip.log
+          python3 tools/inventory_sanitized_glb.py \
+            /tmp/civ1-godot/project/vitruvian_body_sanitized.glb \
+            /tmp/civ1-godot/evidence/inventory.json | tee /tmp/civ1-godot/evidence/inventory.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1-godot/project/vitruvian_body_sanitized.glb' | sha256sum -c -
+
+      - name: Install exact official Godot 4.7.1 Linux editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1-godot/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip \
+            --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1-godot/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1-godot/engine
+          GODOT_BIN=/tmp/civ1-godot/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1-godot/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1-godot/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import sanitized GLB in isolated Godot project
+        run: |
+          set -euo pipefail
+          cat > /tmp/civ1-godot/project/project.godot <<'EOF'
+          [application]
+          config/name="CIV1ImportProbe"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp grand-bruxelles-game/tools/godot_civ1_import_probe.gd /tmp/civ1-godot/project/probe.gd
+          "$GODOT_BIN" --headless --editor --path /tmp/civ1-godot/project --quit | tee /tmp/civ1-godot/evidence/import.log
+          "$GODOT_BIN" --headless --path /tmp/civ1-godot/project \
+            --script res://probe.gd -- /tmp/civ1-godot/evidence/godot-import.json | tee /tmp/civ1-godot/evidence/probe.log
+          grep -Fq 'CIV1_GODOT_IMPORT_PROBE_OK' /tmp/civ1-godot/evidence/probe.log
+
+      - name: Bind Godot proof to immutable candidate and fail-closed rails
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          status = json.loads(Path('assets/characters/civilians/civ1/source_status.json').read_text(encoding='utf-8'))
+          inventory = json.loads(Path('/tmp/civ1-godot/evidence/inventory.json').read_text(encoding='utf-8'))
+          proof = json.loads(Path('/tmp/civ1-godot/evidence/godot-import.json').read_text(encoding='utf-8'))
+          evidence = status['sanitized_body_evidence']
+
+          assert inventory['sha256'] == evidence['sanitized_sha256'] == '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888'
+          assert inventory['size_bytes'] == evidence['sanitized_size_bytes'] == 6780124
+          assert inventory['reference_integrity'] == 'validated'
+          assert proof['format'] == 'grand-bruxelles-civ1-godot-import-evidence-v1'
+          assert str(proof['godot_version']).startswith('4.7.1.stable')
+          assert proof['integrity'] == 'validated'
+          assert proof['skeleton_count'] == 1
+          assert proof['bone_count'] > 0
+          assert proof['mesh_instance_count'] > 0
+          assert proof['skinned_mesh_count'] > 0
+          assert proof['surface_count'] > 0
+          assert proof['material_surface_count'] > 0
+          # This PR creates evidence only. Runtime/JOUABLE authority remains closed
+          # until the measured Godot proof is reviewed and pinned separately.
+          assert evidence['godot_import_verified'] is False
+          assert evidence['visual_approval_claimed'] is False
+          assert status['production_authorized'] is False
+          assert status['activation_ready'] is False
+          assert status['runtime_package_present'] is False
+          print('CIV1_GODOT_4_7_1_IMPORT_EVIDENCE_OK')
+          PY
+
+      - name: Assert evidence stays ephemeral
+        working-directory: grand-bruxelles-game
+        run: |
+          test ! -e assets/characters/civilians/civ1/civ1.tscn
+          test ! -e assets/characters/civilians/civ1/source/vitruvian_body_sanitized.glb
+          python3 tools/validate_civ1_runtime_packaging.py
+          git status --short
+
+      - name: Upload import evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-godot-4.7.1-import-evidence-${{ github.sha }}
+          path: |
+            /tmp/civ1-godot/evidence/godot-version.log
+            /tmp/civ1-godot/evidence/import.log
+            /tmp/civ1-godot/evidence/probe.log
+            /tmp/civ1-godot/evidence/godot-import.json
+            /tmp/civ1-godot/evidence/inventory.json
+          if-no-files-found: error
+          retention-days: 14

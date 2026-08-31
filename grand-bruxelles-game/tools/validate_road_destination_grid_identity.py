@@ -3,18 +3,20 @@
 
 This verifier is evidence-only. It binds the redundant grid_cell_id carried by the
 road readiness catalog to the exact canonical cell_id and EPSG:31370 bbox, locks
-each destination to the canonical source provenance, and proves that the catalog
-remains on the existing closed authorization rails. It does not authorize runtime
-mounting, rendering, collision, safe spawn, or JOUABLE.
+each destination to the canonical source provenance and exact cell manifest bytes,
+and proves that the catalog remains on the existing closed authorization rails. It
+does not authorize runtime mounting, rendering, collision, safe spawn, or JOUABLE.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
 CELL_ID_RE = re.compile(r"^bxl-e(-?\d+)-n(-?\d+)-s(\d+)$")
 EXPECTED_CRS = "EPSG:31370"
 EXPECTED_SOURCE_PATH = "data/osm/vertical_slice_01.game.json"
@@ -137,6 +139,50 @@ def _require_destination_provenance(destination: dict[str, Any], road_id: int) -
             )
 
 
+def _require_cell_manifest(
+    destination: dict[str, Any],
+    road_id: int,
+    cell_id: str,
+    expected_bbox: list[float],
+) -> None:
+    expected_relative_path = f"data/cell_manifests/{cell_id}.json"
+    stored_relative_path = destination.get("cell_manifest_path")
+    if stored_relative_path != expected_relative_path:
+        fail(
+            f"cell manifest path drift {road_id}: "
+            f"stored={stored_relative_path!r} expected={expected_relative_path!r}"
+        )
+
+    manifest_path = ROOT / expected_relative_path
+    if not manifest_path.is_file():
+        fail(f"cell manifest missing {road_id}: {expected_relative_path}")
+    manifest_bytes = manifest_path.read_bytes()
+    actual_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    stored_sha256 = destination.get("cell_manifest_sha256")
+    if stored_sha256 != actual_sha256:
+        fail(
+            f"cell manifest sha256 drift {road_id}: "
+            f"stored={stored_sha256!r} actual={actual_sha256!r}"
+        )
+
+    try:
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        fail(f"cell manifest parse failure {road_id}: {exc}")
+    if not isinstance(manifest, dict):
+        fail(f"cell manifest malformed {road_id}")
+    if manifest.get("cell_id") != cell_id:
+        fail(f"cell manifest identity drift {road_id}")
+    if manifest.get("crs") != EXPECTED_CRS:
+        fail(f"cell manifest CRS drift {road_id}")
+    bbox = manifest.get("bbox")
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        fail(f"cell manifest bbox malformed {road_id}")
+    manifest_bbox = [_number(value, f"cell manifest bbox {road_id}") for value in bbox]
+    if manifest_bbox != expected_bbox:
+        fail(f"cell manifest bbox identity drift {road_id}")
+
+
 def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     road_id = _road_id(destination.get("road_osm_id"))
     if destination.get("destination_id") != f"road-{road_id}":
@@ -183,6 +229,8 @@ def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
     expected_bbox = [float(east), float(north), float(east + size), float(north + size)]
     if actual_bbox != expected_bbox:
         fail(f"cell bbox identity drift {road_id}")
+
+    _require_cell_manifest(destination, road_id, cell_id, expected_bbox)
 
     expected_grid = f"E{east}_N{north}"
     grid_cell_id = str(destination.get("grid_cell_id") or "")

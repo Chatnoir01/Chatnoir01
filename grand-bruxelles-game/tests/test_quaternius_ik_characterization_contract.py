@@ -38,6 +38,7 @@ def main() -> None:
     require("direct_adoption_allowed" in workflow and "False" in workflow, "characterization must remain fail-closed")
     require("actions/upload-artifact@v4" in workflow and "godot-characterization.json" in workflow, "measured evidence artifact is not published")
     require("if: always()" in workflow, "diagnostic evidence must upload even when the Godot probe is RED")
+    require("2>&1 | tee /tmp/qik/evidence/probe.log" in workflow, "Godot probe diagnostics must capture stderr as well as stdout")
     print("QUATERNIUS_IK_CHARACTERIZATION_CONTRACT_OK: v5_skeleton_pose_contact=locked_fail_closed")
 
 

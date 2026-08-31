@@ -52,22 +52,55 @@ func _find_owned_body(roads_root: Node) -> StaticBody3D:
             return child as StaticBody3D
     return null
 
+func _restore_from_owned_body(body: StaticBody3D, player: CharacterBody3D) -> bool:
+    var road_count := int(body.get_meta("road_support_surfaces", 0))
+    var sidewalk_count := int(body.get_meta("sidewalk_support_surfaces", 0))
+    var triangle_count := int(body.get_meta("support_triangle_count", 0))
+    if road_count <= 0 or triangle_count <= 0:
+        push_error("GENERIC_OSM_SURFACE_COLLISIONS_FAIL: owned support metadata is incomplete")
+        return false
+    if body.collision_layer != SUPPORT_COLLISION_LAYER or body.collision_mask != SUPPORT_COLLISION_MASK:
+        push_error("GENERIC_OSM_SURFACE_COLLISIONS_FAIL: owned support collision contract drifted")
+        return false
+
+    var shape_count := 0
+    for child: Node in body.get_children():
+        if child is CollisionShape3D and (child as CollisionShape3D).shape is ConcavePolygonShape3D:
+            shape_count += 1
+    if shape_count != 1:
+        push_error("GENERIC_OSM_SURFACE_COLLISIONS_FAIL: owned support shape contract drifted")
+        return false
+
+    player.collision_mask |= SUPPORT_COLLISION_LAYER
+    _road_surfaces = road_count
+    _sidewalk_surfaces = sidewalk_count
+    _triangle_count = triangle_count
+    _ready_complete = true
+    print("GENERIC_OSM_SURFACE_COLLISIONS_RESTORED: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d player_mask_restored=true owner=%s" % [_road_surfaces, _sidewalk_surfaces, _triangle_count, OWNER_ID])
+    return true
+
 func _bind_when_ready() -> void:
     for _attempt: int in range(MAX_BIND_FRAMES):
         await get_tree().physics_frame
         var roads_root := get_tree().root.find_child("GeneratedRoads", true, false) as Node3D
         if roads_root == null:
             continue
-        # Authority is explicit ownership, never a shared child name. A foreign
-        # node may legitimately use BODY_NAME and must neither suppress nor be
-        # mutated by this runtime.
-        if _find_owned_body(roads_root) != null:
-            return
 
         var scene_root := _scene_root_for(roads_root)
         var player := scene_root.get_node_or_null("Player") as CharacterBody3D
         if player == null:
             continue
+
+        # Authority is explicit ownership, never a shared child name. A foreign
+        # node may legitimately use BODY_NAME and must neither suppress nor be
+        # mutated by this runtime. When our support already exists (for example
+        # after a runtime remount/hot reload), restore the Player opt-in mask and
+        # local readiness from the owned body's immutable contract instead of
+        # silently returning in a dormant state.
+        var existing_owned := _find_owned_body(roads_root)
+        if existing_owned != null:
+            _restore_from_owned_body(existing_owned, player)
+            return
 
         var support_faces := PackedVector3Array()
         var road_count := 0

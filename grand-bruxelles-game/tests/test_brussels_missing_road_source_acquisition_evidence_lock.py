@@ -10,6 +10,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 LOCK = PROJECT / "data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json"
 REGISTRY = PROJECT / "data/source_plans/brussels_missing_road_source_registry.json"
 WORKFLOW = PROJECT.parent / ".github/workflows/grand-bruxelles-missing-road-source-batch.yml"
+AUDERGHEM_WORKFLOW = PROJECT.parent / ".github/workflows/grand-bruxelles-auderghem-road-source-acquisition.yml"
 
 EXPECTED_SUCCESS = {"21002", "21005", "21007", "21011", "21016", "21017", "21019"}
 EXPECTED_UNRESOLVED = {"21003", "21006", "21008", "21009", "21010", "21012", "21014", "21015", "21018"}
@@ -73,3 +74,9 @@ def test_pull_request_validation_never_requeries_locked_successes() -> None:
     assert "data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json" in workflow
     for nis in EXPECTED_SUCCESS: assert f"- {{nis: '{nis}'," not in workflow
     for nis in EXPECTED_UNRESOLVED: assert f"- {{nis: '{nis}'," in workflow
+
+def test_auderghem_pull_request_uses_locked_evidence_not_network_reacquisition() -> None:
+    workflow = AUDERGHEM_WORKFLOW.read_text(encoding="utf-8")
+    assert "validate-locked-auderghem-evidence:" in workflow
+    assert "if: github.event_name == 'workflow_dispatch'" in workflow
+    assert "Reacquire source-backed Auderghem roads explicitly" in workflow

@@ -65,7 +65,7 @@ jobs:
           "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/qio/evidence/import.log
           "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_observation_probe.gd -- /tmp/qio/evidence/observation-context.json 2>&1 | tee /tmp/qio/evidence/probe.log
           grep -Fq 'QUATERNIUS_IK_OBSERVATION_PROBE_OK' /tmp/qio/evidence/probe.log
-      - name: Validate deterministic observation domains fail-closed
+      - name: Validate deterministic observation domains and applied poses fail-closed
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -73,7 +73,7 @@ jobs:
           from pathlib import Path
           p = json.loads(Path('/tmp/qio/evidence/observation-context.json').read_text(encoding='utf-8'))
           v = p['godot_version']
-          assert p['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v1'
+          assert p['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v2'
           assert (v['major'], v['minor'], v['patch'], v['status']) == (4, 7, 1, 'stable')
           assert p['sample_count'] == 61
           assert p['semantic_selection_allowed'] is False
@@ -102,12 +102,31 @@ jobs:
           bilateral = [o for o in observations if o['bilateral_chain_motion']]
           assert bilateral, 'no context shows bilateral source leg-chain motion; retain RED and inspect source tracks'
           refs = p['reference_context_candidates']
-          assert len(refs) <= 3
+          assert len(refs) == 3, f'expected exactly 3 deterministic Master reference contexts, got {len(refs)}'
+          by_id = {o['observation_id']: o for o in observations}
+          pose_rows = []
+          for ref in refs:
+              o = by_id[ref]
+              m = o['pose_measurement']
+              assert m['valid'] is True, f'applied pose path invalid for {ref}: {m}'
+              assert m['left_foot_bone'] == 'LeftFoot' and m['right_foot_bone'] == 'RightFoot'
+              assert len(m['pose_samples']) == 61
+              assert m['left_foot_pose_range_m'] >= 0.0 and m['right_foot_pose_range_m'] >= 0.0
+              assert m['bilateral_foot_pose_motion'] is True, f'feet remain static after exact AnimationPlayer/Skeleton application for {ref}: {m}'
+              pose_rows.append({
+                  'observation_id': ref,
+                  'animation': o['animation'],
+                  'skeleton_path': m['skeleton_path'],
+                  'left_foot_pose_range_m': m['left_foot_pose_range_m'],
+                  'right_foot_pose_range_m': m['right_foot_pose_range_m'],
+                  'bilateral_foot_pose_motion': m['bilateral_foot_pose_motion'],
+              })
           Path('/tmp/qio/evidence/observation-summary.json').write_text(json.dumps({
-              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v1',
+              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v2',
               'observation_count': len(observations),
               'bilateral_motion_observation_count': len(bilateral),
               'reference_context_candidates': refs,
+              'reference_pose_measurements': pose_rows,
               'semantic_selection_allowed': False,
               'civ1_retarget_authorized': False,
               'grounding_verified': False,

@@ -87,16 +87,18 @@ def _require_no_unknown_boolean_controls(
 ) -> None:
     """Reject boolean aliases outside the canonical control-plane rails.
 
-    A new boolean field is control-bearing by construction: accepting it without a
-    named contract would let semantically equivalent aliases such as ``jouable`` or
-    ``playable`` bypass the fail-closed ``*_authorized`` rails. Metadata additions
-    remain possible with non-boolean values until their semantics are explicitly
-    reviewed and promoted into the schema.
+    ``*_authorized`` fields are intentionally left to the exact authorization-rail
+    validator below so an added authorization key keeps the stronger rail-drift
+    diagnostic. Other boolean aliases such as ``jouable`` or ``playable`` are
+    control-bearing by construction and therefore fail closed until explicitly
+    reviewed and added to the schema. Non-boolean metadata remains extensible.
     """
     unknown = sorted(
         key
         for key, value in payload.items()
-        if type(value) is bool and key not in known_boolean_keys
+        if type(value) is bool
+        and key not in known_boolean_keys
+        and not key.endswith("_authorized")
     )
     if unknown:
         fail(f"{label} unknown boolean control field(s): {unknown}")

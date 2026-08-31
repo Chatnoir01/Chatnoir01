@@ -176,6 +176,50 @@ func _vertical_phase_summary(samples: Array[Dictionary], animation_length: float
         "first_material_divergence_joint": first_material,
     }
 
+func _reference_ab_summary(
+    phase_vertical_summary: Dictionary,
+    normalized_target_y: Array[float],
+    source_reference_direction_global: Vector3,
+    target_local_rest_origin: Vector3,
+    normalized_target_local_rest_origin: Vector3,
+    animation_length: float,
+) -> Dictionary:
+    var cycle_samples: int = SAMPLE_COUNT - 1
+    var source_min_index: int = int(phase_vertical_summary["per_bone"]["RightFoot"]["source_vertical_min_sample_index"])
+    var baseline_target_min_index: int = int(phase_vertical_summary["per_bone"]["RightFoot"]["target_vertical_min_sample_index"])
+    var normalized_target_min_index: int = -1
+    var normalized_min_y: float = INF
+    for sample_index in range(cycle_samples):
+        var y: float = normalized_target_y[sample_index]
+        if y < normalized_min_y:
+            normalized_min_y = y
+            normalized_target_min_index = sample_index
+    var baseline_phase_delta_samples: int = _signed_circular_delta(baseline_target_min_index, source_min_index, cycle_samples)
+    var normalized_phase_delta_samples: int = _signed_circular_delta(normalized_target_min_index, source_min_index, cycle_samples)
+    var baseline_phase_delta_seconds: float = float(baseline_phase_delta_samples) * animation_length / float(cycle_samples)
+    var normalized_phase_delta_seconds: float = float(normalized_phase_delta_samples) * animation_length / float(cycle_samples)
+    var baseline_abs: int = abs(baseline_phase_delta_samples)
+    var normalized_abs: int = abs(normalized_phase_delta_samples)
+    return {
+        "method": "source_global_reference_direction_preserve_target_foot_length",
+        "source_reference_direction_global": _v3(source_reference_direction_global),
+        "target_local_rest_origin": _v3(target_local_rest_origin),
+        "normalized_target_local_rest_origin": _v3(normalized_target_local_rest_origin),
+        "target_foot_length_m": target_local_rest_origin.length(),
+        "normalized_target_foot_length_m": normalized_target_local_rest_origin.length(),
+        "target_foot_length_preserved": is_equal_approx(target_local_rest_origin.length(), normalized_target_local_rest_origin.length()),
+        "source_vertical_min_sample_index": source_min_index,
+        "baseline_target_vertical_min_sample_index": baseline_target_min_index,
+        "normalized_target_vertical_min_sample_index": normalized_target_min_index,
+        "baseline_phase_delta_samples": baseline_phase_delta_samples,
+        "normalized_phase_delta_samples": normalized_phase_delta_samples,
+        "baseline_phase_delta_seconds": baseline_phase_delta_seconds,
+        "normalized_phase_delta_seconds": normalized_phase_delta_seconds,
+        "normalization_improves_phase": normalized_abs < baseline_abs,
+        "normalization_reaches_non_material_phase": normalized_abs <= PHASE_DIVERGENCE_MATERIAL_SAMPLES,
+        "counterfactual_only": true,
+    }
+
 func _write_payload(payload: Dictionary) -> bool:
     var out := FileAccess.open(_output_path, FileAccess.WRITE)
     if out == null:
@@ -274,9 +318,32 @@ func _run() -> void:
         quit(8)
         return
 
-    var model_space_samples: Array[Dictionary] = []
     var source_hips_idx := int(source_map["Hips"])
     var target_hips_idx := int(target_map["Hips"])
+    var source_right_lower_idx := int(source_map["RightLowerLeg"])
+    var source_right_foot_idx := int(source_map["RightFoot"])
+    var target_right_lower_idx := int(target_map["RightLowerLeg"])
+    var target_right_foot_idx := int(target_map["RightFoot"])
+
+    var source_parent_rest := source_skeleton.get_bone_global_rest(source_right_lower_idx)
+    var source_foot_rest := source_skeleton.get_bone_global_rest(source_right_foot_idx)
+    var source_reference_vector_global := source_foot_rest.origin - source_parent_rest.origin
+    if source_reference_vector_global.length() <= 0.000001:
+        push_error("CIV1_GLOBAL_CHAIN_DIAGNOSTIC_FAIL: source RightFoot reference vector is degenerate")
+        quit(10)
+        return
+    var source_reference_direction_global := source_reference_vector_global.normalized()
+    var target_parent_rest := target_skeleton.get_bone_global_rest(target_right_lower_idx)
+    var target_local_rest_origin := target_skeleton.get_bone_rest(target_right_foot_idx).origin
+    if target_local_rest_origin.length() <= 0.000001:
+        push_error("CIV1_GLOBAL_CHAIN_DIAGNOSTIC_FAIL: target RightFoot rest length is degenerate")
+        quit(11)
+        return
+    var normalized_target_local_direction := (target_parent_rest.basis.inverse() * source_reference_direction_global).normalized()
+    var normalized_target_local_rest_origin := normalized_target_local_direction * target_local_rest_origin.length()
+
+    var model_space_samples: Array[Dictionary] = []
+    var normalized_target_right_foot_y: Array[float] = []
     player.play(SOURCE_ANIMATION)
     player.advance(0.0)
     await process_frame
@@ -306,11 +373,23 @@ func _run() -> void:
             target_record["target_hips_relative_origin"] = target_record["hips_relative_origin"]
             target_record.erase("hips_relative_origin")
             bones[semantic] = {"source": source_record, "target": target_record}
+        var target_right_parent_pose := target_skeleton.get_bone_global_pose(target_right_lower_idx)
+        var normalized_target_foot_origin := target_right_parent_pose.origin + target_right_parent_pose.basis * normalized_target_local_rest_origin
+        var normalized_hips_relative := normalized_target_foot_origin - target_hips_pose.origin
+        normalized_target_right_foot_y.append(normalized_hips_relative.y)
         model_space_samples.append({"sample_index": sample_idx, "time_s": t, "bones": bones})
 
     var phase_vertical_summary := _vertical_phase_summary(model_space_samples, animation.length)
+    var right_foot_reference_ab := _reference_ab_summary(
+        phase_vertical_summary,
+        normalized_target_right_foot_y,
+        source_reference_direction_global,
+        target_local_rest_origin,
+        normalized_target_local_rest_origin,
+        animation.length,
+    )
     var payload := {
-        "format": "grand-bruxelles-civ1-global-chain-diagnostic-v2",
+        "format": "grand-bruxelles-civ1-global-chain-diagnostic-v3",
         "godot_version": Engine.get_version_info(),
         "source_animation": SOURCE_ANIMATION,
         "sample_count": SAMPLE_COUNT,
@@ -323,6 +402,7 @@ func _run() -> void:
         "model_space_samples": model_space_samples,
         "phase_vertical_summary": phase_vertical_summary,
         "first_material_divergence_joint": phase_vertical_summary["first_material_divergence_joint"],
+        "right_foot_reference_ab": right_foot_reference_ab,
         "diagnostic_only": true,
         "runtime_authorized": false,
         "visual_approval_claimed": false,

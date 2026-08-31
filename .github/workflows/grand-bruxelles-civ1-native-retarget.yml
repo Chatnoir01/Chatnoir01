@@ -115,9 +115,11 @@ jobs:
           print('native_support_improves_manual_baseline='+str(improved).lower())
           print('left median/p90',left['median_horizontal_speed_mps'],left['p90_horizontal_speed_mps'])
           print('right median/p90',right['median_horizontal_speed_mps'],right['p90_horizontal_speed_mps'])
+          assert improved is True, 'native RetargetModifier3D did not strictly improve all bilateral support median/p90 metrics versus manual baseline'
           PY
 
       - name: Upload native retarget evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: civ1-native-retarget-${{ github.event.pull_request.head.sha || github.sha }}

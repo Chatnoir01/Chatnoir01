@@ -5,6 +5,7 @@ const SOURCE_SCENE_SUFFIX := "Models_with_rigging/Master_Rigged.tscn"
 const TARGET_SCENE := "res://civ1_body.glb"
 const SAMPLE_COUNT := 121
 const SUPPORT_BAND_FRACTION := 0.10
+const MIN_FOOT_RANGE_M := 0.05
 
 const SEMANTICS := [
     "Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
@@ -108,6 +109,20 @@ func _mapping(skeleton: Skeleton3D) -> Dictionary:
             return {}
         result[semantic] = idx
     return result
+
+func _range_m(points: Array[Vector3]) -> float:
+    if points.is_empty():
+        return 0.0
+    var min_v := points[0]
+    var max_v := points[0]
+    for point in points:
+        min_v.x = minf(min_v.x, point.x)
+        min_v.y = minf(min_v.y, point.y)
+        min_v.z = minf(min_v.z, point.z)
+        max_v.x = maxf(max_v.x, point.x)
+        max_v.y = maxf(max_v.y, point.y)
+        max_v.z = maxf(max_v.z, point.z)
+    return min_v.distance_to(max_v)
 
 func _percentile(values: Array[float], fraction: float) -> float:
     if values.is_empty():
@@ -234,7 +249,8 @@ func _run() -> void:
         profile.set_required(i, true)
     profile.set_scale_base_bone(StringName(source_names["Hips"]))
 
-    target_skeleton.reparent(source_skeleton, true)
+    # RetargetModifier3D owns the child-skeleton inventory it retargets. The target
+    # must therefore be a child of the modifier, not a sibling under the source.
     var modifier := RetargetModifier3D.new()
     modifier.profile = profile
     modifier.set_use_global_pose(false)
@@ -242,6 +258,7 @@ func _run() -> void:
     modifier.set_rotation_enabled(true)
     modifier.set_scale_enabled(false)
     source_skeleton.add_child(modifier)
+    target_skeleton.reparent(modifier, true)
     await process_frame
 
     if modifier.is_using_global_pose() or modifier.is_position_enabled() or not modifier.is_rotation_enabled() or modifier.is_scale_enabled():
@@ -255,10 +272,14 @@ func _run() -> void:
         quit(9)
         return
 
+    var source_left_idx := int(source_map["LeftFoot"])
+    var source_right_idx := int(source_map["RightFoot"])
     var target_left_idx := int(target_map["LeftFoot"])
     var target_right_idx := int(target_map["RightFoot"])
-    var left_points: Array[Vector3] = []
-    var right_points: Array[Vector3] = []
+    var source_left_points: Array[Vector3] = []
+    var source_right_points: Array[Vector3] = []
+    var target_left_points: Array[Vector3] = []
+    var target_right_points: Array[Vector3] = []
 
     player.play(SOURCE_ANIMATION)
     player.advance(0.0)
@@ -268,12 +289,20 @@ func _run() -> void:
         player.seek(t, true)
         player.advance(0.0)
         await process_frame
-        left_points.append(target_skeleton.get_bone_global_pose(target_left_idx).origin)
-        right_points.append(target_skeleton.get_bone_global_pose(target_right_idx).origin)
+        source_left_points.append(source_skeleton.get_bone_global_pose(source_left_idx).origin)
+        source_right_points.append(source_skeleton.get_bone_global_pose(source_right_idx).origin)
+        target_left_points.append(target_skeleton.get_bone_global_pose(target_left_idx).origin)
+        target_right_points.append(target_skeleton.get_bone_global_pose(target_right_idx).origin)
 
-    var left_support := _support_metrics(left_points, animation.length)
-    var right_support := _support_metrics(right_points, animation.length)
-    var measurement_ready := int(left_support["low_height_segment_count"]) > 0 and int(right_support["low_height_segment_count"]) > 0
+    var source_left_range := _range_m(source_left_points)
+    var source_right_range := _range_m(source_right_points)
+    var target_left_range := _range_m(target_left_points)
+    var target_right_range := _range_m(target_right_points)
+    var left_support := _support_metrics(target_left_points, animation.length)
+    var right_support := _support_metrics(target_right_points, animation.length)
+    var target_moves := target_left_range > MIN_FOOT_RANGE_M and target_right_range > MIN_FOOT_RANGE_M
+    var source_moves := source_left_range > MIN_FOOT_RANGE_M and source_right_range > MIN_FOOT_RANGE_M
+    var measurement_ready := target_moves and source_moves and int(left_support["low_height_segment_count"]) > 0 and int(right_support["low_height_segment_count"]) > 0
 
     var payload := {
         "format": "grand-bruxelles-civ1-native-retarget-v1",
@@ -282,10 +311,18 @@ func _run() -> void:
         "sample_count": SAMPLE_COUNT,
         "mapped_required_bones": SEMANTICS.size(),
         "retarget_modifier": "RetargetModifier3D",
+        "target_parent_is_modifier": target_skeleton.get_parent() == modifier,
         "use_global_pose": false,
         "position_enabled": false,
         "rotation_enabled": true,
         "scale_enabled": false,
+        "minimum_foot_range_m": MIN_FOOT_RANGE_M,
+        "source_left_foot_range_m": source_left_range,
+        "source_right_foot_range_m": source_right_range,
+        "target_left_foot_range_m": target_left_range,
+        "target_right_foot_range_m": target_right_range,
+        "source_bilateral_motion_verified": source_moves,
+        "target_bilateral_motion_verified": target_moves,
         "target_left_support_candidate": left_support,
         "target_right_support_candidate": right_support,
         "target_support_candidate_measurement_ready": measurement_ready,
@@ -307,7 +344,7 @@ func _run() -> void:
         quit(10)
         return
     if not measurement_ready:
-        push_error("CIV1_NATIVE_RETARGET_FAIL: target support measurement unavailable")
+        push_error("CIV1_NATIVE_RETARGET_FAIL: source/target bilateral foot motion or support measurement unavailable")
         quit(11)
         return
     print("CIV1_NATIVE_RETARGET_OK")

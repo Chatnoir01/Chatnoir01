@@ -85,7 +85,8 @@ jobs:
           assert p['visual_approval_claimed'] is False
           rows=p['measurements']
           assert len(rows)==2
-          assert {r['animation'] for r in rows}=={'UAL1_Standard/Jog_Fwd','UAL1_Standard/Sprint'}
+          by_name={r['animation']:r for r in rows}
+          assert set(by_name)=={'UAL1_Standard/Jog_Fwd','UAL1_Standard/Sprint'}
           for r in rows:
               assert r['valid'] is True
               assert r['sample_count']==121
@@ -99,13 +100,22 @@ jobs:
                   assert 0.0 < w['selected_fraction'] < 1.0
                   assert len(w['windows'])==w['window_count']
                   for window in w['windows']:
-                      assert 0 <= window['start_index'] <= window['end_index'] < 120
+                      assert 0 <= window['start_index'] < 120
+                      assert 0 <= window['end_index'] < 120
+                      assert isinstance(window['wraps_cycle'], bool)
+                      if not window['wraps_cycle']:
+                          assert window['start_index'] <= window['end_index']
                       assert window['sample_count'] >= 1
+                      assert len(window['sample_indices']) == window['sample_count']
                       assert window['duration_seconds'] > 0.0
                       assert window['horizontal_displacement_m'] >= 0.0
                       assert window['horizontal_path_m'] >= window['horizontal_displacement_m'] - 1e-9
               total=r['bilateral_support_fraction']+r['unilateral_support_fraction']+r['neither_low_fraction']
               assert abs(total-1.0) < 1e-6
+          sprint=by_name['UAL1_Standard/Sprint']
+          assert sprint['left_foot']['support_windows']['window_count']==1
+          assert sprint['left_foot']['support_windows']['windows'][0]['wraps_cycle'] is True
+          assert sprint['left_foot']['support_windows']['windows'][0]['start_index'] > sprint['left_foot']['support_windows']['windows'][0]['end_index']
           print('QUATERNIUS_SUPPORT_WINDOW_EVIDENCE_OK')
           PY
       - name: Upload support-window evidence

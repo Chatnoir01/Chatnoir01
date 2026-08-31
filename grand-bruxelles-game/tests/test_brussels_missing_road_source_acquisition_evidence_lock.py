@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -80,7 +80,10 @@ def test_success_evidence_is_immutable_and_non_promoting() -> None:
         assert HEX64.fullmatch(row["normalized_game_source_semantic_sha256"])
         assert isinstance(row["road_count"], int) and row["road_count"] > 0
         assert isinstance(row["point_count"], int) and row["point_count"] >= row["road_count"]
-        datetime.fromisoformat(row["osm_base_timestamp"].replace("Z", "+00:00"))
+        timestamp = row["osm_base_timestamp"]
+        assert timestamp.endswith("Z")
+        parsed_timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        assert parsed_timestamp.tzinfo is not None and parsed_timestamp.utcoffset() == timezone.utc.utcoffset(parsed_timestamp)
         bounds = row["bounds_m"]
         assert len(bounds) == 4 and all(isinstance(value, (int, float)) and math.isfinite(value) for value in bounds)
         assert bounds[0] < bounds[2] and bounds[1] < bounds[3]

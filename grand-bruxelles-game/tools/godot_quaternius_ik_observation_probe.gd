@@ -12,7 +12,10 @@ const LEG_CHAIN_TOKENS := [
 ]
 const MOTION_POSITION_EPS_M := 0.00001
 const MOTION_ROTATION_EPS_DEG := 0.1
+const POSE_MOTION_EPS_M := 0.00001
 const REFERENCE_SCENE_SUFFIX := "Models_with_rigging/Master_Rigged.tscn"
+const LEFT_FOOT_BONE := "LeftFoot"
+const RIGHT_FOOT_BONE := "RightFoot"
 
 var scene_paths: Array[String] = []
 var load_failures: Array[String] = []
@@ -46,11 +49,12 @@ func _init() -> void:
             reference_candidates.append(str(observation["observation_id"]))
     reference_candidates.sort()
     var payload := {
-        "format": "grand-bruxelles-quaternius-ik-observation-context-v1",
+        "format": "grand-bruxelles-quaternius-ik-observation-context-v2",
         "godot_version": Engine.get_version_info(),
         "sample_count": SAMPLE_COUNT,
         "position_motion_epsilon_m": MOTION_POSITION_EPS_M,
         "rotation_motion_epsilon_deg": MOTION_ROTATION_EPS_DEG,
+        "pose_motion_epsilon_m": POSE_MOTION_EPS_M,
         "scene_candidates": scene_paths,
         "load_failures": load_failures,
         "observations": observations,
@@ -141,6 +145,56 @@ func _sample_rotation_motion(animation: Animation, track_index: int) -> Dictiona
             max_angle_deg = maxf(max_angle_deg, rad_to_deg(first.angle_to(value as Quaternion)))
     return {"valid": true, "max_angle_deg": max_angle_deg, "animated": max_angle_deg > MOTION_ROTATION_EPS_DEG}
 
+func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringName, animation: Animation) -> Dictionary:
+    var skeleton_node := player.get_node_or_null(player.root_node)
+    if not (skeleton_node is Skeleton3D):
+        return {"valid": false, "reason": "animation_root_is_not_skeleton"}
+    var skeleton := skeleton_node as Skeleton3D
+    var left_idx := skeleton.find_bone(LEFT_FOOT_BONE)
+    var right_idx := skeleton.find_bone(RIGHT_FOOT_BONE)
+    if left_idx < 0 or right_idx < 0:
+        return {"valid": false, "reason": "foot_bones_missing", "left_index": left_idx, "right_index": right_idx}
+
+    var samples: Array[Dictionary] = []
+    var left_first := Vector3.ZERO
+    var right_first := Vector3.ZERO
+    var left_range := 0.0
+    var right_range := 0.0
+    var have_first := false
+    player.play(animation_name)
+    for sample_index in range(SAMPLE_COUNT):
+        var t := animation.length * float(sample_index) / float(SAMPLE_COUNT - 1)
+        player.seek(t, true)
+        skeleton.force_update_bone_child_transform(left_idx)
+        skeleton.force_update_bone_child_transform(right_idx)
+        var left_pos := skeleton.get_bone_global_pose(left_idx).origin
+        var right_pos := skeleton.get_bone_global_pose(right_idx).origin
+        if not have_first:
+            left_first = left_pos
+            right_first = right_pos
+            have_first = true
+        left_range = maxf(left_range, left_first.distance_to(left_pos))
+        right_range = maxf(right_range, right_first.distance_to(right_pos))
+        samples.append({
+            "sample_index": sample_index,
+            "time_seconds": t,
+            "left_foot_global_pose": [left_pos.x, left_pos.y, left_pos.z],
+            "right_foot_global_pose": [right_pos.x, right_pos.y, right_pos.z],
+        })
+    player.stop()
+    return {
+        "valid": true,
+        "skeleton_path": str(player.get_path_to(skeleton)),
+        "left_foot_bone": LEFT_FOOT_BONE,
+        "right_foot_bone": RIGHT_FOOT_BONE,
+        "left_foot_bone_index": left_idx,
+        "right_foot_bone_index": right_idx,
+        "left_foot_pose_range_m": left_range,
+        "right_foot_pose_range_m": right_range,
+        "bilateral_foot_pose_motion": left_range > POSE_MOTION_EPS_M and right_range > POSE_MOTION_EPS_M,
+        "pose_samples": samples,
+    }
+
 func _inspect_player(player: AnimationPlayer, scene_path: String, relative_player_path: String) -> void:
     var player_path := relative_player_path
     var root_path := str(player.root_node)
@@ -189,6 +243,9 @@ func _inspect_player(player: AnimationPlayer, scene_path: String, relative_playe
                     row[key] = motion[key]
             tracks.append(row)
         tracks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["path"]) < str(b["path"]))
+        var pose_measurement: Dictionary = {"valid": false, "reason": "non_reference_scene"}
+        if scene_path.ends_with(REFERENCE_SCENE_SUFFIX):
+            pose_measurement = _sample_applied_foot_poses(player, StringName(animation_name), animation)
         var observation_id := "%s|%s|%s" % [scene_path, player_path, animation_name]
         observations.append({
             "observation_id": observation_id,
@@ -203,6 +260,7 @@ func _inspect_player(player: AnimationPlayer, scene_path: String, relative_playe
             "animated_right_chain_track_count": right_animated,
             "bilateral_chain_motion": left_animated > 0 and right_animated > 0,
             "leg_chain_tracks": tracks,
+            "pose_measurement": pose_measurement,
             "pose_contact_ground_truth": false,
             "semantic_selection_allowed": false,
         })

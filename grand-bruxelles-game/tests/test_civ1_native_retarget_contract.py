@@ -6,6 +6,8 @@ PROBE = ROOT / "tools" / "godot_civ1_native_retarget_probe.gd"
 WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-civ1-native-retarget.yml"
 CHAIN_PROBE = ROOT / "tools" / "godot_civ1_leg_chain_diagnostic.gd"
 CHAIN_WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-civ1-leg-chain-diagnostic.yml"
+GLOBAL_PROBE = ROOT / "tools" / "godot_civ1_global_chain_diagnostic.gd"
+GLOBAL_WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-civ1-global-chain-diagnostic.yml"
 
 
 def require(text: str, token: str) -> None:
@@ -17,11 +19,15 @@ def main() -> None:
     assert WORKFLOW.exists(), "native retarget workflow missing"
     assert CHAIN_PROBE.exists(), "bilateral leg-chain diagnostic probe missing"
     assert CHAIN_WORKFLOW.exists(), "bilateral leg-chain diagnostic workflow missing"
+    assert GLOBAL_PROBE.exists(), "model-space chain diagnostic probe missing"
+    assert GLOBAL_WORKFLOW.exists(), "model-space chain diagnostic workflow missing"
 
     probe = PROBE.read_text(encoding="utf-8")
     workflow = WORKFLOW.read_text(encoding="utf-8")
     chain_probe = CHAIN_PROBE.read_text(encoding="utf-8")
     chain_workflow = CHAIN_WORKFLOW.read_text(encoding="utf-8")
+    global_probe = GLOBAL_PROBE.read_text(encoding="utf-8")
+    global_workflow = GLOBAL_WORKFLOW.read_text(encoding="utf-8")
 
     for token in (
         "RetargetModifier3D.new()",
@@ -123,6 +129,44 @@ def main() -> None:
         "visual_approval_claimed",
     ):
         require(chain_workflow, token)
+
+    for token in (
+        "RetargetModifier3D.new()",
+        "target_skeleton.reparent(modifier, true)",
+        "SAMPLE_COUNT := 121",
+        '"grand-bruxelles-civ1-global-chain-diagnostic-v1"',
+        '"model_space_samples"',
+        '"source_motion_from_rest"',
+        '"target_motion_from_rest"',
+        '"source_hips_relative_origin"',
+        '"target_hips_relative_origin"',
+        '"LeftUpperLeg"',
+        '"LeftLowerLeg"',
+        '"LeftFoot"',
+        '"RightUpperLeg"',
+        '"RightLowerLeg"',
+        '"RightFoot"',
+        '"diagnostic_only": true',
+        '"runtime_authorized": false',
+        '"visual_approval_claimed": false',
+    ):
+        require(global_probe, token)
+
+    for token in (
+        "Godot_v4.7.1-stable_linux.x86_64.zip",
+        "CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK",
+        "grand-bruxelles-civ1-global-chain-diagnostic-v1",
+        "model_space_samples",
+        "source_motion_from_rest",
+        "target_motion_from_rest",
+        "source_hips_relative_origin",
+        "target_hips_relative_origin",
+        "sample_count']==121",
+        "diagnostic_only",
+        "runtime_authorized",
+        "visual_approval_claimed",
+    ):
+        require(global_workflow, token)
 
     print("CIV1_NATIVE_RETARGET_CONTRACT_OK")
 

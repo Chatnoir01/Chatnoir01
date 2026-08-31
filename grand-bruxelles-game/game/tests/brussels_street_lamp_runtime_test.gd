@@ -23,6 +23,20 @@ func _load_data() -> Dictionary:
     var parsed: Variant = JSON.parse_string(file.get_as_text())
     return parsed as Dictionary if parsed is Dictionary else {}
 
+func _make_nested_decoy() -> Node3D:
+    var wrapper := Node3D.new()
+    wrapper.name = "ForeignOwner"
+    var decoy := Node3D.new()
+    decoy.name = "ForeignNestedMain"
+    var osm := Node3D.new()
+    osm.name = "BrusselsOSM"
+    var urbis := Node3D.new()
+    urbis.name = "UrbISMidiExact"
+    decoy.add_child(osm)
+    decoy.add_child(urbis)
+    wrapper.add_child(decoy)
+    return wrapper
+
 func _run() -> void:
     var data := _load_data()
     if data.is_empty():
@@ -98,14 +112,26 @@ func _run() -> void:
     if current_scene != null:
         _fail("test harness unexpectedly has current_scene before production-style root instantiation")
         return
+
+    var runtime := root.get_node_or_null("BrusselsStreetLampRuntime")
+    if runtime == null:
+        _fail("BrusselsStreetLampRuntime autoload missing")
+        return
+
+    # A nested foreign node can legitimately contain the same anchor names. It must
+    # never become the authority for source-backed street-lamp placement/collision.
+    var foreign_wrapper := _make_nested_decoy()
+    root.add_child(foreign_wrapper)
+    for _frame: int in range(8):
+        await process_frame
+    if bool(runtime.call("ready_complete")):
+        _fail("nested foreign anchor set captured street-lamp runtime before authoritative root scene")
+        return
+
     var scene := packed.instantiate() as Node3D
     root.add_child(scene)
     if current_scene != null:
         _fail("root-instantiated production scene unexpectedly became current_scene")
-        return
-    var runtime := root.get_node_or_null("BrusselsStreetLampRuntime")
-    if runtime == null:
-        _fail("BrusselsStreetLampRuntime autoload missing")
         return
     for _frame: int in range(180):
         if bool(runtime.call("ready_complete")):
@@ -113,6 +139,13 @@ func _run() -> void:
         await process_frame
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
         _fail("runtime did not auto-discover root-instantiated production scene")
+        return
+    if scene.get_node_or_null("BrusselsSourceBackedStreetLamps") == null:
+        _fail("authoritative root scene did not receive owned street-lamp root")
+        return
+    var foreign_decoy := foreign_wrapper.get_node_or_null("ForeignNestedMain")
+    if foreign_decoy != null and foreign_decoy.get_node_or_null("BrusselsSourceBackedStreetLamps") != null:
+        _fail("foreign nested scene received owned street-lamp root")
         return
     if int(runtime.call("point_count")) != EXPECTED_COUNT:
         _fail("runtime point count mismatch")
@@ -127,5 +160,5 @@ func _run() -> void:
         _fail("runtime moved source positions")
         return
 
-    print("BRUSSELS_STREET_LAMP_OK: points=%d batches=%d family=%s revision=%d auto_discovered=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
+    print("BRUSSELS_STREET_LAMP_OK: points=%d batches=%d family=%s revision=%d auto_discovered=true authoritative_root_only=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
     quit(0)

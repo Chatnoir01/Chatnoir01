@@ -1,7 +1,7 @@
 {
-  "format": "grand-bruxelles-civ1-locomotion-source-audit-v2",
+  "format": "grand-bruxelles-civ1-locomotion-source-audit-v3",
   "candidate_id": "CIV-1",
-  "base_main_sha": "0d8a0cff0f7362aee359c0ea25ec3ba988640ed5",
+  "base_main_sha": "054ce0b2c7a31a5b3a6bc222fe15d7f5b98c6dc0",
   "production_authorized": false,
   "retarget_authorized": false,
   "activation_ready": false,
@@ -61,9 +61,23 @@
       "review_only_run_candidates": ["UAL1_Standard/Jog_Fwd", "UAL1_Standard/Sprint"],
       "exact_idle_walk_run_catalog_verified": true,
       "state": "BLOCKED_NO_EXACT_RUN",
-      "characterization_workflow_run_id": 33353446737,
-      "characterization_artifact_id": 9744361128,
-      "characterization_artifact_zip_sha256": "711095546e1d9ebd024b03fbe7b33a852e918612667924e902d50ff317ab9b98",
+      "characterization_workflow_run_id": 33355673996,
+      "characterization_artifact_id": 9745046876,
+      "characterization_artifact_zip_sha256": "aa39d527aa326b39583a99b2d47601bea5d659fadfc3ff283c3481414a60098f",
+      "semantic_review": {
+        "format": "grand-bruxelles-civ1-run-semantic-review-v1",
+        "godot_version": "4.7.1 stable",
+        "walk_reference": {"name": "UAL1_Standard/Walk", "length_seconds": 1.33333337306976, "loop_mode": 1, "track_count": 59},
+        "jog_fwd": {"name": "UAL1_Standard/Jog_Fwd", "length_seconds": 0.933333337306976, "loop_mode": 1, "track_count": 59},
+        "sprint": {"name": "UAL1_Standard/Sprint", "length_seconds": 0.666666686534882, "loop_mode": 1, "track_count": 59},
+        "duration_ratio_jog_to_walk": 0.6999999786913403,
+        "duration_ratio_sprint_to_walk": 0.5,
+        "structural_metrics_match": true,
+        "semantic_selection": "",
+        "selection_state": "BLOCKED_NEEDS_KINEMATIC_FOOT_CONTACT_REVIEW",
+        "selection_reason": "duration_loop_track_metrics_distinguish_cadence_but_do_not_prove_run_semantics_or_no_foot_slide",
+        "required_next_measurements": ["root_motion_or_hips_displacement", "foot_contact_timing", "contact_foot_slide_speed", "civ1_52_bone_retarget_integrity"]
+      },
       "civ1_52_bone_retarget_verified": false,
       "grounding_verified": false,
       "foot_slide_verified": false,
@@ -72,6 +86,7 @@
     }
   ],
   "selected_source": "",
-  "blocker": "no_independently_licensed_exact_idle_walk_run_trio_verified_for_civ1",
-  "next_gate": "perform explicit semantic review of Quaternius Jog_Fwd versus Sprint, then retarget only a reviewed locomotion trio to the validated CIV-1 52-bone skeleton and measure grounding plus foot-slide before any runtime promotion"
+  "selected_run_alias": "",
+  "blocker": "run_semantic_candidate_requires_kinematic_foot_contact_review_before_civ1_retarget",
+  "next_gate": "measure Jog_Fwd versus Sprint root/hips displacement, foot contacts and contact-slide under Godot 4.7.1; select neither unless one passes semantic review, then retarget the reviewed idle/walk/run trio to the validated CIV-1 52-bone skeleton and measure grounding plus foot-slide before runtime promotion"
 }

@@ -3,6 +3,7 @@ extends SceneTree
 const SOURCE_SCENE_SUFFIX := "Models_with_rigging/Master_Rigged.tscn"
 const TARGET_SCENE := "res://civ1_body.glb"
 const RIGHT_FOOT_ALIASES := ["rightfoot", "rfoot"]
+const LEFT_FOOT_ALIASES := ["leftfoot", "lfoot"]
 
 var _output_path := ""
 var _source_scene_paths: Array[String] = []
@@ -54,26 +55,37 @@ func _normalize(value: String) -> String:
             n = n.trim_prefix(prefix)
     return n
 
-func _right_foot_index(skeleton: Skeleton3D) -> int:
+func _foot_index(skeleton: Skeleton3D, aliases: Array[String]) -> int:
     for i in range(skeleton.get_bone_count()):
         var normalized := _normalize(skeleton.get_bone_name(i))
-        if normalized in RIGHT_FOOT_ALIASES:
+        if normalized in aliases:
             return i
     return -1
 
 func _v3(v: Vector3) -> Array[float]:
     return [v.x, v.y, v.z]
 
+func _quat(q: Quaternion) -> Array[float]:
+    var n := q.normalized()
+    return [n.x, n.y, n.z, n.w]
+
+func _basis_delta_deg(a: Basis, b: Basis) -> float:
+    return rad_to_deg(Quaternion(a.orthonormalized()).angle_to(Quaternion(b.orthonormalized())))
+
 func _bone_record(skeleton: Skeleton3D, index: int) -> Dictionary:
     var parent := skeleton.get_bone_parent(index)
+    var local_rest := skeleton.get_bone_rest(index)
+    var global_rest := skeleton.get_bone_global_rest(index)
     return {
         "index": index,
         "name": String(skeleton.get_bone_name(index)),
         "normalized_name": _normalize(skeleton.get_bone_name(index)),
         "parent_index": parent,
         "parent_name": String(skeleton.get_bone_name(parent)) if parent >= 0 else "",
-        "local_rest_origin": _v3(skeleton.get_bone_rest(index).origin),
-        "global_rest_origin": _v3(skeleton.get_bone_global_rest(index).origin),
+        "local_rest_origin": _v3(local_rest.origin),
+        "global_rest_origin": _v3(global_rest.origin),
+        "local_rest_basis_quat_xyzw": _quat(Quaternion(local_rest.basis.orthonormalized())),
+        "global_rest_basis_quat_xyzw": _quat(Quaternion(global_rest.basis.orthonormalized())),
     }
 
 func _direct_children(skeleton: Skeleton3D, parent_index: int) -> Array[Dictionary]:
@@ -154,10 +166,12 @@ func _run() -> void:
             break
     var target_skeleton := target_skeletons[0]
 
-    var source_right_foot := _right_foot_index(source_skeleton)
-    var target_right_foot := _right_foot_index(target_skeleton)
-    if source_right_foot < 0 or target_right_foot < 0:
-        push_error("CIV1_RIGHT_FOOT_CHILD_INVENTORY_FAIL: RightFoot missing")
+    var source_right_foot := _foot_index(source_skeleton, RIGHT_FOOT_ALIASES)
+    var target_right_foot := _foot_index(target_skeleton, RIGHT_FOOT_ALIASES)
+    var source_left_foot := _foot_index(source_skeleton, LEFT_FOOT_ALIASES)
+    var target_left_foot := _foot_index(target_skeleton, LEFT_FOOT_ALIASES)
+    if source_right_foot < 0 or target_right_foot < 0 or source_left_foot < 0 or target_left_foot < 0:
+        push_error("CIV1_RIGHT_FOOT_CHILD_INVENTORY_FAIL: bilateral Foot missing")
         quit(6)
         return
 
@@ -168,19 +182,34 @@ func _run() -> void:
     var source_toe_like := _toe_like(source_descendants)
     var target_toe_like := _toe_like(target_descendants)
 
+    var right_local_delta := _basis_delta_deg(source_skeleton.get_bone_rest(source_right_foot).basis, target_skeleton.get_bone_rest(target_right_foot).basis)
+    var left_local_delta := _basis_delta_deg(source_skeleton.get_bone_rest(source_left_foot).basis, target_skeleton.get_bone_rest(target_left_foot).basis)
+    var right_global_delta := _basis_delta_deg(source_skeleton.get_bone_global_rest(source_right_foot).basis, target_skeleton.get_bone_global_rest(target_right_foot).basis)
+    var left_global_delta := _basis_delta_deg(source_skeleton.get_bone_global_rest(source_left_foot).basis, target_skeleton.get_bone_global_rest(target_left_foot).basis)
+
     var payload := {
-        "format": "grand-bruxelles-civ1-right-foot-child-inventory-v1",
+        "format": "grand-bruxelles-civ1-right-foot-child-inventory-v2",
         "godot_version": Engine.get_version_info(),
         "source_skeleton_bone_count": source_skeleton.get_bone_count(),
         "target_skeleton_bone_count": target_skeleton.get_bone_count(),
         "source_right_foot": _bone_record(source_skeleton, source_right_foot),
         "target_right_foot": _bone_record(target_skeleton, target_right_foot),
+        "source_left_foot": _bone_record(source_skeleton, source_left_foot),
+        "target_left_foot": _bone_record(target_skeleton, target_left_foot),
         "source_right_foot_direct_children": source_children,
         "target_right_foot_direct_children": target_children,
         "source_right_foot_descendants": source_descendants,
         "target_right_foot_descendants": target_descendants,
         "source_toe_like_descendants": source_toe_like,
         "target_toe_like_descendants": target_toe_like,
+        "bilateral_rest_basis": {
+            "right_source_target_local_delta_deg": right_local_delta,
+            "left_source_target_local_delta_deg": left_local_delta,
+            "right_minus_left_local_delta_deg": right_local_delta - left_local_delta,
+            "right_source_target_global_delta_deg": right_global_delta,
+            "left_source_target_global_delta_deg": left_global_delta,
+            "right_minus_left_global_delta_deg": right_global_delta - left_global_delta,
+        },
         "diagnostic_only": true,
         "runtime_authorized": false,
         "visual_approval_claimed": false,

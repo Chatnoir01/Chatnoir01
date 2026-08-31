@@ -3,6 +3,8 @@ extends Node
 const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
 const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const TREE_ASSET := preload("res://game/scripts/brussels_street_tree_asset.gd")
+const VISUAL_OWNER_META := "shared_environment_visual_owner"
+const VISUAL_OWNER_ID := "anneessens_osm_furniture_runtime"
 
 @export var activation_radius_m: float = 170.0
 
@@ -235,21 +237,33 @@ func _add_tree(osm_id: int, world_position: Vector3) -> void:
 
     _rebuild_tree_visual(tree)
 
+func _is_owned_tree_visual(node: Node) -> bool:
+    return str(node.get_meta(VISUAL_OWNER_META, "")) == VISUAL_OWNER_ID
+
+func _mark_owned_tree_visual(node: Node) -> void:
+    if node != null:
+        node.set_meta(VISUAL_OWNER_META, VISUAL_OWNER_ID)
+
+func _remove_owned_tree_visuals(tree: StaticBody3D) -> void:
+    for child: Node in tree.get_children():
+        if not _is_owned_tree_visual(child):
+            continue
+        tree.remove_child(child)
+        child.queue_free()
+
 func _rebuild_tree_visual(tree: StaticBody3D) -> void:
-    for child_name: String in ["StreetTreeVisual", "LegacyTreeVisual"]:
-        var existing := tree.get_node_or_null(child_name)
-        if existing != null:
-            tree.remove_child(existing)
-            existing.queue_free()
+    _remove_owned_tree_visuals(tree)
     var osm_id := int(tree.get_meta("osm_id", 0))
     if _enhanced_trees_enabled:
-        TREE_ASSET.populate(tree, osm_id, _tree_materials)
+        var enhanced_visual := TREE_ASSET.populate(tree, osm_id, _tree_materials)
+        _mark_owned_tree_visual(enhanced_visual)
         return
     tree.set_meta("asset_family", "legacy_primitive_tree")
     tree.set_meta("source_dimensions_measured", false)
     tree.set_meta("species_claimed", false)
     var legacy := Node3D.new()
     legacy.name = "LegacyTreeVisual"
+    _mark_owned_tree_visual(legacy)
     tree.add_child(legacy)
     var trunk_mesh := MeshInstance3D.new()
     trunk_mesh.name = "Trunk"

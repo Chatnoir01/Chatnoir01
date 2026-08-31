@@ -57,8 +57,9 @@ jobs:
           inv = json.loads(Path('/tmp/civ1-evidence/vitruvian_body_sanitized.inventory.json').read_text(encoding='utf-8'))
           status = json.loads(Path('assets/characters/civilians/civ1/source_status.json').read_text(encoding='utf-8'))
           evidence = status['sanitized_body_evidence']
+          godot = status['godot_import_evidence']
 
-          assert status['format'] == 'grand-bruxelles-civ1-runtime-packaging-v5'
+          assert status['format'] == 'grand-bruxelles-civ1-runtime-packaging-v6'
           assert inv['format'] == 'grand-bruxelles-sanitized-glb-inventory-v2'
           assert inv['animations_present'] is False
           assert inv['reference_integrity'] == 'validated'
@@ -75,8 +76,12 @@ jobs:
           assert evidence['artifact_id'] == 9738218858
           assert evidence['artifact_zip_sha256'] == '727a316a0fc5d76284882fb4216699f04a3ba958b47daa45f5f8d50dba6fae53'
           assert evidence['binary_committed'] is False
-          assert evidence['godot_import_verified'] is False
+          assert evidence['godot_import_verified'] is True
           assert evidence['visual_approval_claimed'] is False
+          assert godot['sanitized_body_sha256'] == inv['sha256']
+          assert godot['sanitized_body_size_bytes'] == inv['size_bytes']
+          assert godot['integrity'] == 'validated'
+          assert godot['runtime_promoted'] is False
           assert status['production_authorized'] is False
           assert status['activation_ready'] is False
           assert status['runtime_package_present'] is False

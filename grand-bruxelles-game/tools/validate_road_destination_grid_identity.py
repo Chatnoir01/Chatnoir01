@@ -80,24 +80,40 @@ def _require_no_unknown_boolean_controls(
     payload: dict[str, Any],
     known_boolean_keys: frozenset[str],
     label: str,
+    skipped_direct_objects: frozenset[str] = frozenset(),
 ) -> None:
-    """Reject boolean aliases outside canonical control-plane rails.
+    """Reject boolean aliases outside canonical control-plane rails, recursively.
 
-    ``*_authorized`` fields are intentionally left to the exact authorization-rail
-    validator so added authorization keys retain the stronger rail-drift diagnostic.
-    Other boolean aliases are control-bearing by construction and fail closed until
-    explicitly reviewed and added to the schema. Non-boolean metadata remains
-    extensible.
+    Direct ``*_authorized`` fields are intentionally left to the exact authorization
+    validator so added top-level rail keys retain the stronger rail-drift diagnostic.
+    Canonical nested authorization objects may be skipped explicitly because they are
+    validated separately. Any boolean hidden deeper in otherwise extensible metadata,
+    including nested ``*_authorized`` aliases, is control-bearing and fails closed.
     """
-    unknown = sorted(
-        key
-        for key, value in payload.items()
-        if type(value) is bool
-        and key not in known_boolean_keys
-        and not key.endswith("_authorized")
-    )
+    unknown: list[str] = []
+
+    def walk(value: Any, path: str, depth: int) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f"{path}.{key}" if path else key
+                if depth == 0 and key in skipped_direct_objects:
+                    continue
+                if type(child) is bool:
+                    if depth == 0 and (
+                        key in known_boolean_keys or key.endswith("_authorized")
+                    ):
+                        continue
+                    unknown.append(child_path)
+                    continue
+                walk(child, child_path, depth + 1)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                child_path = f"{path}[{index}]" if path else f"[{index}]"
+                walk(child, child_path, depth + 1)
+
+    walk(payload, "", 0)
     if unknown:
-        fail(f"{label} unknown boolean control field(s): {unknown}")
+        fail(f"{label} unknown boolean control field(s): {sorted(unknown)}")
 
 
 def validate_destination(destination: dict[str, Any]) -> tuple[str, str]:
@@ -158,6 +174,7 @@ def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
         readiness,
         frozenset(),
         "readiness root",
+        skipped_direct_objects=frozenset({"authorization", "destinations"}),
     )
     _require_closed_authorization(
         readiness.get("authorization"),

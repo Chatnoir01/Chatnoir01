@@ -240,17 +240,24 @@ func _build() -> void:
         collision.set_meta("source_base_position", base_position)
         _collision_body.add_child(collision)
 
-    set_visual_enabled(_visual_enabled)
+    _apply_enabled_state()
     _ready_complete = true
     _disconnect_scene_watch()
     print("BRUSSELS_BOLLARD_READY: points=%d collisions=%d batches=%d family=%s source=OSM license=ODbL-1.0 event_driven=true" % [point_count(), collision_count(), visual_batch_count(), ASSET.ASSET_FAMILY])
 
+func _apply_enabled_state() -> void:
+    if is_instance_valid(_body_batch):
+        _body_batch.visible = _visual_enabled
+    if is_instance_valid(_cap_batch):
+        _cap_batch.visible = _visual_enabled
+    if is_instance_valid(_collision_body):
+        for child: Node in _collision_body.get_children():
+            if child is CollisionShape3D:
+                (child as CollisionShape3D).disabled = not _visual_enabled
+
 func set_visual_enabled(enabled: bool) -> void:
     _visual_enabled = enabled
-    if is_instance_valid(_body_batch):
-        _body_batch.visible = enabled
-    if is_instance_valid(_cap_batch):
-        _cap_batch.visible = enabled
+    _apply_enabled_state()
 
 func visual_enabled() -> bool:
     return _visual_enabled

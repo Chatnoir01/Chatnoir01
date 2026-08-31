@@ -75,7 +75,7 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1pose/evidence/pose-transfer.json').read_text())
           v=p['godot_version']
-          assert p['format']=='grand-bruxelles-civ1-sprint-pose-transfer-v3'
+          assert p['format']=='grand-bruxelles-civ1-sprint-pose-transfer-v4'
           assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
           assert p['source_animation']=='UAL1_Standard/Sprint'
           assert p['transfer_method']=='rest_normalized_rotation_scaled_hips_translation'
@@ -93,6 +93,19 @@ jobs:
           assert p['left_motion_gain_vs_leg_scaled_source'] <= 1.5
           assert p['right_motion_gain_vs_leg_scaled_source'] <= 1.5
           assert p['motion_plausibility_passed'] is True
+          assert p['target_support_candidate_measurement_ready'] is True
+          assert p['terminal_loop_sample_excluded_from_speed'] is True
+          for key in ('target_left_support_candidate','target_right_support_candidate'):
+              m=p[key]
+              assert m['support_band_fraction']==0.10
+              assert m['max_y_m'] > m['min_y_m']
+              assert m['min_y_m'] <= m['threshold_y_m'] <= m['max_y_m']
+              assert m['low_height_sample_count'] >= 2
+              assert m['low_height_segment_count'] >= 1
+              assert m['horizontal_path_m'] >= 0.0
+              assert m['median_horizontal_speed_mps'] >= 0.0
+              assert m['p90_horizontal_speed_mps'] >= m['median_horizontal_speed_mps']
+              assert m['max_horizontal_speed_mps'] >= m['p90_horizontal_speed_mps']
           assert p['animation_transferred'] is True
           assert p['diagnostic_only'] is True and p['run_alias_selected'] is False
           assert p['world_ground_assumed'] is False and p['grounding_verified'] is False

@@ -150,6 +150,23 @@ func _is_production_main_candidate(main: Node) -> bool:
             return false
     return true
 
+func _is_authoritative_root_main(main: Node) -> bool:
+    var tree := get_tree()
+    return tree != null and main != null and main.get_parent() == tree.root
+
+func _ground_contract_error(main: Node) -> String:
+    var ground_candidate := main.get_node_or_null(TARGET_GROUND_NODE)
+    if ground_candidate == null or not ground_candidate is CSGBox3D:
+        return "production Ground missing or wrong type"
+    var ground := ground_candidate as CSGBox3D
+    if not _vectors_match(ground.position, EXPECTED_POSITION):
+        return "Ground position drifted; refusing presentation mutation"
+    if not _vectors_match(ground.size, EXPECTED_SIZE):
+        return "Ground size drifted; refusing presentation mutation"
+    if not ground.use_collision:
+        return "Ground collision contract drifted"
+    return ""
+
 func _find_main_ancestor(node: Node) -> Node:
     var cursor: Node = node
     while cursor != null:
@@ -164,15 +181,17 @@ func _bind_existing_main() -> void:
     var tree := get_tree()
     if tree == null:
         return
-    var main := tree.root.get_node_or_null(TARGET_MAIN_NODE)
-    if main != null and not _is_production_main_candidate(main):
-        main = null
-    if main == null:
-        var candidate := tree.root.find_child(TARGET_MAIN_NODE, true, false)
-        if candidate != null and _is_production_main_candidate(candidate):
-            main = candidate
-    if main != null:
-        _try_bind_main(main)
+    var root_main := tree.root.get_node_or_null(TARGET_MAIN_NODE)
+    if root_main != null and _is_production_main_candidate(root_main):
+        _try_bind_main(root_main)
+        return
+    for candidate: Node in tree.root.find_children(TARGET_MAIN_NODE, "", true, false):
+        if not _is_production_main_candidate(candidate):
+            continue
+        if not _ground_contract_error(candidate).is_empty():
+            continue
+        _try_bind_main(candidate)
+        return
 
 func _on_node_added(node: Node) -> void:
     if _tearing_down or not is_inside_tree() or _ready_complete or _failed or _bind_in_progress:
@@ -181,6 +200,9 @@ func _on_node_added(node: Node) -> void:
         return
     var main := node if node.name == TARGET_MAIN_NODE else _find_main_ancestor(node)
     if main == null or not _is_production_main_candidate(main):
+        return
+    var contract_error := _ground_contract_error(main)
+    if not contract_error.is_empty() and not _is_authoritative_root_main(main):
         return
     call_deferred("_try_bind_main", main)
 
@@ -203,26 +225,17 @@ func _try_bind_main(main: Node) -> void:
     if not _is_production_main_candidate(main):
         return
     _bind_in_progress = true
-    var ground_candidate := main.get_node_or_null(TARGET_GROUND_NODE)
-    if ground_candidate == null:
-        _bind_in_progress = false
-        return
-    if not ground_candidate is CSGBox3D:
-        _fail_binding("production Ground missing or wrong type")
+    var contract_error := _ground_contract_error(main)
+    if not contract_error.is_empty():
+        if _is_authoritative_root_main(main):
+            _fail_binding(contract_error)
+        else:
+            _bind_in_progress = false
+            _awaiting_main = true
         return
 
     _main = main
-    _ground = ground_candidate as CSGBox3D
-    if not _vectors_match(_ground.position, EXPECTED_POSITION):
-        _fail_binding("Ground position drifted; refusing presentation mutation")
-        return
-    if not _vectors_match(_ground.size, EXPECTED_SIZE):
-        _fail_binding("Ground size drifted; refusing presentation mutation")
-        return
-    if not _ground.use_collision:
-        _fail_binding("Ground collision contract drifted")
-        return
-
+    _ground = main.get_node_or_null(TARGET_GROUND_NODE) as CSGBox3D
     _legacy_material = _ground.material
     _enhanced_material = _make_material()
     _set_material_state(_enhanced_enabled)

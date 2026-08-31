@@ -6,6 +6,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 PROJECT = Path(__file__).resolve().parents[1]
 LOCK = PROJECT / "data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json"
 REGISTRY = PROJECT / "data/source_plans/brussels_missing_road_source_registry.json"
@@ -23,6 +25,17 @@ def load(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(value, dict)
     return value
+
+
+def test_evidence_loader_rejects_duplicate_object_keys(tmp_path: Path) -> None:
+    ambiguous = tmp_path / "ambiguous.lock.json"
+    ambiguous.write_text(
+        '{"format":"grand-bruxelles-missing-road-source-acquisition-evidence-v1",'
+        '"authorization":{"runtime_mount_authorized":false,"runtime_mount_authorized":true}}',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate JSON object key: runtime_mount_authorized"):
+        load_json_strict(ambiguous)
 
 
 def test_evidence_lock_is_exact_and_registry_bound() -> None:

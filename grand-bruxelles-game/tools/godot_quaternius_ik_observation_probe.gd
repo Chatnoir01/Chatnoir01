@@ -145,16 +145,7 @@ func _sample_rotation_motion(animation: Animation, track_index: int) -> Dictiona
             max_angle_deg = maxf(max_angle_deg, rad_to_deg(first.angle_to(value as Quaternion)))
     return {"valid": true, "max_angle_deg": max_angle_deg, "animated": max_angle_deg > MOTION_ROTATION_EPS_DEG}
 
-func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringName, animation: Animation) -> Dictionary:
-    var skeleton_node := player.get_node_or_null(player.root_node)
-    if not (skeleton_node is Skeleton3D):
-        return {"valid": false, "reason": "animation_root_is_not_skeleton"}
-    var skeleton := skeleton_node as Skeleton3D
-    var left_idx := skeleton.find_bone(LEFT_FOOT_BONE)
-    var right_idx := skeleton.find_bone(RIGHT_FOOT_BONE)
-    if left_idx < 0 or right_idx < 0:
-        return {"valid": false, "reason": "foot_bones_missing", "left_index": left_idx, "right_index": right_idx}
-
+func _measure_pose_with_current_root(player: AnimationPlayer, skeleton: Skeleton3D, left_idx: int, right_idx: int, animation_name: StringName, animation: Animation) -> Dictionary:
     var samples: Array[Dictionary] = []
     var left_first := Vector3.ZERO
     var right_first := Vector3.ZERO
@@ -162,8 +153,6 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
     var right_range := 0.0
     var have_first := false
     player.play(animation_name)
-    # Godot applies play()/seek() through AnimationMixer; force an immediate evaluation
-    # before reading Skeleton3D poses in the same headless frame.
     player.advance(0.0)
     for sample_index in range(SAMPLE_COUNT):
         var t := animation.length * float(sample_index) / float(SAMPLE_COUNT - 1)
@@ -187,16 +176,57 @@ func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringN
         })
     player.stop()
     return {
+        "left_foot_pose_range_m": left_range,
+        "right_foot_pose_range_m": right_range,
+        "bilateral_foot_pose_motion": left_range > POSE_MOTION_EPS_M and right_range > POSE_MOTION_EPS_M,
+        "pose_samples": samples,
+    }
+
+func _sample_applied_foot_poses(player: AnimationPlayer, animation_name: StringName, animation: Animation) -> Dictionary:
+    var original_root: NodePath = player.root_node
+    var skeleton_node := player.get_node_or_null(original_root)
+    if not (skeleton_node is Skeleton3D):
+        return {"valid": false, "reason": "animation_root_is_not_skeleton", "original_root_node": str(original_root)}
+    var skeleton := skeleton_node as Skeleton3D
+    var left_idx := skeleton.find_bone(LEFT_FOOT_BONE)
+    var right_idx := skeleton.find_bone(RIGHT_FOOT_BONE)
+    if left_idx < 0 or right_idx < 0:
+        return {"valid": false, "reason": "foot_bones_missing", "left_index": left_idx, "right_index": right_idx, "original_root_node": str(original_root)}
+
+    var original_measurement := _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
+    var selected_measurement: Dictionary = original_measurement
+    var selected_root := original_root
+    var root_override_used := false
+    var fallback_measurement: Dictionary = {}
+
+    if not bool(original_measurement.get("bilateral_foot_pose_motion", false)):
+        # The imported library tracks target `%GeneralSkeleton:<bone>`. Test the scene parent
+        # as AnimationMixer root without mutating the source asset permanently.
+        player.root_node = NodePath("..")
+        fallback_measurement = _measure_pose_with_current_root(player, skeleton, left_idx, right_idx, animation_name, animation)
+        if bool(fallback_measurement.get("bilateral_foot_pose_motion", false)):
+            selected_measurement = fallback_measurement
+            selected_root = NodePath("..")
+            root_override_used = true
+        player.root_node = original_root
+
+    return {
         "valid": true,
         "skeleton_path": str(player.get_path_to(skeleton)),
         "left_foot_bone": LEFT_FOOT_BONE,
         "right_foot_bone": RIGHT_FOOT_BONE,
         "left_foot_bone_index": left_idx,
         "right_foot_bone_index": right_idx,
-        "left_foot_pose_range_m": left_range,
-        "right_foot_pose_range_m": right_range,
-        "bilateral_foot_pose_motion": left_range > POSE_MOTION_EPS_M and right_range > POSE_MOTION_EPS_M,
-        "pose_samples": samples,
+        "left_foot_pose_range_m": selected_measurement["left_foot_pose_range_m"],
+        "right_foot_pose_range_m": selected_measurement["right_foot_pose_range_m"],
+        "bilateral_foot_pose_motion": selected_measurement["bilateral_foot_pose_motion"],
+        "pose_samples": selected_measurement["pose_samples"],
+        "original_root_node": str(original_root),
+        "selected_diagnostic_root_node": str(selected_root),
+        "root_override_used": root_override_used,
+        "original_root_pose_range_m": [original_measurement["left_foot_pose_range_m"], original_measurement["right_foot_pose_range_m"]],
+        "fallback_root_pose_range_m": [] if fallback_measurement.is_empty() else [fallback_measurement["left_foot_pose_range_m"], fallback_measurement["right_foot_pose_range_m"]],
+        "root_restored_after_measurement": player.root_node == original_root,
     }
 
 func _inspect_player(player: AnimationPlayer, scene_path: String, relative_player_path: String) -> void:

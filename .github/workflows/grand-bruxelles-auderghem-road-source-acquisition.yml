@@ -1,0 +1,49 @@
+name: Grand Bruxelles Auderghem Road Source Acquisition
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/source_plans/auderghem_road_source_acquisition.json'
+      - 'grand-bruxelles-game/tools/city_machine/acquire_municipality_road_source.py'
+      - 'grand-bruxelles-game/tests/test_municipality_road_source_acquisition.py'
+      - '.github/workflows/grand-bruxelles-auderghem-road-source-acquisition.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acquire-auderghem-road-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Validate offline acquisition contract
+        run: python -m pytest -q tests/test_municipality_road_source_acquisition.py
+      - name: Acquire source-backed Auderghem roads
+        run: |
+          python tools/city_machine/acquire_municipality_road_source.py \
+            --manifest data/source_plans/auderghem_road_source_acquisition.json \
+            --raw-output artifacts/auderghem_road_source.raw.json \
+            --game-output artifacts/auderghem_road_source.game.json \
+            --receipt-output artifacts/auderghem_road_source.receipt.json
+      - name: Show acquisition receipt
+        run: cat artifacts/auderghem_road_source.receipt.json
+      - name: Upload immutable acquisition candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: auderghem-road-source-acquisition
+          path: |
+            grand-bruxelles-game/artifacts/auderghem_road_source.raw.json
+            grand-bruxelles-game/artifacts/auderghem_road_source.game.json
+            grand-bruxelles-game/artifacts/auderghem_road_source.receipt.json
+          if-no-files-found: error
+          retention-days: 30

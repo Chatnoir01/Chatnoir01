@@ -1,0 +1,48 @@
+{
+  "schema": "grand-bruxelles-missing-road-source-registry-v1",
+  "scope": "Brussels-Capital Region",
+  "evidence_baseline": {
+    "registered_niscodes": ["21001", "21004", "21013"],
+    "missing_niscodes": ["21002", "21003", "21005", "21006", "21007", "21008", "21009", "21010", "21011", "21012", "21014", "21015", "21016", "21017", "21018", "21019"]
+  },
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "relation_reference": "OpenStreetMap WikiProject Belgium/Boundaries Brussels-Capital Region"
+  },
+  "game_frame": {
+    "origin_lat": 50.8419,
+    "origin_lon": 4.348,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "municipalities": [
+    {"niscode":"21002","id":"auderghem","name":"Auderghem / Oudergem","osm_relation_id":58263},
+    {"niscode":"21003","id":"berchem_sainte_agathe","name":"Berchem-Sainte-Agathe / Sint-Agatha-Berchem","osm_relation_id":60140},
+    {"niscode":"21005","id":"etterbeek","name":"Etterbeek","osm_relation_id":58252},
+    {"niscode":"21006","id":"evere","name":"Evere","osm_relation_id":60144},
+    {"niscode":"21007","id":"forest","name":"Forest / Vorst","osm_relation_id":58249},
+    {"niscode":"21008","id":"ganshoren","name":"Ganshoren","osm_relation_id":58257},
+    {"niscode":"21009","id":"ixelles","name":"Ixelles / Elsene","osm_relation_id":58250},
+    {"niscode":"21010","id":"jette","name":"Jette","osm_relation_id":58258},
+    {"niscode":"21011","id":"koekelberg","name":"Koekelberg","osm_relation_id":58256},
+    {"niscode":"21012","id":"molenbeek_saint_jean","name":"Molenbeek-Saint-Jean / Sint-Jans-Molenbeek","osm_relation_id":58255},
+    {"niscode":"21014","id":"saint_josse_ten_noode","name":"Saint-Josse-ten-Noode / Sint-Joost-ten-Node","osm_relation_id":58262},
+    {"niscode":"21015","id":"schaerbeek","name":"Schaerbeek / Schaarbeek","osm_relation_id":58260},
+    {"niscode":"21016","id":"uccle","name":"Uccle / Ukkel","osm_relation_id":58253},
+    {"niscode":"21017","id":"watermael_boitsfort","name":"Watermael-Boitsfort / Watermaal-Bosvoorde","osm_relation_id":58264},
+    {"niscode":"21018","id":"woluwe_saint_lambert","name":"Woluwe-Saint-Lambert / Sint-Lambrechts-Woluwe","osm_relation_id":60167},
+    {"niscode":"21019","id":"woluwe_saint_pierre","name":"Woluwe-Saint-Pierre / Sint-Pieters-Woluwe","osm_relation_id":60168}
+  ],
+  "authorization": {
+    "source_acquisition_authorized": true,
+    "source_registration_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "render_authorized": false,
+    "collision_authorized": false,
+    "runtime_mount_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_authorized": false
+  }
+}

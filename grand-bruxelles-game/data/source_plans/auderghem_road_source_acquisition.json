@@ -1,0 +1,47 @@
+{
+  "schema": "grand-bruxelles-municipality-road-source-acquisition-v1",
+  "municipality": {
+    "niscode": "21002",
+    "id": "auderghem",
+    "name": "Auderghem / Oudergem",
+    "osm_relation_id": 58263
+  },
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "query_scope": "administrative_relation",
+    "highway_classes": [
+      "motorway",
+      "trunk",
+      "primary",
+      "secondary",
+      "tertiary",
+      "unclassified",
+      "residential",
+      "living_street",
+      "service"
+    ]
+  },
+  "game_frame": {
+    "origin_lat": 50.8419,
+    "origin_lon": 4.348,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "output": {
+    "normalized_game_source": "artifacts/auderghem_road_source.game.json",
+    "raw_overpass_snapshot": "artifacts/auderghem_road_source.raw.json",
+    "receipt": "artifacts/auderghem_road_source.receipt.json"
+  },
+  "authorization": {
+    "source_acquisition_authorized": true,
+    "source_registration_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "render_authorized": false,
+    "collision_authorized": false,
+    "runtime_mount_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_authorized": false
+  }
+}

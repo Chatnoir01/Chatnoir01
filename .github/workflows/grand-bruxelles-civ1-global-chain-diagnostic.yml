@@ -85,7 +85,7 @@ jobs:
           PHASE_DIVERGENCE_MATERIAL_SAMPLES = 12
           p=json.loads(Path('/tmp/civ1global/evidence/global-chain.json').read_text())
           v=p['godot_version']
-          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v2'
+          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v3'
           assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
           assert p['source_animation']=='UAL1_Standard/Sprint'
           assert p['sample_count']==121
@@ -146,6 +146,26 @@ jobs:
           for bone in ('LeftUpperLeg','LeftLowerLeg','LeftFoot','RightUpperLeg','RightLowerLeg'):
               assert abs(int(per_bone[bone]['phase_delta_samples'])) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES, (bone,per_bone[bone])
 
+          ab=p['right_foot_reference_ab']
+          assert ab['method']=='source_global_reference_direction_preserve_target_foot_length'
+          assert ab['counterfactual_only'] is True
+          assert ab['target_foot_length_preserved'] is True
+          for key in ('source_reference_direction_global','target_local_rest_origin','normalized_target_local_rest_origin'):
+              value=ab[key]
+              assert len(value)==3 and all(math.isfinite(float(x)) for x in value), (key,value)
+          assert float(ab['target_foot_length_m']) > 0.05
+          assert abs(float(ab['target_foot_length_m'])-float(ab['normalized_target_foot_length_m'])) < 1e-5
+          assert int(ab['source_vertical_min_sample_index'])==59
+          assert int(ab['baseline_target_vertical_min_sample_index'])==86
+          assert int(ab['baseline_phase_delta_samples'])==27
+          normalized_index=int(ab['normalized_target_vertical_min_sample_index'])
+          normalized_delta=int(ab['normalized_phase_delta_samples'])
+          assert 0 <= normalized_index < 120
+          assert abs(normalized_delta) <= 60
+          assert math.isfinite(float(ab['normalized_phase_delta_seconds']))
+          assert ab['normalization_improves_phase'] is (abs(normalized_delta) < abs(int(ab['baseline_phase_delta_samples'])))
+          assert ab['normalization_reaches_non_material_phase'] is (abs(normalized_delta) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES)
+
           assert p['diagnostic_only'] is True
           assert p['runtime_authorized'] is False
           assert p['visual_approval_claimed'] is False
@@ -154,7 +174,13 @@ jobs:
           print('first_material_divergence_joint',first)
           print('right_foot_phase_delta_samples',right['phase_delta_samples'])
           print('right_foot_phase_delta_seconds',right['phase_delta_seconds'])
-          print('classification','diagnostic-only; RightFoot is first material model-space vertical phase divergence')
+          print('reference_ab_baseline_target_vertical_min_sample_index',ab['baseline_target_vertical_min_sample_index'])
+          print('reference_ab_normalized_target_vertical_min_sample_index',ab['normalized_target_vertical_min_sample_index'])
+          print('reference_ab_baseline_phase_delta_samples',ab['baseline_phase_delta_samples'])
+          print('reference_ab_normalized_phase_delta_samples',ab['normalized_phase_delta_samples'])
+          print('reference_ab_normalization_improves_phase',ab['normalization_improves_phase'])
+          print('reference_ab_target_foot_length_preserved',ab['target_foot_length_preserved'])
+          print('classification','diagnostic-only; RightFoot reference-direction A/B measured without mutating target skeleton')
           PY
 
       - name: Upload model-space chain evidence

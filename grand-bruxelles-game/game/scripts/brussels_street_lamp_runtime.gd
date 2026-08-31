@@ -68,7 +68,12 @@ func _is_authoritative_production_scene(node: Node) -> bool:
     var candidate := node as Node3D
     if get_tree().current_scene == candidate:
         return true
-    return candidate.get_parent() == get_tree().root
+    var parent := candidate.get_parent()
+    if parent == get_tree().root:
+        return true
+    # Preserve the already-gated dormant/subviewport mount contract while rejecting
+    # arbitrary nested anchor clones under foreign scene owners.
+    return str(candidate.name) == "Main" and parent is Viewport
 
 func _discover_production_scene() -> Node3D:
     if _tearing_down or not is_inside_tree():

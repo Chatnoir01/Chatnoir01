@@ -85,7 +85,7 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1native/evidence/native-retarget.json').read_text())
           v=p['godot_version']
-          assert p['format']=='grand-bruxelles-civ1-native-retarget-v1'
+          assert p['format']=='grand-bruxelles-civ1-native-retarget-v2'
           assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
           assert p['source_animation']=='UAL1_Standard/Sprint'
           assert p['sample_count']==121 and p['mapped_required_bones']==19
@@ -105,6 +105,15 @@ jobs:
               assert m['support_band_fraction']==0.10
               assert m['low_height_sample_count'] >= 2
               assert m['low_height_segment_count'] >= 1
+              assert len(m['low_height_sample_indices']) == m['low_height_sample_count']
+              assert len(m['low_height_sample_times_s']) == m['low_height_sample_count']
+              assert len(m['low_height_segment_start_indices']) == m['low_height_segment_count']
+              assert m['low_height_windows']
+              assert all(0 <= i < 120 for i in m['low_height_sample_indices'])
+              assert all(0 <= i < 119 for i in m['low_height_segment_start_indices'])
+              assert all(a < b for a,b in zip(m['low_height_sample_times_s'],m['low_height_sample_times_s'][1:]))
+              assert sum(w['sample_count'] for w in m['low_height_windows']) == m['low_height_sample_count']
+              assert all(isinstance(w['wraps_cycle'], bool) for w in m['low_height_windows'])
               assert m['horizontal_path_m'] >= 0.0
               assert m['median_horizontal_speed_mps'] >= 0.0
               assert m['p90_horizontal_speed_mps'] >= m['median_horizontal_speed_mps']
@@ -120,6 +129,10 @@ jobs:
                     right['p90_horizontal_speed_mps'] < p['manual_baseline_right_p90_mps'])
           print('source foot ranges',p['source_left_foot_range_m'],p['source_right_foot_range_m'])
           print('target foot ranges',p['target_left_foot_range_m'],p['target_right_foot_range_m'])
+          print('left support windows',left['low_height_windows'])
+          print('right support windows',right['low_height_windows'])
+          print('left low indices',left['low_height_sample_indices'])
+          print('right low indices',right['low_height_sample_indices'])
           print('native_support_improves_manual_baseline='+str(improved).lower())
           print('left median/p90',left['median_horizontal_speed_mps'],left['p90_horizontal_speed_mps'])
           print('right median/p90',right['median_horizontal_speed_mps'],right['p90_horizontal_speed_mps'])

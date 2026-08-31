@@ -57,7 +57,8 @@ func _release_material_ownership() -> void:
         var owned := _official_owned_materials.get(instance_id) as Material
         if owned != null and instance.material_override == owned:
             instance.material_override = _official_legacy_materials.get(instance_id) as Material
-        _clear_official_presentation_claim(instance)
+        if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
+            instance.remove_meta("ground_network_presentation_family")
     _roads.clear()
     _legacy_materials.clear()
     _owned_materials.clear()

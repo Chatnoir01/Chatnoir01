@@ -29,11 +29,11 @@ def main():
     zone = load_json(ZONE)
     legacy = load_json(LEGACY)
 
-    assert 'const ANNEESSENS_DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"' in runtime, (
-        "corridor-tree duplicate suppression must consume the exact normalized Anneessens source owned by AnneessensOsmFurnitureRuntime"
+    assert 'const ANNEESSENS_DATA_PATH := "res://data/osm/anneessens_environment_points.game.json"' in runtime, (
+        "corridor-tree duplicate suppression path changed without updating this cross-source ownership contract"
     )
-    assert "anneessens_environment_points.game.json" not in runtime, (
-        "legacy duplicate preowner source must not remain a second runtime truth"
+    assert runtime.count("ANNEESSENS_DATA_PATH") == 2, (
+        "Anneessens preowner source must remain a single explicit runtime input plus one loader use"
     )
 
     assert zone["format"] == "grand-bruxelles-osm-zone-environment-v1"
@@ -42,23 +42,33 @@ def main():
     assert zone["zone"] == EXPECTED_ZONE
     assert zone["coordinate_space"] == "game_xz_m"
 
+    assert legacy["format"] == "grand-bruxelles-osm-environment-points-v1"
+    assert legacy["source"] == EXPECTED_SOURCE
+    assert legacy["license"] == EXPECTED_LICENSE
+    assert legacy["zone"] == EXPECTED_ZONE
+
     zone_points = normalized_points(zone)
     legacy_points = normalized_points(legacy)
     assert len(zone_points) == 7
     assert all(kind == "tree" for _, kind, _ in zone_points)
     assert len({osm_id for osm_id, _, _ in zone_points}) == len(zone_points)
+    assert len({osm_id for osm_id, _, _ in legacy_points}) == len(legacy_points)
 
-    # Migration safety: current normalized owner source is byte-semantic equivalent
-    # to the legacy preowner list, so switching the runtime truth cannot move or add trees.
-    assert zone_points == legacy_points, "normalized Anneessens owner source drifted from the legacy seven-tree set"
+    # The corridor runtime currently consumes the compact legacy seven-tree preowner list,
+    # while AnneessensOsmFurnitureRuntime consumes the normalized zone artifact. Lock them
+    # as one semantic ownership set so future normalization cannot create duplicates/holes.
+    assert zone_points == legacy_points, (
+        "Anneessens normalized owner source and corridor preowner exclusion source diverged"
+    )
 
     selection_ids = [int(v) for v in zone.get("selection", {}).get("osm_ids", [])]
     assert selection_ids == [osm_id for osm_id, _, _ in zone_points]
     assert int(zone.get("stats", {}).get("tree", -1)) == len(zone_points)
+    assert int(zone.get("stats", {}).get("total", -1)) == len(zone_points)
 
     print(
         "SHARED_ENVIRONMENT_CORRIDOR_TREE_PREOWNER_SOURCE_LOCK_OK: "
-        f"trees={len(zone_points)} source=OSM license=ODbL-1.0 geometry_delta=0"
+        f"trees={len(zone_points)} semantic_sets=identical source=OSM license=ODbL-1.0 geometry_delta=0"
     )
 
 

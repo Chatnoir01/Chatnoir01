@@ -53,7 +53,7 @@ def _points(raw: Any, road_id: int) -> list[list[float]]:
     return result
 
 
-def _source_index() -> dict[int, dict[str, Any]]:
+def _source_index() -> tuple[dict[int, dict[str, Any]], int]:
     try:
         source_bytes = SOURCE_PATH.read_bytes()
     except OSError as exc:
@@ -82,22 +82,28 @@ def _source_index() -> dict[int, dict[str, Any]]:
         if not isinstance(raw, dict):
             fail("malformed source road")
         road_id = raw.get("osm_id")
-        if type(road_id) is not int or road_id <= 0:
+        if type(road_id) is not int:
             fail("invalid source road identity")
-        if road_id in index:
-            fail(f"duplicate source road identity {road_id}")
-        if raw.get("drivable") is not True:
-            continue
-        name = raw.get("name")
-        road_class = raw.get("class")
-        if type(name) is not str or not name:
+        name = raw.get("name", "")
+        road_class = raw.get("class", "")
+        drivable = raw.get("drivable")
+        if type(name) is not str:
             fail(f"invalid source road name {road_id}")
         if type(road_class) is not str:
             fail(f"invalid source road class {road_id}")
+        if type(drivable) is not bool:
+            fail(f"invalid source drivable flag {road_id}")
         width = _number(raw.get("width"), f"source road width {road_id}")
         if width <= 0.0:
             fail(f"non-positive source road width {road_id}")
         points = _points(raw.get("points"), road_id)
+
+        # Mirror the existing destination-catalog eligibility contract: structurally
+        # validate every source road, then index only positive, named, drivable roads.
+        if not drivable or road_id <= 0 or not name:
+            continue
+        if road_id in index:
+            fail(f"duplicate eligible source road identity {road_id}")
         xs = [pair[0] for pair in points]
         zs = [pair[1] for pair in points]
         index[road_id] = {
@@ -108,7 +114,7 @@ def _source_index() -> dict[int, dict[str, Any]]:
             "source_points_sha256": hashlib.sha256(canonical_json(points).encode("utf-8")).hexdigest(),
             "source_local_bbox": [min(xs), min(zs), max(xs), max(zs)],
         }
-    return index
+    return index, len(roads)
 
 
 def _require_exact(destination: dict[str, Any], field: str, expected: Any, road_id: int) -> None:
@@ -126,7 +132,7 @@ def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
     destinations = readiness.get("destinations")
     if not isinstance(destinations, list):
         fail("destinations must be list")
-    source_index = _source_index()
+    source_index, source_road_count = _source_index()
     seen: set[int] = set()
     for raw in destinations:
         if not isinstance(raw, dict):
@@ -142,7 +148,7 @@ def validate_readiness(readiness: dict[str, Any]) -> dict[str, int]:
             fail(f"destination source membership drift {road_id}")
         for field, expected in source_semantics.items():
             _require_exact(raw, field, expected, road_id)
-    return {"destination_count": len(destinations), "source_road_count": len(source_index)}
+    return {"destination_count": len(destinations), "source_road_count": source_road_count}
 
 
 def main() -> int:

@@ -1,0 +1,126 @@
+name: Grand Bruxelles CIV-1 Native Retarget
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd"
+      - "grand-bruxelles-game/tests/test_civ1_native_retarget_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-native-retarget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-retarget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_native_retarget_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1native/source /tmp/civ1native/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1native/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1native/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1native/source/vitruvian_body.glb /tmp/civ1native/source/civ1_body.glb --require-animations | tee /tmp/civ1native/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1native/source/civ1_body.glb' | sha256sum -c -
+          test "$(stat -c '%s' /tmp/civ1native/source/civ1_body.glb)" = "6780124"
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1native/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1native/quaternius.zip' | sha256sum -c -
+          test "$(stat -c '%s' /tmp/civ1native/quaternius.zip)" = "38687957"
+          mkdir -p /tmp/civ1native/quaternius
+          unzip -q /tmp/civ1native/quaternius.zip -d /tmp/civ1native/quaternius
+          LICENSE_FILE="$(find /tmp/civ1native/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1native/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1native/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1native/engine
+          GODOT_BIN=/tmp/civ1native/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1native/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1native/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact source and target then run native retarget
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1native/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1native/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1NativeRetarget"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1native/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd "$PROJECT_ROOT/gb_civ1_native_retarget.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1native/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_native_retarget.gd -- /tmp/civ1native/evidence/native-retarget.json 2>&1 | tee /tmp/civ1native/evidence/probe.log
+          grep -Fq 'CIV1_NATIVE_RETARGET_OK' /tmp/civ1native/evidence/probe.log
+
+      - name: Validate fail-closed native retarget evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1native/evidence/classification.log
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/civ1native/evidence/native-retarget.json').read_text())
+          v=p['godot_version']
+          assert p['format']=='grand-bruxelles-civ1-native-retarget-v1'
+          assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
+          assert p['source_animation']=='UAL1_Standard/Sprint'
+          assert p['sample_count']==121 and p['mapped_required_bones']==19
+          assert p['retarget_modifier']=='RetargetModifier3D'
+          assert p['use_global_pose'] is False
+          assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          assert p['target_support_candidate_measurement_ready'] is True
+          assert p['terminal_loop_sample_excluded_from_speed'] is True
+          for key in ('target_left_support_candidate','target_right_support_candidate'):
+              m=p[key]
+              assert m['support_band_fraction']==0.10
+              assert m['low_height_sample_count'] >= 2
+              assert m['low_height_segment_count'] >= 1
+              assert m['horizontal_path_m'] >= 0.0
+              assert m['median_horizontal_speed_mps'] >= 0.0
+              assert m['p90_horizontal_speed_mps'] >= m['median_horizontal_speed_mps']
+              assert m['max_horizontal_speed_mps'] >= m['p90_horizontal_speed_mps']
+          assert p['diagnostic_only'] is True and p['run_alias_selected'] is False
+          assert p['world_ground_assumed'] is False and p['grounding_verified'] is False
+          assert p['foot_slide_verified'] is False and p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False
+          left=p['target_left_support_candidate']; right=p['target_right_support_candidate']
+          improved=(left['median_horizontal_speed_mps'] < p['manual_baseline_left_median_mps'] and
+                    left['p90_horizontal_speed_mps'] < p['manual_baseline_left_p90_mps'] and
+                    right['median_horizontal_speed_mps'] < p['manual_baseline_right_median_mps'] and
+                    right['p90_horizontal_speed_mps'] < p['manual_baseline_right_p90_mps'])
+          print('native_support_improves_manual_baseline='+str(improved).lower())
+          print('left median/p90',left['median_horizontal_speed_mps'],left['p90_horizontal_speed_mps'])
+          print('right median/p90',right['median_horizontal_speed_mps'],right['p90_horizontal_speed_mps'])
+          PY
+
+      - name: Upload native retarget evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-native-retarget-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1native/evidence/
+          if-no-files-found: error
+          retention-days: 14

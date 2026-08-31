@@ -84,10 +84,26 @@ def main() -> None:
         if required not in cleanup:
             fail(f"Anneessens furniture owned-root cleanup incomplete: {required}")
 
+    activation = function_body(source, "_apply_tree_activation")
+    for required in (
+        "_root.visible = active",
+        "collision.disabled = not active",
+    ):
+        if required not in activation:
+            fail(f"Anneessens tree visibility/collision synchronization missing: {required}")
+
+    process_body = function_body(source, "_process")
+    if "_apply_tree_activation(" not in process_body:
+        fail("Anneessens distance activation bypasses collision synchronization")
+
+    build_body = function_body(source, "_build_once")
+    if "_apply_tree_activation(" not in build_body:
+        fail("Anneessens newly built colliders do not inherit current activation state")
+
     print(
         "ANNEESSENS_FURNITURE_OWNED_ROOT_CONTRACT_OK: "
         f"autoload={AUTOLOAD} root={OWNED_ROOT} source=OSM license={LICENSE} "
-        "detach_then_free=true runtime_geometry_changed=false"
+        "detach_then_free=true tree_visibility_collision_sync=locked runtime_geometry_changed=false"
     )
 
 

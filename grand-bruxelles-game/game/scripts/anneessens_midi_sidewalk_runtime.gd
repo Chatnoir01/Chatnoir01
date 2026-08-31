@@ -15,25 +15,43 @@ var _sidewalk_count := 0
 var _collision_count := 0
 var _manual_binding := false
 var _bind_scheduled := false
+var _watching_tree := false
 var _tearing_down := false
 
 func _ready() -> void:
     _tearing_down = false
     process_mode = Node.PROCESS_MODE_ALWAYS
-    var tree := get_tree()
-    if not tree.node_added.is_connected(_on_node_added):
-        tree.node_added.connect(_on_node_added)
+    _start_watching()
     _schedule_bind()
 
 func _exit_tree() -> void:
     _tearing_down = true
     _bind_scheduled = false
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
+    _stop_watching()
     _release_owned_root()
     _scene = null
     _manual_binding = false
+
+func _start_watching() -> void:
+    if _tearing_down or not is_inside_tree() or _manual_binding or _watching_tree:
+        return
+    var tree := get_tree()
+    if tree == null:
+        return
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+    if not tree.node_removed.is_connected(_on_node_removed):
+        tree.node_removed.connect(_on_node_removed)
+    _watching_tree = true
+
+func _stop_watching() -> void:
+    var tree := get_tree()
+    if tree != null:
+        if tree.node_added.is_connected(_on_node_added):
+            tree.node_added.disconnect(_on_node_added)
+        if tree.node_removed.is_connected(_on_node_removed):
+            tree.node_removed.disconnect(_on_node_removed)
+    _watching_tree = false
 
 func _release_owned_root() -> void:
     if is_instance_valid(_root):
@@ -45,9 +63,21 @@ func _release_owned_root() -> void:
     _sidewalk_count = 0
     _collision_count = 0
 
+func _reset_scene_binding() -> void:
+    _release_owned_root()
+    _scene = null
+    _manual_binding = false
+
 func _on_node_added(_node: Node) -> void:
     if _tearing_down or _manual_binding or is_instance_valid(_scene):
         return
+    _schedule_bind()
+
+func _on_node_removed(node: Node) -> void:
+    if _tearing_down or not is_inside_tree() or _manual_binding or not is_instance_valid(_scene) or node != _scene:
+        return
+    _reset_scene_binding()
+    _start_watching()
     _schedule_bind()
 
 func _schedule_bind() -> void:
@@ -115,9 +145,10 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _root.set_meta("presentation_recipe", "authored_midi_sidewalk_proxy_from_osm_road_alignment")
     _scene.add_child(_root)
     _build_from_existing_osm_roads()
-    var tree := get_tree()
-    if tree != null and tree.node_added.is_connected(_on_node_added):
-        tree.node_added.disconnect(_on_node_added)
+    if manual:
+        _stop_watching()
+    else:
+        _start_watching()
 
 func _build_from_existing_osm_roads() -> void:
     if not is_instance_valid(_scene) or not is_instance_valid(_root):

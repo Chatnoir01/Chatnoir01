@@ -9,6 +9,7 @@ const ANNEESSENS := Vector2(-272.04, -217.07)
 const MIN_CHANGED_3 := 0.008
 const MIN_CHANGED_8 := 0.003
 const MIN_SIDEWALKS := 4
+const REBIND_WAIT_FRAMES := 180
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -73,6 +74,64 @@ func _nearest_road(scene: Node3D) -> CSGBox3D:
                 best = road
     return best
 
+func _wait_for_canonical_bind(runtime: Node, scene: Node3D, label: String) -> bool:
+    for _frame: int in range(REBIND_WAIT_FRAMES):
+        await process_frame
+        var owned := scene.get_node_or_null("AnneessensMidiSidewalkKit")
+        if owned != null \
+                and int(runtime.call("diagnostic_sidewalk_count")) >= MIN_SIDEWALKS \
+                and int(runtime.call("diagnostic_collision_count")) == int(runtime.call("diagnostic_sidewalk_count")):
+            return true
+    push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: canonical autoload did not bind %s" % label)
+    return false
+
+func _prove_scene_replacement(packed: PackedScene) -> bool:
+    var runtime := root.get_node_or_null("AnneessensMidiSidewalkRuntime")
+    if runtime == null:
+        push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: canonical AnneessensMidiSidewalkRuntime autoload missing")
+        return false
+
+    var first := packed.instantiate() as Node3D
+    if first == null:
+        push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: first production scene did not instantiate")
+        return false
+    root.add_child(first)
+    if not await _wait_for_canonical_bind(runtime, first, "first production scene"):
+        first.queue_free()
+        return false
+    var first_count := int(runtime.call("diagnostic_sidewalk_count"))
+    var first_collisions := int(runtime.call("diagnostic_collision_count"))
+
+    root.remove_child(first)
+    first.queue_free()
+    for _frame: int in range(4):
+        await process_frame
+    if int(runtime.call("diagnostic_sidewalk_count")) != 0 or int(runtime.call("diagnostic_collision_count")) != 0:
+        push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: canonical autoload retained sidewalk/collision state after scene removal")
+        return false
+
+    var second := packed.instantiate() as Node3D
+    if second == null:
+        push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: replacement production scene did not instantiate")
+        return false
+    root.add_child(second)
+    if not await _wait_for_canonical_bind(runtime, second, "replacement production scene"):
+        second.queue_free()
+        return false
+    var second_count := int(runtime.call("diagnostic_sidewalk_count"))
+    var second_collisions := int(runtime.call("diagnostic_collision_count"))
+    if first_count != second_count or first_collisions != second_collisions:
+        push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: scene replacement changed sidewalk/collision cardinality %d/%d -> %d/%d" % [first_count, first_collisions, second_count, second_collisions])
+        second.queue_free()
+        return false
+
+    print("ANNEESSENS_MIDI_SIDEWALK_REBIND_OK: autoload=canonical first=%d replacement=%d collisions=%d" % [first_count, second_count, second_collisions])
+    root.remove_child(second)
+    second.queue_free()
+    for _frame: int in range(4):
+        await process_frame
+    return true
+
 func _run() -> void:
     var runtime_script := load("res://game/scripts/anneessens_midi_sidewalk_runtime.gd") as Script
     if runtime_script == null:
@@ -82,6 +141,10 @@ func _run() -> void:
     if packed == null:
         _fail("main scene missing")
         return
+    if not await _prove_scene_replacement(packed):
+        quit(1)
+        return
+
     var scene := packed.instantiate() as Node3D
     var viewport := SubViewport.new()
     viewport.size = Vector2i(WIDTH, HEIGHT)

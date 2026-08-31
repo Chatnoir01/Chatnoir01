@@ -236,10 +236,12 @@ func _sample_skeleton_foot_contacts(player: AnimationPlayer, animation_name: Str
     if targets.is_empty():
         return []
     player.play(animation_name)
+    player.advance(0.0)
     for sample_index in range(KINEMATIC_SAMPLE_COUNT):
         var alpha := float(sample_index) / float(KINEMATIC_SAMPLE_COUNT - 1)
         var sample_time := animation.length * alpha
         player.seek(sample_time, true)
+        player.advance(0.0)
         var refreshed_skeletons: Dictionary = {}
         for target_index in range(targets.size()):
             var target: Dictionary = targets[target_index]

@@ -73,7 +73,7 @@ jobs:
           from pathlib import Path
           p = json.loads(Path('/tmp/qio/evidence/observation-context.json').read_text(encoding='utf-8'))
           v = p['godot_version']
-          assert p['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v2'
+          assert p['format'] == 'grand-bruxelles-quaternius-ik-observation-context-v3'
           assert (v['major'], v['minor'], v['patch'], v['status']) == (4, 7, 1, 'stable')
           assert p['sample_count'] == 61
           assert p['semantic_selection_allowed'] is False
@@ -112,7 +112,11 @@ jobs:
               assert m['left_foot_bone'] == 'LeftFoot' and m['right_foot_bone'] == 'RightFoot'
               assert len(m['pose_samples']) == 61
               assert m['left_foot_pose_range_m'] >= 0.0 and m['right_foot_pose_range_m'] >= 0.0
-              assert m['bilateral_foot_pose_motion'] is True, f'feet remain static after exact AnimationPlayer/Skeleton application for {ref}: {m}'
+              assert isinstance(m['linked_animation_trees'], list)
+              assert m['linked_animation_tree_count'] >= 0
+              assert m['tree_state_restored_after_measurement'] is True, f'AnimationTree state leaked for {ref}: {m}'
+              assert m['root_restored_after_measurement'] is True, f'AnimationPlayer root leaked for {ref}: {m}'
+              assert m['bilateral_foot_pose_motion'] is True, f'feet remain static after direct player/root/tree ownership A/B for {ref}: {m}'
               pose_rows.append({
                   'observation_id': ref,
                   'animation': o['animation'],
@@ -120,9 +124,13 @@ jobs:
                   'left_foot_pose_range_m': m['left_foot_pose_range_m'],
                   'right_foot_pose_range_m': m['right_foot_pose_range_m'],
                   'bilateral_foot_pose_motion': m['bilateral_foot_pose_motion'],
+                  'linked_animation_tree_count': m['linked_animation_tree_count'],
+                  'linked_animation_trees': m['linked_animation_trees'],
+                  'tree_override_used': m['tree_override_used'],
+                  'tree_state_restored_after_measurement': m['tree_state_restored_after_measurement'],
               })
           Path('/tmp/qio/evidence/observation-summary.json').write_text(json.dumps({
-              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v2',
+              'format': 'grand-bruxelles-quaternius-ik-observation-summary-v3',
               'observation_count': len(observations),
               'bilateral_motion_observation_count': len(bilateral),
               'reference_context_candidates': refs,

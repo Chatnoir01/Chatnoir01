@@ -111,10 +111,12 @@ jobs:
           source = json.loads(Path('/tmp/qik/evidence/source-intake.json').read_text(encoding='utf-8'))
           probe = json.loads(Path('/tmp/qik/evidence/godot-characterization.json').read_text(encoding='utf-8'))
           version = probe['godot_version']
+          assert probe['format'] == 'grand-bruxelles-quaternius-ik-godot-characterization-v3'
           assert (version['major'], version['minor'], version['patch'], version['status']) == (4, 7, 1, 'stable')
           assert probe['loaded_scene_count'] > 0
           assert probe['skeleton_count'] > 0
           assert probe['animation_player_count'] > 0
+          assert probe['kinematic_sample_count'] == 61
           names = sorted(set(str(name) for name in probe['animation_names']))
           def leaf(name: str) -> str:
               return name.rsplit('/', 1)[-1].strip().casefold()
@@ -122,8 +124,22 @@ jobs:
           exact_walk = [name for name in names if leaf(name) == 'walk']
           exact_run = [name for name in names if leaf(name) == 'run']
           trio = bool(exact_idle and exact_walk and exact_run)
+          required_kinematic = ['UAL1_Standard/Walk', 'UAL1_Standard/Jog_Fwd', 'UAL1_Standard/Sprint']
+          kinematic_metrics = probe['kinematic_metrics']
+          assert probe['kinematic_metric_conflicts'] == []
+          for candidate in required_kinematic:
+              assert candidate in kinematic_metrics, candidate
+              metric = kinematic_metrics[candidate]
+              assert metric['sample_count'] == 61
+              assert metric['sampled_position_track_count'] > 0
+              assert len(metric['sampled_position_tracks']) == metric['sampled_position_track_count']
+              for track in metric['sampled_position_tracks']:
+                  assert track['sample_count'] == 61
+                  assert track['max_local_displacement_m'] >= 0.0
+                  assert track['end_to_start_local_displacement_m'] >= 0.0
+                  assert track['path']
           evidence = {
-              'format': 'grand-bruxelles-quaternius-ik-characterization-v1',
+              'format': 'grand-bruxelles-quaternius-ik-characterization-v2',
               'source_commit': source['source_commit'],
               'archive_sha256': source['archive_sha256'],
               'archive_size_bytes': source['archive_size_bytes'],
@@ -142,6 +158,8 @@ jobs:
               'exact_walk_candidates': exact_walk,
               'exact_run_candidates': exact_run,
               'exact_idle_walk_run_trio_present': trio,
+              'candidate_kinematic_metrics': {name: kinematic_metrics[name] for name in required_kinematic},
+              'kinematic_measurements_semantic_selection_allowed': False,
               'characterization_state': 'PREFLIGHT_EXACT_TRIO_FOUND' if trio else 'BLOCKED_NO_EXACT_IDLE_WALK_RUN_TRIO',
               'civ1_52_bone_retarget_verified': False,
               'grounding_verified': False,
@@ -152,7 +170,7 @@ jobs:
               'visual_approval_claimed': False,
           }
           Path('/tmp/qik/evidence/characterization-summary.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
-          print('QUATERNIUS_IK_CHARACTERIZATION_OK', evidence['characterization_state'], 'animations=', evidence['animation_count'])
+          print('QUATERNIUS_IK_CHARACTERIZATION_OK', evidence['characterization_state'], 'animations=', evidence['animation_count'], 'kinematic_candidates=', len(required_kinematic))
           PY
       - name: Keep candidate ephemeral and production closed
         run: |

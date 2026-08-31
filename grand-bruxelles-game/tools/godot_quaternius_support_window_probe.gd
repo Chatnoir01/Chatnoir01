@@ -131,8 +131,12 @@ func _measure(player: AnimationPlayer, skeleton: Skeleton3D, animation_name: Str
         right.append(skeleton.get_bone_global_pose(right_idx).origin)
     player.stop()
     await process_frame
-    var left_min_y: float = left.map(func(v: Vector3) -> float: return v.y).min()
-    var right_min_y: float = right.map(func(v: Vector3) -> float: return v.y).min()
+    var left_min_y: float = INF
+    var right_min_y: float = INF
+    for p in left:
+        left_min_y = minf(left_min_y, p.y)
+    for p in right:
+        right_min_y = minf(right_min_y, p.y)
     var support_plane_y: float = minf(left_min_y, right_min_y)
     var dt := animation.length / float(SAMPLE_COUNT - 1)
     return {

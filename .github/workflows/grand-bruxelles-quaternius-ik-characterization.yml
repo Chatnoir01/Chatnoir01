@@ -111,7 +111,7 @@ jobs:
           source = json.loads(Path('/tmp/qik/evidence/source-intake.json').read_text(encoding='utf-8'))
           probe = json.loads(Path('/tmp/qik/evidence/godot-characterization.json').read_text(encoding='utf-8'))
           version = probe['godot_version']
-          assert probe['format'] == 'grand-bruxelles-quaternius-ik-godot-characterization-v4'
+          assert probe['format'] == 'grand-bruxelles-quaternius-ik-godot-characterization-v5'
           assert (version['major'], version['minor'], version['patch'], version['status']) == (4, 7, 1, 'stable')
           assert probe['loaded_scene_count'] > 0
           assert probe['skeleton_count'] > 0
@@ -137,19 +137,20 @@ jobs:
               assert len(metric['sampled_position_tracks']) == metric['sampled_position_track_count']
               assert metric['foot_contact_proxy_count'] >= 2, (candidate, metric['foot_contact_proxy_count'])
               assert len(metric['foot_contact_proxies']) == metric['foot_contact_proxy_count']
+              assert metric['contact_proxy_space'] == 'skeleton_space_animated_pose'
               assert metric['contact_proxy_semantic_selection_allowed'] is False
               assert metric['grounding_verified'] is False
               assert metric['foot_slide_verified'] is False
-              paths = [str(item['path']).lower().replace('_', '').replace('-', '') for item in metric['foot_contact_proxies']]
-              assert any('leftfoot' in path for path in paths), candidate
-              assert any('rightfoot' in path for path in paths), candidate
+              names_by_bone = [str(item['bone_name']).lower().replace('_', '').replace('-', '') for item in metric['foot_contact_proxies']]
+              assert any('leftfoot' in name for name in names_by_bone), candidate
+              assert any('rightfoot' in name for name in names_by_bone), candidate
               for track in metric['sampled_position_tracks']:
                   assert track['sample_count'] == 61
                   assert track['max_local_displacement_m'] >= 0.0
                   assert track['end_to_start_local_displacement_m'] >= 0.0
                   assert track['path']
               for foot in metric['foot_contact_proxies']:
-                  assert foot['method'] == 'local_position_low_height_contact_proxy'
+                  assert foot['method'] == 'skeleton_space_pose_low_height_contact_proxy'
                   assert foot['sample_count'] == 61
                   assert 0 < foot['contact_sample_count'] <= 61
                   assert 0.0 < foot['contact_sample_fraction'] <= 1.0
@@ -160,7 +161,7 @@ jobs:
                   assert foot['grounding_verified'] is False
                   assert foot['foot_slide_verified'] is False
           evidence = {
-              'format': 'grand-bruxelles-quaternius-ik-characterization-v3',
+              'format': 'grand-bruxelles-quaternius-ik-characterization-v4',
               'source_commit': source['source_commit'],
               'archive_sha256': source['archive_sha256'],
               'archive_size_bytes': source['archive_size_bytes'],
@@ -180,7 +181,8 @@ jobs:
               'exact_run_candidates': exact_run,
               'exact_idle_walk_run_trio_present': trio,
               'candidate_kinematic_metrics': {name: kinematic_metrics[name] for name in required_kinematic},
-              'contact_proxy_method': 'local_position_low_height_contact_proxy',
+              'contact_proxy_method': 'skeleton_space_pose_low_height_contact_proxy',
+              'contact_proxy_space': 'skeleton_space_animated_pose',
               'contact_proxy_is_ground_truth': False,
               'kinematic_measurements_semantic_selection_allowed': False,
               'characterization_state': 'PREFLIGHT_EXACT_TRIO_FOUND' if trio else 'BLOCKED_NO_EXACT_IDLE_WALK_RUN_TRIO',

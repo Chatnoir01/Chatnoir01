@@ -16,6 +16,7 @@ EXPECTED = {
     "game/scripts/brussels_corridor_tree_runtime.gd": "_on_tree_node_removed",
     "game/scripts/brussels_street_lamp_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_bollard_runtime.gd": "_on_node_removed",
+    "game/scripts/anneessens_midi_sidewalk_runtime.gd": "_on_node_removed",
     "game/scripts/anneessens_osm_furniture_runtime.gd": "_on_tree_node_removed",
     "game/scripts/brussels_base_ground_surface_runtime.gd": "_on_node_removed",
     "game/scripts/brussels_osm_facade_surface_runtime.gd": "_on_node_removed",
@@ -25,6 +26,7 @@ HELPER_WATCHERS = {
     "game/scripts/midi_blue_stone_surface_runtime.gd",
     "game/scripts/midi_architectural_concrete_surface_runtime.gd",
     "game/scripts/midi_architectural_glazing_surface_runtime.gd",
+    "game/scripts/anneessens_midi_sidewalk_runtime.gd",
     "game/scripts/anneessens_osm_furniture_runtime.gd",
     "game/scripts/brussels_base_ground_surface_runtime.gd",
     "game/scripts/brussels_osm_facade_surface_runtime.gd",
@@ -58,6 +60,11 @@ HELPER_REBIND_TOKENS = {
         "_bind_in_progress = false",
         "_start_watching()",
         'call_deferred("_bind_existing_midi")',
+    ),
+    "game/scripts/anneessens_midi_sidewalk_runtime.gd": (
+        "_reset_scene_binding()",
+        "_start_watching()",
+        "_schedule_bind()",
     ),
     "game/scripts/anneessens_osm_furniture_runtime.gd": (
         "_reset()",
@@ -219,6 +226,7 @@ def main() -> None:
             or ".clear()" in handler_body
             or "_release_owned_root()" in handler_body
             or "_reset()" in handler_body
+            or "_reset_scene_binding()" in handler_body
             or "_release_material_ownership()" in handler_body
         )
         if not purges_retained_state:

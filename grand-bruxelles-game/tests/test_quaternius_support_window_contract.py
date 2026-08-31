@@ -19,6 +19,8 @@ def main() -> None:
     require('await process_frame' in probe, "frame-settled pose evaluation removed")
     require('terminal_loop_sample_excluded_from_support_mask' in probe, "loop seam exclusion contract missing")
     require('contiguous_source_relative_bottom_10_percent_windows_per_foot' in probe, "support definition drifted")
+    require('"wraps_cycle"' in probe, "cyclic support-window identity missing")
+    require('mask[0] and mask[mask.size() - 1]' in probe, "cycle-boundary support stitching missing")
     require('"bilateral_support_fraction"' in probe, "bilateral support metric missing")
     require('"unilateral_support_fraction"' in probe, "unilateral support metric missing")
     require('"neither_low_fraction"' in probe, "flight/neither-low metric missing")
@@ -41,6 +43,8 @@ def main() -> None:
     require('if: always()' in workflow, "failure artifact preservation missing")
     require("semantic_selection_allowed'] is False" in workflow, "workflow semantic rail missing")
     require("contact_verified'] is False" in workflow, "workflow contact rail missing")
+    require("sprint['left_foot']['support_windows']['window_count']==1" in workflow, "Sprint seam-stitch regression missing")
+    require("sprint['left_foot']['support_windows']['windows'][0]['wraps_cycle'] is True" in workflow, "Sprint wrapped-window proof missing")
 
     print("QUATERNIUS_SUPPORT_WINDOW_CONTRACT_OK")
 

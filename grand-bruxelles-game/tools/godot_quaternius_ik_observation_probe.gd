@@ -36,7 +36,7 @@ func _init() -> void:
             load_failures.append(scene_path)
             continue
         root.add_child(instance)
-        _walk_scene(instance, scene_path)
+        _walk_scene(instance, scene_path, str(instance.name))
         root.remove_child(instance)
         instance.free()
     observations.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["observation_id"]) < str(b["observation_id"]))
@@ -91,11 +91,11 @@ func _scan_dir(path: String) -> void:
             scene_paths.append(child)
     dir.list_dir_end()
 
-func _walk_scene(node: Node, scene_path: String) -> void:
+func _walk_scene(node: Node, scene_path: String, relative_node_path: String) -> void:
     if node is AnimationPlayer:
-        _inspect_player(node as AnimationPlayer, scene_path)
+        _inspect_player(node as AnimationPlayer, scene_path, relative_node_path)
     for child in node.get_children():
-        _walk_scene(child, scene_path)
+        _walk_scene(child, scene_path, relative_node_path.path_join(str(child.name)))
 
 func _normalized_path(value: String) -> String:
     return value.to_lower().replace("_", "").replace("-", "").replace(" ", "")
@@ -126,11 +126,7 @@ func _sample_position_motion(animation: Animation, track_index: int) -> Dictiona
         var value: Variant = animation.position_track_interpolate(track_index, t)
         if value is Vector3:
             max_displacement_m = maxf(max_displacement_m, first.distance_to(value as Vector3))
-    return {
-        "valid": true,
-        "max_displacement_m": max_displacement_m,
-        "animated": max_displacement_m > MOTION_POSITION_EPS_M,
-    }
+    return {"valid": true, "max_displacement_m": max_displacement_m, "animated": max_displacement_m > MOTION_POSITION_EPS_M}
 
 func _sample_rotation_motion(animation: Animation, track_index: int) -> Dictionary:
     var first_value: Variant = animation.rotation_track_interpolate(track_index, 0.0)
@@ -143,18 +139,11 @@ func _sample_rotation_motion(animation: Animation, track_index: int) -> Dictiona
         var value: Variant = animation.rotation_track_interpolate(track_index, t)
         if value is Quaternion:
             max_angle_deg = maxf(max_angle_deg, rad_to_deg(first.angle_to(value as Quaternion)))
-    return {
-        "valid": true,
-        "max_angle_deg": max_angle_deg,
-        "animated": max_angle_deg > MOTION_ROTATION_EPS_DEG,
-    }
+    return {"valid": true, "max_angle_deg": max_angle_deg, "animated": max_angle_deg > MOTION_ROTATION_EPS_DEG}
 
-func _inspect_player(player: AnimationPlayer, scene_path: String) -> void:
-    var player_path := str(player.get_path())
-    var animation_root := player.get_node_or_null(NodePath(str(player.root_node)))
-    var root_path := ""
-    if animation_root != null:
-        root_path = str(animation_root.get_path())
+func _inspect_player(player: AnimationPlayer, scene_path: String, relative_player_path: String) -> void:
+    var player_path := relative_player_path
+    var root_path := str(player.root_node)
     for animation_name in TARGET_ANIMATIONS:
         if not player.has_animation(animation_name):
             continue

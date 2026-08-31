@@ -4,6 +4,7 @@ const SOURCE_ANIMATION := "UAL1_Standard/Sprint"
 const SOURCE_SCENE_SUFFIX := "Models_with_rigging/Master_Rigged.tscn"
 const TARGET_SCENE := "res://civ1_body.glb"
 const SAMPLE_COUNT := 121
+const MAX_NORMALIZED_FOOT_MOTION_GAIN := 1.5
 
 const REQUIRED_SEMANTICS := [
     "Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
@@ -107,16 +108,11 @@ func _mapping_for(skeleton: Skeleton3D) -> Dictionary:
 
 func _rest_span(skeleton: Skeleton3D, mapping: Dictionary) -> float:
     var mapped: Dictionary = mapping["mapped"]
-    if not mapped.has("Hips") or not mapped.has("Head"):
-        return 0.0
     var hips_idx := int(mapped["Hips"])
     var head_idx := int(mapped["Head"])
     return skeleton.get_bone_global_rest(hips_idx).origin.distance_to(skeleton.get_bone_global_rest(head_idx).origin)
 
-func _scaled_delta(delta: Transform3D, scale_ratio: float) -> Transform3D:
-    return Transform3D(delta.basis.orthonormalized(), delta.origin * scale_ratio)
-
-func _apply_rest_normalized_global_delta(source: Skeleton3D, target: Skeleton3D, source_map: Dictionary, target_map: Dictionary, scale_ratio: float) -> int:
+func _apply_rest_normalized_rotation_with_scaled_hips_translation(source: Skeleton3D, target: Skeleton3D, source_map: Dictionary, target_map: Dictionary, scale_ratio: float) -> int:
     var applied := 0
     for semantic in REQUIRED_SEMANTICS:
         var source_idx := int(source_map[semantic])
@@ -125,8 +121,16 @@ func _apply_rest_normalized_global_delta(source: Skeleton3D, target: Skeleton3D,
         var source_pose := source.get_bone_pose(source_idx)
         var rest_normalized_global_delta := source_rest.affine_inverse() * source_pose
         var target_rest := target.get_bone_rest(target_idx)
-        var desired := target_rest * _scaled_delta(rest_normalized_global_delta, scale_ratio)
-        target.set_bone_pose_position(target_idx, desired.origin)
+
+        # Preserve target bone lengths: only Hips may inherit scaled positional motion.
+        # All child translations stay at the CIV-1 rest offsets; authored rotation delta
+        # is re-expressed in the target rest frame.
+        var rotation_only_delta := Transform3D(rest_normalized_global_delta.basis.orthonormalized(), Vector3.ZERO)
+        var desired := target_rest * rotation_only_delta
+        var desired_position := target_rest.origin
+        if semantic == "Hips":
+            desired_position = target_rest.origin + (rest_normalized_global_delta.origin * scale_ratio)
+        target.set_bone_pose_position(target_idx, desired_position)
         target.set_bone_pose_rotation(target_idx, desired.basis.get_rotation_quaternion())
         target.set_bone_pose_scale(target_idx, Vector3.ONE)
         applied += 1
@@ -224,10 +228,14 @@ func _run() -> void:
 
     var source_map: Dictionary = source_mapping["mapped"]
     var target_map: Dictionary = target_mapping["mapped"]
-    var left_idx := int(target_map["LeftFoot"])
-    var right_idx := int(target_map["RightFoot"])
-    var left_points: Array[Vector3] = []
-    var right_points: Array[Vector3] = []
+    var source_left_idx := int(source_map["LeftFoot"])
+    var source_right_idx := int(source_map["RightFoot"])
+    var target_left_idx := int(target_map["LeftFoot"])
+    var target_right_idx := int(target_map["RightFoot"])
+    var source_left_points: Array[Vector3] = []
+    var source_right_points: Array[Vector3] = []
+    var target_left_points: Array[Vector3] = []
+    var target_right_points: Array[Vector3] = []
     var applied_per_sample := 0
 
     player.play(SOURCE_ANIMATION)
@@ -239,27 +247,47 @@ func _run() -> void:
         player.seek(t, true)
         player.advance(0.0)
         await process_frame
-        applied_per_sample = _apply_rest_normalized_global_delta(source_skeleton, target_skeleton, source_map, target_map, scale_ratio)
+        source_left_points.append(source_skeleton.get_bone_global_pose(source_left_idx).origin)
+        source_right_points.append(source_skeleton.get_bone_global_pose(source_right_idx).origin)
+        applied_per_sample = _apply_rest_normalized_rotation_with_scaled_hips_translation(source_skeleton, target_skeleton, source_map, target_map, scale_ratio)
         await process_frame
-        left_points.append(target_skeleton.get_bone_global_pose(left_idx).origin)
-        right_points.append(target_skeleton.get_bone_global_pose(right_idx).origin)
+        target_left_points.append(target_skeleton.get_bone_global_pose(target_left_idx).origin)
+        target_right_points.append(target_skeleton.get_bone_global_pose(target_right_idx).origin)
 
-    var left_range := _range_m(left_points)
-    var right_range := _range_m(right_points)
-    var transfer_ok := applied_per_sample == REQUIRED_SEMANTICS.size() and left_range > 0.05 and right_range > 0.05
+    var source_left_range := _range_m(source_left_points)
+    var source_right_range := _range_m(source_right_points)
+    var target_left_range := _range_m(target_left_points)
+    var target_right_range := _range_m(target_right_points)
+    var scaled_source_left := source_left_range * scale_ratio
+    var scaled_source_right := source_right_range * scale_ratio
+    var left_gain := target_left_range / scaled_source_left if scaled_source_left > 0.000001 else 999.0
+    var right_gain := target_right_range / scaled_source_right if scaled_source_right > 0.000001 else 999.0
+    var motion_plausible := left_gain <= MAX_NORMALIZED_FOOT_MOTION_GAIN and right_gain <= MAX_NORMALIZED_FOOT_MOTION_GAIN
+    var transfer_ok := (
+        applied_per_sample == REQUIRED_SEMANTICS.size()
+        and target_left_range > 0.05
+        and target_right_range > 0.05
+        and motion_plausible
+    )
 
     var payload := {
-        "format": "grand-bruxelles-civ1-sprint-pose-transfer-v1",
+        "format": "grand-bruxelles-civ1-sprint-pose-transfer-v2",
         "godot_version": Engine.get_version_info(),
         "source_animation": SOURCE_ANIMATION,
-        "transfer_method": "rest_normalized_global_delta",
+        "transfer_method": "rest_normalized_rotation_scaled_hips_translation",
         "sample_count": SAMPLE_COUNT,
         "source_bone_count": source_skeleton.get_bone_count(),
         "target_bone_count": target_skeleton.get_bone_count(),
         "mapped_required_bones": REQUIRED_SEMANTICS.size(),
         "source_to_target_scale_ratio": scale_ratio,
-        "target_left_foot_range_m": left_range,
-        "target_right_foot_range_m": right_range,
+        "source_left_foot_range_m": source_left_range,
+        "source_right_foot_range_m": source_right_range,
+        "target_left_foot_range_m": target_left_range,
+        "target_right_foot_range_m": target_right_range,
+        "left_motion_gain_vs_scaled_source": left_gain,
+        "right_motion_gain_vs_scaled_source": right_gain,
+        "max_normalized_foot_motion_gain": MAX_NORMALIZED_FOOT_MOTION_GAIN,
+        "motion_plausibility_passed": motion_plausible,
         "animation_transferred": transfer_ok,
         "diagnostic_only": true,
         "run_alias_selected": false,
@@ -274,7 +302,7 @@ func _run() -> void:
         quit(10)
         return
     if not transfer_ok:
-        push_error("CIV1_SPRINT_POSE_TRANSFER_FAIL: target bilateral foot motion did not materialize")
+        push_error("CIV1_SPRINT_POSE_TRANSFER_FAIL: bilateral motion missing or amplified beyond target-rest plausibility gate")
         quit(11)
         return
     print("CIV1_SPRINT_POSE_TRANSFER_OK")

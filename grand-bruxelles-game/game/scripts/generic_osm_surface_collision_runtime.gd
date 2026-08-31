@@ -79,6 +79,15 @@ func _restore_from_owned_body(body: StaticBody3D, player: CharacterBody3D) -> bo
     print("GENERIC_OSM_SURFACE_COLLISIONS_RESTORED: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d player_mask_restored=true owner=%s" % [_road_surfaces, _sidewalk_surfaces, _triangle_count, OWNER_ID])
     return true
 
+func _discard_invalid_owned_body(body: StaticBody3D, roads_root: Node) -> void:
+    # Only a node carrying our explicit owner marker reaches this path. Detach it
+    # synchronously so the replacement cannot coexist with stale physics for a
+    # frame; queue_free then releases the invalid body safely at frame end.
+    if body.get_parent() == roads_root:
+        roads_root.remove_child(body)
+    body.queue_free()
+    print("GENERIC_OSM_SURFACE_COLLISIONS_RECOVERY: invalid_owned_support_discarded=true owner=%s" % OWNER_ID)
+
 func _bind_when_ready() -> void:
     for _attempt: int in range(MAX_BIND_FRAMES):
         await get_tree().physics_frame
@@ -95,12 +104,14 @@ func _bind_when_ready() -> void:
         # node may legitimately use BODY_NAME and must neither suppress nor be
         # mutated by this runtime. When our support already exists (for example
         # after a runtime remount/hot reload), restore the Player opt-in mask and
-        # local readiness from the owned body's immutable contract instead of
-        # silently returning in a dormant state.
+        # local readiness from the owned body's immutable contract. If our own
+        # body has drifted, discard only that owned node and rebuild from the
+        # still-visible canonical OSM surfaces instead of returning dormant.
         var existing_owned := _find_owned_body(roads_root)
         if existing_owned != null:
-            _restore_from_owned_body(existing_owned, player)
-            return
+            if _restore_from_owned_body(existing_owned, player):
+                return
+            _discard_invalid_owned_body(existing_owned, roads_root)
 
         var support_faces := PackedVector3Array()
         var road_count := 0

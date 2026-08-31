@@ -1,0 +1,21 @@
+name: Grand Bruxelles Tree Visual Ownership
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd'
+      - 'grand-bruxelles-game/tests/shared_environment_tree_visual_ownership_test.py'
+      - '.github/workflows/grand-bruxelles-tree-visual-ownership.yml'
+  workflow_dispatch:
+
+jobs:
+  tree-visual-ownership:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate exact tree visual ownership
+        run: python grand-bruxelles-game/tests/shared_environment_tree_visual_ownership_test.py

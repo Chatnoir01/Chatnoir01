@@ -54,9 +54,9 @@ func _foot_metrics(samples: Array[Vector3], dt: float) -> Dictionary:
     var ys: Array[float] = []
     for p in samples:
         ys.append(p.y)
-    var min_y := ys.min()
-    var max_y := ys.max()
-    var threshold := min_y + (max_y - min_y) * LOW_BAND_FRACTION
+    var min_y: float = ys.min()
+    var max_y: float = ys.max()
+    var threshold: float = min_y + (max_y - min_y) * LOW_BAND_FRACTION
     var speeds: Array[float] = []
     var selected_indices: Array[int] = []
     for i in range(1, samples.size()):

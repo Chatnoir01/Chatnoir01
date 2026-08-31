@@ -100,7 +100,7 @@ jobs:
           cp grand-bruxelles-game/tools/godot_quaternius_ik_probe.gd "$PROJECT_ROOT/gb_probe.gd"
           printf '%s\n' "$PROJECT_ROOT" > /tmp/qik/evidence/project-root.txt
           "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit | tee /tmp/qik/evidence/import.log
-          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_probe.gd -- /tmp/qik/evidence/godot-characterization.json | tee /tmp/qik/evidence/probe.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_probe.gd -- /tmp/qik/evidence/godot-characterization.json 2>&1 | tee /tmp/qik/evidence/probe.log
           grep -Fq 'QUATERNIUS_IK_GODOT_PROBE_OK' /tmp/qik/evidence/probe.log
       - name: Classify exact locomotion semantics without promotion
         run: |

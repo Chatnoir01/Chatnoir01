@@ -57,8 +57,8 @@ func _release_material_ownership() -> void:
         var owned := _official_owned_materials.get(instance_id) as Material
         if owned != null and instance.material_override == owned:
             instance.material_override = _official_legacy_materials.get(instance_id) as Material
-            if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
-                instance.remove_meta("ground_network_presentation_family")
+        if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
+            instance.remove_meta("ground_network_presentation_family")
     _roads.clear()
     _legacy_materials.clear()
     _owned_materials.clear()
@@ -242,42 +242,67 @@ func _register_official_surface(node: Node) -> void:
     _official_legacy_materials[instance_id] = instance.material_override
     _official_roles[instance_id] = role
     instance.set_meta("ground_network_provider", OFFICIAL_MATERIAL_FACTORY.PROVIDER_URBIS)
-    instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
     instance.set_meta("geometry_changed_by_ground_network_runtime", false)
     if _enhanced_enabled:
         var owned := _official_materials[role] as Material
         _official_owned_materials[instance_id] = owned
         instance.material_override = owned
+        instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
     print("BRUSSELS_OFFICIAL_ROAD_SURFACE_READY: node=%s role=%s provider=UrbIS geometry_changed=false license_claimed=false" % [instance.name, role])
+
+func _clear_official_presentation_claim(instance: MeshInstance3D) -> void:
+    if str(instance.get_meta("ground_network_presentation_family", "")) == OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY:
+        instance.remove_meta("ground_network_presentation_family")
+
+func _road_material_can_be_mutated(road: CSGBox3D, instance_id: int) -> bool:
+    var legacy := _legacy_materials.get(instance_id) as Material
+    var owned := _owned_materials.get(instance_id) as Material
+    var current := road.material
+    if current == legacy or (owned != null and current == owned):
+        return true
+    _owned_materials.erase(instance_id)
+    return false
+
+func _official_material_can_be_mutated(instance: MeshInstance3D, instance_id: int) -> bool:
+    var legacy := _official_legacy_materials.get(instance_id) as Material
+    var owned := _official_owned_materials.get(instance_id) as Material
+    var current := instance.material_override
+    if current == legacy or (owned != null and current == owned):
+        return true
+    _official_owned_materials.erase(instance_id)
+    _clear_official_presentation_claim(instance)
+    return false
 
 func _set_material_state(enabled: bool) -> void:
     for road: CSGBox3D in _roads:
         if not is_instance_valid(road):
             continue
         var instance_id := road.get_instance_id()
+        if not _road_material_can_be_mutated(road, instance_id):
+            continue
         if enabled:
             var owned := _materials[str(_roles.get(instance_id, "regular"))] as Material
             _owned_materials[instance_id] = owned
             road.material = owned
         else:
-            var owned := _owned_materials.get(instance_id) as Material
-            if owned == null or road.material == owned:
-                road.material = _legacy_materials.get(instance_id) as Material
+            road.material = _legacy_materials.get(instance_id) as Material
             _owned_materials.erase(instance_id)
     for raw_id: Variant in _official_nodes.keys():
         var instance_id := int(raw_id)
         var instance := _official_nodes.get(instance_id) as MeshInstance3D
         if instance == null or not is_instance_valid(instance):
             continue
+        if not _official_material_can_be_mutated(instance, instance_id):
+            continue
         if enabled:
             var owned := _official_materials[str(_official_roles.get(instance_id, "street_surface"))] as Material
             _official_owned_materials[instance_id] = owned
             instance.material_override = owned
+            instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
         else:
-            var owned := _official_owned_materials.get(instance_id) as Material
-            if owned == null or instance.material_override == owned:
-                instance.material_override = _official_legacy_materials.get(instance_id) as Material
+            instance.material_override = _official_legacy_materials.get(instance_id) as Material
             _official_owned_materials.erase(instance_id)
+            _clear_official_presentation_claim(instance)
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled

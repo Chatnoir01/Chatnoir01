@@ -19,6 +19,15 @@ func _make_road(segment_index: int) -> CSGBox3D:
     road.material = legacy
     return road
 
+func _make_official_surface() -> MeshInstance3D:
+    var surface := MeshInstance3D.new()
+    surface.name = "StreetSurfaces_S"
+    var legacy := StandardMaterial3D.new()
+    legacy.albedo_color = Color(0.18, 0.18, 0.18, 1.0)
+    legacy.roughness = 0.92
+    surface.material_override = legacy
+    return surface
+
 func _assert_bound_road(road: CSGBox3D, label: String) -> bool:
     var material := road.material
     if material == null or str(material.get_meta("material_family", "")) != "brussels_osm_road_surface_v1":
@@ -94,5 +103,45 @@ func _run() -> void:
     if not _assert_bound_road(late_road, "late road"):
         return
 
-    print("BRUSSELS_OSM_ROAD_SURFACE_DORMANT_MOUNT_OK: roads=2 off_zone_errors=0 nested_mount=true event_driven=true incremental_bind=true geometry_changed=false source=OSM license=ODbL-1.0")
+    # Ownership regression: after this runtime has bound a surface, another
+    # legitimate owner may replace its presentation material. Enhanced toggles
+    # must never steal that third-party material back.
+    var official_parent := Node3D.new()
+    official_parent.name = "OfficialIxellesStreetSurfaces"
+    main_mount.add_child(official_parent)
+    var official_surface := _make_official_surface()
+    official_parent.add_child(official_surface)
+    for _frame: int in range(8):
+        await process_frame
+    if int(runtime.call("official_applied_road_count")) != 1:
+        _fail("official UrbIS road surface did not bind for ownership regression")
+        return
+
+    var foreign_osm := StandardMaterial3D.new()
+    foreign_osm.albedo_color = Color(0.91, 0.19, 0.37, 1.0)
+    var foreign_official := StandardMaterial3D.new()
+    foreign_official.albedo_color = Color(0.17, 0.63, 0.91, 1.0)
+    first_road.material = foreign_osm
+    official_surface.material_override = foreign_official
+
+    runtime.call("set_enhanced_enabled", false)
+    if first_road.material != foreign_osm:
+        _fail("OSM disable overwrote a foreign road material")
+        return
+    if official_surface.material_override != foreign_official:
+        _fail("official disable overwrote a foreign road material")
+        return
+
+    runtime.call("set_enhanced_enabled", true)
+    if first_road.material != foreign_osm:
+        _fail("OSM re-enable stole material ownership from another runtime")
+        return
+    if official_surface.material_override != foreign_official:
+        _fail("official re-enable stole material ownership from another runtime")
+        return
+    if str(official_surface.get_meta("ground_network_presentation_family", "")) != "":
+        _fail("official foreign material retained stale shared presentation ownership metadata")
+        return
+
+    print("BRUSSELS_OSM_ROAD_SURFACE_DORMANT_MOUNT_OK: roads=2 official=1 off_zone_errors=0 nested_mount=true event_driven=true incremental_bind=true foreign_material_isolation=true geometry_changed=false source=OSM license=ODbL-1.0")
     quit(0)

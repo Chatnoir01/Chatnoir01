@@ -15,6 +15,8 @@ required_probe = [
     'var min_y: float = ys.min()',
     'var max_y: float = ys.max()',
     'var threshold: float = min_y + (max_y - min_y) * LOW_BAND_FRACTION',
+    'for i in range(1, samples.size() - 1):',
+    '"terminal_loop_sample_excluded_from_speed": true',
     'source_relative_bottom_10_percent_of_each_foot_vertical_excursion',
     '"diagnostic_only": true',
     '"world_ground_assumed": false',
@@ -27,6 +29,8 @@ required_probe = [
 ]
 for needle in required_probe:
     assert needle in probe, f"missing probe contract: {needle}"
+
+assert 'for i in range(1, samples.size()):' not in probe, "terminal loop sample can contaminate speed"
 
 for forbidden in [
     'semantic_selection_allowed": true',
@@ -42,6 +46,7 @@ required_workflow = [
     "Godot_v4.7.1-stable_linux.x86_64.zip",
     "f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767",
     "QUATERNIUS_LOW_FOOT_SPEED_OK",
+    "terminal_loop_sample_excluded_from_speed",
     "world_ground_assumed",
     "semantic_selection_allowed",
     "foot_slide_verified",

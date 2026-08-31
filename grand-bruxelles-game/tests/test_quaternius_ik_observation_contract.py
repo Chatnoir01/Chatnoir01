@@ -19,7 +19,7 @@ def main() -> None:
     require("rotation_track_interpolate" in probe and "position_track_interpolate" in probe, "raw leg-chain motion diagnostics missing")
     require("leftfoot" in probe and "rightfoot" in probe and "leftleg" in probe and "rightleg" in probe, "bilateral leg chain is not pinned")
     require("bilateral_chain_motion" in probe, "bilateral motion proof missing")
-    require("player.seek" in probe and "player.advance(0.0)" in probe and "force_update_bone_child_transform" in probe, "AnimationPlayer pose path missing")
+    require("player.seek" in probe and "player.advance(0.0)" in probe and "force_update_all_bone_transforms" in probe, "AnimationPlayer/Skeleton pose path missing deterministic hierarchy refresh")
     require("linked_animation_trees" in probe and "tree_state_restored_after_measurement" in probe, "AnimationTree ownership evidence missing")
     require("direct_track_pose_measurement" in probe and "_apply_animation_tracks_to_skeleton" in probe, "reversible direct imported-track evaluator missing")
     require("set_bone_pose_position" in probe and "set_bone_pose_rotation" in probe and "reset_bone_pose" in probe, "direct evaluator does not drive and reset Skeleton3D poses")

@@ -21,10 +21,23 @@ FORBIDDEN_UNRESOLVED_TOKENS = ("artifact", "sha", "hash", "timestamp", "bounds",
 CLOSED_KEYS = ("source_registration_authorized", "road_cell_mapping_authorized", "render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized")
 
 
-def load(path: Path) -> dict:
-    value = json.loads(path.read_text(encoding="utf-8"))
+def reject_duplicate_object_keys(pairs: list[tuple[str, object]]) -> dict:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
+
+
+def load_json_strict(path: Path) -> dict:
+    value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_object_keys)
     assert isinstance(value, dict)
     return value
+
+
+def load(path: Path) -> dict:
+    return load_json_strict(path)
 
 
 def test_evidence_loader_rejects_duplicate_object_keys(tmp_path: Path) -> None:

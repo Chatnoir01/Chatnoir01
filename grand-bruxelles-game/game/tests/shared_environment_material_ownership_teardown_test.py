@@ -34,7 +34,12 @@ TARGETS = {
         "helper": "_release_material_ownership",
         "required_helper_tokens": ["_ground.material == _enhanced_material", "_ground.material = _legacy_material", "_ground = null", "_legacy_material = null", "_enhanced_material = null"],
         "apply_function": "_set_material_state",
-        "required_apply_tokens": ["_ground.material = _enhanced_material if enabled else _legacy_material"],
+        "required_apply_tokens": ["var current := _ground.material", "current == _legacy_material or current == _enhanced_material", "_ground.material = _enhanced_material", "current == _enhanced_material or current == _legacy_material", "_ground.material = _legacy_material"],
+        "required_apply_token_counts": {
+            "current == _legacy_material or current == _enhanced_material": 1,
+            "current == _enhanced_material or current == _legacy_material": 1,
+        },
+        "forbidden_apply_tokens": ["_ground.material = _enhanced_material if enabled else _legacy_material"],
     },
     "game/scripts/brussels_osm_sidewalk_surface_runtime.gd": {
         "family": "brussels_osm_sidewalk_surface_v1",
@@ -173,6 +178,12 @@ def main() -> None:
         for token in expected["required_apply_tokens"]:
             if token not in apply_body:
                 fail(f"runtime does not persist exact owned material identity in {target_path}: {token}")
+        for token, minimum_count in expected.get("required_apply_token_counts", {}).items():
+            if apply_body.count(token) < minimum_count:
+                fail(f"runtime ownership guard cardinality drifted in {target_path}: {token}")
+        for token in expected.get("forbidden_apply_tokens", []):
+            if token in apply_body:
+                fail(f"runtime retains forbidden material ownership path in {target_path}: {token}")
         validated.append(target_path)
 
     if len(validated) != 11:

@@ -247,7 +247,13 @@ func _set_material_state(enabled: bool) -> void:
         return
     if _ground == null or not is_instance_valid(_ground):
         return
-    _ground.material = _enhanced_material if enabled else _legacy_material
+    var current := _ground.material
+    if enabled:
+        if current == _legacy_material or current == _enhanced_material:
+            _ground.material = _enhanced_material
+        return
+    if current == _enhanced_material or current == _legacy_material:
+        _ground.material = _legacy_material
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled

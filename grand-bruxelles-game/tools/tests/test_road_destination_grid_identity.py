@@ -143,6 +143,17 @@ def test_unknown_destination_authorization_rail_fails_closed() -> None:
         raise AssertionError("unknown per-destination authorization rail could be added and enabled without failing closed")
 
 
+def test_unknown_boolean_control_alias_fails_closed() -> None:
+    readiness = json.loads(READINESS.read_text(encoding="utf-8"))
+    readiness["destinations"][0]["jouable"] = True
+    try:
+        module.validate_readiness(readiness)
+    except SystemExit as exc:
+        assert "unknown boolean control field" in str(exc)
+    else:
+        raise AssertionError("unknown boolean control alias bypassed destination authorization rails")
+
+
 if __name__ == "__main__":
     test_real_readiness_grid_identity_is_exact()
     test_forged_grid_cell_id_fails_closed()
@@ -155,4 +166,5 @@ if __name__ == "__main__":
     test_root_jouable_authorization_true_fails_closed()
     test_destination_render_authorization_true_fails_closed()
     test_unknown_destination_authorization_rail_fails_closed()
+    test_unknown_boolean_control_alias_fails_closed()
     print("ROAD_CELL_GRID_IDENTITY_TEST_OK")

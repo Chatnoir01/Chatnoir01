@@ -90,8 +90,14 @@ jobs:
           assert p['source_animation']=='UAL1_Standard/Sprint'
           assert p['sample_count']==121 and p['mapped_required_bones']==19
           assert p['retarget_modifier']=='RetargetModifier3D'
+          assert p['target_parent_is_modifier'] is True
           assert p['use_global_pose'] is False
           assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          assert p['minimum_foot_range_m']==0.05
+          assert p['source_bilateral_motion_verified'] is True
+          assert p['target_bilateral_motion_verified'] is True
+          for key in ('source_left_foot_range_m','source_right_foot_range_m','target_left_foot_range_m','target_right_foot_range_m'):
+              assert p[key] > p['minimum_foot_range_m'], (key,p[key])
           assert p['target_support_candidate_measurement_ready'] is True
           assert p['terminal_loop_sample_excluded_from_speed'] is True
           for key in ('target_left_support_candidate','target_right_support_candidate'):
@@ -112,6 +118,8 @@ jobs:
                     left['p90_horizontal_speed_mps'] < p['manual_baseline_left_p90_mps'] and
                     right['median_horizontal_speed_mps'] < p['manual_baseline_right_median_mps'] and
                     right['p90_horizontal_speed_mps'] < p['manual_baseline_right_p90_mps'])
+          print('source foot ranges',p['source_left_foot_range_m'],p['source_right_foot_range_m'])
+          print('target foot ranges',p['target_left_foot_range_m'],p['target_right_foot_range_m'])
           print('native_support_improves_manual_baseline='+str(improved).lower())
           print('left median/p90',left['median_horizontal_speed_mps'],left['p90_horizontal_speed_mps'])
           print('right median/p90',right['median_horizontal_speed_mps'],right['p90_horizontal_speed_mps'])

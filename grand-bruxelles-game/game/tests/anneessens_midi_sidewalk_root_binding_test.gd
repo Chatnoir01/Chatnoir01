@@ -59,6 +59,36 @@ func _assert_collision_state(kit: Node, expected_enabled: bool, label: String) -
             return false
     return true
 
+func _assert_bound_scene(runtime: Node, scene: Node3D, expected: int, label: String) -> bool:
+    var sidewalk_count := int(runtime.call("diagnostic_sidewalk_count"))
+    var collision_count := int(runtime.call("diagnostic_collision_count"))
+    if sidewalk_count != expected:
+        _fail("%s: sidewalks=%d expected=%d" % [label, sidewalk_count, expected])
+        return false
+    if collision_count != expected:
+        _fail("%s: collisions=%d expected=%d" % [label, collision_count, expected])
+        return false
+    var kit := scene.get_node_or_null("AnneessensMidiSidewalkKit")
+    if kit == null:
+        _fail("%s: AnneessensMidiSidewalkKit not mounted under production scene" % label)
+        return false
+    if kit.get_child_count() != expected:
+        _fail("%s: mounted sidewalk child count mismatch" % label)
+        return false
+    if not _assert_proxy_contract(kit, "%s kit" % label):
+        return false
+    for child: Node in kit.get_children():
+        if not child is CSGBox3D:
+            _fail("%s: non-CSG sidewalk child leaked into kit" % label)
+            return false
+        var pavement := child as CSGBox3D
+        if not pavement.use_collision:
+            _fail("%s: sidewalk collision disabled: %s" % [label, pavement.name])
+            return false
+        if not _assert_proxy_contract(pavement, "%s %s" % [label, pavement.name]):
+            return false
+    return true
+
 func _run() -> void:
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -91,36 +121,10 @@ func _run() -> void:
     for _frame: int in range(24):
         await process_frame
 
-    var sidewalk_count := int(runtime.call("diagnostic_sidewalk_count"))
-    var collision_count := int(runtime.call("diagnostic_collision_count"))
-    if sidewalk_count != expected:
-        _fail("runtime did not auto-discover root-instantiated production scene: sidewalks=%d expected=%d" % [sidewalk_count, expected])
-        return
-    if collision_count != expected:
-        _fail("collision count mismatch: collisions=%d expected=%d" % [collision_count, expected])
+    if not _assert_bound_scene(runtime, scene, expected, "direct-root"):
         return
 
     var kit := scene.get_node_or_null("AnneessensMidiSidewalkKit")
-    if kit == null:
-        _fail("AnneessensMidiSidewalkKit not mounted under production scene")
-        return
-    if kit.get_child_count() != expected:
-        _fail("mounted sidewalk child count mismatch")
-        return
-    if not _assert_proxy_contract(kit, "kit"):
-        return
-
-    for child: Node in kit.get_children():
-        if not child is CSGBox3D:
-            _fail("non-CSG sidewalk child leaked into kit")
-            return
-        var pavement := child as CSGBox3D
-        if not pavement.use_collision:
-            _fail("sidewalk collision disabled: %s" % pavement.name)
-            return
-        if not _assert_proxy_contract(pavement, pavement.name):
-            return
-
     runtime.call("set_sidewalks_enabled", false)
     if kit.visible:
         _fail("disabled sidewalk kit remained visible")
@@ -135,5 +139,37 @@ func _run() -> void:
     if not _assert_collision_state(kit, true, "re-enabled"):
         return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: sidewalks=%d collisions=%d toggle_collision_sync=true current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true" % [sidewalk_count, collision_count])
+    # Remove the first legitimate owner, then mount a fresh production Main directly
+    # under a root-level SubViewport. This is an established development/render-harness
+    # ownership shape and must not leave source-backed sidewalks/collisions dormant.
+    root.remove_child(scene)
+    scene.queue_free()
+    for _frame: int in range(12):
+        await process_frame
+    if int(runtime.call("diagnostic_sidewalk_count")) != 0 or int(runtime.call("diagnostic_collision_count")) != 0:
+        _fail("runtime retained owned sidewalk state after direct-root owner removal")
+        return
+
+    var viewport := SubViewport.new()
+    viewport.name = "SidewalkWitnessViewport"
+    root.add_child(viewport)
+    var viewport_scene := packed.instantiate() as Node3D
+    if viewport_scene == null:
+        _fail("SubViewport production main scene did not instantiate as Node3D")
+        return
+    viewport_scene.name = "Main"
+    viewport.add_child(viewport_scene)
+
+    var viewport_expected := _expected_sidewalk_count(viewport_scene)
+    if viewport_expected != expected:
+        _fail("SubViewport production road selection drifted: got=%d expected=%d" % [viewport_expected, expected])
+        return
+
+    for _frame: int in range(24):
+        await process_frame
+
+    if not _assert_bound_scene(runtime, viewport_scene, viewport_expected, "root-subviewport-main"):
+        return
+
+    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: direct_root=true root_subviewport_main=true sidewalks=%d collisions=%d toggle_collision_sync=true current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true" % [viewport_expected, viewport_expected])
     quit(0)

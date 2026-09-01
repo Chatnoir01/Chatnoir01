@@ -89,10 +89,24 @@ func _scene_has_production_anchors(candidate: Node3D) -> bool:
         and candidate.get_node_or_null("UrbISMidiExact") != null \
         and candidate.get_node_or_null("Player") != null
 
+func _scene_has_runtime_authority(candidate: Node3D) -> bool:
+    if candidate == null or not is_instance_valid(candidate) or not is_inside_tree():
+        return false
+    if not _scene_has_production_anchors(candidate):
+        return false
+    if get_tree().current_scene == candidate:
+        return true
+    var parent := candidate.get_parent()
+    if parent == get_tree().root:
+        return true
+    if parent is Viewport and parent.get_parent() == get_tree().root:
+        return true
+    return false
+
 func _production_scene_from_node(node: Node) -> Node3D:
     var cursor: Node = node
     while cursor != null:
-        if cursor is Node3D and _scene_has_production_anchors(cursor as Node3D):
+        if cursor is Node3D and _scene_has_runtime_authority(cursor as Node3D):
             return cursor as Node3D
         cursor = cursor.get_parent()
     return null
@@ -101,11 +115,15 @@ func _discover_production_scene() -> Node3D:
     if _tearing_down or not is_inside_tree():
         return null
     var current := get_tree().current_scene
-    if current is Node3D and _scene_has_production_anchors(current as Node3D):
+    if current is Node3D and _scene_has_runtime_authority(current as Node3D):
         return current as Node3D
-    var roads := get_tree().root.find_child("GeneratedRoads", true, false)
-    if roads != null:
-        return _production_scene_from_node(roads)
+    for child: Node in get_tree().root.get_children():
+        if child is Node3D and _scene_has_runtime_authority(child as Node3D):
+            return child as Node3D
+        if child is Viewport:
+            for viewport_child: Node in child.get_children():
+                if viewport_child is Node3D and _scene_has_runtime_authority(viewport_child as Node3D):
+                    return viewport_child as Node3D
     return null
 
 func _disconnect_scene_watch() -> void:
@@ -116,7 +134,7 @@ func _disconnect_scene_watch() -> void:
         get_tree().node_added.disconnect(callback)
 
 func _try_bind_scene(candidate: Node3D) -> void:
-    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete or candidate == null or not _scene_has_production_anchors(candidate):
+    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete or candidate == null or not _scene_has_runtime_authority(candidate):
         return
     _disconnect_scene_watch()
     _scene = candidate

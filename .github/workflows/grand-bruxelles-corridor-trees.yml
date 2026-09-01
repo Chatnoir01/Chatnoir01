@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/game/scripts/brussels_street_tree_asset.gd"
       - "grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd"
       - "grand-bruxelles-game/game/tests/brussels_corridor_tree_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_corridor_tree_nested_mount_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_corridor_tree_witness_test.gd"
   workflow_dispatch:
 
@@ -41,6 +42,13 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_corridor_tree_runtime_test.gd 2>&1 | tee /tmp/corridor-trees-runtime.log || true
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_CORRIDOR_TREES_FAIL" /tmp/corridor-trees-runtime.log; then exit 1; fi
           grep -q "BRUSSELS_CORRIDOR_TREES_OK" /tmp/corridor-trees-runtime.log
+      - name: Prove corridor tree ownership topology
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_corridor_tree_nested_mount_test.gd 2>&1 | tee /tmp/corridor-tree-owner.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_CORRIDOR_TREE_NESTED_MOUNT_FAIL" /tmp/corridor-tree-owner.log; then exit 1; fi
+          grep -q "BRUSSELS_CORRIDOR_TREE_NESTED_MOUNT_OK" /tmp/corridor-tree-owner.log
       - name: 1280x720 normal-player corridor tree A/B
         shell: bash
         run: |

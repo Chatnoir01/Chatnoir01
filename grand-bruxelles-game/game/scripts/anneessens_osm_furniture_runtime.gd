@@ -118,9 +118,13 @@ func _is_authoritative_production_scene(candidate: Node3D) -> bool:
     var parent := candidate.get_parent()
     if parent == tree.root:
         return true
-    # Preserve the existing dormant/SubViewport -> Main contract while rejecting
-    # arbitrary deeper nodes that merely clone the production anchor names.
-    return str(candidate.name) == "Main" and parent is Viewport
+    # Preserve the established dormant root/SubViewport -> Main contract without
+    # letting an arbitrary nested viewport turn a foreign subtree into an owner.
+    return (
+        str(candidate.name) == "Main"
+        and parent is Viewport
+        and parent.get_parent() == tree.root
+    )
 
 func _find_nested_production_scene(node: Node) -> Node3D:
     if node is Node3D and _is_authoritative_production_scene(node as Node3D):

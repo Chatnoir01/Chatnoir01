@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
       - "grand-bruxelles-game/game/tests/automatic_road_direct_spawn_test.gd"
+      - "grand-bruxelles-game/game/tests/validate_automatic_road_player_authority.gd"
       - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - "grand-bruxelles-game/data/osm/**"
       - "grand-bruxelles-game/tools/test_automatic_road_player_visual_gate.py"
@@ -67,6 +68,16 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/automatic-road-import.log
           if grep -E "SCRIPT ERROR|Parse Error:" /tmp/automatic-road-import.log; then exit 1; fi
+
+      - name: Prove authoritative Player ownership topology
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/validate_automatic_road_player_authority.gd \
+            2>&1 | tee /tmp/automatic-road-player-authority.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_PLAYER_AUTHORITY_FAIL" /tmp/automatic-road-player-authority.log; then exit 1; fi
+          grep -F "AUTOMATIC_ROAD_PLAYER_AUTHORITY_OK" /tmp/automatic-road-player-authority.log
 
       - name: Prove source-backed rendered-road and collision readiness
         run: |

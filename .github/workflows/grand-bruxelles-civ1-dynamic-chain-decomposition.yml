@@ -1,0 +1,207 @@
+name: Grand Bruxelles CIV-1 Dynamic Chain Decomposition
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd"
+      - "grand-bruxelles-game/tests/test_civ1_dynamic_chain_decomposition_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-dynamic-chain-decomposition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dynamic-chain-decomposition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_dynamic_chain_decomposition_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1dynamic/source /tmp/civ1dynamic/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1dynamic/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1dynamic/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1dynamic/source/vitruvian_body.glb /tmp/civ1dynamic/source/civ1_body.glb --require-animations | tee /tmp/civ1dynamic/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1dynamic/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1dynamic/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1dynamic/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1dynamic/quaternius
+          unzip -q /tmp/civ1dynamic/quaternius.zip -d /tmp/civ1dynamic/quaternius
+          LICENSE_FILE="$(find /tmp/civ1dynamic/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1dynamic/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1dynamic/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1dynamic/engine
+          GODOT_BIN=/tmp/civ1dynamic/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1dynamic/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1dynamic/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Capture exact 121-sample model-space evidence
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1dynamic/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1dynamic/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1DynamicChain"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1dynamic/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd "$PROJECT_ROOT/gb_civ1_global_chain_diagnostic.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1dynamic/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_diagnostic.gd -- /tmp/civ1dynamic/evidence/global-chain.json 2>&1 | tee /tmp/civ1dynamic/evidence/probe.log
+          grep -Fq 'CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK' /tmp/civ1dynamic/evidence/probe.log
+
+      - name: Classify dynamic parent-child decomposition
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1dynamic/evidence/dynamic-decomposition.log
+          import json, math
+          from pathlib import Path
+
+          PHASE_DIVERGENCE_MATERIAL_SAMPLES = 12
+          p=json.loads(Path('/tmp/civ1dynamic/evidence/global-chain.json').read_text())
+          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v3'
+          assert p['sample_count']==121
+          assert p['diagnostic_only'] is True
+          assert p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False
+          samples=p['model_space_samples']
+          assert len(samples)==121
+          cycle=samples[:120]
+
+          def circular_delta(target, source):
+              delta=int(target)-int(source)
+              while delta > 60:
+                  delta -= 120
+              while delta < -60:
+                  delta += 120
+              return delta
+
+          def min_index(values):
+              assert len(values)==120 and all(math.isfinite(float(v)) for v in values)
+              return min(range(120), key=lambda i: float(values[i]))
+
+          def decompose(leg):
+              parent=f'{leg}LowerLeg'
+              foot=f'{leg}Foot'
+              result={}
+              for side in ('source','target'):
+                  hips_key=f'{side}_hips_relative_origin'
+                  parent_y=[]
+                  relative_y=[]
+                  final_y=[]
+                  for sample in cycle:
+                      pr=sample['bones'][parent][side]
+                      fr=sample['bones'][foot][side]
+                      parent_y.append(float(pr[hips_key][1]))
+                      relative_y.append(float(fr['model_origin'][1])-float(pr['model_origin'][1]))
+                      final_y.append(float(fr[hips_key][1]))
+                  result[side]={
+                      'parent_hips_relative_vertical_min_sample_index': min_index(parent_y),
+                      'parent_to_foot_relative_vertical_min_sample_index': min_index(relative_y),
+                      'final_foot_vertical_min_sample_index': min_index(final_y),
+                  }
+              result['parent_phase_delta_samples']=circular_delta(
+                  result['target']['parent_hips_relative_vertical_min_sample_index'],
+                  result['source']['parent_hips_relative_vertical_min_sample_index'])
+              result['relative_phase_delta_samples']=circular_delta(
+                  result['target']['parent_to_foot_relative_vertical_min_sample_index'],
+                  result['source']['parent_to_foot_relative_vertical_min_sample_index'])
+              result['final_phase_delta_samples']=circular_delta(
+                  result['target']['final_foot_vertical_min_sample_index'],
+                  result['source']['final_foot_vertical_min_sample_index'])
+              return result
+
+          left=decompose('Left')
+          right=decompose('Right')
+          right_parent_phase_aligned=abs(right['parent_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES
+          right_relative_term_materially_divergent=abs(right['relative_phase_delta_samples']) > PHASE_DIVERGENCE_MATERIAL_SAMPLES
+          left_control_aligned=(
+              abs(left['parent_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES and
+              abs(left['relative_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES and
+              abs(left['final_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES
+          )
+          classification='parent_aligned_relative_term_divergent' if (
+              right_parent_phase_aligned and right_relative_term_materially_divergent and left_control_aligned
+          ) else 'unresolved'
+
+          evidence={
+              'format':'grand-bruxelles-civ1-dynamic-chain-decomposition-v1',
+              'sample_count':121,
+              'dynamic_parent_child_decomposition':{
+                  'LeftLowerLeg_to_LeftFoot':left,
+                  'RightLowerLeg_to_RightFoot':right,
+              },
+              'right_parent_phase_aligned':right_parent_phase_aligned,
+              'right_relative_term_materially_divergent':right_relative_term_materially_divergent,
+              'left_control_aligned':left_control_aligned,
+              'dynamic_decomposition_classification':classification,
+              'material_threshold_samples':PHASE_DIVERGENCE_MATERIAL_SAMPLES,
+              'diagnostic_only':True,
+              'runtime_authorized':False,
+              'visual_approval_claimed':False,
+          }
+          Path('/tmp/civ1dynamic/evidence/dynamic-decomposition.json').write_text(json.dumps(evidence,indent=2)+'\n')
+
+          assert left['source']['parent_hips_relative_vertical_min_sample_index']==59, left
+          assert left['target']['parent_hips_relative_vertical_min_sample_index']==59, left
+          assert left['source']['parent_to_foot_relative_vertical_min_sample_index']==5, left
+          assert left['target']['parent_to_foot_relative_vertical_min_sample_index']==6, left
+          assert left['source']['final_foot_vertical_min_sample_index']==119, left
+          assert left['target']['final_foot_vertical_min_sample_index']==119, left
+          assert right['source']['parent_hips_relative_vertical_min_sample_index']==2, right
+          assert right['target']['parent_hips_relative_vertical_min_sample_index']==2, right
+          assert right['source']['parent_to_foot_relative_vertical_min_sample_index']==69, right
+          assert right['target']['parent_to_foot_relative_vertical_min_sample_index']==37, right
+          assert right['source']['final_foot_vertical_min_sample_index']==59, right
+          assert right['target']['final_foot_vertical_min_sample_index']==86, right
+          assert right['parent_phase_delta_samples']==0, right
+          assert right['relative_phase_delta_samples']==-32, right
+          assert right['final_phase_delta_samples']==27, right
+          assert right_parent_phase_aligned is True
+          assert right_relative_term_materially_divergent is True
+          assert left_control_aligned is True
+          assert classification=='parent_aligned_relative_term_divergent'
+
+          print('dynamic_parent_child_decomposition',True)
+          print('LeftLowerLeg_to_LeftFoot',left)
+          print('RightLowerLeg_to_RightFoot',right)
+          print('right_parent_phase_aligned',right_parent_phase_aligned)
+          print('right_relative_term_materially_divergent',right_relative_term_materially_divergent)
+          print('left_control_aligned',left_control_aligned)
+          print('dynamic_decomposition_classification',classification)
+          print('classification','diagnostic-only; RightFoot phase defect enters in parent-to-foot composed relative term, not LowerLeg parent phase')
+          PY
+
+      - name: Upload dynamic decomposition evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-dynamic-chain-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1dynamic/evidence/
+          if-no-files-found: error
+          retention-days: 14

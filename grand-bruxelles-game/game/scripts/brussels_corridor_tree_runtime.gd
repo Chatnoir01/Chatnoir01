@@ -433,4 +433,4 @@ func visual_enabled() -> bool: return _visual_enabled
 func lod_active() -> bool: return _lod_active
 func near_tree_count() -> int: return _near_tree_count
 func far_tree_count() -> int: return _far_tree_count
-func foliage_instance_count() -> int: return _foliage_instance_count()
+func foliage_instance_count() -> int: return _foliage_instance_count

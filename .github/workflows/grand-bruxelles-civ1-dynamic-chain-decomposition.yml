@@ -105,10 +105,42 @@ jobs:
               assert len(values)==120 and all(math.isfinite(float(v)) for v in values)
               return min(range(120), key=lambda i: float(values[i]))
 
+          def normalized(values):
+              mean=sum(values)/len(values)
+              variance=sum((v-mean)*(v-mean) for v in values)/len(values)
+              std=math.sqrt(variance)
+              assert std > 1e-9, (mean,std)
+              return [(v-mean)/std for v in values]
+
+          def circular_phase_shift_samples(source_values, target_values):
+              source_norm=normalized(source_values)
+              target_norm=normalized(target_values)
+              candidates=[]
+              for shift in range(-60,61):
+                  mse=sum((source_norm[i]-target_norm[(i+shift)%120])**2 for i in range(120))/120.0
+                  candidates.append((mse,abs(shift),shift))
+              candidates.sort()
+              mse,_,shift=candidates[0]
+              return {'shift_samples':shift,'normalized_mse':mse}
+
+          def sample_error(parent_source, relative_source, final_source, parent_target, relative_target, final_target, index):
+              parent_error=parent_target[index]-parent_source[index]
+              relative_error=relative_target[index]-relative_source[index]
+              final_error=final_target[index]-final_source[index]
+              closure=final_error-(parent_error+relative_error)
+              return {
+                  'sample_index':index,
+                  'parent_hips_relative_error_m':parent_error,
+                  'parent_to_foot_relative_error_m':relative_error,
+                  'final_foot_error_m':final_error,
+                  'algebraic_closure_error_m':closure,
+              }
+
           def decompose(leg):
               parent=f'{leg}LowerLeg'
               foot=f'{leg}Foot'
-              result={}
+              series={}
+              rows={}
               for side in ('source','target'):
                   hips_key=f'{side}_hips_relative_origin'
                   parent_y=[]
@@ -120,45 +152,77 @@ jobs:
                       parent_y.append(float(pr[hips_key][1]))
                       relative_y.append(float(fr['model_origin'][1])-float(pr['model_origin'][1]))
                       final_y.append(float(fr[hips_key][1]))
-                  result[side]={
-                      'parent_hips_relative_vertical_min_sample_index': min_index(parent_y),
-                      'parent_to_foot_relative_vertical_min_sample_index': min_index(relative_y),
-                      'final_foot_vertical_min_sample_index': min_index(final_y),
+                  series[side]=(parent_y,relative_y,final_y)
+                  rows[side]={
+                      'parent_hips_relative_vertical_min_sample_index':min_index(parent_y),
+                      'parent_to_foot_relative_vertical_min_sample_index':min_index(relative_y),
+                      'final_foot_vertical_min_sample_index':min_index(final_y),
                   }
-              result['parent_phase_delta_samples']=circular_delta(
-                  result['target']['parent_hips_relative_vertical_min_sample_index'],
-                  result['source']['parent_hips_relative_vertical_min_sample_index'])
-              result['relative_phase_delta_samples']=circular_delta(
-                  result['target']['parent_to_foot_relative_vertical_min_sample_index'],
-                  result['source']['parent_to_foot_relative_vertical_min_sample_index'])
-              result['final_phase_delta_samples']=circular_delta(
-                  result['target']['final_foot_vertical_min_sample_index'],
-                  result['source']['final_foot_vertical_min_sample_index'])
+              sp,sr,sf=series['source']
+              tp,tr,tf=series['target']
+              source_final_min=rows['source']['final_foot_vertical_min_sample_index']
+              target_final_min=rows['target']['final_foot_vertical_min_sample_index']
+              result={
+                  'source':rows['source'],
+                  'target':rows['target'],
+                  'parent_trajectory_phase_shift_samples':circular_phase_shift_samples(sp,tp),
+                  'relative_trajectory_phase_shift_samples':circular_phase_shift_samples(sr,tr),
+                  'final_trajectory_phase_shift_samples':circular_phase_shift_samples(sf,tf),
+                  'final_phase_delta_samples':circular_delta(target_final_min,source_final_min),
+                  'source_min_error_attribution':sample_error(sp,sr,sf,tp,tr,tf,source_final_min),
+                  'target_min_error_attribution':sample_error(sp,sr,sf,tp,tr,tf,target_final_min),
+              }
               return result
 
           left=decompose('Left')
           right=decompose('Right')
-          right_parent_phase_aligned=abs(right['parent_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES
-          right_relative_term_materially_divergent=abs(right['relative_phase_delta_samples']) > PHASE_DIVERGENCE_MATERIAL_SAMPLES
-          left_control_aligned=(
-              abs(left['parent_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES and
-              abs(left['relative_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES and
-              abs(left['final_phase_delta_samples']) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES
+          right_parent_shift=abs(int(right['parent_trajectory_phase_shift_samples']['shift_samples']))
+          right_relative_shift=abs(int(right['relative_trajectory_phase_shift_samples']['shift_samples']))
+          right_trajectory_phase_aligned=(
+              right_parent_shift <= PHASE_DIVERGENCE_MATERIAL_SAMPLES and
+              right_relative_shift <= PHASE_DIVERGENCE_MATERIAL_SAMPLES
           )
-          classification='parent_aligned_relative_term_divergent' if (
-              right_parent_phase_aligned and right_relative_term_materially_divergent and left_control_aligned
+          right_target=right['target_min_error_attribution']
+          right_source=right['source_min_error_attribution']
+          right_target_min_parent_error_dominant=(
+              abs(float(right_target['parent_hips_relative_error_m'])) >
+              abs(float(right_target['parent_to_foot_relative_error_m']))
+          )
+          right_source_min_cancellation=(
+              float(right_source['parent_hips_relative_error_m']) *
+              float(right_source['parent_to_foot_relative_error_m']) < 0.0
+          )
+          right_target_min_reinforcement=(
+              float(right_target['parent_hips_relative_error_m']) *
+              float(right_target['parent_to_foot_relative_error_m']) > 0.0
+          )
+          left_control_final_aligned=abs(int(left['final_phase_delta_samples'])) <= PHASE_DIVERGENCE_MATERIAL_SAMPLES
+          closure_ok=(
+              abs(float(right_source['algebraic_closure_error_m'])) < 1e-5 and
+              abs(float(right_target['algebraic_closure_error_m'])) < 1e-5
+          )
+          classification='parent_amplitude_error_unmasked_at_target_min' if (
+              abs(int(right['final_phase_delta_samples'])) > PHASE_DIVERGENCE_MATERIAL_SAMPLES and
+              right_trajectory_phase_aligned and
+              right_target_min_parent_error_dominant and
+              right_source_min_cancellation and
+              right_target_min_reinforcement and
+              left_control_final_aligned and
+              closure_ok
           ) else 'unresolved'
 
           evidence={
-              'format':'grand-bruxelles-civ1-dynamic-chain-decomposition-v1',
+              'format':'grand-bruxelles-civ1-dynamic-chain-decomposition-v2',
               'sample_count':121,
               'dynamic_parent_child_decomposition':{
                   'LeftLowerLeg_to_LeftFoot':left,
                   'RightLowerLeg_to_RightFoot':right,
               },
-              'right_parent_phase_aligned':right_parent_phase_aligned,
-              'right_relative_term_materially_divergent':right_relative_term_materially_divergent,
-              'left_control_aligned':left_control_aligned,
+              'right_trajectory_phase_aligned':right_trajectory_phase_aligned,
+              'right_target_min_parent_error_dominant':right_target_min_parent_error_dominant,
+              'right_source_min_cancellation':right_source_min_cancellation,
+              'right_target_min_reinforcement':right_target_min_reinforcement,
+              'left_control_final_aligned':left_control_final_aligned,
               'dynamic_decomposition_classification':classification,
               'material_threshold_samples':PHASE_DIVERGENCE_MATERIAL_SAMPLES,
               'diagnostic_only':True,
@@ -167,34 +231,35 @@ jobs:
           }
           Path('/tmp/civ1dynamic/evidence/dynamic-decomposition.json').write_text(json.dumps(evidence,indent=2)+'\n')
 
-          assert left['source']['parent_hips_relative_vertical_min_sample_index']==59, left
-          assert left['target']['parent_hips_relative_vertical_min_sample_index']==59, left
-          assert left['source']['parent_to_foot_relative_vertical_min_sample_index']==5, left
-          assert left['target']['parent_to_foot_relative_vertical_min_sample_index']==6, left
           assert left['source']['final_foot_vertical_min_sample_index']==119, left
           assert left['target']['final_foot_vertical_min_sample_index']==119, left
-          assert right['source']['parent_hips_relative_vertical_min_sample_index']==2, right
-          assert right['target']['parent_hips_relative_vertical_min_sample_index']==2, right
-          assert right['source']['parent_to_foot_relative_vertical_min_sample_index']==69, right
-          assert right['target']['parent_to_foot_relative_vertical_min_sample_index']==37, right
           assert right['source']['final_foot_vertical_min_sample_index']==59, right
           assert right['target']['final_foot_vertical_min_sample_index']==86, right
-          assert right['parent_phase_delta_samples']==0, right
-          assert right['relative_phase_delta_samples']==-32, right
-          assert right['final_phase_delta_samples']==27, right
-          assert right_parent_phase_aligned is True
-          assert right_relative_term_materially_divergent is True
-          assert left_control_aligned is True
-          assert classification=='parent_aligned_relative_term_divergent'
+          assert int(right['final_phase_delta_samples'])==27, right
+          assert right_trajectory_phase_aligned is True, right
+          assert right_target_min_parent_error_dominant is True, right_target
+          assert right_source_min_cancellation is True, right_source
+          assert right_target_min_reinforcement is True, right_target
+          assert left_control_final_aligned is True, left
+          assert closure_ok is True, (right_source,right_target)
+          assert classification=='parent_amplitude_error_unmasked_at_target_min'
 
           print('dynamic_parent_child_decomposition',True)
           print('LeftLowerLeg_to_LeftFoot',left)
           print('RightLowerLeg_to_RightFoot',right)
-          print('right_parent_phase_aligned',right_parent_phase_aligned)
-          print('right_relative_term_materially_divergent',right_relative_term_materially_divergent)
-          print('left_control_aligned',left_control_aligned)
+          print('circular_phase_shift_samples',{
+              'left_parent':left['parent_trajectory_phase_shift_samples'],
+              'left_relative':left['relative_trajectory_phase_shift_samples'],
+              'right_parent':right['parent_trajectory_phase_shift_samples'],
+              'right_relative':right['relative_trajectory_phase_shift_samples'],
+          })
+          print('right_trajectory_phase_aligned',right_trajectory_phase_aligned)
+          print('right_target_min_parent_error_dominant',right_target_min_parent_error_dominant)
+          print('right_source_min_cancellation',right_source_min_cancellation)
+          print('right_target_min_reinforcement',right_target_min_reinforcement)
+          print('left_control_final_aligned',left_control_final_aligned)
           print('dynamic_decomposition_classification',classification)
-          print('classification','diagnostic-only; RightFoot phase defect enters in parent-to-foot composed relative term, not LowerLeg parent phase')
+          print('classification','diagnostic-only; RightFoot final contact shift is an amplitude/composition effect: parent and relative trajectories stay phase-aligned, but parent vertical error dominates once source-phase cancellation disappears at target minimum')
           PY
 
       - name: Upload dynamic decomposition evidence

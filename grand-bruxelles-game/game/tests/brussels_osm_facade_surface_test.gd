@@ -2,7 +2,9 @@ extends SceneTree
 
 const MATERIAL_PATH := "res://game/scripts/brussels_osm_facade_surface_material.gd"
 const RUNTIME_PATH := "res://game/scripts/brussels_osm_facade_surface_runtime.gd"
+const ARTICULATION_RUNTIME_NAME := "BrusselsOsmFacadeArticulationRuntime"
 const MATERIAL_FAMILY := "brussels_osm_facade_surface_v1"
+const ARTICULATION_FAMILY := "brussels_osm_facade_articulation_v1"
 const MIN_GENERIC_BUILDINGS := 40
 const MAX_BIND_FRAMES := 240
 
@@ -17,6 +19,15 @@ func _wait_for_runtime(runtime: Node) -> bool:
     for _frame: int in range(MAX_BIND_FRAMES):
         await process_frame
         if runtime.ready_complete() and not runtime.failed() and runtime.applied_building_count() >= MIN_GENERIC_BUILDINGS:
+            return true
+    return false
+
+func _wait_for_articulation(runtime: Node) -> bool:
+    for _frame: int in range(MAX_BIND_FRAMES):
+        await process_frame
+        if runtime.failed():
+            return false
+        if runtime.ready_complete() and runtime.applied_building_count() >= MIN_GENERIC_BUILDINGS:
             return true
     return false
 
@@ -41,6 +52,21 @@ func _validate_bound_runtime(runtime: Node, label: String) -> bool:
         return false
     if runtime.material_family() != MATERIAL_FAMILY:
         _fail("%s unexpected material family" % label)
+        return false
+    return true
+
+func _validate_articulation_runtime(runtime: Node, label: String) -> bool:
+    if not runtime.ready_complete():
+        _fail("%s articulation runtime did not finish" % label)
+        return false
+    if runtime.failed():
+        _fail("%s articulation runtime reported failure" % label)
+        return false
+    if runtime.applied_building_count() < MIN_GENERIC_BUILDINGS:
+        _fail("%s too few authoritative buildings received facade articulation" % label)
+        return false
+    if not runtime.geometry_unchanged():
+        _fail("%s articulation runtime changed building geometry" % label)
         return false
     return true
 
@@ -84,9 +110,13 @@ func _run() -> void:
     if runtime == null:
         _fail("shared facade surface runtime missing")
         return
+    var articulation := root.get_node_or_null(ARTICULATION_RUNTIME_NAME)
+    if articulation == null:
+        _fail("shared facade articulation runtime missing")
+        return
 
     # A foreign nested scene can legitimately reuse the same anchor names. It must
-    # never gain authority over the shared facade material family merely because a
+    # never gain authority over either shared facade material layer merely because
     # recursive recovery sees GeneratedBuildings first.
     var foreign_wrapper := _make_nested_decoy()
     root.add_child(foreign_wrapper)
@@ -94,6 +124,9 @@ func _run() -> void:
         await process_frame
     if runtime.ready_complete() or runtime.applied_building_count() != 0:
         _fail("foreign nested GeneratedBuildings captured facade surface authority")
+        return
+    if articulation.ready_complete() or articulation.applied_building_count() != 0:
+        _fail("foreign nested GeneratedBuildings captured facade articulation authority before base bind")
         return
     var foreign_building := foreign_wrapper.get_node_or_null("ForeignNestedMain/BrusselsOSM/GeneratedBuildings/Building_Decoy") as CSGPolygon3D
     if foreign_building == null:
@@ -111,14 +144,22 @@ func _run() -> void:
         return
     if not _validate_bound_runtime(runtime, "first scene"):
         return
+    if not await _wait_for_articulation(articulation):
+        _fail("first scene articulation bind failed after authoritative surface became ready")
+        return
+    if not _validate_articulation_runtime(articulation, "first scene"):
+        return
     var first_count: int = int(runtime.applied_building_count())
     if str(foreign_building.get_meta("material_family", "")) == MATERIAL_FAMILY:
         _fail("foreign nested facade building was mutated after authoritative bind")
         return
+    if str(foreign_building.get_meta("facade_articulation_family", "")) == ARTICULATION_FAMILY:
+        _fail("foreign nested facade building received articulation ownership")
+        return
 
-    # Autoloads survive production scene replacement. The facade runtime must
+    # Autoloads survive production scene replacement. Both facade layers must
     # release old scene references, keep lifecycle watchers armed and bind the
-    # new GeneratedBuildings root without per-frame global discovery.
+    # new authoritative GeneratedBuildings root without per-frame global discovery.
     first_scene.queue_free()
     for _frame: int in range(4):
         await process_frame
@@ -134,6 +175,11 @@ func _run() -> void:
     if runtime.applied_building_count() != first_count:
         _fail("replacement scene building coverage drifted: first=%d replacement=%d" % [first_count, runtime.applied_building_count()])
         return
+    if not await _wait_for_articulation(articulation):
+        _fail("replacement scene articulation rebind timed out")
+        return
+    if not _validate_articulation_runtime(articulation, "replacement scene"):
+        return
 
-    print("BRUSSELS_OSM_FACADE_SURFACE_OK: buildings=%d materials=%d family=%s geometry_changed=false hero_replacements=0 scene_rebind=true foreign_nested_owner_rejected=true" % [runtime.applied_building_count(), runtime.shared_material_count(), runtime.material_family()])
+    print("BRUSSELS_OSM_FACADE_SURFACE_OK: buildings=%d materials=%d family=%s geometry_changed=false hero_replacements=0 scene_rebind=true foreign_nested_owner_rejected=true articulation_owner_isolated=true" % [runtime.applied_building_count(), runtime.shared_material_count(), runtime.material_family()])
     quit(0)

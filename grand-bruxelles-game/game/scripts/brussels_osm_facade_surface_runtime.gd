@@ -72,14 +72,8 @@ func _shared_material_for(material: Material) -> ShaderMaterial:
     _materials[key] = shared
     return shared
 
-func _is_production_scene(node: Node) -> bool:
-    if not node is Node3D:
-        return false
-    var candidate := node as Node3D
-    return candidate.has_node("BrusselsOSM") and candidate.has_node("UrbISMidiExact")
-
-func _is_authoritative_production_scene(node: Node) -> bool:
-    if not _is_production_scene(node) or not is_inside_tree():
+func _is_authoritative_facade_scene(node: Node) -> bool:
+    if not node is Node3D or not is_inside_tree():
         return false
     var candidate := node as Node3D
     var tree := get_tree()
@@ -90,8 +84,8 @@ func _is_authoritative_production_scene(node: Node) -> bool:
     var parent := candidate.get_parent()
     if parent == tree.root:
         return true
-    # Preserve the already-gated root-level Viewport -> Main contract while
-    # rejecting arbitrary nested anchor clones under foreign scene owners.
+    # Preserve the existing synthetic/editor contract root -> Viewport -> Main.
+    # Arbitrary deeper nesting remains non-authoritative.
     return str(candidate.name) == "Main" and parent is Viewport and parent.get_parent() == tree.root
 
 func _valid_buildings_root(node: Node) -> bool:
@@ -100,7 +94,7 @@ func _valid_buildings_root(node: Node) -> bool:
     var osm := node.get_parent()
     if osm == null or str(osm.name) != "BrusselsOSM":
         return false
-    return _is_authoritative_production_scene(osm.get_parent())
+    return _is_authoritative_facade_scene(osm.get_parent())
 
 func _find_existing_buildings_root() -> Node3D:
     if _tearing_down or not is_inside_tree():
@@ -108,9 +102,7 @@ func _find_existing_buildings_root() -> Node3D:
     var tree := get_tree()
     if tree == null:
         return null
-    # One bounded recursive recovery covers legitimate test/editor mounts where
-    # production main is already nested below a root-level SubViewport before this
-    # autoload gets a useful mount event. Discovery may be recursive, authority is not.
+    # Recovery may be recursive; authority is constrained by the scene topology above.
     for candidate: Node in tree.root.find_children("GeneratedBuildings", "Node3D", true, false):
         if _valid_buildings_root(candidate):
             return candidate as Node3D

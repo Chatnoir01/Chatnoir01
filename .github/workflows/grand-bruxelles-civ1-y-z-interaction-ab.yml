@@ -130,6 +130,7 @@ jobs:
 
           source=arms['y-only']['source_right_support_candidate']
           source_plane=float(source['low_height_threshold_y'])
+          source_windows=source['low_height_windows']
           def metrics(p):
               r=p['target_right_support_candidate']
               return {
@@ -140,8 +141,24 @@ jobs:
                   'windows':r['low_height_windows'],
                   'window_count':len(r['low_height_windows']),
               }
+          def overlaps(a,b):
+              return int(a['start_index']) <= int(b['end_index']) and int(b['start_index']) <= int(a['end_index'])
           m={'native':metrics(native)}
           m.update({name:metrics(p) for name,p in arms.items()})
+          native_windows=m['native']['windows']
+          window_attribution={}
+          for name,arm in m.items():
+              inherited=[w for w in arm['windows'] if any(overlaps(w,nw) for nw in native_windows)]
+              source_like=[w for w in arm['windows'] if any(overlaps(w,sw) for sw in source_windows)]
+              novel=[w for w in arm['windows'] if not any(overlaps(w,nw) for nw in native_windows) and not any(overlaps(w,sw) for sw in source_windows)]
+              window_attribution[name]={
+                  'native_inherited_windows':inherited,
+                  'source_like_windows':source_like,
+                  'novel_windows':novel,
+                  'native_false_window_inherited':bool(inherited),
+              }
+          candidate_names=('y-only','z-only','y-plus-z')
+          inherited_by_all=all(window_attribution[name]['native_false_window_inherited'] for name in candidate_names)
           best=min(m, key=lambda k:(m[k]['plane_error_m'],m[k]['window_count'],m[k]['median_mps'],m[k]['p90_mps']))
           z_increment_on_y=m['y-plus-z']['plane_error_m']-m['y-only']['plane_error_m']
           z_increment_alone=m['z-only']['plane_error_m']-m['native']['plane_error_m']
@@ -155,12 +172,15 @@ jobs:
           else:
               verdict='mixed_needs_followup'
           result={
-              'format':'grand-bruxelles-civ1-y-z-interaction-ab-v1',
+              'format':'grand-bruxelles-civ1-y-z-interaction-ab-v2',
               'sample_count':121,
               'support_band_fraction':0.10,
               'source_animation':'UAL1_Standard/Sprint',
               'source_plane_y':source_plane,
+              'source_windows':source_windows,
               'arms':m,
+              'window_attribution':window_attribution,
+              'native_false_window_inherited_by_all_candidates':inherited_by_all,
               'best_arm_by_frozen_metrics':best,
               'z_increment_on_y_plane_error_m':z_increment_on_y,
               'z_increment_alone_plane_error_m':z_increment_alone,
@@ -170,6 +190,7 @@ jobs:
               'runtime_authorized':False,
               'visual_approval_claimed':False,
           }
+          assert inherited_by_all, 'expected all Y/Z candidates to retain the native false support window'
           (root/'interaction-classification.json').write_text(json.dumps(result,indent=2)+'\n')
           print(json.dumps(result,indent=2))
           PY

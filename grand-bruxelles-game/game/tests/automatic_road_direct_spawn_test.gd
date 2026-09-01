@@ -151,6 +151,33 @@ func _run() -> void:
         _fail("road spawn source SHA proof missing")
         return
 
+    # RED-first regression: automatic road grounding must only trust the
+    # canonical generic OSM road-support layer (layer 20). A foreign prop or
+    # blocker above the road must never become the direct-entry ground.
+    var lemmonnier_ground_y := float(player.get_meta("automatic_road_direct_ground_y", INF))
+    if not is_finite(lemmonnier_ground_y):
+        _fail("Lemonnier physics-backed ground height missing")
+        return
+    var decoy := StaticBody3D.new()
+    decoy.name = "ForeignRoadGroundDecoy"
+    decoy.collision_layer = 1
+    decoy.collision_mask = 0
+    var decoy_shape := CollisionShape3D.new()
+    var decoy_box := BoxShape3D.new()
+    decoy_box.size = Vector3(4.0, 0.5, 4.0)
+    decoy_shape.shape = decoy_box
+    decoy.add_child(decoy_shape)
+    main.add_child(decoy)
+    decoy.global_position = Vector3(player.global_position.x, lemmonnier_ground_y + 2.0, player.global_position.z)
+    await physics_frame
+    var guarded_ground_y := float(resolver._ground_y(player, Vector2(player.global_position.x, player.global_position.z)))
+    main.remove_child(decoy)
+    decoy.queue_free()
+    await physics_frame
+    if not is_finite(guarded_ground_y) or absf(guarded_ground_y - lemmonnier_ground_y) > 0.05:
+        _fail("foreign collider captured automatic-road grounding: expected=%.3f actual=%.3f" % [lemmonnier_ground_y, guarded_ground_y])
+        return
+
     # Regression for the exact #1291 runtime-probe exception. Poissonniers is
     # source-indexed and rendered; the resolver must decide it from the same
     # generic geometry/sightline/ground chain as every other road.

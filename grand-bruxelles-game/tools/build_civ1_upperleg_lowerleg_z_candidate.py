@@ -4,6 +4,10 @@ import sys
 
 ANCHOR = '    var source_right_lower_idx := int(source_map["RightLowerLeg"])\n'
 LENGTH_FIELD = '        "target_right_foot_length_preserved": length_preserved,\n'
+SUPPORTED_FORMATS = (
+    '"grand-bruxelles-civ1-right-foot-reference-ab-v2"',
+    '"grand-bruxelles-civ1-right-foot-reference-ab-v4"',
+)
 
 
 def main() -> int:
@@ -15,10 +19,13 @@ def main() -> int:
     dst = Path(sys.argv[2])
     text = src.read_text(encoding="utf-8")
 
-    for token in (ANCHOR, LENGTH_FIELD, '"grand-bruxelles-civ1-right-foot-reference-ab-v4"'):
+    for token in (ANCHOR, LENGTH_FIELD):
         count = text.count(token)
         if count != 1:
             raise SystemExit(f"candidate source drift: expected exactly one token, got {count}: {token}")
+    present_formats = [token for token in SUPPORTED_FORMATS if text.count(token) == 1]
+    if len(present_formats) != 1:
+        raise SystemExit(f"candidate source drift: expected exactly one supported reference format, got {present_formats}")
 
     block = '''    # Diagnostic-only axis-z UpperLeg->LowerLeg rest-basis candidate.
     # Reconstruct the source child-rest direction in each target parent-rest
@@ -88,7 +95,7 @@ def main() -> int:
             raise SystemExit(f"candidate build missing token: {token}")
 
     dst.write_text(text, encoding="utf-8")
-    print("CIV1_UPPERLEG_LOWERLEG_Z_CANDIDATE_BUILT axis=z bilateral target-length-preserving")
+    print(f"CIV1_UPPERLEG_LOWERLEG_Z_CANDIDATE_BUILT axis=z bilateral target-length-preserving input_format={present_formats[0]}")
     return 0
 
 

@@ -75,7 +75,7 @@ jobs:
           timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_upperleg_lowerleg_rest_rotation_probe.gd -- /tmp/civ1ulll/evidence/upperleg-lowerleg-rest-rotation.json 2>&1 | tee /tmp/civ1ulll/evidence/probe.log
           grep -Fq 'CIV1_UPPERLEG_LOWERLEG_REST_ROTATION_OK' /tmp/civ1ulll/evidence/probe.log
 
-      - name: Classify residual, parent rotation and full-cycle phase behavior
+      - name: Classify residual, parent rotation, rest-basis axes and full-cycle phase behavior
         run: |
           set -euo pipefail
           python3 - <<'PY' | tee /tmp/civ1ulll/evidence/classification.log
@@ -86,8 +86,9 @@ jobs:
           RESIDUAL_INDICES = [84, 85, 86, 87, 88]
           PRIMARY_SOURCE_WINDOW = range(58, 69)
           SUPPORT_BAND_FRACTION = 0.10
+          AXES = ('x', 'y', 'z')
           p = json.loads(Path('/tmp/civ1ulll/evidence/upperleg-lowerleg-rest-rotation.json').read_text())
-          assert p['format'] == 'grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-v3'
+          assert p['format'] == 'grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-v4'
           assert p['sample_count'] == SAMPLE_COUNT and len(p['samples']) == SAMPLE_COUNT
           assert p['retarget_modifier'] == 'RetargetModifier3D'
           assert p['use_global_pose'] is False
@@ -126,7 +127,7 @@ jobs:
               return {'shift_samples': signed, 'correlation': best[0]}
 
           out = {
-              'format': 'grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-classification-v3',
+              'format': 'grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-classification-v4',
               'sample_count': SAMPLE_COUNT,
               'residual_indices': RESIDUAL_INDICES,
               'primary_source_window': [PRIMARY_SOURCE_WINDOW.start, PRIMARY_SOURCE_WINDOW.stop - 1],
@@ -139,7 +140,16 @@ jobs:
           for side in ('Left', 'Right'):
               actual_err=[]; rest_err=[]; source_rest_cf_err=[]; source_rot_cf_err=[]; common_cf_err=[]; local_res=[]
               parent_rot_angle=[]; parent_rot_euler=[[], [], []]
+              axis_err={axis: [] for axis in AXES}
               source_cycle=[]; actual_cycle=[]; common_cycle=[]; source_rot_cycle=[]
+              axis_cycle={axis: [] for axis in AXES}
+              rv=p['rest_vectors'][side]
+              target_len=sum(float(v)*float(v) for v in rv['target'])**0.5
+              source_in_target_len=sum(float(v)*float(v) for v in rv['source_rest_in_target_parent_basis'])**0.5
+              assert abs(target_len-source_in_target_len) <= 1e-6
+              for axis in AXES:
+                  cf_len=sum(float(v)*float(v) for v in rv[f'axis_counterfactual_{axis}'])**0.5
+                  assert abs(target_len-cf_len) <= 1e-6
               for i, sample in enumerate(p['samples']):
                   row=sample['sides'][side]
                   sy=row['source_actual_relative_vector'][1]
@@ -147,22 +157,28 @@ jobs:
                   actual_cycle.append(row['target_actual_relative_vector'][1])
                   common_cycle.append(row['common_mirrored_target_rest_counterfactual'][1])
                   source_rot_cycle.append(row['source_parent_rotation_counterfactual'][1])
+                  for axis in AXES:
+                      axis_cycle[axis].append(row[f'axis_counterfactual_{axis}'][1])
                   if i in RESIDUAL_INDICES:
                       actual_err.append(row['target_actual_relative_vector'][1]-sy)
                       rest_err.append(row['rotated_target_rest_vector'][1]-sy)
                       source_rest_cf_err.append(row['source_rest_direction_counterfactual'][1]-sy)
                       source_rot_cf_err.append(row['source_parent_rotation_counterfactual'][1]-sy)
                       common_cf_err.append(row['common_mirrored_target_rest_counterfactual'][1]-sy)
+                      for axis in AXES:
+                          axis_err[axis].append(row[f'axis_counterfactual_{axis}'][1]-sy)
                       local_res.append(row['local_translation_residual'][1])
                       parent_rot_angle.append(row['parent_rotation_delta_angle_rad'])
-                      for axis in range(3):
-                          parent_rot_euler[axis].append(row['parent_rotation_delta_euler_rad'][axis])
+                      for axis_index in range(3):
+                          parent_rot_euler[axis_index].append(row['parent_rotation_delta_euler_rad'][axis_index])
+              axis_mae={axis: mae(vals) for axis, vals in axis_err.items()}
               out['sides'][side.lower()]={
                   'actual_y_mae_m': mae(actual_err),
                   'rotated_target_rest_y_mae_m': mae(rest_err),
                   'source_rest_direction_cf_y_mae_m': mae(source_rest_cf_err),
                   'source_parent_rotation_cf_y_mae_m': mae(source_rot_cf_err),
                   'common_mirrored_target_rest_cf_y_mae_m': mae(common_cf_err),
+                  'axis_counterfactual_y_mae_m': axis_mae,
                   'local_translation_residual_y_mae_m': mae(local_res),
                   'parent_rotation_delta_angle_mae_rad': mae(parent_rot_angle),
                   'parent_rotation_delta_euler_abs_mae_rad': [mae(axis_vals) for axis_vals in parent_rot_euler],
@@ -170,12 +186,14 @@ jobs:
                       'actual_vs_source': circular_phase(source_cycle, actual_cycle),
                       'common_mirrored_vs_source': circular_phase(source_cycle, common_cycle),
                       'source_parent_rotation_vs_source': circular_phase(source_cycle, source_rot_cycle),
+                      'axis_counterfactual_vs_source': {axis: circular_phase(source_cycle, axis_cycle[axis]) for axis in AXES},
                   },
                   'support_window': {
                       'source': low_window(source_cycle),
                       'actual': low_window(actual_cycle),
                       'common_mirrored': low_window(common_cycle),
                       'source_parent_rotation': low_window(source_rot_cycle),
+                      'axis_counterfactual': {axis: low_window(axis_cycle[axis]) for axis in AXES},
                   },
               }
           l=out['sides']['left']; r=out['sides']['right']
@@ -183,17 +201,28 @@ jobs:
           out['bilateral_common_mirrored_delta_m']=abs(r['common_mirrored_target_rest_cf_y_mae_m']-l['common_mirrored_target_rest_cf_y_mae_m'])
           out['bilateral_source_parent_rotation_delta_m']=abs(r['source_parent_rotation_cf_y_mae_m']-l['source_parent_rotation_cf_y_mae_m'])
           out['bilateral_parent_rotation_delta_angle_mismatch_rad']=abs(r['parent_rotation_delta_angle_mae_rad']-l['parent_rotation_delta_angle_mae_rad'])
+          out['bilateral_axis_delta_m']={axis: abs(r['axis_counterfactual_y_mae_m'][axis]-l['axis_counterfactual_y_mae_m'][axis]) for axis in AXES}
+          out['axis_candidate_promising']={axis: (
+              r['axis_counterfactual_y_mae_m'][axis] < r['actual_y_mae_m']
+              and out['bilateral_axis_delta_m'][axis] < out['bilateral_actual_delta_m']
+              and l['axis_counterfactual_y_mae_m'][axis] <= l['actual_y_mae_m'] + 1e-9
+              and r['full_cycle_phase']['axis_counterfactual_vs_source'][axis]['shift_samples'] == r['full_cycle_phase']['actual_vs_source']['shift_samples']
+              and l['full_cycle_phase']['axis_counterfactual_vs_source'][axis]['shift_samples'] == l['full_cycle_phase']['actual_vs_source']['shift_samples']
+          ) for axis in AXES}
           out['candidate_promising']=(
               r['common_mirrored_target_rest_cf_y_mae_m'] < r['actual_y_mae_m']
               and out['bilateral_common_mirrored_delta_m'] < out['bilateral_actual_delta_m']
               and l['common_mirrored_target_rest_cf_y_mae_m'] <= l['actual_y_mae_m']
           )
-          if max(l['local_translation_residual_y_mae_m'], r['local_translation_residual_y_mae_m']) < 1e-5:
-              classification='rest_reference'
+          promising_axes=[axis for axis, ok in out['axis_candidate_promising'].items() if ok]
+          if promising_axes:
+              classification='axis_rest_basis_candidate_' + '_'.join(promising_axes)
+          elif max(l['local_translation_residual_y_mae_m'], r['local_translation_residual_y_mae_m']) < 1e-5:
+              classification='rest_reference_no_safe_axis'
           elif out['bilateral_common_mirrored_delta_m'] < out['bilateral_actual_delta_m']:
-              classification='common_mirrored_rest_improves_bilateral'
+              classification='common_mirrored_rest_improves_bilateral_no_safe_axis'
           else:
-              classification='mixed_rest_rotation'
+              classification='mixed_rest_rotation_no_safe_axis'
           out['classification']=classification
           Path('/tmp/civ1ulll/evidence/upperleg_lowerleg_rest_rotation_classification.json').write_text(json.dumps(out, indent=2))
           print(json.dumps(out, indent=2))

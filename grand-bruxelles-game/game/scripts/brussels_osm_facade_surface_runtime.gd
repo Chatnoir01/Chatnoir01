@@ -72,8 +72,35 @@ func _shared_material_for(material: Material) -> ShaderMaterial:
     _materials[key] = shared
     return shared
 
+func _is_production_scene(node: Node) -> bool:
+    if not node is Node3D:
+        return false
+    var candidate := node as Node3D
+    return candidate.has_node("BrusselsOSM") and candidate.has_node("UrbISMidiExact")
+
+func _is_authoritative_production_scene(node: Node) -> bool:
+    if not _is_production_scene(node) or not is_inside_tree():
+        return false
+    var candidate := node as Node3D
+    var tree := get_tree()
+    if tree == null:
+        return false
+    if tree.current_scene == candidate:
+        return true
+    var parent := candidate.get_parent()
+    if parent == tree.root:
+        return true
+    # Preserve the already-gated root-level Viewport -> Main contract while
+    # rejecting arbitrary nested anchor clones under foreign scene owners.
+    return str(candidate.name) == "Main" and parent is Viewport and parent.get_parent() == tree.root
+
 func _valid_buildings_root(node: Node) -> bool:
-    return node is Node3D and str(node.name) == "GeneratedBuildings" and node.get_parent() != null and str(node.get_parent().name) == "BrusselsOSM"
+    if not node is Node3D or str(node.name) != "GeneratedBuildings":
+        return false
+    var osm := node.get_parent()
+    if osm == null or str(osm.name) != "BrusselsOSM":
+        return false
+    return _is_authoritative_production_scene(osm.get_parent())
 
 func _find_existing_buildings_root() -> Node3D:
     if _tearing_down or not is_inside_tree():
@@ -82,9 +109,8 @@ func _find_existing_buildings_root() -> Node3D:
     if tree == null:
         return null
     # One bounded recursive recovery covers legitimate test/editor mounts where
-    # production main is already nested below a SubViewport before this autoload
-    # gets a useful mount event. Event handling itself never performs a recursive
-    # search; only the exact GeneratedBuildings node can schedule a retry.
+    # production main is already nested below a root-level SubViewport before this
+    # autoload gets a useful mount event. Discovery may be recursive, authority is not.
     for candidate: Node in tree.root.find_children("GeneratedBuildings", "Node3D", true, false):
         if _valid_buildings_root(candidate):
             return candidate as Node3D
@@ -192,7 +218,7 @@ func _try_apply() -> void:
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
     facade_surface_ready.emit()
-    print("BRUSSELS_OSM_FACADE_SURFACE_READY: buildings=%d materials=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false material_identity_claimed=false event_driven=true scene_rebindable=true" % [_buildings.size(), _materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
+    print("BRUSSELS_OSM_FACADE_SURFACE_READY: buildings=%d materials=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false material_identity_claimed=false event_driven=true scene_rebindable=true authoritative_scene_only=true" % [_buildings.size(), _materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
 
 func _set_material_state(enabled: bool) -> void:
     if _tearing_down or not is_inside_tree():

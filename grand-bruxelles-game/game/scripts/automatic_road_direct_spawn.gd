@@ -30,12 +30,49 @@ func _ready() -> void:
     call_deferred("_apply_startup_args")
 
 
+func _is_authoritative_main(candidate: Node, root: Node) -> bool:
+    if candidate == null or root == null or str(candidate.name) != "Main":
+        return false
+    var parent := candidate.get_parent()
+    if parent == root:
+        return true
+    return parent is Viewport and parent.get_parent() == root
+
+
+func _authoritative_main(root: Node) -> Node:
+    if root == null:
+        return null
+    var current := get_tree().current_scene
+    if _is_authoritative_main(current, root):
+        return current
+    var direct := root.get_node_or_null("Main")
+    if _is_authoritative_main(direct, root):
+        return direct
+    for child: Node in root.get_children():
+        if not child is Viewport:
+            continue
+        var candidate := child.get_node_or_null("Main")
+        if _is_authoritative_main(candidate, root):
+            return candidate
+    return null
+
+
+func _authoritative_player(root: Node) -> CharacterBody3D:
+    var main := _authoritative_main(root)
+    if main == null:
+        return null
+    var player := main.get_node_or_null("Player")
+    if player == null or player.get_parent() != main:
+        return null
+    return player as CharacterBody3D
+
+
 func _apply_startup_args() -> void:
     var road_id := requested_road_id(OS.get_cmdline_user_args())
     if road_id <= 0:
         return
     for _frame: int in range(36):
-        var player := get_tree().root.find_child("Player", true, false)
+        var player := _authoritative_player(get_tree().root)
         if player != null and apply_to_player(player, road_id):
             return
         await get_tree().process_frame

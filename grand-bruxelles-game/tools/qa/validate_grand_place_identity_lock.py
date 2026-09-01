@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / "data/qa/grand_place_facade_owner_identity.lock.json"
-EXPECTED_BASE = "c4b29c284df182091a1a4cdf19e1d2dc894f45e4"
+PROVENANCE_BASE = "c4b29c284df182091a1a4cdf19e1d2dc894f45e4"
 EXPECTED_RESOLVED = {
     "1608847": ("6", "Le Cornet", "31123"),
     "1608851": ("7", "Le Renard", "31124"),
@@ -25,8 +25,8 @@ def main() -> None:
     data = json.loads(LOCK.read_text(encoding="utf-8"))
     if data.get("schema") != "grand-bruxelles-grand-place-facade-owner-identity-lock-v2":
         fail("unexpected schema")
-    if data.get("production_base_sha") != EXPECTED_BASE:
-        fail("identity lock is not rematerialized from exact live main")
+    if data.get("production_base_sha") != PROVENANCE_BASE:
+        fail("identity-lock provenance base drifted from the proven crosswalk")
 
     proof = data.get("source_proof", {})
     required_proof = ["crosswalk_run_id", "crosswalk_artifact_id", "crosswalk_artifact_digest", "urbis_address_response_sha256"]
@@ -59,7 +59,7 @@ def main() -> None:
     if any(rules.get(k) is not False for k in forbidden_true):
         fail("forbidden rescue or geometry authority enabled")
 
-    print(f"GRAND_PLACE_IDENTITY_LOCK_GREEN resolved={len(resolved)} hold={len(hold)} base={EXPECTED_BASE}")
+    print(f"GRAND_PLACE_IDENTITY_LOCK_GREEN resolved={len(resolved)} hold={len(hold)} provenance_base={PROVENANCE_BASE}")
 
 
 if __name__ == "__main__":

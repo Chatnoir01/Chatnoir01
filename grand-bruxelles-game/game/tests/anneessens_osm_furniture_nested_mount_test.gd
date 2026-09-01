@@ -10,6 +10,51 @@ func _fail(message: String) -> void:
     push_error("ANNEESSENS_OSM_FURNITURE_NESTED_MOUNT_FAIL: %s" % message)
     quit(1)
 
+func _make_foreign_nested_decoy() -> Node3D:
+    var wrapper := Node3D.new()
+    wrapper.name = "ForeignEnvironmentOwner"
+    var decoy := Node3D.new()
+    decoy.name = "ForeignNestedMain"
+    wrapper.add_child(decoy)
+
+    var brussels_osm := Node3D.new()
+    brussels_osm.name = "BrusselsOSM"
+    decoy.add_child(brussels_osm)
+
+    var urbis_midi := Node3D.new()
+    urbis_midi.name = "UrbISMidiExact"
+    decoy.add_child(urbis_midi)
+
+    var player := Node3D.new()
+    player.name = "Player"
+    decoy.add_child(player)
+    return wrapper
+
+func _make_foreign_nested_viewport_decoy() -> Node3D:
+    var wrapper := Node3D.new()
+    wrapper.name = "ForeignViewportOwner"
+
+    var viewport := SubViewport.new()
+    viewport.name = "ForeignNestedViewport"
+    wrapper.add_child(viewport)
+
+    var decoy := Node3D.new()
+    decoy.name = "Main"
+    viewport.add_child(decoy)
+
+    var brussels_osm := Node3D.new()
+    brussels_osm.name = "BrusselsOSM"
+    decoy.add_child(brussels_osm)
+
+    var urbis_midi := Node3D.new()
+    urbis_midi.name = "UrbISMidiExact"
+    decoy.add_child(urbis_midi)
+
+    var player := Node3D.new()
+    player.name = "Player"
+    decoy.add_child(player)
+    return wrapper
+
 func _run() -> void:
     if current_scene != null:
         _fail("script witness requires current_scene == null")
@@ -32,6 +77,37 @@ func _run() -> void:
         _fail("runtime built furniture before a valid production mount existed")
         return
 
+    # A foreign nested node can legitimately expose the same anchor names. It must
+    # never acquire authority for source-backed Anneessens furniture or collisions.
+    var foreign_wrapper := _make_foreign_nested_decoy()
+    root.add_child(foreign_wrapper)
+    for _frame: int in range(12):
+        await process_frame
+    if int(runtime.call("tree_count")) != 0:
+        _fail("foreign nested anchor clone captured Anneessens furniture authority")
+        return
+    var foreign_main := foreign_wrapper.get_node_or_null("ForeignNestedMain")
+    if foreign_main != null and foreign_main.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("foreign nested anchor clone received owned Anneessens furniture root")
+        return
+
+    # A Viewport wrapper does not make an arbitrary nested Main authoritative. Only
+    # a root-level dormant viewport mount may provide the established fallback owner.
+    var foreign_viewport_wrapper := _make_foreign_nested_viewport_decoy()
+    root.add_child(foreign_viewport_wrapper)
+    for _frame: int in range(12):
+        await process_frame
+    if int(runtime.call("tree_count")) != 0:
+        _fail("foreign nested viewport Main captured Anneessens furniture authority")
+        return
+    var foreign_viewport := foreign_viewport_wrapper.get_node_or_null("ForeignNestedViewport") as SubViewport
+    var foreign_viewport_main := foreign_viewport.get_node_or_null("Main") if foreign_viewport != null else null
+    if foreign_viewport_main != null and foreign_viewport_main.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("foreign nested viewport Main received owned Anneessens furniture root")
+        return
+
+    # Preserve the already-gated legitimate dormant mount contract: Main directly
+    # under a root-level Viewport is authoritative even when current_scene is null.
     var viewport := SubViewport.new()
     viewport.name = "NestedEnvironmentViewport"
     root.add_child(viewport)
@@ -52,7 +128,7 @@ func _run() -> void:
     player.name = "Player"
     main.add_child(player)
 
-    for _frame: int in range(16):
+    for _frame: int in range(24):
         await process_frame
 
     var tree_count := int(runtime.call("tree_count"))
@@ -63,6 +139,12 @@ func _run() -> void:
     if furniture_root == null:
         _fail("Anneessens furniture was not attached to nested Main")
         return
+    if foreign_main != null and foreign_main.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("foreign nested anchor clone stole furniture after authoritative Main arrived")
+        return
+    if foreign_viewport_main != null and foreign_viewport_main.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("foreign nested viewport Main stole furniture after authoritative Main arrived")
+        return
     if str(furniture_root.get_meta("source", "")) != "OpenStreetMap contributors via Overpass API":
         _fail("source provenance changed")
         return
@@ -70,5 +152,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_NESTED_MOUNT_OK: trees=%d current_scene=null source=OSM license=ODbL-1.0" % tree_count)
+    print("ANNEESSENS_OSM_FURNITURE_NESTED_MOUNT_OK: trees=%d current_scene=null owner=root-viewport-main foreign_decoys_rejected=true source=OSM license=ODbL-1.0" % tree_count)
     quit(0)

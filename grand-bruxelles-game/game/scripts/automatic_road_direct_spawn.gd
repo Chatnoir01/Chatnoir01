@@ -13,6 +13,12 @@ const MAX_WORLD_ABS_M := 890.0
 const MIN_SOURCE_AXIS_ALIGNMENT := 0.90
 const CAMERA_PATH := "CameraPivot/SpringArm3D/Camera3D"
 const ROAD_SUPPORT_COLLISION_MASK := 1 << 19
+const CANONICAL_GROUND_COLLISION_MASK := 1
+const SAFE_GROUND_COLLISION_MASK := ROAD_SUPPORT_COLLISION_MASK | CANONICAL_GROUND_COLLISION_MASK
+const ROAD_SUPPORT_OWNER_META := "grand_bruxelles_owner"
+const ROAD_SUPPORT_OWNER_ID := "generic_osm_surface_collision_runtime"
+const CANONICAL_GROUND_NAME := "Ground"
+const MAX_GROUND_RAY_HITS := 32
 
 var _runtime_index_attempted := false
 var _runtime_index_valid := false
@@ -293,23 +299,42 @@ func _road_is_rendered(world: Node, osm_id: int) -> bool:
     return false
 
 
+func _ground_hit_is_authorized(collider: Object, canonical_ground: Node) -> bool:
+    if canonical_ground != null and collider == canonical_ground:
+        return true
+    if collider is Node:
+        return str((collider as Node).get_meta(ROAD_SUPPORT_OWNER_META, "")) == ROAD_SUPPORT_OWNER_ID
+    return false
+
+
 func _ground_y(body: CharacterBody3D, xz: Vector2) -> float:
     var world_3d := body.get_world_3d()
     if world_3d == null:
         return INF
-    var query := PhysicsRayQueryParameters3D.create(
-        Vector3(xz.x, 200.0, xz.y),
-        Vector3(xz.x, -200.0, xz.y)
-    )
-    query.exclude = [body.get_rid()]
-    query.collision_mask = ROAD_SUPPORT_COLLISION_MASK
-    query.collide_with_areas = false
-    query.collide_with_bodies = true
-    var hit := world_3d.direct_space_state.intersect_ray(query)
-    if hit.is_empty():
-        return INF
-    var position: Variant = hit.get("position")
-    return float((position as Vector3).y) if position is Vector3 else INF
+    var scene_root := body.get_parent()
+    var canonical_ground := scene_root.get_node_or_null(CANONICAL_GROUND_NAME) if scene_root != null else null
+    var excluded: Array[RID] = [body.get_rid()]
+    for _hit_index: int in range(MAX_GROUND_RAY_HITS):
+        var query := PhysicsRayQueryParameters3D.create(
+            Vector3(xz.x, 200.0, xz.y),
+            Vector3(xz.x, -200.0, xz.y)
+        )
+        query.exclude = excluded
+        query.collision_mask = SAFE_GROUND_COLLISION_MASK
+        query.collide_with_areas = false
+        query.collide_with_bodies = true
+        var hit := world_3d.direct_space_state.intersect_ray(query)
+        if hit.is_empty():
+            return INF
+        var collider: Variant = hit.get("collider")
+        var position: Variant = hit.get("position")
+        if collider is Object and _ground_hit_is_authorized(collider as Object, canonical_ground):
+            return float((position as Vector3).y) if position is Vector3 else INF
+        var hit_rid: Variant = hit.get("rid")
+        if not hit_rid is RID or not (hit_rid as RID).is_valid():
+            return INF
+        excluded.append(hit_rid as RID)
+    return INF
 
 
 func _label_for_road(road: Dictionary) -> String:

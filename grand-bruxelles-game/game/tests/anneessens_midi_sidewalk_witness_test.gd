@@ -133,10 +133,6 @@ func _prove_scene_replacement(packed: PackedScene) -> bool:
     return true
 
 func _run() -> void:
-    var runtime_script := load("res://game/scripts/anneessens_midi_sidewalk_runtime.gd") as Script
-    if runtime_script == null:
-        _fail("Anneessens Midi sidewalk runtime missing")
-        return
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
         _fail("main scene missing")
@@ -146,6 +142,9 @@ func _run() -> void:
         return
 
     var scene := packed.instantiate() as Node3D
+    if scene == null:
+        _fail("main scene did not instantiate")
+        return
     var viewport := SubViewport.new()
     viewport.size = Vector2i(WIDTH, HEIGHT)
     viewport.own_world_3d = true
@@ -154,6 +153,14 @@ func _run() -> void:
     root.add_child(viewport)
     viewport.add_child(scene)
     _hide_dynamic(scene)
+
+    var runtime := root.get_node_or_null("AnneessensMidiSidewalkRuntime")
+    if runtime == null:
+        _fail("canonical AnneessensMidiSidewalkRuntime autoload missing")
+        return
+    if not await _wait_for_canonical_bind(runtime, scene, "root SubViewport production scene"):
+        quit(1)
+        return
     for _frame: int in range(90):
         await process_frame
 
@@ -169,13 +176,6 @@ func _run() -> void:
         _fail("no OSM road available near Anneessens spawn")
         return
 
-    var runtime: Node = runtime_script.new() as Node
-    if runtime == null:
-        _fail("Anneessens Midi sidewalk runtime did not instantiate")
-        return
-    scene.add_child(runtime)
-    runtime.call("bind_scene", scene)
-    await process_frame
     var sidewalk_count := int(runtime.call("diagnostic_sidewalk_count"))
     var collision_count := int(runtime.call("diagnostic_collision_count"))
     if sidewalk_count < MIN_SIDEWALKS:
@@ -208,5 +208,5 @@ func _run() -> void:
     if changed_3 < MIN_CHANGED_3 or changed_8 < MIN_CHANGED_8:
         _fail("3s visual gate too weak: gt3=%.4f%% gt8=%.4f%%" % [changed_3 * 100.0, changed_8 * 100.0])
         return
-    print("ANNEESSENS_MIDI_SIDEWALK_OK: spawn=stable ground=collidable sidewalks=%d changed_gt3=%.4f%% changed_gt8=%.4f%%" % [sidewalk_count, changed_3 * 100.0, changed_8 * 100.0])
+    print("ANNEESSENS_MIDI_SIDEWALK_OK: spawn=stable ground=collidable sidewalks=%d changed_gt3=%.4f%% gt8=%.4f%%" % [sidewalk_count, changed_3 * 100.0, changed_8 * 100.0])
     quit(0)

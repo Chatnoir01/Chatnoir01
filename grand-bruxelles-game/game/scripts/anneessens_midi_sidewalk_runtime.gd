@@ -94,6 +94,14 @@ func _is_production_scene(candidate: Node3D) -> bool:
         and candidate.get_node_or_null("UrbISMidiExact") != null \
         and candidate.get_node_or_null("Player") != null
 
+func _direct_viewport_main(viewport: Viewport) -> Node3D:
+    if viewport == null:
+        return null
+    var main := viewport.get_node_or_null("Main")
+    if main is Node3D and main.get_parent() == viewport and _is_production_scene(main as Node3D):
+        return main as Node3D
+    return null
+
 func _find_production_scene() -> Node3D:
     if _tearing_down or not is_inside_tree():
         return null
@@ -103,12 +111,19 @@ func _find_production_scene() -> Node3D:
     var current := tree.current_scene
     if current is Node3D and _is_production_scene(current as Node3D):
         return current as Node3D
-    for child: Node in tree.root.get_children():
-        if not child is Node3D:
+    var root := tree.root
+    if root == null:
+        return null
+    for child: Node in root.get_children():
+        if child is Node3D:
+            var candidate := child as Node3D
+            if _is_production_scene(candidate):
+                return candidate
             continue
-        var candidate := child as Node3D
-        if _is_production_scene(candidate):
-            return candidate
+        if child is Viewport:
+            var viewport_candidate := _direct_viewport_main(child as Viewport)
+            if viewport_candidate != null:
+                return viewport_candidate
     return null
 
 func _try_bind() -> void:

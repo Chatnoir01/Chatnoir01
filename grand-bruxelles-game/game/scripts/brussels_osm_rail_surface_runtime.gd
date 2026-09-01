@@ -67,11 +67,29 @@ func _release_material_ownership() -> void:
     _official_legacy_materials.clear()
     _official_owned_materials.clear()
 
+func _is_authoritative_rail_scene(node: Node) -> bool:
+    if not node is Node3D or not is_inside_tree():
+        return false
+    var candidate := node as Node3D
+    var tree := get_tree()
+    if tree == null:
+        return false
+    if tree.current_scene == candidate:
+        return true
+    var parent := candidate.get_parent()
+    if parent == tree.root:
+        return true
+    # Preserve the established synthetic/editor mount: SceneTree.root -> Viewport -> Main.
+    # Familiar anchor names nested any deeper never gain shared rail-surface authority.
+    return str(candidate.name) == "Main" and parent is Viewport and parent.get_parent() == tree.root
+
 func _is_generated_rails_root(node: Node) -> bool:
     if not node is Node3D or str(node.name) != "GeneratedRails":
         return false
     var parent := node.get_parent()
-    return parent != null and str(parent.name) == "BrusselsOSM"
+    if parent == null or str(parent.name) != "BrusselsOSM":
+        return false
+    return _is_authoritative_rail_scene(parent.get_parent())
 
 func _is_generated_rail_child(node: Node) -> bool:
     if not node is CSGBox3D:
@@ -104,6 +122,7 @@ func _recover_existing_rails() -> void:
     _rail_bind_scheduled = false
     if _failed or _tearing_down or not is_inside_tree():
         return
+    # Discovery can remain recursive; authority is constrained by scene topology.
     var roots := tree.root.find_children("GeneratedRails", "Node3D", true, false)
     for candidate: Node in roots:
         if _is_generated_rails_root(candidate):

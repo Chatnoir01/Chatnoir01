@@ -41,10 +41,22 @@ func _append_top_face(faces: PackedVector3Array, box: CSGBox3D) -> void:
     faces.append(p01)
 
 func _scene_root_for(node: Node) -> Node:
-    var current := node
-    while current.get_parent() != null and current.get_parent() != get_tree().root:
-        current = current.get_parent()
-    return current
+    var current: Node = node
+    while current != null:
+        var parent := current.get_parent()
+        if parent == get_tree().root:
+            return current
+        # Deterministic player-view witnesses mount the real production Main
+        # directly below a root-level SubViewport so they can own an isolated
+        # World3D. In that legitimate topology the previous generic ancestor
+        # walk returned the Viewport itself, then looked for Viewport/Player and
+        # timed out even though Main/Player and GeneratedRoads were present.
+        # Accept only the immediate Viewport -> Main authority shape; arbitrary
+        # nested clones do not gain ownership from this exception.
+        if current.name == "Main" and parent is Viewport and parent.get_parent() == get_tree().root:
+            return current
+        current = parent
+    return node
 
 func _find_owned_bodies(roads_root: Node) -> Array[StaticBody3D]:
     var owned: Array[StaticBody3D] = []

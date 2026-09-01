@@ -23,18 +23,21 @@ func _load_data() -> Dictionary:
     var parsed: Variant = JSON.parse_string(file.get_as_text())
     return parsed as Dictionary if parsed is Dictionary else {}
 
-func _make_nested_decoy() -> Node3D:
+func _make_nested_viewport_decoy() -> Node3D:
     var wrapper := Node3D.new()
     wrapper.name = "ForeignOwner"
+    var viewport := SubViewport.new()
+    viewport.name = "ForeignViewport"
     var decoy := Node3D.new()
-    decoy.name = "ForeignNestedMain"
+    decoy.name = "Main"
     var osm := Node3D.new()
     osm.name = "BrusselsOSM"
     var urbis := Node3D.new()
     urbis.name = "UrbISMidiExact"
     decoy.add_child(osm)
     decoy.add_child(urbis)
-    wrapper.add_child(decoy)
+    viewport.add_child(decoy)
+    wrapper.add_child(viewport)
     return wrapper
 
 func _run() -> void:
@@ -116,12 +119,12 @@ func _run() -> void:
         _fail("BrusselsBollardRuntime autoload missing")
         return
 
-    var foreign_wrapper := _make_nested_decoy()
+    var foreign_wrapper := _make_nested_viewport_decoy()
     root.add_child(foreign_wrapper)
     for _frame: int in range(8):
         await process_frame
     if bool(runtime.call("ready_complete")):
-        _fail("nested foreign anchor set captured bollard runtime before authoritative root scene")
+        _fail("nested foreign viewport Main captured bollard runtime before authoritative root scene")
         return
 
     var scene := packed.instantiate() as Node3D
@@ -139,9 +142,9 @@ func _run() -> void:
     if scene.get_node_or_null("BrusselsSourceBackedBollards") == null:
         _fail("authoritative root scene did not receive owned bollard root")
         return
-    var foreign_decoy := foreign_wrapper.get_node_or_null("ForeignNestedMain")
+    var foreign_decoy := foreign_wrapper.get_node_or_null("ForeignViewport/Main")
     if foreign_decoy != null and foreign_decoy.get_node_or_null("BrusselsSourceBackedBollards") != null:
-        _fail("foreign nested scene received owned bollard root")
+        _fail("foreign nested viewport scene received owned bollard root")
         return
     if int(runtime.call("point_count")) != EXPECTED_COUNT:
         _fail("runtime point count mismatch")
@@ -159,5 +162,5 @@ func _run() -> void:
         _fail("runtime moved source positions")
         return
 
-    print("BRUSSELS_BOLLARD_OK: points=%d collisions=%d batches=%d family=%s revision=%d authoritative_root_only=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("collision_count")), int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
+    print("BRUSSELS_BOLLARD_OK: points=%d collisions=%d batches=%d family=%s revision=%d root_level_viewport_only=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("collision_count")), int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
     quit(0)

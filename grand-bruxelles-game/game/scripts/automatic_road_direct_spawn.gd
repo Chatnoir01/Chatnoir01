@@ -12,6 +12,7 @@ const PLAYER_BODY_CLEARANCE_M := 1.05
 const MAX_WORLD_ABS_M := 890.0
 const MIN_SOURCE_AXIS_ALIGNMENT := 0.90
 const CAMERA_PATH := "CameraPivot/SpringArm3D/Camera3D"
+const ROAD_SUPPORT_COLLISION_MASK := 1 << 19
 
 var _runtime_index_attempted := false
 var _runtime_index_valid := false
@@ -301,6 +302,7 @@ func _ground_y(body: CharacterBody3D, xz: Vector2) -> float:
         Vector3(xz.x, -200.0, xz.y)
     )
     query.exclude = [body.get_rid()]
+    query.collision_mask = ROAD_SUPPORT_COLLISION_MASK
     query.collide_with_areas = false
     query.collide_with_bodies = true
     var hit := world_3d.direct_space_state.intersect_ray(query)
@@ -366,7 +368,8 @@ func apply_to_player(player: Node, osm_id: int) -> bool:
     body.set_meta("automatic_road_direct_target_xz", target_xz)
     body.set_meta("automatic_road_direct_ground_y", ground_y)
     body.set_meta("automatic_road_direct_offset_m", float(viewpoint["offset_m"]))
-    body.set_meta("automatic_road_direct_segment_index", int(viewpoint["segment_index"]))
+    body.set_meta("automatic_road_direct_segment_index", int(viewpoint["segment_index"])
+    )
     body.set_meta("automatic_road_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
     body.set_meta("automatic_road_direct_axis_lookahead_m", float(viewpoint.get("axis_lookahead_m", 0.0)))
     body.set_meta("automatic_road_direct_axis_alignment", float(viewpoint.get("axis_alignment", 0.0)))

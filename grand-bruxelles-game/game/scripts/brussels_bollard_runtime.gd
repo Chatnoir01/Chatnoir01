@@ -58,16 +58,31 @@ func _is_production_scene(node: Node) -> bool:
     var candidate := node as Node3D
     return candidate.has_node("BrusselsOSM") and candidate.has_node("UrbISMidiExact")
 
+func _is_authoritative_production_scene(node: Node) -> bool:
+    if not _is_production_scene(node) or not is_inside_tree():
+        return false
+    var candidate := node as Node3D
+    var tree := get_tree()
+    if tree.current_scene == candidate:
+        return true
+    var parent := candidate.get_parent()
+    if parent == tree.root:
+        return true
+    # Preserve only the already-gated root-level Viewport/SubViewport -> Main
+    # dormant mount contract. A viewport nested under a foreign owner must not
+    # confer production authority merely because its child is named Main.
+    return str(candidate.name) == "Main" and parent is Viewport and parent.get_parent() == tree.root
+
 func _discover_production_scene() -> Node3D:
     if _tearing_down or not is_inside_tree():
         return null
     var current := get_tree().current_scene
-    if _is_production_scene(current):
+    if _is_authoritative_production_scene(current):
         return current as Node3D
     var osm_roots := get_tree().root.find_children("BrusselsOSM", "Node3D", true, false)
     for osm_node: Node in osm_roots:
         var candidate := osm_node.get_parent()
-        if _is_production_scene(candidate):
+        if _is_authoritative_production_scene(candidate):
             return candidate as Node3D
     return null
 

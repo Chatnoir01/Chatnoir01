@@ -1,0 +1,239 @@
+name: Grand Bruxelles CIV-1 UpperLeg Rest Reference Decomposition
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd"
+      - "grand-bruxelles-game/tests/test_civ1_upper_leg_rest_reference_decomposition_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-upper-leg-rest-reference-decomposition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upper-leg-rest-reference-decomposition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_upper_leg_rest_reference_decomposition_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1upper/source /tmp/civ1upper/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1upper/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1upper/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1upper/source/vitruvian_body.glb /tmp/civ1upper/source/civ1_body.glb --require-animations | tee /tmp/civ1upper/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1upper/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1upper/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1upper/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1upper/quaternius
+          unzip -q /tmp/civ1upper/quaternius.zip -d /tmp/civ1upper/quaternius
+          LICENSE_FILE="$(find /tmp/civ1upper/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1upper/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1upper/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1upper/engine
+          GODOT_BIN=/tmp/civ1upper/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1upper/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1upper/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact rigs and capture 121-sample global chain
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1upper/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1upper/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1UpperLegRestReference"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1upper/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd "$PROJECT_ROOT/gb_civ1_global_chain_diagnostic.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1upper/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_diagnostic.gd -- /tmp/civ1upper/evidence/global-chain.json 2>&1 | tee /tmp/civ1upper/evidence/probe.log
+          grep -Fq 'CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK' /tmp/civ1upper/evidence/probe.log
+
+      - name: Decompose bilateral UpperLeg rest and downstream compensation
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1upper/evidence/classification.log
+          import json, math
+          from pathlib import Path
+
+          RESIDUAL_INDICES = [84, 85, 86, 87, 88]
+          BILATERAL_BONES = {
+              'Right': ('RightUpperLeg', 'RightLowerLeg', 'RightFoot'),
+              'Left': ('LeftUpperLeg', 'LeftLowerLeg', 'LeftFoot'),
+          }
+          p=json.loads(Path('/tmp/civ1upper/evidence/global-chain.json').read_text())
+          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v3'
+          assert p['sample_count']==121
+          assert p['retarget_modifier']=='RetargetModifier3D'
+          assert p['use_global_pose'] is False
+          assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          samples=p['model_space_samples']
+          assert len(samples)==121
+
+          def vec(record, key):
+              value=record[key]
+              assert len(value)==3 and all(math.isfinite(float(x)) for x in value)
+              return [float(x) for x in value]
+
+          def rest_origin(record, side):
+              model=vec(record,'model_origin')
+              motion=vec(record, 'source_motion_from_rest' if side=='source' else 'target_motion_from_rest')
+              return [model[j]-motion[j] for j in range(3)]
+
+          def hips_relative_y(sample, bone, side):
+              rec=sample['bones'][bone][side]
+              return vec(rec, 'source_hips_relative_origin' if side=='source' else 'target_hips_relative_origin')[1]
+
+          def static_hips_relative_rest_y(sample, bone, side):
+              bone_rest=rest_origin(sample['bones'][bone][side], side)
+              hips_rest=rest_origin(sample['bones']['Hips'][side], side)
+              return bone_rest[1]-hips_rest[1]
+
+          def mae(xs):
+              return sum(abs(x) for x in xs)/len(xs)
+
+          def side_result(prefix):
+              upper, lower, foot = BILATERAL_BONES[prefix]
+              source_rest_values=[]; target_rest_values=[]
+              source_dynamic=[]; target_dynamic=[]
+              actual_errors=[]; source_rest_cf_errors=[]
+              lower_relative_errors=[]; foot_relative_errors=[]; downstream=[]; rows=[]
+              for i in RESIDUAL_INDICES:
+                  s=samples[i]
+                  sr=static_hips_relative_rest_y(s,upper,'source')
+                  tr=static_hips_relative_rest_y(s,upper,'target')
+                  sy=hips_relative_y(s,upper,'source'); ty=hips_relative_y(s,upper,'target')
+                  sd=sy-sr; td=ty-tr; cf=sr+td
+                  sly=hips_relative_y(s,lower,'source'); tly=hips_relative_y(s,lower,'target')
+                  sfy=hips_relative_y(s,foot,'source'); tfy=hips_relative_y(s,foot,'target')
+                  upper_error=ty-sy
+                  lower_error=tly-sly
+                  foot_error=tfy-sfy
+                  lower_relative_error=lower_error-upper_error
+                  foot_relative_error=foot_error-lower_error
+                  downstream_compensation=lower_relative_error+foot_relative_error
+                  source_rest_values.append(sr); target_rest_values.append(tr)
+                  source_dynamic.append(sd); target_dynamic.append(td)
+                  actual_errors.append(ty-sy); source_rest_cf_errors.append(cf-sy)
+                  lower_relative_errors.append(lower_relative_error)
+                  foot_relative_errors.append(foot_relative_error)
+                  downstream.append(downstream_compensation)
+                  rows.append({
+                      'sample_index':i,
+                      'source_rest_origin_y_m':sr,'target_rest_origin_y_m':tr,
+                      'source_dynamic_y_m':sd,'target_dynamic_y_m':td,
+                      'upper_leg_source_y_error_m':upper_error,
+                      'lower_leg_source_y_error_m':lower_error,
+                      'foot_source_y_error_m':foot_error,
+                      'lowerleg_relative_error_m':lower_relative_error,
+                      'foot_relative_error_m':foot_relative_error,
+                      'downstream_compensation_m':downstream_compensation,
+                      'source_rest_counterfactual_source_y_error_m':cf-sy,
+                  })
+              mean=lambda xs: sum(xs)/len(xs)
+              source_rest=mean(source_rest_values); target_rest=mean(target_rest_values)
+              static_offset=target_rest-source_rest
+              dynamic_residual=mae([target_dynamic[j]-source_dynamic[j] for j in range(len(target_dynamic))])
+              actual_mae=mae(actual_errors); cf_mae=mae(source_rest_cf_errors)
+              return {
+                  'source_rest_origin_y_m':source_rest,'target_rest_origin_y_m':target_rest,
+                  'static_rest_offset_m':static_offset,'dynamic_residual_mae_m':dynamic_residual,
+                  'actual_source_y_mae_m':actual_mae,'source_rest_counterfactual':{'source_y_mae_m':cf_mae},
+                  'lowerleg_relative_error_mean_m':mean(lower_relative_errors),
+                  'foot_relative_error_mean_m':mean(foot_relative_errors),
+                  'downstream_compensation_mean_m':mean(downstream),
+                  'per_sample':rows,
+              }
+
+          right=side_result('Right')
+          left=side_result('Left')
+          bilateral_asymmetry_m=abs(abs(right['static_rest_offset_m'])-abs(left['static_rest_offset_m']))
+          right_static_rest_offset_m=right['static_rest_offset_m']
+          left_static_rest_offset_m=left['static_rest_offset_m']
+          right_dynamic_residual_mae_m=right['dynamic_residual_mae_m']
+          left_dynamic_residual_mae_m=left['dynamic_residual_mae_m']
+          right_source_rest_counterfactual=right['source_rest_counterfactual']
+          left_source_rest_counterfactual=left['source_rest_counterfactual']
+          right_downstream_compensation_mean_m=right['downstream_compensation_mean_m']
+          left_downstream_compensation_mean_m=left['downstream_compensation_mean_m']
+          downstream_compensation_bilateral_delta_m=abs(right_downstream_compensation_mean_m-left_downstream_compensation_mean_m)
+          right_lowerleg_relative_error_mean_m=right['lowerleg_relative_error_mean_m']
+          left_lowerleg_relative_error_mean_m=left['lowerleg_relative_error_mean_m']
+          right_foot_relative_error_mean_m=right['foot_relative_error_mean_m']
+          left_foot_relative_error_mean_m=left['foot_relative_error_mean_m']
+
+          common_mode_upper_leg_offset = bilateral_asymmetry_m < downstream_compensation_bilateral_delta_m
+          downstream_compensation_asymmetry_dominant = (
+              common_mode_upper_leg_offset
+              and right_downstream_compensation_mean_m < 0.0
+              and left_downstream_compensation_mean_m > 0.0
+              and downstream_compensation_bilateral_delta_m > abs(right_dynamic_residual_mae_m-left_dynamic_residual_mae_m)
+          )
+
+          right_improves=right_source_rest_counterfactual['source_y_mae_m'] < right['actual_source_y_mae_m']
+          static_explains_right=abs(right_static_rest_offset_m) > right_dynamic_residual_mae_m
+          if downstream_compensation_asymmetry_dominant:
+              classification='downstream_compensation_asymmetry_dominant'
+          elif right_improves and static_explains_right:
+              classification='rest_offset_dominant'
+          else:
+              classification='rotation_or_dynamic_trajectory_dominant'
+
+          result={
+              'format':'grand-bruxelles-civ1-upper-leg-rest-reference-decomposition-v2',
+              'sample_count':121,'residual_indices':RESIDUAL_INDICES,'classification':classification,
+              'right_static_rest_offset_m':right_static_rest_offset_m,'left_static_rest_offset_m':left_static_rest_offset_m,
+              'right_dynamic_residual_mae_m':right_dynamic_residual_mae_m,'left_dynamic_residual_mae_m':left_dynamic_residual_mae_m,
+              'right_source_rest_counterfactual':right_source_rest_counterfactual,'left_source_rest_counterfactual':left_source_rest_counterfactual,
+              'bilateral_asymmetry_m':bilateral_asymmetry_m,
+              'right_downstream_compensation_mean_m':right_downstream_compensation_mean_m,
+              'left_downstream_compensation_mean_m':left_downstream_compensation_mean_m,
+              'downstream_compensation_bilateral_delta_m':downstream_compensation_bilateral_delta_m,
+              'right_lowerleg_relative_error_mean_m':right_lowerleg_relative_error_mean_m,
+              'left_lowerleg_relative_error_mean_m':left_lowerleg_relative_error_mean_m,
+              'right_foot_relative_error_mean_m':right_foot_relative_error_mean_m,
+              'left_foot_relative_error_mean_m':left_foot_relative_error_mean_m,
+              'common_mode_upper_leg_offset':common_mode_upper_leg_offset,
+              'downstream_compensation_asymmetry_dominant':downstream_compensation_asymmetry_dominant,
+              'right':right,'left':left,
+              'threshold_was_modified':False,'diagnostic_only':True,'world_ground_assumed':False,
+              'runtime_authorized':False,'visual_approval_claimed':False,
+          }
+          Path('/tmp/civ1upper/evidence/upper-leg-rest-reference-decomposition.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+
+      - name: Upload UpperLeg decomposition evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-upper-leg-rest-reference-decomposition-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1upper/evidence/
+          if-no-files-found: error
+          retention-days: 14

@@ -257,6 +257,7 @@ def validate_wgs84_geometry(raw: dict[str, Any]) -> None:
         geometry = element.get("geometry")
         if not isinstance(geometry, list) or not geometry:
             raise SystemExit("MUNICIPALITY_ROAD_ACQUISITION_FAIL: invalid WGS84 geometry")
+        distinct_positions: set[tuple[float, float]] = set()
         for point in geometry:
             if not isinstance(point, dict):
                 raise SystemExit("MUNICIPALITY_ROAD_ACQUISITION_FAIL: invalid WGS84 coordinate")
@@ -273,6 +274,9 @@ def validate_wgs84_geometry(raw: dict[str, Any]) -> None:
                 or not -180.0 <= float(lon) <= 180.0
             ):
                 raise SystemExit("MUNICIPALITY_ROAD_ACQUISITION_FAIL: invalid WGS84 coordinate")
+            distinct_positions.add((float(lat), float(lon)))
+        if len(distinct_positions) < 2:
+            raise SystemExit("MUNICIPALITY_ROAD_ACQUISITION_FAIL: degenerate WGS84 geometry")
 
 
 def build_outputs(manifest: dict[str, Any], raw: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:

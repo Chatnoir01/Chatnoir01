@@ -57,7 +57,7 @@ func _stop_watching() -> void:
 func _release_owned_root() -> void:
     if is_instance_valid(_root):
         var parent := _root.get_parent()
-        if parent != null and not _tearing_down:
+        if parent != null:
             parent.remove_child(_root)
         _root.queue_free()
     _root = null

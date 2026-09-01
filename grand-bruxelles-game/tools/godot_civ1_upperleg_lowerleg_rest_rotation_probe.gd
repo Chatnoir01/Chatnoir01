@@ -94,6 +94,13 @@ func _basis_rows(b: Basis) -> Array:
 func _mirror_x(v: Vector3) -> Vector3:
     return Vector3(-v.x, v.y, v.z)
 
+func _axis_counterfactual(target_local: Vector3, source_in_target_basis: Vector3, axis: int) -> Vector3:
+    var candidate := target_local
+    candidate[axis] = source_in_target_basis[axis]
+    if candidate.length() <= 0.000001:
+        return target_local
+    return candidate.normalized() * target_local.length()
+
 func _write(payload: Dictionary) -> bool:
     var out := FileAccess.open(_output_path, FileAccess.WRITE)
     if out == null:
@@ -200,23 +207,33 @@ func _run() -> void:
     for side in side_defs:
         var parent_semantic: String = side_defs[side][0]
         var child_semantic: String = side_defs[side][1]
+        var source_parent_idx := int(source_map[parent_semantic])
         var source_child_idx := int(source_map[child_semantic])
         var target_parent_idx := int(target_map[parent_semantic])
         var target_child_idx := int(target_map[child_semantic])
         var source_local_rest := source_skeleton.get_bone_rest(source_child_idx).origin
         var target_local_rest := target_skeleton.get_bone_rest(target_child_idx).origin
+        var source_parent_global_rest := source_skeleton.get_bone_global_rest(source_parent_idx)
         var target_parent_global_rest := target_skeleton.get_bone_global_rest(target_parent_idx)
         if source_local_rest.length() <= 0.000001 or target_local_rest.length() <= 0.000001:
             push_error("CIV1_UPPERLEG_LOWERLEG_REST_ROTATION_FAIL: degenerate rest vector")
             quit(9)
             return
+        var source_world_rest := source_parent_global_rest.basis * source_local_rest
+        var source_rest_in_target_parent_basis := target_parent_global_rest.basis.inverse() * source_world_rest
+        source_rest_in_target_parent_basis = source_rest_in_target_parent_basis.normalized() * target_local_rest.length()
         rest_meta[side] = {
             "parent_semantic": parent_semantic,
             "child_semantic": child_semantic,
             "source_local_rest": source_local_rest,
             "target_local_rest": target_local_rest,
+            "source_parent_global_rest_basis": source_parent_global_rest.basis,
             "target_parent_global_rest_basis": target_parent_global_rest.basis,
             "source_direction_target_length": source_local_rest.normalized() * target_local_rest.length(),
+            "source_rest_in_target_parent_basis": source_rest_in_target_parent_basis,
+            "axis_counterfactual_x": _axis_counterfactual(target_local_rest, source_rest_in_target_parent_basis, 0),
+            "axis_counterfactual_y": _axis_counterfactual(target_local_rest, source_rest_in_target_parent_basis, 1),
+            "axis_counterfactual_z": _axis_counterfactual(target_local_rest, source_rest_in_target_parent_basis, 2),
         }
 
     var left_world_rest: Vector3 = rest_meta["Left"]["target_parent_global_rest_basis"] * rest_meta["Left"]["target_local_rest"]
@@ -269,6 +286,9 @@ func _run() -> void:
             var source_rest_direction_counterfactual := target_parent_pose.basis * source_direction_target_length
             var source_parent_rotation_counterfactual := source_parent_pose.basis * target_local_rest
             var common_mirrored_target_rest_counterfactual := target_parent_pose.basis * common_mirrored_target_local_rest
+            var axis_counterfactual_x: Vector3 = target_parent_pose.basis * rest_meta[side]["axis_counterfactual_x"]
+            var axis_counterfactual_y: Vector3 = target_parent_pose.basis * rest_meta[side]["axis_counterfactual_y"]
+            var axis_counterfactual_z: Vector3 = target_parent_pose.basis * rest_meta[side]["axis_counterfactual_z"]
             var local_translation_residual := target_actual - rotated_target_rest_vector
             row["sides"][side] = {
                 "source_actual_relative_vector": _v3(source_actual),
@@ -277,6 +297,9 @@ func _run() -> void:
                 "source_rest_direction_counterfactual": _v3(source_rest_direction_counterfactual),
                 "source_parent_rotation_counterfactual": _v3(source_parent_rotation_counterfactual),
                 "common_mirrored_target_rest_counterfactual": _v3(common_mirrored_target_rest_counterfactual),
+                "axis_counterfactual_x": _v3(axis_counterfactual_x),
+                "axis_counterfactual_y": _v3(axis_counterfactual_y),
+                "axis_counterfactual_z": _v3(axis_counterfactual_z),
                 "parent_rotation_delta_angle_rad": parent_rotation_delta_angle,
                 "parent_rotation_delta_euler_rad": _v3(parent_rotation_delta_euler),
                 "local_translation_residual": _v3(local_translation_residual),
@@ -284,7 +307,7 @@ func _run() -> void:
         samples.append(row)
 
     var payload := {
-        "format": "grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-v3",
+        "format": "grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-v4",
         "godot_version": Engine.get_version_info(),
         "source_animation": SOURCE_ANIMATION,
         "animation_length_s": animation.length,
@@ -300,11 +323,23 @@ func _run() -> void:
             "Left": {
                 "source": _v3(rest_meta["Left"]["source_local_rest"]),
                 "target": _v3(rest_meta["Left"]["target_local_rest"]),
+                "source_parent_rest_basis": _basis_rows(rest_meta["Left"]["source_parent_global_rest_basis"]),
+                "target_parent_rest_basis": _basis_rows(rest_meta["Left"]["target_parent_global_rest_basis"]),
+                "source_rest_in_target_parent_basis": _v3(rest_meta["Left"]["source_rest_in_target_parent_basis"]),
+                "axis_counterfactual_x": _v3(rest_meta["Left"]["axis_counterfactual_x"]),
+                "axis_counterfactual_y": _v3(rest_meta["Left"]["axis_counterfactual_y"]),
+                "axis_counterfactual_z": _v3(rest_meta["Left"]["axis_counterfactual_z"]),
                 "common_mirrored_target": _v3(rest_meta["Left"]["common_mirrored_target_local_rest"]),
             },
             "Right": {
                 "source": _v3(rest_meta["Right"]["source_local_rest"]),
                 "target": _v3(rest_meta["Right"]["target_local_rest"]),
+                "source_parent_rest_basis": _basis_rows(rest_meta["Right"]["source_parent_global_rest_basis"]),
+                "target_parent_rest_basis": _basis_rows(rest_meta["Right"]["target_parent_global_rest_basis"]),
+                "source_rest_in_target_parent_basis": _v3(rest_meta["Right"]["source_rest_in_target_parent_basis"]),
+                "axis_counterfactual_x": _v3(rest_meta["Right"]["axis_counterfactual_x"]),
+                "axis_counterfactual_y": _v3(rest_meta["Right"]["axis_counterfactual_y"]),
+                "axis_counterfactual_z": _v3(rest_meta["Right"]["axis_counterfactual_z"]),
                 "common_mirrored_target": _v3(rest_meta["Right"]["common_mirrored_target_local_rest"]),
             },
         },

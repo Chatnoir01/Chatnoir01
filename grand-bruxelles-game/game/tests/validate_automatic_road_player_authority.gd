@@ -1,6 +1,6 @@
 extends SceneTree
 
-const RUNTIME_SCRIPT := preload("res://scripts/automatic_road_direct_spawn.gd")
+const RUNTIME_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
 
 func _init() -> void:
     call_deferred("_run")

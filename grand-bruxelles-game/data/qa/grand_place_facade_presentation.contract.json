@@ -1,0 +1,18 @@
+{
+  "schema": "grand-bruxelles-grand-place-facade-presentation-v1",
+  "production_base_sha": "a8737b5b4cbe0ee205bdede14217938118ee3c1b",
+  "identity_lock": "res://data/qa/grand_place_facade_owner_identity.lock.json",
+  "source_geometry_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+  "source_geometry_revision": "2026-08-08",
+  "presentation": {"method":"source-derived square-facing facade plane plus bounded shallow authored relief","source_vertices_changed":false,"source_collision_changed":false,"survey_dimensions_claimed":false,"exact_opening_coordinates_claimed":false,"exact_material_rgb_claimed":false,"relief_depth_m":0.10,"facade_plane_tolerance_m":2.0,"unresolved_owner_style":"preserve_neutral_contour"},
+  "owners": {
+    "1608847": {"official_name":"Le Cornet","grand_place_number":"6","urban_record_id":"31123","heritage_url":"https://monument.heritage.brussels/fr/buildings/31123","facts":{"main_levels":3,"entresol":true,"bays":3,"baroque":true,"white_stone_restoration":true,"oculi_at_second_floor":true,"ship_stern_crown":true,"two_register_cornices":true,"gilded_maritime_motifs":true,"roof_slate_and_tile":true},"render_profile":"cornet"},
+    "1608851": {"official_name":"Le Renard","grand_place_number":"7","urban_record_id":"31124","heritage_url":"https://monument.heritage.brussels/fr/buildings/31124","facts":{"main_levels":3,"entresol":true,"bays":4,"baroque":true,"white_stone":true,"blue_stone":true,"three_registers":true,"middle_bays_projecting":true},"render_profile":"renard"},
+    "1635485": {"official_name":"La Rose","grand_place_number":"11","urban_record_id":"31128","heritage_url":"https://monument.heritage.brussels/fr/buildings/31128","facts":{"main_levels":3,"bays":3,"baroque":true,"three_superposed_orders":true,"ground_doric_blue_stone":true,"first_ionic":true,"second_composite":true,"gold_lambrequins_second_floor":true,"roof_s_tile":true},"render_profile":"rose"},
+    "1639974": {"official_name":"La Maison des Brasseurs","grand_place_number":"10","urban_record_id":"31127","heritage_url":"https://monument.heritage.brussels/fr/buildings/31127","facts":{"main_levels":3,"bays":3,"baroque_classicizing":true,"euville_gobertange_blue_stone":true,"colossal_corinthian_order":true,"lower_doric_order":true,"axial_bay_wider":true,"curved_pediment":true,"blue_stone_cross_windows":true,"roof_slate":true},"render_profile":"brasseurs"},
+    "1646728": {"official_name":"Le Mont Thabor","grand_place_number":"12","urban_record_id":"30907","heritage_url":"https://monument.heritage.brussels/fr/buildings/30907","facts":{"main_levels":3,"bays":3,"baroque_sober":true,"cemented_facade":true,"gobertange_gable":true,"euville_savonniere_details":true,"blue_stone_cross_windows":true,"blue_stone_ground_floor":true,"roof_s_tile":true},"render_profile":"mont_thabor"},
+    "1654360": {"official_name":"Maison du Roi","grand_place_number":"29","urban_record_id":"31143","heritage_url":"https://monument.heritage.brussels/fr/buildings/31143","facts":{"main_levels":3,"lower_level_bays":9,"upper_level_bays":17,"neo_gothic":true,"brick_blue_stone_gobertange":true,"pointed_arch_windows":true,"ground_window_lancets":4,"upper_window_lancets":2,"axial_bay_wider":true,"gallery_levels":2,"roof_slate":true},"render_profile":"maison_du_roi"}
+  },
+  "forbidden_details": ["statuary","figurative_sculpture","invented_inscriptions","invented_exact_window_dimensions","invented_masonry_courses"],
+  "hard_rules": {"resolved_owner_count":6,"hold_owner_count":17,"hold_owner_may_receive_override":false,"source_geometry_changed":false,"collision_changed":false,"finished_perfect":false,"human_multiview_pass_required":true}
+}

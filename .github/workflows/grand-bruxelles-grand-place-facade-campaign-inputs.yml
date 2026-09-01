@@ -1,0 +1,23 @@
+name: Grand Bruxelles Grand-Place Facade Campaign Inputs
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-facade-campaign-inputs.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_address_crosswalk.contract.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_campaign.json"
+      - "grand-bruxelles-game/data/qa/grand_place_heritage_address_registry.json"
+      - "grand-bruxelles-game/tools/qa/validate_grand_place_facade_campaign_inputs.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate immutable campaign inputs
+        run: python3 grand-bruxelles-game/tools/qa/validate_grand_place_facade_campaign_inputs.py

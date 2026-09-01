@@ -1,0 +1,12 @@
+{
+  "schema":"grand-bruxelles-grand-place-facade-refinement-v4",
+  "production_base_sha":"245432e538bb52d454dd205c0b7e337fe4db093d",
+  "status":"human_rejected_superseded",
+  "run_id":32320214016,
+  "artifact_id":9389525337,
+  "artifact_digest":"sha256:480e397b8d0bcf4883144a2f6e55e24631e6a4651c97f067ecac68a017f90d37",
+  "numeric_result":{"pass":true,"canonical_bbox":[256,218],"cornet_renard_bbox":[448,281],"brasseurs_rose_thabor_bbox":[255,217],"maison_du_roi_bbox":[707,487]},
+  "human_result":{"pass":false,"reasons":["Cornet/Renard terminal and inherited stretched horizontal cues read as detached bars","Maison du Roi still read as schematic/grid-like"]},
+  "runtime_policy":{"visual_geometry_count":0,"superseded_by":"V5","retain_as_evidence":true},
+  "hard_rules":{"numeric_pass_does_not_override_human_fail":true,"camera_changed":false,"thresholds_changed":false,"source_vertices_changed":false,"official_collision_changed":false,"finished_perfect":false}
+}

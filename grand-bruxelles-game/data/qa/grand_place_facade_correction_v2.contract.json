@@ -1,0 +1,22 @@
+{
+  "schema": "grand-bruxelles-grand-place-facade-correction-v2",
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "trigger": {
+    "first_visual_run": 32312834294,
+    "first_visual_artifact": 9387088276,
+    "first_visual_artifact_digest": "sha256:6f785a4d014878ead377a1ef16bc81a15da5d9b8ca2cee41c85f1988a8bf5eb4",
+    "canonical_passed": true,
+    "cornet_renard_gt3_percent": 3.6419270833,
+    "cornet_renard_gt8_percent": 3.5282118056,
+    "cornet_renard_bbox": [525, 206, 711, 472],
+    "cornet_renard_bbox_width": 187,
+    "cornet_renard_required_width": 220,
+    "failure_reason": "source-valid facade impact strong but horizontal coverage too narrow; human review also rejected Maison du Roi needle-grid presentation"
+  },
+  "corrections": {
+    "cornet": {"owner_id":"1608847","heritage_record":"Urban Brussels 31123","facts_used":["three bays / three levels plus entresol","two-level ship-stern-like crown","roof-edge balustrade","mansard plus adjoining gable roofs covered with slate and tiles"],"runtime_change":"presentation-only crown/balustrade cues plus one broad documented roof family"},
+    "renard": {"owner_id":"1608851","heritage_record":"Urban Brussels 31124","facts_used":["four bays / three levels plus entresol","three facade registers","profiled cornice","gable under curved pediment"],"runtime_change":"presentation-only crown/cornice and axial gable-window cues"},
+    "maison_du_roi": {"owner_id":"1654360","heritage_record":"Urban Brussels 31143","facts_used":["nine lower bays","seventeen upper bays","wider axial bay","four lancets at ground windows and two above","two gallery levels"],"runtime_change":"replace visual needle grid with grouped pointed bay panels and internal stone mullions; legacy V1 Maison detail root remains hidden"}
+  },
+  "hard_rules": {"camera_position_changed":false,"camera_target_rule_changed":false,"fov_changed":false,"visual_thresholds_changed":false,"source_geometry_changed":false,"official_collision_changed":false,"new_collision_objects":false,"statuary_authored":false,"exact_dimensions_claimed_surveyed":false,"finished_perfect":false}
+}

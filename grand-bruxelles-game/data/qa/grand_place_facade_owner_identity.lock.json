@@ -1,0 +1,20 @@
+{
+  "schema": "grand-bruxelles-grand-place-facade-owner-identity-lock-v1",
+  "status": "locked_from_green_crosswalk",
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "crosswalk_run_id": 32312253823,
+  "crosswalk_artifact_id": 9386867740,
+  "crosswalk_artifact_digest": "sha256:e79a7b3f102fbf60485142faf4300b8fa9dbef412cf46723166336d11f5de99e",
+  "urbis_address_response_sha256": "f9581fb797264de1d5b36c78062962ce5ca74111e11447d92e7904ee0ce5fd75",
+  "counts": {"all_source_owners":25,"address_resolved":24,"address_ambiguous":0,"facade_target_owners":23,"identity_resolved":6,"hold":17},
+  "resolved": [
+    {"building_id":"1608847","grand_place_number":"6","address_id":"https://databrussels.be/id/address/146559","official_name":"Le Cornet","urban_record_id":"31123","style_family":"rococo_precursor_exception"},
+    {"building_id":"1608851","grand_place_number":"7","address_id":"https://databrussels.be/id/address/146560","official_name":"Le Renard","urban_record_id":"31124","style_family":"italianizing_superposed_orders"},
+    {"building_id":"1635485","grand_place_number":"11","address_id":"https://databrussels.be/id/address/117341","official_name":"La Rose","urban_record_id":"31128","style_family":"italianizing_superposed_orders"},
+    {"building_id":"1639974","grand_place_number":"10","address_id":"https://databrussels.be/id/address/117340","official_name":"La Maison des Brasseurs","urban_record_id":"31127","style_family":"classical_colossal_order_fronton_attic_balustrade"},
+    {"building_id":"1646728","grand_place_number":"12","address_id":"https://databrussels.be/id/address/117342","official_name":"Le Mont Thabor","urban_record_id":"30907","style_family":"classical_sober"},
+    {"building_id":"1654360","grand_place_number":"29","address_id":"https://databrussels.be/id/address/27630","official_name":"Maison du Roi","urban_record_id":"31143","style_family":"neo_gothic"}
+  ],
+  "hold_owner_ids": ["1601883","1601884","1611166","1613517","1635455","1637695","1637729","1639985","1643344","1645578","1645580","1647834","1647943","1649069","1653185","1661439","1781508"],
+  "hard_rules": {"only_resolved_may_receive_named_presentation":true,"hold_remains_neutral":true,"nearest_neighbour_allowed":false,"list_order_allowed":false,"runtime_geometry_authorized":false,"collision_change_authorized":false}
+}

@@ -1,0 +1,8 @@
+{
+  "schema": "grand-bruxelles-grand-place-facade-source-policy-v1",
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "visual_goal": "replace neutral contour presentation with source-constrained Grand-Place facade identity at normal player height",
+  "source_priority": ["Paradigm/UrbIS official building geometry and AddressNumbers", "Urban Brussels official architectural inventory", "already-shipped source-backed Grand-Place presentation conventions"],
+  "forbidden": ["nearest-centroid semantic assignment", "list-order semantic assignment", "source vertex edits", "official collision edits", "invented named-building identity", "claiming authored relief/window dimensions as survey measurements", "finished_perfect without multi-view human pass"],
+  "allowed_after_exact_crosswalk": ["official heritage style family", "official documented bay/order/window semantics", "bounded authored presentation dimensions clearly labelled non-survey", "procedural materials that do not imply undocumented masonry dimensions"]
+}

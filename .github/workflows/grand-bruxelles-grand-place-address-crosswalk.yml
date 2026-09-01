@@ -1,0 +1,70 @@
+name: Grand Bruxelles Grand-Place Address Crosswalk
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-address-crosswalk.yml"
+      - "grand-bruxelles-game/tools/qa/grand_place_address_crosswalk.py"
+      - "grand-bruxelles-game/tools/qa/grand_place_facade_identity_join.py"
+      - "grand-bruxelles-game/data/qa/grand_place_address_crosswalk.contract.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_campaign.json"
+      - "grand-bruxelles-game/data/qa/grand_place_heritage_address_registry.json"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/**"
+      - "grand-bruxelles-game/data/visual/grand_place_granite_paving.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crosswalk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact production base
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          expected="02e5927f280372be0aed28a8971f7b4a61415af1"
+          current="$(git rev-parse origin/main)"
+          base="$(git merge-base HEAD origin/main)"
+          test "$current" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_MAIN current=$current expected=$expected"; exit 1; }
+          test "$base" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_BASE base=$base expected=$expected"; exit 1; }
+      - name: Validate immutable campaign inputs
+        run: python3 grand-bruxelles-game/tools/qa/validate_grand_place_facade_campaign_inputs.py
+      - name: Build official AddressNumbers to GROUNDSURFACE crosswalk
+        run: |
+          mkdir -p "$RUNNER_TEMP/grand-place-crosswalk"
+          python3 grand-bruxelles-game/tools/qa/grand_place_address_crosswalk.py \
+            --repo-root grand-bruxelles-game \
+            --output "$RUNNER_TEMP/grand-place-crosswalk/grand_place_address_crosswalk.json"
+      - name: Join exact addresses to official heritage registry
+        run: |
+          python3 grand-bruxelles-game/tools/qa/grand_place_facade_identity_join.py \
+            --crosswalk "$RUNNER_TEMP/grand-place-crosswalk/grand_place_address_crosswalk.json" \
+            --heritage grand-bruxelles-game/data/qa/grand_place_heritage_address_registry.json \
+            --campaign grand-bruxelles-game/data/qa/grand_place_facade_campaign.json \
+            --output "$RUNNER_TEMP/grand-place-crosswalk/grand_place_facade_owner_identity.json"
+      - name: Publish crosswalk summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'grand-place-crosswalk'
+          c=json.loads((root/'grand_place_address_crosswalk.json').read_text())['counts']
+          i=json.loads((root/'grand_place_facade_owner_identity.json').read_text())['counts']
+          print('# Grand-Place official address + heritage crosswalk\n')
+          for k in ['resolved_owner_count','unresolved_owner_count','exact_unique_containments','ambiguous_address_count','address_points_returned']:
+              print(f"- **{k}**: {c[k]}")
+          print(f"- **facade_identity_resolved**: {i['identity_resolved']}")
+          print(f"- **facade_identity_hold**: {i['hold']}")
+          print('\nOnly exact address containment with one consistent official heritage property group may unlock a named facade style. HOLD stays neutral.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-address-crosswalk
+          path: ${{ runner.temp }}/grand-place-crosswalk/
+          if-no-files-found: error

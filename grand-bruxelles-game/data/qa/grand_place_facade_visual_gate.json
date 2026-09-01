@@ -1,0 +1,17 @@
+{
+  "schema": "grand-bruxelles-grand-place-facade-visual-gate-v2",
+  "production_base_sha": "02e5927f280372be0aed28a8971f7b4a61415af1",
+  "resolution": [1280, 720],
+  "camera_position": [319.01, 1.72, -535.20],
+  "fov_deg": 62.0,
+  "camera_position_source": "grand_place_clean_player_witness_pr711",
+  "required_views": 4,
+  "views": [
+    {"id":"canonical","target_method":"fixed_existing_witness","target":[321.91,11.8,-485.66],"minimum_gt3_percent":0.35,"minimum_gt8_percent":0.15,"minimum_bbox_width":180,"minimum_bbox_height":90},
+    {"id":"cornet_renard","target_method":"source_bbox_cluster_center","target_owner_ids":["1608847","1608851"],"minimum_gt3_percent":1.0,"minimum_gt8_percent":0.5,"minimum_bbox_width":220,"minimum_bbox_height":140},
+    {"id":"brasseurs_rose_thabor","target_method":"source_bbox_cluster_center","target_owner_ids":["1639974","1635485","1646728"],"minimum_gt3_percent":1.0,"minimum_gt8_percent":0.5,"minimum_bbox_width":220,"minimum_bbox_height":140},
+    {"id":"maison_du_roi","target_method":"source_bbox_cluster_center","target_owner_ids":["1654360"],"minimum_gt3_percent":1.0,"minimum_gt8_percent":0.5,"minimum_bbox_width":220,"minimum_bbox_height":140}
+  ],
+  "freeze": {"ui_hidden":true,"player_hidden":true,"vehicles_hidden":true,"npc_hidden":true,"ambient_frozen":true},
+  "hard_rules": {"camera_position_move_for_pass":false,"fov_change_for_pass":false,"source_bbox_target_change_after_first_render":false,"threshold_reduction_after_first_render":false,"human_full_frame_pass_required":true,"numeric_pass_alone_authorizes_finished_perfect":false,"finished_perfect_on_this_phase":false}
+}

@@ -1,0 +1,174 @@
+name: Grand Bruxelles Grand-Place Facade Presentation V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-facade-presentation.yml"
+      - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_correction_v2.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_coverage_v3.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_refinement_v4.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_integrated_v5.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_facade_frontage_mass_v6.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_maison_du_roi_tower_depth_v7.gd"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_v1.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_correction_v2.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_coverage_v3.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_refinement_v4.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_integrated_v5.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_frontage_mass_v6.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_maison_du_roi_tower_depth_v7.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_owner_identity.lock.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_presentation.contract.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_correction_v2.contract.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_refinement_v4.contract.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_integrated_v5.contract.json"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_presentation_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_correction_v2_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_coverage_v3_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_refinement_v4_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_integrated_v5_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_frontage_mass_v6_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_multiview_capture_test.gd"
+      - "grand-bruxelles-game/tools/qa/compare_grand_place_facade_multiview.py"
+      - "grand-bruxelles-game/game/scripts/brussels_white_stone_material.gd"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-facade-presentation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact live production base
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          expected="dc3772b0905b04052c8304a9188ae8961e1b1637"
+          current="$(git rev-parse origin/main)"
+          base="$(git merge-base HEAD origin/main)"
+          contract_base="$(python3 -c 'import json; print(json.load(open("grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"))["production_base_sha"])')"
+          test "$current" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_MAIN current=$current expected=$expected"; exit 1; }
+          test "$base" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_BASE base=$base expected=$expected"; exit 1; }
+          test "$contract_base" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_CONTRACT contract=$contract_base expected=$expected"; exit 1; }
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-facade-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-facade-import.log; then exit 1; fi
+      - name: Validate facade runtime invariants
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_presentation_runtime_test.gd 2>&1 | tee /tmp/grand-place-facade-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_PRESENTATION_FAIL" /tmp/grand-place-facade-runtime.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_PRESENTATION_OK" /tmp/grand-place-facade-runtime.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_correction_v2_test.gd 2>&1 | tee /tmp/grand-place-facade-correction-v2.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_CORRECTION_V2_FAIL" /tmp/grand-place-facade-correction-v2.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_CORRECTION_V2_OK" /tmp/grand-place-facade-correction-v2.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_coverage_v3_test.gd 2>&1 | tee /tmp/grand-place-facade-coverage-v3.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_COVERAGE_V3_FAIL" /tmp/grand-place-facade-coverage-v3.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_COVERAGE_V3_OK" /tmp/grand-place-facade-coverage-v3.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_refinement_v4_test.gd 2>&1 | tee /tmp/grand-place-facade-refinement-v4.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_REFINEMENT_V4_FAIL" /tmp/grand-place-facade-refinement-v4.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_REFINEMENT_V4_OK" /tmp/grand-place-facade-refinement-v4.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_integrated_v5_test.gd 2>&1 | tee /tmp/grand-place-facade-integrated-v5.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_INTEGRATED_V5_FAIL" /tmp/grand-place-facade-integrated-v5.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_INTEGRATED_V5_OK" /tmp/grand-place-facade-integrated-v5.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_frontage_mass_v6_test.gd 2>&1 | tee /tmp/grand-place-facade-frontage-mass-v6.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_FRONTAGE_MASS_V6_FAIL" /tmp/grand-place-facade-frontage-mass-v6.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_FRONTAGE_MASS_V6_OK" /tmp/grand-place-facade-frontage-mass-v6.log
+
+  player-frame-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact PR base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+      - name: Install render and compare dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+          python3 -m pip install --disable-pip-version-check pillow
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Copy frozen facade witness into exact base checkout
+        run: |
+          cp head/grand-bruxelles-game/game/tests/grand_place_facade_multiview_capture_test.gd base/grand-bruxelles-game/game/tests/grand_place_facade_multiview_capture_test.gd
+          cp head/grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json base/grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json
+      - name: Import exact base and head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-facade-base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-facade-head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-facade-base-import.log /tmp/grand-place-facade-head-import.log; then exit 1; fi
+      - name: Capture frozen four-view BEFORE and AFTER
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/grand-place-facade-before /tmp/grand-place-facade-after
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_facade_multiview_capture_test.gd -- /tmp/grand-place-facade-before before 2>&1 | tee /tmp/grand-place-facade-before.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_facade_multiview_capture_test.gd -- /tmp/grand-place-facade-after after 2>&1 | tee /tmp/grand-place-facade-after.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_CAPTURE_FAIL" /tmp/grand-place-facade-before.log /tmp/grand-place-facade-after.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_CAPTURE_OK" /tmp/grand-place-facade-before.log
+          grep -q "GRAND_PLACE_FACADE_CAPTURE_OK" /tmp/grand-place-facade-after.log
+          test "$(find /tmp/grand-place-facade-before -name '*_before.png' | wc -l)" -eq 4
+          test "$(find /tmp/grand-place-facade-after -name '*_after.png' | wc -l)" -eq 4
+      - name: Measure frozen four-view impact
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 head/grand-bruxelles-game/tools/qa/compare_grand_place_facade_multiview.py \
+            --gate head/grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json \
+            --before-dir /tmp/grand-place-facade-before \
+            --after-dir /tmp/grand-place-facade-after \
+            --output /tmp/grand-place-facade-multiview-result.json 2>&1 | tee /tmp/grand-place-facade-multiview.log
+          grep -q "GRAND_PLACE_FACADE_MULTIVIEW_OK" /tmp/grand-place-facade-multiview.log
+      - name: Stage owner-review evidence
+        if: always()
+        run: |
+          mkdir -p head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1
+          cp /tmp/grand-place-facade-before/*.png head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1/ 2>/dev/null || true
+          cp /tmp/grand-place-facade-after/*.png head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1/ 2>/dev/null || true
+          cp /tmp/grand-place-facade-multiview-result.json head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1/ 2>/dev/null || true
+          cp /tmp/grand-place-facade-multiview.log head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1/metrics.log 2>/dev/null || true
+          cp /tmp/grand-place-facade-before.log head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1/before_capture.log 2>/dev/null || true
+          cp /tmp/grand-place-facade-after.log head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1/after_capture.log 2>/dev/null || true
+      - name: Upload owner-review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-facade-presentation-v1-ab
+          path: head/grand-bruxelles-game/artifacts/qa/grand_place_facade_presentation_v1
+          if-no-files-found: warn

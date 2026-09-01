@@ -28,6 +28,18 @@ def raw_with_point(lat, lon):
     }
 
 
+def raw_with_geometry(geometry):
+    return {
+        "osm3s": {"timestamp_osm_base": "2026-08-30T00:00:00Z"},
+        "elements": [{
+            "type": "way",
+            "id": 123,
+            "tags": {"highway": "residential", "name": "Teststraat"},
+            "geometry": geometry,
+        }],
+    }
+
+
 def test_intake_rejects_non_finite_and_out_of_domain_wgs84_coordinates() -> None:
     module = load_tool()
     manifest = module.read_manifest(MANIFEST)
@@ -48,3 +60,38 @@ def test_intake_rejects_non_finite_and_out_of_domain_wgs84_coordinates() -> None
             assert "invalid WGS84 coordinate" in str(exc)
         else:
             raise AssertionError(f"invalid WGS84 coordinate escaped intake: lat={lat!r} lon={lon!r}")
+
+
+def test_intake_rejects_degenerate_wgs84_road_geometry_before_projection() -> None:
+    module = load_tool()
+    manifest = module.read_manifest(MANIFEST)
+
+    def forbidden_convert(*_args, **_kwargs):
+        raise AssertionError("projection must not run for degenerate WGS84 geometry")
+
+    module.convert = forbidden_convert
+    degenerate_geometries = [
+        [{"lat": 50.8420, "lon": 4.3480}],
+        [
+            {"lat": 50.8420, "lon": 4.3480},
+            {"lat": 50.8420, "lon": 4.3480},
+            {"lat": 50.8420, "lon": 4.3480},
+        ],
+    ]
+    for geometry in degenerate_geometries:
+        try:
+            module.build_outputs(manifest, raw_with_geometry(geometry))
+        except SystemExit as exc:
+            assert "degenerate WGS84 geometry" in str(exc)
+        else:
+            raise AssertionError("degenerate WGS84 road geometry escaped intake")
+
+
+def test_repeated_vertices_are_allowed_when_two_distinct_positions_exist() -> None:
+    module = load_tool()
+    raw = raw_with_geometry([
+        {"lat": 50.8420, "lon": 4.3480},
+        {"lat": 50.8420, "lon": 4.3480},
+        {"lat": 50.8421, "lon": 4.3482},
+    ])
+    module.validate_wgs84_geometry(raw)

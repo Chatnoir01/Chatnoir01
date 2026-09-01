@@ -107,8 +107,23 @@ func _is_production_scene(candidate: Node3D) -> bool:
         and candidate.get_node_or_null("Player") is Node3D
     )
 
+func _is_authoritative_production_scene(candidate: Node3D) -> bool:
+    if candidate == null or not _is_production_scene(candidate) or not is_inside_tree():
+        return false
+    var tree: SceneTree = get_tree()
+    if tree == null:
+        return false
+    if tree.current_scene == candidate:
+        return true
+    var parent := candidate.get_parent()
+    if parent == tree.root:
+        return true
+    # Preserve the existing dormant/SubViewport -> Main contract while rejecting
+    # arbitrary deeper nodes that merely clone the production anchor names.
+    return str(candidate.name) == "Main" and parent is Viewport
+
 func _find_nested_production_scene(node: Node) -> Node3D:
-    if node is Node3D and _is_production_scene(node as Node3D):
+    if node is Node3D and _is_authoritative_production_scene(node as Node3D):
         return node as Node3D
     for child: Node in node.get_children():
         var nested := _find_nested_production_scene(child)
@@ -123,7 +138,7 @@ func _find_production_scene() -> Node3D:
     if tree == null:
         return null
     var current := tree.current_scene
-    if current is Node3D and _is_production_scene(current as Node3D):
+    if current is Node3D and _is_authoritative_production_scene(current as Node3D):
         return current as Node3D
     return _find_nested_production_scene(tree.root)
 

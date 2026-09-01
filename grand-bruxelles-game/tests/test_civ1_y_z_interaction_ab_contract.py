@@ -30,6 +30,12 @@ def main() -> None:
         "diagnostic_only",
         "runtime_authorized",
         "visual_approval_claimed",
+        "source_windows",
+        "native_inherited_windows",
+        "source_like_windows",
+        "novel_windows",
+        "native_false_window_inherited",
+        "native_false_window_inherited_by_all_candidates",
     ):
         require(workflow, token)
 

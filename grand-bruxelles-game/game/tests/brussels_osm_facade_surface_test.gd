@@ -44,6 +44,29 @@ func _validate_bound_runtime(runtime: Node, label: String) -> bool:
         return false
     return true
 
+func _make_nested_decoy() -> Node3D:
+    var wrapper := Node3D.new()
+    wrapper.name = "ForeignFacadeOwner"
+    var decoy_main := Node3D.new()
+    decoy_main.name = "ForeignNestedMain"
+    var osm := Node3D.new()
+    osm.name = "BrusselsOSM"
+    var buildings := Node3D.new()
+    buildings.name = "GeneratedBuildings"
+    var building := CSGPolygon3D.new()
+    building.name = "Building_Decoy"
+    building.polygon = PackedVector2Array([Vector2(-1.0, 0.0), Vector2(1.0, 0.0), Vector2(1.0, 3.0), Vector2(-1.0, 3.0)])
+    building.depth = 1.0
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color(0.55, 0.52, 0.48, 1.0)
+    material.roughness = 0.8
+    building.material = material
+    buildings.add_child(building)
+    osm.add_child(buildings)
+    decoy_main.add_child(osm)
+    wrapper.add_child(decoy_main)
+    return wrapper
+
 func _run() -> void:
     if not FileAccess.file_exists(MATERIAL_PATH):
         _fail("reusable facade surface material missing")
@@ -57,13 +80,31 @@ func _run() -> void:
         _fail("production main scene missing")
         return
 
-    var first_scene := packed.instantiate() as Node3D
-    root.add_child(first_scene)
-
     var runtime := root.get_node_or_null("BrusselsOsmFacadeSurfaceRuntime")
     if runtime == null:
         _fail("shared facade surface runtime missing")
         return
+
+    # A foreign nested scene can legitimately reuse the same anchor names. It must
+    # never gain authority over the shared facade material family merely because a
+    # recursive recovery sees GeneratedBuildings first.
+    var foreign_wrapper := _make_nested_decoy()
+    root.add_child(foreign_wrapper)
+    for _frame: int in range(8):
+        await process_frame
+    if runtime.ready_complete() or runtime.applied_building_count() != 0:
+        _fail("foreign nested GeneratedBuildings captured facade surface authority")
+        return
+    var foreign_building := foreign_wrapper.get_node_or_null("ForeignNestedMain/BrusselsOSM/GeneratedBuildings/Building_Decoy") as CSGPolygon3D
+    if foreign_building == null:
+        _fail("foreign facade decoy missing")
+        return
+    if str(foreign_building.get_meta("material_family", "")) == MATERIAL_FAMILY:
+        _fail("foreign nested facade building received owned material metadata")
+        return
+
+    var first_scene := packed.instantiate() as Node3D
+    root.add_child(first_scene)
 
     if not await _wait_for_runtime(runtime):
         _fail("first scene facade bind timed out")
@@ -71,6 +112,9 @@ func _run() -> void:
     if not _validate_bound_runtime(runtime, "first scene"):
         return
     var first_count: int = int(runtime.applied_building_count())
+    if str(foreign_building.get_meta("material_family", "")) == MATERIAL_FAMILY:
+        _fail("foreign nested facade building was mutated after authoritative bind")
+        return
 
     # Autoloads survive production scene replacement. The facade runtime must
     # release old scene references, keep lifecycle watchers armed and bind the
@@ -91,5 +135,5 @@ func _run() -> void:
         _fail("replacement scene building coverage drifted: first=%d replacement=%d" % [first_count, runtime.applied_building_count()])
         return
 
-    print("BRUSSELS_OSM_FACADE_SURFACE_OK: buildings=%d materials=%d family=%s geometry_changed=false hero_replacements=0 scene_rebind=true" % [runtime.applied_building_count(), runtime.shared_material_count(), runtime.material_family()])
+    print("BRUSSELS_OSM_FACADE_SURFACE_OK: buildings=%d materials=%d family=%s geometry_changed=false hero_replacements=0 scene_rebind=true foreign_nested_owner_rejected=true" % [runtime.applied_building_count(), runtime.shared_material_count(), runtime.material_family()])
     quit(0)

@@ -69,6 +69,10 @@ def main() -> None:
         "normalized_right_primary_center_error_samples",
         "normalized_right_overlap_improves_baseline",
         "normalized_right_phase_center_improves_baseline",
+        "normalized_probe_source_is_canonical",
+        "cross_process_source_exact_equality_required",
+        "assert normalized_probe_source_is_canonical is True",
+        "assert cross_process_source_exact_equality_required is False",
         "assert right_median_improved is True",
         "assert right_p90_improved is True",
         "assert right_overlap_improved is True",
@@ -85,8 +89,11 @@ def main() -> None:
         "REST_POSE_RESET_INJECTED",
         "text=text.replace(needle",
         "target_skeleton.reset_bone_pose(target_right_idx)\n', 1)",
+        "assert b['low_height_sample_count']==n['low_height_sample_count']",
+        "assert b['low_height_sample_indices']==n['low_height_sample_indices']",
+        "assert baseline_left['low_height_sample_indices']==normalized_left['low_height_sample_indices']",
     ):
-        assert forbidden not in workflow, f"workflow must not patch the versioned probe at runtime: {forbidden}"
+        assert forbidden not in workflow, f"workflow must not rely on flaky/runtime patch behavior: {forbidden}"
 
     print("CIV1_RIGHT_FOOT_REFERENCE_AB_CONTRACT_OK")
 

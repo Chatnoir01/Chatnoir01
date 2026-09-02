@@ -106,17 +106,51 @@ func _osm_id_from_name(node_name: String) -> int:
         return 0
     return int(remainder.substr(0, separator))
 
+func _is_authoritative_road_scene(node: Node) -> bool:
+    if not node is Node3D or not is_inside_tree():
+        return false
+    var candidate := node as Node3D
+    var tree := get_tree()
+    if tree == null:
+        return false
+    if tree.current_scene == candidate:
+        return true
+    var parent := candidate.get_parent()
+    if parent == tree.root:
+        return true
+    # Preserve the established synthetic/editor mount: SceneTree.root -> Viewport -> Main.
+    # Familiar anchor names nested any deeper never gain shared road-surface authority.
+    return str(candidate.name) == "Main" and parent is Viewport and parent.get_parent() == tree.root
+
 func _is_generated_roads_root(node: Node) -> bool:
     if not node is Node3D or str(node.name) != "GeneratedRoads":
         return false
     var parent := node.get_parent()
-    return parent != null and str(parent.name) == "BrusselsOSM"
+    if parent == null or str(parent.name) != "BrusselsOSM":
+        return false
+    return _is_authoritative_road_scene(parent.get_parent())
 
 func _is_generated_road_child(node: Node) -> bool:
     if not node is CSGBox3D or not str(node.name).begins_with("Road_"):
         return false
     var parent := node.get_parent()
     return parent != null and _is_generated_roads_root(parent)
+
+func _is_authoritative_jette_official_surface(node: Node) -> bool:
+    if not node is MeshInstance3D or str(node.name) != "JetteOfficialStreetSurfaces":
+        return false
+    # The coverage contract also exercises material registration on a deliberately
+    # isolated node before either object is mounted. That unit-level call has no
+    # scene authority to steal; production/event-driven registration always runs
+    # inside a SceneTree and must satisfy the topology check below.
+    if not is_inside_tree():
+        return node.get_parent() == null
+    # Jette phase-2 builds this exact source-backed mesh as a direct child of its
+    # standalone zone scene. Requiring that immediate scene owner to be authoritative
+    # prevents a familiar-name clone nested under a foreign wrapper from capturing
+    # the shared ground-network presentation/provenance contract.
+    var scene_owner := node.get_parent()
+    return scene_owner != null and _is_authoritative_road_scene(scene_owner)
 
 func _schedule_road_bind() -> void:
     if _failed or _tearing_down or _road_bind_scheduled:
@@ -136,6 +170,7 @@ func _recover_existing_roads() -> void:
     _road_bind_scheduled = false
     if _failed or _tearing_down or not is_inside_tree():
         return
+    # Discovery can remain recursive; authority is constrained by scene topology.
     var roots := tree.root.find_children("GeneratedRoads", "Node3D", true, false)
     for candidate: Node in roots:
         if _is_generated_roads_root(candidate):
@@ -228,7 +263,7 @@ func _register_official_surface(node: Node) -> void:
     var role := ""
     if str(node.name) == "StreetSurfaces_S" and node.get_parent() != null and str(node.get_parent().name) == "OfficialIxellesStreetSurfaces":
         role = "road"
-    elif str(node.name) == "JetteOfficialStreetSurfaces":
+    elif _is_authoritative_jette_official_surface(node):
         role = "street_surface"
     if role.is_empty():
         return

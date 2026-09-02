@@ -10,6 +10,7 @@ const OUTPUT_PATH := "res://artifacts/visual/automatic_road_411724192_player.png
 const WIDTH := 1280
 const HEIGHT := 720
 const MIN_ROAD_AXIS_ALIGNMENT := 0.90
+const OFFSET_EPSILON_M := 0.01
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -71,27 +72,55 @@ func _hide_dynamic(scene: Node) -> void:
         if traffic is Node3D:
             (traffic as Node3D).visible = false
 
-func _source_tangent(segment_index: int) -> Vector2:
-    if segment_index < 0 or not FileAccess.file_exists(SOURCE_PATH):
-        return Vector2.ZERO
+func _source_road() -> Dictionary:
+    if not FileAccess.file_exists(SOURCE_PATH):
+        return {}
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SOURCE_PATH))
     if not parsed is Dictionary:
-        return Vector2.ZERO
+        return {}
     var roads: Variant = (parsed as Dictionary).get("roads", [])
     if not roads is Array:
-        return Vector2.ZERO
+        return {}
     for raw: Variant in roads:
-        if not raw is Dictionary or int((raw as Dictionary).get("osm_id", 0)) != BOURSE_ORTS_ID:
-            continue
-        var points: Variant = (raw as Dictionary).get("points", [])
-        if not points is Array or segment_index + 1 >= points.size():
-            return Vector2.ZERO
-        var a_raw: Variant = points[segment_index]
-        var b_raw: Variant = points[segment_index + 1]
-        if not a_raw is Array or not b_raw is Array or a_raw.size() < 2 or b_raw.size() < 2:
-            return Vector2.ZERO
-        return (Vector2(float(b_raw[0]), float(b_raw[1])) - Vector2(float(a_raw[0]), float(a_raw[1]))).normalized()
-    return Vector2.ZERO
+        if raw is Dictionary and int((raw as Dictionary).get("osm_id", 0)) == BOURSE_ORTS_ID:
+            return raw as Dictionary
+    return {}
+
+func _display_road_width(road: Dictionary) -> float:
+    var width := maxf(float(road.get("width", 4.5)), 2.5)
+    match str(road.get("class", "")):
+        "primary":
+            return maxf(width, 10.5)
+        "secondary":
+            return maxf(width, 8.5)
+        "tertiary":
+            return maxf(width, 7.2)
+    return width
+
+func _offset_matches_source_safe_candidate(offset_m: float) -> bool:
+    var road := _source_road()
+    if road.is_empty():
+        return false
+    var half_road := _display_road_width(road) * 0.5
+    for shoulder_m: float in [1.10, 2.00, 3.50, 5.00, 7.50]:
+        if absf(offset_m - (half_road + shoulder_m)) <= OFFSET_EPSILON_M:
+            return true
+    return false
+
+func _source_tangent(segment_index: int) -> Vector2:
+    if segment_index < 0:
+        return Vector2.ZERO
+    var road := _source_road()
+    if road.is_empty():
+        return Vector2.ZERO
+    var points: Variant = road.get("points", [])
+    if not points is Array or segment_index + 1 >= points.size():
+        return Vector2.ZERO
+    var a_raw: Variant = points[segment_index]
+    var b_raw: Variant = points[segment_index + 1]
+    if not a_raw is Array or not b_raw is Array or a_raw.size() < 2 or b_raw.size() < 2:
+        return Vector2.ZERO
+    return (Vector2(float(b_raw[0]), float(b_raw[1])) - Vector2(float(a_raw[0]), float(a_raw[1]))).normalized()
 
 func _capture(viewport: SubViewport) -> bool:
     RenderingServer.force_draw()
@@ -136,7 +165,7 @@ func _run() -> void:
     var target_xz: Vector2 = player.get_meta("automatic_road_direct_target_xz", Vector2(INF, INF))
     if not is_finite(spawn_xz.x) or not is_finite(spawn_xz.y) or not is_finite(target_xz.x) or not is_finite(target_xz.y): _fail("spawn/target coordinates are not finite"); return
     var offset_m := float(player.get_meta("automatic_road_direct_offset_m", -1.0))
-    if offset_m < 4.0 or offset_m > 20.0: _fail("safe player offset escaped bounded envelope: %.3f" % offset_m); return
+    if not _offset_matches_source_safe_candidate(offset_m): _fail("safe player offset is not one of the source-width-derived resolver candidates: %.3f" % offset_m); return
     if absf(player.global_position.y - (ground_y + 1.05)) > 0.01: _fail("player body clearance no longer matches physics-backed ground"); return
 
     var segment_index := int(player.get_meta("automatic_road_direct_segment_index", -1))

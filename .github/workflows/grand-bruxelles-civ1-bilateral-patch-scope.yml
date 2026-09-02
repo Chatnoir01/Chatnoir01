@@ -5,6 +5,8 @@ on:
     paths:
       - "grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py"
       - "grand-bruxelles-game/tests/test_civ1_bilateral_patch_scope.py"
+      - "grand-bruxelles-game/tools/assess_civ1_skin_bind_log.py"
+      - "grand-bruxelles-game/tests/test_civ1_skin_bind_log.py"
       - ".github/workflows/grand-bruxelles-civ1-bilateral-patch-scope.yml"
   workflow_dispatch:
 
@@ -23,10 +25,14 @@ jobs:
       - name: Run bilateral patch-scope regression
         run: python3 grand-bruxelles-game/tests/test_civ1_bilateral_patch_scope.py
 
+      - name: Run skin-bind false-green regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_skin_bind_log.py
+
       - name: Enforce fail-closed QA rails
         run: |
           set -euo pipefail
           grep -Fq 'BLOCK_UNILATERAL_SCOPE' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py
+          grep -Fq 'CIV1_SKIN_BIND_INTEGRITY_BLOCKED' grand-bruxelles-game/tools/assess_civ1_skin_bind_log.py
           grep -Fq '"grounding_verified": False' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py
           grep -Fq '"foot_slide_verified": False' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py
           grep -Fq '"runtime_authorized": False' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py

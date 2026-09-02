@@ -24,7 +24,9 @@ func _run() -> void:
         _fail("release-owned-root function not found")
         return
     var release_body := source.substr(release_start, next_func - release_start)
-    if release_body.contains("parent.remove_child(_root)") and not release_body.contains("if not _tearing_down"):
+    var has_sync_detach := release_body.contains("parent.remove_child(_root)")
+    var detach_is_teardown_guarded := release_body.contains("not _tearing_down")
+    if has_sync_detach and not detach_is_teardown_guarded:
         _fail("synchronous remove_child remains reachable during runtime teardown")
         return
     if not release_body.contains("_root.queue_free()"):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Attribute the CIV-1 native right-leg downstream sign transition.
+"""Attribute the CIV-1 native leg downstream sign transition.
 
 Consumes the JSON emitted by godot_civ1_global_chain_diagnostic.gd. This is a
 QA-only analysis: it never edits source assets, retarget settings, thresholds,
@@ -16,6 +16,8 @@ from typing import Any
 START_INDEX = 58
 END_INDEX = 88
 SIDES = ("Left", "Right")
+TERM_KEYS = ("lowerleg_relative_m", "foot_relative_m", "downstream_sum_m")
+EPSILON_M = 1e-9
 
 
 def _y(samples: list[dict[str, Any]], i: int, bone: str, side: str) -> float:
@@ -49,25 +51,94 @@ def _terms(samples: list[dict[str, Any]], i: int, prefix: str) -> dict[str, floa
     }
 
 
-def _first_zero_cross(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _sign(value: float) -> int:
+    if value > EPSILON_M:
+        return 1
+    if value < -EPSILON_M:
+        return -1
+    return 0
+
+
+def _first_zero_cross(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
     previous = rows[0]
-    if previous["downstream_sum_m"] == 0.0:
-        return {"index": previous["index"], "kind": "exact_zero", "previous_index": None}
+    previous_value = float(previous[key])
+    if _sign(previous_value) == 0:
+        return {
+            "index": previous["index"],
+            "kind": "exact_zero",
+            "previous_index": None,
+            "previous_value_m": None,
+            "value_m": previous_value,
+            "interpolated_index": float(previous["index"]),
+        }
     for row in rows[1:]:
-        value = row["downstream_sum_m"]
-        prev_value = previous["downstream_sum_m"]
-        if value == 0.0:
-            return {"index": row["index"], "kind": "exact_zero", "previous_index": previous["index"]}
-        if (prev_value < 0.0 < value) or (prev_value > 0.0 > value):
+        value = float(row[key])
+        prev_value = float(previous[key])
+        value_sign = _sign(value)
+        prev_sign = _sign(prev_value)
+        if value_sign == 0:
+            return {
+                "index": row["index"],
+                "kind": "exact_zero",
+                "previous_index": previous["index"],
+                "previous_value_m": prev_value,
+                "value_m": value,
+                "interpolated_index": float(row["index"]),
+            }
+        if prev_sign != value_sign:
+            fraction = abs(prev_value) / (abs(prev_value) + abs(value))
             return {
                 "index": row["index"],
                 "kind": "sign_cross",
                 "previous_index": previous["index"],
-                "previous_downstream_sum_m": prev_value,
-                "downstream_sum_m": value,
+                "previous_value_m": prev_value,
+                "value_m": value,
+                "interpolated_index": float(previous["index"]) + fraction,
             }
         previous = row
     return None
+
+
+def _largest_step(rows: list[dict[str, Any]], key: str) -> dict[str, Any]:
+    best: dict[str, Any] | None = None
+    for previous, row in zip(rows, rows[1:]):
+        delta = float(row[key]) - float(previous[key])
+        candidate = {
+            "index": row["index"],
+            "previous_index": previous["index"],
+            "previous_value_m": float(previous[key]),
+            "value_m": float(row[key]),
+            "delta_m": delta,
+            "abs_delta_m": abs(delta),
+        }
+        if best is None or candidate["abs_delta_m"] > best["abs_delta_m"]:
+            best = candidate
+    if best is None:
+        raise ValueError(f"cannot measure step for {key}: fewer than two rows")
+    return best
+
+
+def _cross_driver(rows: list[dict[str, Any]], crossing: dict[str, Any] | None) -> dict[str, Any] | None:
+    if crossing is None or crossing["previous_index"] is None:
+        return None
+    by_index = {int(row["index"]): row for row in rows}
+    previous = by_index[int(crossing["previous_index"])]
+    current = by_index[int(crossing["index"])]
+    lower_delta = float(current["lowerleg_relative_m"]) - float(previous["lowerleg_relative_m"])
+    foot_delta = float(current["foot_relative_m"]) - float(previous["foot_relative_m"])
+    if math.isclose(abs(lower_delta), abs(foot_delta), abs_tol=EPSILON_M):
+        driver = "tie"
+    elif abs(lower_delta) > abs(foot_delta):
+        driver = "lowerleg_relative"
+    else:
+        driver = "foot_relative"
+    return {
+        "interval": [int(previous["index"]), int(current["index"])],
+        "lowerleg_delta_m": lower_delta,
+        "foot_delta_m": foot_delta,
+        "downstream_delta_m": lower_delta + foot_delta,
+        "largest_absolute_delta_term": driver,
+    }
 
 
 def analyze(payload: dict[str, Any]) -> dict[str, Any]:
@@ -92,25 +163,26 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
             if abs(row["closure_error_m"]) >= 1e-5:
                 raise ValueError(f"algebraic closure failed for {prefix} at {i}: {row['closure_error_m']}")
             rows.append(row)
-        crossing = _first_zero_cross(rows)
-        max_lower_step = max(
-            rows[1:], key=lambda r: abs(r["lowerleg_relative_m"] - rows[r["index"] - START_INDEX - 1]["lowerleg_relative_m"])
-        )
-        max_foot_step = max(
-            rows[1:], key=lambda r: abs(r["foot_relative_m"] - rows[r["index"] - START_INDEX - 1]["foot_relative_m"])
-        )
+
+        crossings = {key: _first_zero_cross(rows, key) for key in TERM_KEYS}
+        largest_steps = {key: _largest_step(rows, key) for key in TERM_KEYS}
+        downstream_crossing = crossings["downstream_sum_m"]
         result_sides[prefix.lower()] = {
             "transition_window": [START_INDEX, END_INDEX],
-            "first_downstream_zero_cross": crossing,
-            "largest_lowerleg_step_index": max_lower_step["index"],
-            "largest_foot_step_index": max_foot_step["index"],
+            "first_zero_cross_by_term": crossings,
+            # Kept for consumers of v1 output while the richer term attribution is adopted.
+            "first_downstream_zero_cross": downstream_crossing,
+            "largest_step_by_term": largest_steps,
+            "downstream_cross_driver": _cross_driver(rows, downstream_crossing),
+            "largest_lowerleg_step_index": largest_steps["lowerleg_relative_m"]["index"],
+            "largest_foot_step_index": largest_steps["foot_relative_m"]["index"],
             "rows": rows,
         }
 
     right = result_sides["right"]
     left = result_sides["left"]
     return {
-        "format": "grand-bruxelles-civ1-downstream-phase-transition-v1",
+        "format": "grand-bruxelles-civ1-downstream-phase-transition-v2",
         "source_format": payload["format"],
         "transition_window": [START_INDEX, END_INDEX],
         "right": right,
@@ -136,11 +208,15 @@ def main() -> None:
     result = analyze(payload)
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    right = result["right"]
     print(json.dumps({
         "right_first_cross_index": result["right_first_cross_index"],
         "left_first_cross_index": result["left_first_cross_index"],
-        "right_largest_lowerleg_step_index": result["right"]["largest_lowerleg_step_index"],
-        "right_largest_foot_step_index": result["right"]["largest_foot_step_index"],
+        "right_lowerleg_first_cross": right["first_zero_cross_by_term"]["lowerleg_relative_m"],
+        "right_foot_first_cross": right["first_zero_cross_by_term"]["foot_relative_m"],
+        "right_downstream_cross_driver": right["downstream_cross_driver"],
+        "right_largest_lowerleg_step": right["largest_step_by_term"]["lowerleg_relative_m"],
+        "right_largest_foot_step": right["largest_step_by_term"]["foot_relative_m"],
     }, sort_keys=True))
     print("CIV1_DOWNSTREAM_PHASE_TRANSITION_OK")
 

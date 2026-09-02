@@ -21,6 +21,14 @@ func _make_road(name_value: String) -> CSGBox3D:
     road.material = baseline
     return road
 
+func _make_official_surface() -> MeshInstance3D:
+    var surface := MeshInstance3D.new()
+    surface.name = "JetteOfficialStreetSurfaces"
+    var baseline := StandardMaterial3D.new()
+    baseline.albedo_color = Color(0.31, 0.32, 0.33, 1.0)
+    surface.material_override = baseline
+    return surface
+
 func _add_osm_roads(scene_owner: Node3D, road_name: String) -> CSGBox3D:
     var osm := Node3D.new()
     osm.name = "BrusselsOSM"
@@ -64,6 +72,9 @@ func _run() -> void:
     var foreign_material := foreign_road.material
     var foreign_transform := foreign_road.global_transform
     var foreign_size := foreign_road.size
+    var foreign_official := _make_official_surface()
+    foreign_main.add_child(foreign_official)
+    var foreign_official_material := foreign_official.material_override
 
     for _frame: int in range(12):
         await process_frame
@@ -79,6 +90,12 @@ func _run() -> void:
     if not foreign_road.global_transform.is_equal_approx(foreign_transform) or not foreign_road.size.is_equal_approx(foreign_size):
         _fail("foreign nested road geometry changed")
         return
+    if foreign_official.material_override != foreign_official_material:
+        _fail("foreign nested Jette official surface material was mutated")
+        return
+    if foreign_official.has_meta("ground_network_provider") or foreign_official.has_meta("ground_network_presentation_family"):
+        _fail("foreign nested Jette official surface captured shared ground-network authority")
+        return
 
     var viewport := SubViewport.new()
     viewport.name = "RoadSurfaceViewport"
@@ -89,6 +106,9 @@ func _run() -> void:
     var production_road := _add_osm_roads(main, "Road_359177328_0")
     var production_transform := production_road.global_transform
     var production_size := production_road.size
+    var production_official := _make_official_surface()
+    main.add_child(production_official)
+    var production_official_legacy := production_official.material_override
 
     for _frame: int in range(18):
         await process_frame
@@ -114,6 +134,21 @@ func _run() -> void:
     if foreign_road.material != foreign_material or foreign_road.has_meta("source") or foreign_road.has_meta("license"):
         _fail("foreign road was mutated after authoritative owner arrived")
         return
+    if foreign_official.material_override != foreign_official_material or foreign_official.has_meta("ground_network_provider"):
+        _fail("foreign Jette official surface was mutated after authoritative owner arrived")
+        return
+    if int(runtime.call("official_applied_road_count")) != 1:
+        _fail("authoritative Jette official surface did not bind exactly once")
+        return
+    if production_official.material_override == production_official_legacy:
+        _fail("authoritative Jette official surface did not receive shared presentation")
+        return
+    if str(production_official.get_meta("ground_network_provider", "")) != "UrbIS":
+        _fail("authoritative Jette official surface provider changed")
+        return
+    if bool(production_official.get_meta("geometry_changed_by_ground_network_runtime", true)):
+        _fail("runtime claimed official Jette geometry mutation")
+        return
 
-    print("BRUSSELS_OSM_ROAD_SURFACE_AUTHORITY_OK: roads=1 foreign_nested_rejected=true owner=root-viewport-main osm_id=359177328 source=OSM license=ODbL-1.0 geometry_changed=false")
+    print("BRUSSELS_OSM_ROAD_SURFACE_AUTHORITY_OK: roads=1 official_jette=1 foreign_nested_rejected=true owner=root-viewport-main osm_id=359177328 source=OSM license=ODbL-1.0 geometry_changed=false")
     quit(0)

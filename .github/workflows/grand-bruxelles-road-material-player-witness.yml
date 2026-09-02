@@ -49,7 +49,7 @@ jobs:
             exit 1
           fi
 
-      - name: Capture legitimate Lemonnier, Fonsny, Orts and Amigo player witnesses
+      - name: Capture rendered corridor witnesses and prove Fonsny fail-closed
         run: |
           set -o pipefail
           mkdir -p grand-bruxelles-game/artifacts/road_material_player_witness
@@ -60,8 +60,13 @@ jobs:
               --resolution 1280x720 \
               --script res://game/tests/brussels_road_material_player_witness_test.gd \
               2>&1 | tee "grand-bruxelles-game/artifacts/road_material_player_witness/witness-${target}.log"
-            grep -q "BRUSSELS_ROAD_MATERIAL_PLAYER_WITNESS_OK: osm_id=${target}" \
-              "grand-bruxelles-game/artifacts/road_material_player_witness/witness-${target}.log"
+            if [ "$target" = "408211693" ]; then
+              grep -q "BRUSSELS_ROAD_MATERIAL_PLAYER_WITNESS_BLOCKED: osm_id=${target}" \
+                "grand-bruxelles-game/artifacts/road_material_player_witness/witness-${target}.log"
+            else
+              grep -q "BRUSSELS_ROAD_MATERIAL_PLAYER_WITNESS_OK: osm_id=${target}" \
+                "grand-bruxelles-game/artifacts/road_material_player_witness/witness-${target}.log"
+            fi
           done
 
       - name: Validate exact full-frame evidence
@@ -74,7 +79,6 @@ jobs:
           representatives = {int(item['osm_id']): item for item in contract['representatives']}
           targets = {
               'lemmonnier': (359177328, 'Maurice Lemonnier'),
-              'fonsny': (408211693, 'Fonsny'),
               'orts': (411724192, 'Auguste Orts'),
               'amigo': (13842686, 'Amigo'),
           }
@@ -111,6 +115,14 @@ jobs:
               assert metrics['bbox_width'] >= 180
               assert metrics['bbox_height'] >= 24
               print('ROAD_MATERIAL_PLAYER_WITNESS_EVIDENCE_OK', slug, osm_id, metrics)
+
+          fonsny_log = (root / 'witness-408211693.log').read_text()
+          assert 'BRUSSELS_ROAD_MATERIAL_PLAYER_WITNESS_BLOCKED: osm_id=408211693' in fonsny_log
+          assert 'visible_segments=0' in fonsny_log
+          assert 'reason=osm_segments_present_but_hidden_in_authoritative_midi_runtime' in fonsny_log
+          assert 'destination_advertisable=false' in fonsny_log
+          assert 'jouable=false' in fonsny_log
+          print('ROAD_MATERIAL_PLAYER_WITNESS_FAIL_CLOSED_OK fonsny 408211693')
           PY
 
       - name: Bind evidence hashes
@@ -120,9 +132,7 @@ jobs:
             road_material_lemmonnier_before.png \
             road_material_lemmonnier_control.png \
             road_material_lemmonnier_player_witness.json \
-            road_material_fonsny_before.png \
-            road_material_fonsny_control.png \
-            road_material_fonsny_player_witness.json \
+            witness-408211693.log \
             road_material_orts_before.png \
             road_material_orts_control.png \
             road_material_orts_player_witness.json \
@@ -130,7 +140,7 @@ jobs:
             road_material_amigo_control.png \
             road_material_amigo_player_witness.json \
             > evidence-sha256.txt
-          test "$(wc -l < evidence-sha256.txt)" -eq 12
+          test "$(wc -l < evidence-sha256.txt)" -eq 10
           sha256sum --check evidence-sha256.txt
 
       - name: Upload exact witness artifact

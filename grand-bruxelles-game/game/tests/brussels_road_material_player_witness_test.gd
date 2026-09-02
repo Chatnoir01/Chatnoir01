@@ -5,10 +5,10 @@ const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const SOURCE_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
 const TARGETS := {
-    359177328: {"name_fragment": "Maurice Lemonnier", "slug": "lemmonnier"},
-    408211693: {"name_fragment": "Fonsny", "slug": "fonsny"},
-    411724192: {"name_fragment": "Auguste Orts", "slug": "orts"},
-    13842686: {"name_fragment": "Amigo", "slug": "amigo"},
+    359177328: {"name_fragment": "Maurice Lemonnier", "slug": "lemmonnier", "expect_resolver_ready": true},
+    408211693: {"name_fragment": "Fonsny", "slug": "fonsny", "expect_resolver_ready": false, "blocked_reason": "osm_segments_present_but_hidden_in_authoritative_midi_runtime"},
+    411724192: {"name_fragment": "Auguste Orts", "slug": "orts", "expect_resolver_ready": true},
+    13842686: {"name_fragment": "Amigo", "slug": "amigo", "expect_resolver_ready": true},
 }
 const ARTIFACT_DIR := "res://artifacts/road_material_player_witness"
 const DIFF_THRESHOLD := 0.08
@@ -120,6 +120,7 @@ func _run() -> void:
     var target_osm_id := int(target["osm_id"])
     var target_name_fragment := str(target["name_fragment"])
     var target_slug := str(target["slug"])
+    var expect_resolver_ready := bool(target.get("expect_resolver_ready", true))
     var before_path := ARTIFACT_DIR + "/road_material_%s_before.png" % target_slug
     var control_path := ARTIFACT_DIR + "/road_material_%s_control.png" % target_slug
     var report_path := ARTIFACT_DIR + "/road_material_%s_player_witness.json" % target_slug
@@ -141,6 +142,29 @@ func _run() -> void:
     if FileAccess.get_sha256(SOURCE_PATH).to_lower() != SOURCE_SHA256:
         _fail("OSM source SHA drifted")
         return
+
+    var target_roads := _target_roads(main, target_osm_id)
+    if not expect_resolver_ready:
+        if target_roads.is_empty():
+            _fail("fail-closed target %d has no source-identity OSM road segments in runtime" % target_osm_id)
+            return
+        var visible_segments := 0
+        for road: CSGBox3D in target_roads:
+            if road.is_visible_in_tree():
+                visible_segments += 1
+        if visible_segments != 0:
+            _fail("fail-closed target %d unexpectedly has %d visible OSM road segments" % [target_osm_id, visible_segments])
+            return
+        if resolver._road_is_rendered(main, target_osm_id):
+            _fail("hidden OSM road target %d was accepted as rendered" % target_osm_id)
+            return
+        if resolver.apply_to_player(player, target_osm_id):
+            _fail("resolver accepted fail-closed hidden OSM road target %d" % target_osm_id)
+            return
+        print("BRUSSELS_ROAD_MATERIAL_PLAYER_WITNESS_BLOCKED: osm_id=%d name_fragment=%s segments=%d visible_segments=0 reason=%s destination_advertisable=false jouable=false" % [target_osm_id, target_name_fragment, target_roads.size(), str(target.get("blocked_reason", ""))])
+        quit(0)
+        return
+
     if not resolver.apply_to_player(player, target_osm_id):
         _fail("source-backed resolver refused target %d" % target_osm_id)
         return
@@ -176,7 +200,6 @@ func _run() -> void:
     review_camera.current = true
     _hide_dynamic_review_noise(main, player)
 
-    var target_roads := _target_roads(main, target_osm_id)
     if target_roads.is_empty():
         _fail("rendered target road segments missing for %d" % target_osm_id)
         return

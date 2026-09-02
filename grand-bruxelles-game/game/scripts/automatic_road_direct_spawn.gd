@@ -324,12 +324,31 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
     return {}
 
 
+func _mesh_has_renderable_surfaces(mesh: Mesh) -> bool:
+    return mesh != null and mesh.get_surface_count() > 0
+
+
+func _geometry_has_renderable_content(node: GeometryInstance3D) -> bool:
+    if not node.is_visible_in_tree():
+        return false
+    if node is MeshInstance3D:
+        return _mesh_has_renderable_surfaces((node as MeshInstance3D).mesh)
+    if node is MultiMeshInstance3D:
+        var multimesh := (node as MultiMeshInstance3D).multimesh
+        if multimesh == null or not _mesh_has_renderable_surfaces(multimesh.mesh) or multimesh.instance_count <= 0:
+            return false
+        return multimesh.visible_instance_count != 0
+    if node is CSGShape3D:
+        return true
+    return false
+
+
 func _road_is_rendered(world: Node, osm_id: int) -> bool:
     var prefix := "Road_%d_" % osm_id
     var stack: Array[Node] = [world]
     while not stack.is_empty():
         var node: Node = stack.pop_back()
-        if str(node.name).begins_with(prefix):
+        if str(node.name).begins_with(prefix) and node is GeometryInstance3D and _geometry_has_renderable_content(node as GeometryInstance3D):
             return true
         for child: Node in node.get_children():
             stack.append(child)

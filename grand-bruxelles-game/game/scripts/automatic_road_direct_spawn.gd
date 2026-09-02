@@ -328,6 +328,18 @@ func _mesh_has_renderable_surfaces(mesh: Mesh) -> bool:
     return mesh != null and mesh.get_surface_count() > 0
 
 
+func _csg_polygon_has_renderable_profile(polygon_node: CSGPolygon3D) -> bool:
+    var points: PackedVector2Array = polygon_node.polygon
+    if points.size() < 3:
+        return false
+    var twice_area := 0.0
+    for index: int in range(points.size()):
+        var current := points[index]
+        var next := points[(index + 1) % points.size()]
+        twice_area += current.x * next.y - next.x * current.y
+    return absf(twice_area) > 0.000001
+
+
 func _csg_combiner_has_renderable_shape(combiner: CSGCombiner3D) -> bool:
     var stack: Array[Node] = []
     for child: Node in combiner.get_children():
@@ -337,6 +349,10 @@ func _csg_combiner_has_renderable_shape(combiner: CSGCombiner3D) -> bool:
         if node is CSGCombiner3D:
             for child: Node in node.get_children():
                 stack.append(child)
+            continue
+        if node is CSGPolygon3D and (node as CSGPolygon3D).is_visible_in_tree():
+            if _csg_polygon_has_renderable_profile(node as CSGPolygon3D):
+                return true
             continue
         if node is CSGShape3D and (node as CSGShape3D).is_visible_in_tree():
             return true
@@ -353,6 +369,8 @@ func _geometry_has_renderable_content(node: GeometryInstance3D) -> bool:
         if multimesh == null or not _mesh_has_renderable_surfaces(multimesh.mesh) or multimesh.instance_count <= 0:
             return false
         return multimesh.visible_instance_count != 0
+    if node is CSGPolygon3D:
+        return _csg_polygon_has_renderable_profile(node as CSGPolygon3D)
     if node is CSGCombiner3D:
         return _csg_combiner_has_renderable_shape(node as CSGCombiner3D)
     if node is CSGShape3D:

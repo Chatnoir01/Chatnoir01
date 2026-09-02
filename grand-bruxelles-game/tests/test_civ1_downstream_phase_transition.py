@@ -20,7 +20,9 @@ def _point(y):
 def _payload():
     samples = []
     for i in range(121):
-        # Right downstream starts positive and crosses negative between 72 and 73.
+        # Right downstream is +45 mm before the transition. LowerLeg begins
+        # changing first (index 66), Foot follows (index 71), and their sum
+        # reaches exact zero at index 76 before becoming reinforcing.
         right_upper_src = 1.0
         right_upper_tgt = 0.94
         right_lower_src = 0.55
@@ -72,10 +74,32 @@ def main():
     assert ANALYZER.exists()
     module = _load()
     result = module.analyze(_payload())
-    assert result["format"] == "grand-bruxelles-civ1-downstream-phase-transition-v1"
-    assert result["right_first_cross_index"] is not None
-    assert 58 <= result["right_first_cross_index"] <= 88
+    assert result["format"] == "grand-bruxelles-civ1-downstream-phase-transition-v2"
+    assert result["right_first_cross_index"] == 76
     assert result["left_first_cross_index"] is None
+
+    right = result["right"]
+    crossings = right["first_zero_cross_by_term"]
+    assert crossings["lowerleg_relative_m"]["index"] == 74
+    assert crossings["lowerleg_relative_m"]["kind"] == "sign_cross"
+    assert 73.0 < crossings["lowerleg_relative_m"]["interpolated_index"] < 74.0
+    assert crossings["foot_relative_m"]["index"] == 80
+    assert crossings["foot_relative_m"]["kind"] == "exact_zero"
+    assert crossings["downstream_sum_m"]["index"] == 76
+    assert crossings["downstream_sum_m"]["kind"] == "exact_zero"
+
+    driver = right["downstream_cross_driver"]
+    assert driver["interval"] == [75, 76]
+    assert abs(driver["lowerleg_delta_m"] + 0.003) < 1e-12
+    assert abs(driver["foot_delta_m"] + 0.002) < 1e-12
+    assert abs(driver["downstream_delta_m"] + 0.005) < 1e-12
+    assert driver["largest_absolute_delta_term"] == "lowerleg_relative"
+
+    lower_step = right["largest_step_by_term"]["lowerleg_relative_m"]
+    foot_step = right["largest_step_by_term"]["foot_relative_m"]
+    assert abs(lower_step["abs_delta_m"] - 0.003) < 1e-12
+    assert abs(foot_step["abs_delta_m"] - 0.002) < 1e-12
+
     assert result["diagnostic_only"] is True
     assert result["threshold_was_modified"] is False
     assert result["runtime_authorized"] is False

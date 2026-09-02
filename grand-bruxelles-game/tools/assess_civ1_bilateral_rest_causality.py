@@ -2,8 +2,8 @@
 """Classify CIV-1 bilateral foot rest-direction evidence without authorizing runtime changes.
 
 RightFoot must demonstrate the measured material->non-material causal improvement, while
-LeftFoot acts as a symmetric non-material control. Mere presence of two counterfactual
-objects is never sufficient for a QA allow verdict.
+LeftFoot acts as a symmetric non-material control. All boolean claims emitted by the
+native probe are cross-checked against the numeric phase evidence before QA attribution.
 """
 from __future__ import annotations
 
@@ -26,8 +26,9 @@ def assess(payload: dict) -> dict:
     phase = payload.get("phase_vertical_summary", {})
     threshold = phase.get("material_threshold_samples")
     per_bone = phase.get("per_bone", {})
-    if not isinstance(threshold, int):
-        failures.append("missing_material_threshold")
+    if not isinstance(threshold, int) or isinstance(threshold, bool) or threshold <= 0:
+        failures.append("invalid_material_threshold")
+        threshold = None
     if not isinstance(per_bone, dict):
         failures.append("missing_phase_inventory")
         per_bone = {}
@@ -40,15 +41,20 @@ def assess(payload: dict) -> dict:
             continue
         try:
             baseline_delta = int(baseline["phase_delta_samples"])
-            baseline_material = bool(baseline["material_phase_divergence"])
+            baseline_material_claim = bool(baseline["material_phase_divergence"])
         except (KeyError, TypeError, ValueError):
             failures.append(f"invalid_baseline:{foot}")
             continue
 
+        baseline_material_numeric = threshold is not None and abs(baseline_delta) >= threshold
+        if threshold is not None and baseline_material_claim != baseline_material_numeric:
+            failures.append(f"baseline_material_flag_mismatch:{foot}")
+
         cf = _counterfactual(payload, foot)
         row = {
             "baseline_phase_delta_samples": baseline_delta,
-            "baseline_material_phase_divergence": baseline_material,
+            "baseline_material_phase_divergence": baseline_material_claim,
+            "baseline_material_numeric": baseline_material_numeric,
             "counterfactual_present": cf is not None,
             "rest_direction_causality_supported": False,
             "non_material_control_stable": False,
@@ -75,30 +81,52 @@ def assess(payload: dict) -> dict:
                     continue
                 if cf_baseline != baseline_delta:
                     failures.append(f"baseline_counterfactual_mismatch:{foot}")
+
                 length_preserved = bool(cf["target_foot_length_preserved"])
                 counterfactual_only = bool(cf["counterfactual_only"])
-                reaches_non_material = bool(cf["normalization_reaches_non_material_phase"])
+                improves_claim = bool(cf["normalization_improves_phase"])
+                reaches_non_material_claim = bool(cf["normalization_reaches_non_material_phase"])
+
+                improves_numeric = abs(normalized) < abs(baseline_delta)
+                reaches_non_material_numeric = threshold is not None and abs(normalized) < threshold
+                if improves_claim != improves_numeric:
+                    failures.append(f"improvement_flag_mismatch:{foot}")
+                if threshold is not None and reaches_non_material_claim != reaches_non_material_numeric:
+                    failures.append(f"non_material_flag_mismatch:{foot}")
                 if not length_preserved:
                     failures.append(f"foot_length_not_preserved:{foot}")
                 if not counterfactual_only:
                     failures.append(f"counterfactual_contract_missing:{foot}")
+
                 row["normalized_phase_delta_samples"] = normalized
-                if baseline_material:
+                row["normalization_improves_numeric"] = improves_numeric
+                row["normalization_reaches_non_material_numeric"] = reaches_non_material_numeric
+
+                evidence_consistent = (
+                    threshold is not None
+                    and baseline_material_claim == baseline_material_numeric
+                    and improves_claim == improves_numeric
+                    and reaches_non_material_claim == reaches_non_material_numeric
+                    and cf_baseline == baseline_delta
+                )
+                if baseline_material_numeric:
                     row["rest_direction_causality_supported"] = (
-                        bool(cf["normalization_improves_phase"])
-                        and reaches_non_material
+                        evidence_consistent
+                        and improves_numeric
+                        and reaches_non_material_numeric
                         and length_preserved
                         and counterfactual_only
                     )
                 else:
                     control_stable = (
-                        abs(normalized) <= abs(baseline_delta) + CONTROL_TOLERANCE_SAMPLES
-                        and reaches_non_material
+                        evidence_consistent
+                        and abs(normalized) <= abs(baseline_delta) + CONTROL_TOLERANCE_SAMPLES
+                        and reaches_non_material_numeric
                         and length_preserved
                         and counterfactual_only
                     )
                     row["non_material_control_stable"] = control_stable
-                    if not control_stable:
+                    if not control_stable and evidence_consistent:
                         failures.append(f"non_material_control_drift:{foot}")
         feet[foot] = row
 
@@ -116,7 +144,7 @@ def assess(payload: dict) -> dict:
         verdict = "ALLOW_QA_BILATERAL_REST_ATTRIBUTION"
 
     return {
-        "format": "grand-bruxelles-civ1-bilateral-rest-causality-v2",
+        "format": "grand-bruxelles-civ1-bilateral-rest-causality-v3",
         "bilateral_counterfactual_complete": bilateral_complete,
         "right_rest_direction_causality_supported": right_cause,
         "left_non_material_control_stable": left_control,

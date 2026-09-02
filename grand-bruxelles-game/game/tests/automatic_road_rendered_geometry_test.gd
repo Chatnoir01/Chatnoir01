@@ -31,6 +31,17 @@ func _run() -> void:
     name_only_decoy.queue_free()
     await process_frame
 
+    # A visible GeometryInstance3D with no renderable payload is still not proof.
+    var empty_mesh_decoy := MeshInstance3D.new()
+    empty_mesh_decoy.name = "Road_%d_EmptyMeshDecoy" % ROAD_ID
+    world.add_child(empty_mesh_decoy)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("visible MeshInstance3D without a mesh was accepted as rendered road geometry")
+        return
+    empty_mesh_decoy.queue_free()
+    await process_frame
+
     # Even real geometry is not player-visible evidence while hidden.
     var road_geometry := CSGBox3D.new()
     road_geometry.name = "Road_%d_VisibleGeometry" % ROAD_ID
@@ -48,5 +59,5 @@ func _run() -> void:
         _fail("visible GeometryInstance3D with exact road identity was rejected")
         return
 
-    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
+    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
     quit(0)

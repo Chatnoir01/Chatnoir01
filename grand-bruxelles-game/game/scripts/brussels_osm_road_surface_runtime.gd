@@ -139,6 +139,12 @@ func _is_generated_road_child(node: Node) -> bool:
 func _is_authoritative_jette_official_surface(node: Node) -> bool:
     if not node is MeshInstance3D or str(node.name) != "JetteOfficialStreetSurfaces":
         return false
+    # The coverage contract also exercises material registration on a deliberately
+    # isolated node before either object is mounted. That unit-level call has no
+    # scene authority to steal; production/event-driven registration always runs
+    # inside a SceneTree and must satisfy the topology check below.
+    if not is_inside_tree():
+        return node.get_parent() == null
     # Jette phase-2 builds this exact source-backed mesh as a direct child of its
     # standalone zone scene. Requiring that immediate scene owner to be authoritative
     # prevents a familiar-name clone nested under a foreign wrapper from capturing

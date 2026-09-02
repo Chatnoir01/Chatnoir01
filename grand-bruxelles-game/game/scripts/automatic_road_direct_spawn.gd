@@ -328,6 +328,21 @@ func _mesh_has_renderable_surfaces(mesh: Mesh) -> bool:
     return mesh != null and mesh.get_surface_count() > 0
 
 
+func _csg_combiner_has_renderable_shape(combiner: CSGCombiner3D) -> bool:
+    var stack: Array[Node] = []
+    for child: Node in combiner.get_children():
+        stack.append(child)
+    while not stack.is_empty():
+        var node: Node = stack.pop_back()
+        if node is CSGCombiner3D:
+            for child: Node in node.get_children():
+                stack.append(child)
+            continue
+        if node is CSGShape3D and (node as CSGShape3D).is_visible_in_tree():
+            return true
+    return false
+
+
 func _geometry_has_renderable_content(node: GeometryInstance3D) -> bool:
     if not node.is_visible_in_tree():
         return false
@@ -338,6 +353,8 @@ func _geometry_has_renderable_content(node: GeometryInstance3D) -> bool:
         if multimesh == null or not _mesh_has_renderable_surfaces(multimesh.mesh) or multimesh.instance_count <= 0:
             return false
         return multimesh.visible_instance_count != 0
+    if node is CSGCombiner3D:
+        return _csg_combiner_has_renderable_shape(node as CSGCombiner3D)
     if node is CSGShape3D:
         return true
     return false

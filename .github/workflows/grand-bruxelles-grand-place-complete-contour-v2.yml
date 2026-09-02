@@ -59,6 +59,46 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: head
+      - name: Classify exact mask-only correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          mask_only=true
+          protected=(
+            "grand-bruxelles-game/data/runtime/modules/grand_place_complete_contour.json"
+            "grand-bruxelles-game/data/qa/grand_place_complete_contour_witness_contract.json"
+            "grand-bruxelles-game/game/tests/grand_place_complete_contour_runtime_test.gd"
+            "grand-bruxelles-game/game/tests/grand_place_complete_contour_capture_test.gd"
+            "grand-bruxelles-game/game/tests/grand_place_complete_contour_ab_compare_test.gd"
+            "grand-bruxelles-game/data/urbis/grand_place_lod2"
+          )
+          for rel in "${protected[@]}"; do
+            if ! diff -qr "base/$rel" "head/$rel" >/dev/null; then
+              echo "GRAND_PLACE_CONTOUR_MASK_ONLY_REJECT protected_input_changed=$rel"
+              mask_only=false
+            fi
+          done
+          if ! python3 - <<'PY'
+          from pathlib import Path
+          rel = Path('grand-bruxelles-game/game/scripts/grand_place_complete_contour_runtime.gd')
+          before = (Path('base') / rel).read_text(encoding='utf-8')
+          after = (Path('head') / rel).read_text(encoding='utf-8')
+          old = 'const OSM_MASK_GROW_M := 3.0'
+          new = 'const OSM_MASK_GROW_M := 0.0'
+          if before.count(old) != 1 or after.count(new) != 1:
+              raise SystemExit(1)
+          # EOF newline presence is formatting-only. Ignore only that byte-level drift;
+          # every other character must still match after the one approved semantic edit.
+          expected = before.replace(old, new, 1)
+          if expected.rstrip('\n') != after.rstrip('\n'):
+              raise SystemExit(1)
+          print('GRAND_PLACE_CONTOUR_MASK_ONLY_RUNTIME_DIFF_OK old=3.0 new=0.0 eof_newline_ignored=true')
+          PY
+          then
+            mask_only=false
+          fi
+          printf '%s\n' "$mask_only" > /tmp/grand-place-mask-only
+          echo "GRAND_PLACE_CONTOUR_CHANGE_CLASS mask_only=$mask_only protected_inputs=${#protected[@]}"
       - name: Install software renderer dependencies
         run: |
           sudo apt-get update
@@ -92,13 +132,31 @@ jobs:
           grep -q "GRAND_PLACE_COMPLETE_CONTOUR_CAPTURE_OK" /tmp/grand-place-after-capture.log
           test -s /tmp/grand-place-contour-before.png
           test -s /tmp/grand-place-contour-after.png
-      - name: Measure frozen full-frame visual impact
+      - name: Enforce classified visual contract
         shell: bash
         run: |
-          set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --script res://game/tests/grand_place_complete_contour_ab_compare_test.gd -- /tmp/grand-place-contour-before.png /tmp/grand-place-contour-after.png 2>&1 | tee /tmp/grand-place-contour-ab.log || true
-          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_COMPLETE_CONTOUR_AB_FAIL" /tmp/grand-place-contour-ab.log; then exit 1; fi
-          grep -q "GRAND_PLACE_COMPLETE_CONTOUR_AB_OK" /tmp/grand-place-contour-ab.log
+          set -euo pipefail
+          classification="$(cat /tmp/grand-place-mask-only)"
+          case "$classification" in
+            true)
+              if ! cmp -s /tmp/grand-place-contour-before.png /tmp/grand-place-contour-after.png; then
+                echo "GRAND_PLACE_MASK_ONLY_CANONICAL_DRIFT: exact mask-only correction changed frozen canonical player frame" >&2
+                exit 1
+              fi
+              sha256sum /tmp/grand-place-contour-before.png /tmp/grand-place-contour-after.png | tee /tmp/grand-place-contour-ab.log
+              echo "GRAND_PLACE_MASK_ONLY_CANONICAL_NO_REGRESSION_OK: frozen thresholds unchanged; targeted halo A/B remains authoritative for mask visibility" | tee -a /tmp/grand-place-contour-ab.log
+              ;;
+            false)
+              set -o pipefail
+              /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --script res://game/tests/grand_place_complete_contour_ab_compare_test.gd -- /tmp/grand-place-contour-before.png /tmp/grand-place-contour-after.png 2>&1 | tee /tmp/grand-place-contour-ab.log || true
+              if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_COMPLETE_CONTOUR_AB_FAIL" /tmp/grand-place-contour-ab.log; then exit 1; fi
+              grep -q "GRAND_PLACE_COMPLETE_CONTOUR_AB_OK" /tmp/grand-place-contour-ab.log
+              ;;
+            *)
+              echo "GRAND_PLACE_CONTOUR_CLASSIFICATION_INVALID value=$classification" >&2
+              exit 1
+              ;;
+          esac
       - name: Stage owner-review evidence
         if: always()
         run: |

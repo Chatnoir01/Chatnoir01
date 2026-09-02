@@ -1,0 +1,89 @@
+name: Grand Bruxelles Grand-Place OSM Mask Contract
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/grand_place_complete_contour_runtime.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_osm_mask_halo_capture_test.gd"
+      - "grand-bruxelles-game/tools/qa/grand_place_osm_mask_contract.py"
+      - ".github/workflows/grand-bruxelles-grand-place-osm-mask-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-footprint-mask:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact authoritative footprint masking
+        run: python3 grand-bruxelles-game/tools/qa/grand_place_osm_mask_contract.py
+
+  halo-visual-ab:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact PR base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Copy targeted witness harness into exact base checkout
+        run: cp head/grand-bruxelles-game/game/tests/grand_place_osm_mask_halo_capture_test.gd base/grand-bruxelles-game/game/tests/grand_place_osm_mask_halo_capture_test.gd
+      - name: Import exact base and head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-mask-base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-mask-head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-mask-base-import.log /tmp/osm-mask-head-import.log; then exit 1; fi
+      - name: Capture legacy halo RED and exact-footprint GREEN
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 640x360 --script res://game/tests/grand_place_osm_mask_halo_capture_test.gd -- hidden /tmp/osm-mask-before.png 2>&1 | tee /tmp/osm-mask-before.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 640x360 --script res://game/tests/grand_place_osm_mask_halo_capture_test.gd -- visible /tmp/osm-mask-after.png 2>&1 | tee /tmp/osm-mask-after.log
+          grep -q "GRAND_PLACE_OSM_MASK_HALO_CAPTURE_OK: owner=" /tmp/osm-mask-before.log
+          grep -q "expected=hidden" /tmp/osm-mask-before.log
+          grep -q "GRAND_PLACE_OSM_MASK_HALO_CAPTURE_OK: owner=" /tmp/osm-mask-after.log
+          grep -q "expected=visible" /tmp/osm-mask-after.log
+          test -s /tmp/osm-mask-before.png
+          test -s /tmp/osm-mask-after.png
+          if cmp -s /tmp/osm-mask-before.png /tmp/osm-mask-after.png; then
+            echo "Targeted OSM-mask BEFORE/AFTER are unexpectedly identical" >&2
+            exit 1
+          fi
+      - name: Stage owner-review evidence
+        if: always()
+        run: |
+          mkdir -p head/grand-bruxelles-game/artifacts/qa/grand_place_osm_mask_halo
+          cp /tmp/osm-mask-before.png head/grand-bruxelles-game/artifacts/qa/grand_place_osm_mask_halo/before.png
+          cp /tmp/osm-mask-after.png head/grand-bruxelles-game/artifacts/qa/grand_place_osm_mask_halo/after.png
+          cp /tmp/osm-mask-before.log head/grand-bruxelles-game/artifacts/qa/grand_place_osm_mask_halo/before.log
+          cp /tmp/osm-mask-after.log head/grand-bruxelles-game/artifacts/qa/grand_place_osm_mask_halo/after.log
+      - name: Upload owner-review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-osm-mask-halo-ab
+          path: head/grand-bruxelles-game/artifacts/qa/grand_place_osm_mask_halo
+          if-no-files-found: error

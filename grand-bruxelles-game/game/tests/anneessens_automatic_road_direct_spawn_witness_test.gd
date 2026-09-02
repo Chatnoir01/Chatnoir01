@@ -123,6 +123,36 @@ func _source_tangent(segment_index: int) -> Vector2:
         return Vector2.ZERO
     return (Vector2(float(b_raw[0]), float(b_raw[1])) - Vector2(float(a_raw[0]), float(a_raw[1]))).normalized()
 
+func _trace_visual_blockers(camera: Camera3D) -> void:
+    var world := camera.get_world_3d()
+    if world == null:
+        print("ANNEESSENS_VISUAL_BLOCKER_TRACE: world_unavailable=true")
+        return
+    var samples: Array[Vector2] = [Vector2(760.0, 360.0), Vector2(900.0, 360.0), Vector2(1100.0, 360.0)]
+    for sample: Vector2 in samples:
+        var origin := camera.project_ray_origin(sample)
+        var direction := camera.project_ray_normal(sample).normalized()
+        var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 250.0)
+        query.collide_with_areas = true
+        query.collide_with_bodies = true
+        query.collision_mask = 0xFFFFFFFF
+        var hit := world.direct_space_state.intersect_ray(query)
+        if hit.is_empty():
+            print("ANNEESSENS_VISUAL_BLOCKER_TRACE: sample=(%.0f,%.0f) hit=false" % [sample.x, sample.y])
+            continue
+        var collider: Object = hit.get("collider")
+        var collider_path := "<non-node>"
+        var collider_class := "<unknown>"
+        var collider_name := "<unknown>"
+        if collider != null:
+            collider_class = collider.get_class()
+            if collider is Node:
+                var collider_node := collider as Node
+                collider_path = str(collider_node.get_path())
+                collider_name = collider_node.name
+        var position: Vector3 = hit.get("position", Vector3.ZERO)
+        print("ANNEESSENS_VISUAL_BLOCKER_TRACE: sample=(%.0f,%.0f) hit=true collider_path=%s collider_name=%s collider_class=%s hit=(%.3f,%.3f,%.3f) distance_m=%.3f" % [sample.x, sample.y, collider_path, collider_name, collider_class, position.x, position.y, position.z, origin.distance_to(position)])
+
 func _capture(viewport: SubViewport) -> bool:
     RenderingServer.force_draw()
     await process_frame
@@ -199,6 +229,7 @@ func _run() -> void:
 
     camera.current = true
     for _frame: int in range(12): await process_frame
+    _trace_visual_blockers(camera)
     if not await _capture(viewport): _fail("1280x720 player-view capture failed"); return
 
     print("ANNEESSENS_AUTOMATIC_ROAD_PLAYER_WITNESS_GREEN: osm_id=%d name=%s spawn=(%.3f,%.3f) target=(%.3f,%.3f) ground_y=%.3f offset_m=%.3f road_axis_alignment=%.4f camera_unchanged=true camera_clip_unchanged=true camera_cull_mask_unchanged=true source_sha=%s destination_advertisable=false jouable_authorized=false frame=%s" % [ANNEESSENS_PLACE_ID, str(player.get_meta("automatic_road_direct_source_name", "")), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, ground_y, offset_m, alignment, expected_source_sha, OUTPUT_PATH])

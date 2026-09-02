@@ -65,6 +65,18 @@ def main() -> int:
     weak = bilateral(); weak["verdict"] = "BLOCK_UNSUPPORTED_BILATERAL_REST_ATTRIBUTION"
     result = module.assess(weak, locomotion())
     assert "bilateral_causality_not_proven" in result["failures"]
+
+    nan_drift = locomotion(); nan_drift["feet"]["RightFoot"]["baseline"]["planted_horizontal_drift_m"] = float("nan")
+    result = module.assess(bilateral(), nan_drift)
+    assert "invalid_horizontal_drift:RightFoot:baseline" in result["failures"]
+
+    infinite_span = locomotion(); infinite_span["feet"]["LeftFoot"]["counterfactual"]["planted_vertical_span_m"] = float("inf")
+    result = module.assess(bilateral(), infinite_span)
+    assert "invalid_vertical_span:LeftFoot:counterfactual" in result["failures"]
+
+    fake_hash = locomotion(); fake_hash["player_view_capture"]["frame_sha256"] = "z" * 64
+    result = module.assess(bilateral(), fake_hash)
+    assert "invalid_frame_sha256" in result["failures"]
     return 0
 
 

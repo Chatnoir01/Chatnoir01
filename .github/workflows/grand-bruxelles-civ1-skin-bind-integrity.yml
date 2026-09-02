@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/assess_civ1_skin_bind_log.py"
+      - "grand-bruxelles-game/tools/assess_civ1_shadow_parity.py"
       - "grand-bruxelles-game/tools/godot_civ1_skin_bind_preflight.gd"
       - "grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py"
       - "grand-bruxelles-game/tests/test_civ1_skin_bind_log.py"
       - "grand-bruxelles-game/tests/test_civ1_shadow_retarget_patch.py"
+      - "grand-bruxelles-game/tests/test_civ1_shadow_parity.py"
       - ".github/workflows/grand-bruxelles-civ1-skin-bind-integrity.yml"
   workflow_dispatch:
 
@@ -37,6 +39,7 @@ jobs:
         run: |
           python3 grand-bruxelles-game/tests/test_civ1_skin_bind_log.py
           python3 grand-bruxelles-game/tests/test_civ1_shadow_retarget_patch.py
+          python3 grand-bruxelles-game/tests/test_civ1_shadow_parity.py
 
       - name: Prepare evidence workspace
         run: mkdir -p /tmp/civ1skin/source /tmp/civ1skin/evidence /tmp/civ1skin/tools
@@ -121,16 +124,10 @@ jobs:
             echo "shadow diagnostic mutated a skinned Skeleton3D" >&2
             exit 1
           fi
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          base = json.loads(Path('/tmp/civ1skin/evidence/historical-global-chain.json').read_text())
-          shadow = json.loads(Path('/tmp/civ1skin/evidence/global-chain.json').read_text())
-          if base != shadow:
-              raise SystemExit('shadow diagnostic output diverged from historical native probe')
-          Path('/tmp/civ1skin/evidence/shadow-parity.txt').write_text('exact_json_equal=true\n', encoding='utf-8')
-          print('CIV1_SHADOW_RETARGET_PARITY_OK')
-          PY
+          python3 grand-bruxelles-game/tools/assess_civ1_shadow_parity.py \
+            /tmp/civ1skin/evidence/historical-global-chain.json \
+            /tmp/civ1skin/evidence/global-chain.json \
+            --output /tmp/civ1skin/evidence/shadow-parity.json
 
       - name: Upload native integrity evidence
         if: always()

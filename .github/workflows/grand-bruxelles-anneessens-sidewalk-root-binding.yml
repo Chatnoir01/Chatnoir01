@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
       - "grand-bruxelles-game/game/tests/anneessens_midi_sidewalk_root_binding_test.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_midi_sidewalk_player_anchor_type_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -39,3 +40,10 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_midi_sidewalk_root_binding_test.gd 2>&1 | tee /tmp/anneessens-sidewalk-root.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_FAIL" /tmp/anneessens-sidewalk-root.log; then exit 1; fi
           grep -q "ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK" /tmp/anneessens-sidewalk-root.log
+      - name: Reject malformed Player anchor type
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_midi_sidewalk_player_anchor_type_test.gd 2>&1 | tee /tmp/anneessens-sidewalk-player-anchor-type.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_MIDI_SIDEWALK_PLAYER_ANCHOR_TYPE_FAIL" /tmp/anneessens-sidewalk-player-anchor-type.log; then exit 1; fi
+          grep -q "ANNEESSENS_MIDI_SIDEWALK_PLAYER_ANCHOR_TYPE_OK" /tmp/anneessens-sidewalk-player-anchor-type.log

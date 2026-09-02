@@ -92,7 +92,7 @@ func _is_production_scene(candidate: Node3D) -> bool:
         return false
     return candidate.get_node_or_null("BrusselsOSM") != null \
         and candidate.get_node_or_null("UrbISMidiExact") != null \
-        and candidate.get_node_or_null("Player") != null
+        and candidate.get_node_or_null("Player") is Node3D
 
 func _direct_viewport_main(viewport: Viewport) -> Node3D:
     if viewport == null:

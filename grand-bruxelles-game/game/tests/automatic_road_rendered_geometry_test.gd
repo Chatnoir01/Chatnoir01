@@ -42,6 +42,22 @@ func _run() -> void:
     empty_mesh_decoy.queue_free()
     await process_frame
 
+    # A populated MultiMesh with zero visible instances also renders nothing.
+    var zero_visible_multimesh_decoy := MultiMeshInstance3D.new()
+    zero_visible_multimesh_decoy.name = "Road_%d_ZeroVisibleMultiMeshDecoy" % ROAD_ID
+    var zero_visible_multimesh := MultiMesh.new()
+    zero_visible_multimesh.mesh = BoxMesh.new()
+    zero_visible_multimesh.instance_count = 1
+    zero_visible_multimesh.visible_instance_count = 0
+    zero_visible_multimesh_decoy.multimesh = zero_visible_multimesh
+    world.add_child(zero_visible_multimesh_decoy)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("MultiMeshInstance3D with zero visible instances was accepted as rendered road geometry")
+        return
+    zero_visible_multimesh_decoy.queue_free()
+    await process_frame
+
     # Even real geometry is not player-visible evidence while hidden.
     var road_geometry := CSGBox3D.new()
     road_geometry.name = "Road_%d_VisibleGeometry" % ROAD_ID
@@ -59,5 +75,5 @@ func _run() -> void:
         _fail("visible GeometryInstance3D with exact road identity was rejected")
         return
 
-    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
+    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_visible_multimesh_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
     quit(0)

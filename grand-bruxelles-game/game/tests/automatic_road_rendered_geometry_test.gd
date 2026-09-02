@@ -31,7 +31,7 @@ func _run() -> void:
     name_only_decoy.queue_free()
     await process_frame
 
-    # A visible GeometryInstance3D with no renderable payload is still not proof.
+    # A visible GeometryInstance3D with no mesh payload is still not proof.
     var empty_mesh_decoy := MeshInstance3D.new()
     empty_mesh_decoy.name = "Road_%d_EmptyMeshDecoy" % ROAD_ID
     world.add_child(empty_mesh_decoy)
@@ -40,6 +40,18 @@ func _run() -> void:
         _fail("visible MeshInstance3D without a mesh was accepted as rendered road geometry")
         return
     empty_mesh_decoy.queue_free()
+    await process_frame
+
+    # A non-null Mesh resource with zero surfaces also renders nothing.
+    var zero_surface_mesh_decoy := MeshInstance3D.new()
+    zero_surface_mesh_decoy.name = "Road_%d_ZeroSurfaceMeshDecoy" % ROAD_ID
+    zero_surface_mesh_decoy.mesh = ArrayMesh.new()
+    world.add_child(zero_surface_mesh_decoy)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("MeshInstance3D with zero mesh surfaces was accepted as rendered road geometry")
+        return
+    zero_surface_mesh_decoy.queue_free()
     await process_frame
 
     # A populated MultiMesh with zero visible instances also renders nothing.
@@ -56,6 +68,22 @@ func _run() -> void:
         _fail("MultiMeshInstance3D with zero visible instances was accepted as rendered road geometry")
         return
     zero_visible_multimesh_decoy.queue_free()
+    await process_frame
+
+    # A MultiMesh with instances but an empty Mesh resource still renders nothing.
+    var zero_surface_multimesh_decoy := MultiMeshInstance3D.new()
+    zero_surface_multimesh_decoy.name = "Road_%d_ZeroSurfaceMultiMeshDecoy" % ROAD_ID
+    var zero_surface_multimesh := MultiMesh.new()
+    zero_surface_multimesh.mesh = ArrayMesh.new()
+    zero_surface_multimesh.instance_count = 1
+    zero_surface_multimesh.visible_instance_count = 1
+    zero_surface_multimesh_decoy.multimesh = zero_surface_multimesh
+    world.add_child(zero_surface_multimesh_decoy)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("MultiMeshInstance3D with zero mesh surfaces was accepted as rendered road geometry")
+        return
+    zero_surface_multimesh_decoy.queue_free()
     await process_frame
 
     # Even real geometry is not player-visible evidence while hidden.
@@ -75,5 +103,5 @@ func _run() -> void:
         _fail("visible GeometryInstance3D with exact road identity was rejected")
         return
 
-    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_visible_multimesh_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
+    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_surface_mesh_rejected=true zero_visible_multimesh_rejected=true zero_surface_multimesh_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
     quit(0)

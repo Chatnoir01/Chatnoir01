@@ -81,7 +81,7 @@ func _stop_watching() -> void:
 func _release_owned_root() -> void:
     if is_instance_valid(_root):
         var parent := _root.get_parent()
-        if parent != null:
+        if parent != null and not _tearing_down:
             parent.remove_child(_root)
         _root.queue_free()
     _root = null
@@ -123,8 +123,6 @@ func _is_authoritative_production_scene(candidate: Node3D) -> bool:
     var parent := candidate.get_parent()
     if parent == tree.root:
         return true
-    # Preserve the established dormant root/SubViewport -> Main contract without
-    # letting an arbitrary nested viewport turn a foreign subtree into an owner.
     return (
         str(candidate.name) == "Main"
         and parent is Viewport

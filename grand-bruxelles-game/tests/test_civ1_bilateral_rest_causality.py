@@ -63,6 +63,8 @@ def main() -> int:
     jitter["left_foot_reference_ab"] = left_control(1)
     assert module.assess(jitter)["verdict"] == "ALLOW_QA_BILATERAL_REST_ATTRIBUTION"
 
+    # Regression for the old false allow: presence of both objects cannot pass if
+    # RightFoot no longer demonstrates material -> non-material causal improvement.
     no_right_cause = payload()
     no_right_cause["left_foot_reference_ab"] = left_control()
     no_right_cause["right_foot_reference_ab"]["normalization_improves_phase"] = False

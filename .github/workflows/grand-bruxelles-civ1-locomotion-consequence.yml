@@ -1,0 +1,39 @@
+name: Grand Bruxelles CIV-1 Locomotion Consequence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py"
+      - "grand-bruxelles-game/tests/test_civ1_locomotion_consequence.py"
+      - ".github/workflows/grand-bruxelles-civ1-locomotion-consequence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "${{ github.event.pull_request.base.sha }}"
+
+      - name: Receipt integrity regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_locomotion_consequence.py
+
+      - name: Preserve fail-closed production rails
+        run: |
+          set -euo pipefail
+          grep -F '"runtime_authorized": False' grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py
+          grep -F '"visual_approval_claimed": False' grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py
+          grep -F 'frame_receipt_verified' grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py
+          grep -F 'parser.add_argument("--frame", type=Path, required=True)' grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py

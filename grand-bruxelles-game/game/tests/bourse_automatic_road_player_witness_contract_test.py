@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 witness = ROOT / "game" / "tests" / "bourse_automatic_road_direct_spawn_witness_test.gd"
 workflow = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-bourse-automatic-road-player-witness.yml"
 

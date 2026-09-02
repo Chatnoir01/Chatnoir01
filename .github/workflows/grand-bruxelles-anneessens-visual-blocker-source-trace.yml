@@ -1,0 +1,31 @@
+name: Grand Bruxelles Anneessens Visual Blocker Source Trace
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/anneessens_visual_blocker_source_trace.json"
+      - "grand-bruxelles-game/game/tests/anneessens_visual_blocker_source_trace_contract_test.py"
+      - ".github/workflows/grand-bruxelles-anneessens-visual-blocker-source-trace.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-trace-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require live-main merge-base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          if [ "$base" != "${{ github.event.pull_request.base.sha }}" ]; then
+            echo "stale merge-base: $base != ${{ github.event.pull_request.base.sha }}" >&2
+            exit 1
+          fi
+      - name: Verify Anneessens blocker source trace
+        run: python3 grand-bruxelles-game/game/tests/anneessens_visual_blocker_source_trace_contract_test.py

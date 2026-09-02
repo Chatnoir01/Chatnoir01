@@ -1,0 +1,33 @@
+name: Grand Bruxelles CIV-1 Bilateral Patch Scope
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py"
+      - "grand-bruxelles-game/tests/test_civ1_bilateral_patch_scope.py"
+      - ".github/workflows/grand-bruxelles-civ1-bilateral-patch-scope.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bilateral-patch-scope-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Run bilateral patch-scope regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_bilateral_patch_scope.py
+
+      - name: Enforce fail-closed QA rails
+        run: |
+          set -euo pipefail
+          grep -Fq 'BLOCK_UNILATERAL_SCOPE' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py
+          grep -Fq '"grounding_verified": False' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py
+          grep -Fq '"foot_slide_verified": False' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py
+          grep -Fq '"runtime_authorized": False' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py
+          grep -Fq '"visual_approval_claimed": False' grand-bruxelles-game/tools/assess_civ1_bilateral_patch_scope.py

@@ -1,0 +1,37 @@
+name: Grand Bruxelles Anneessens Player Review Provenance
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/anneessens_automatic_road_player_review.json"
+      - "grand-bruxelles-game/game/tests/anneessens_automatic_road_player_review_contract_test.py"
+      - ".github/workflows/grand-bruxelles-anneessens-player-review-provenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  anneessens-player-review-provenance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require branch built from live main
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "$PR_HEAD_SHA" origin/main)"
+          echo "live_main=$live_main"
+          echo "pr_head=$PR_HEAD_SHA"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main"
+      - name: Validate persisted Anneessens full-frame review receipt
+        run: python3 grand-bruxelles-game/game/tests/anneessens_automatic_road_player_review_contract_test.py

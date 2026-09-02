@@ -5,7 +5,9 @@ on:
     paths:
       - "grand-bruxelles-game/tools/assess_civ1_skin_bind_log.py"
       - "grand-bruxelles-game/tools/godot_civ1_skin_bind_preflight.gd"
+      - "grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py"
       - "grand-bruxelles-game/tests/test_civ1_skin_bind_log.py"
+      - "grand-bruxelles-game/tests/test_civ1_shadow_retarget_patch.py"
       - ".github/workflows/grand-bruxelles-civ1-skin-bind-integrity.yml"
   workflow_dispatch:
 
@@ -31,8 +33,10 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "${{ github.event.pull_request.base.sha }}"
 
-      - name: Contract regression
-        run: python3 grand-bruxelles-game/tests/test_civ1_skin_bind_log.py
+      - name: Contract regressions
+        run: |
+          python3 grand-bruxelles-game/tests/test_civ1_skin_bind_log.py
+          python3 grand-bruxelles-game/tests/test_civ1_shadow_retarget_patch.py
 
       - name: Prepare evidence workspace
         run: mkdir -p /tmp/civ1skin/source /tmp/civ1skin/evidence /tmp/civ1skin/tools
@@ -45,6 +49,8 @@ jobs:
           curl --fail --location --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/${PROBE_REF}/grand-bruxelles-game/tools/strip_glb_animations.py" --output /tmp/civ1skin/tools/strip_glb_animations.py
           sha256sum /tmp/civ1skin/tools/* | tee /tmp/civ1skin/evidence/probe-tool-sha256.txt
           printf '%s\n' "$PROBE_REF" > /tmp/civ1skin/evidence/probe-tool-ref.txt
+          python3 grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py /tmp/civ1skin/tools/godot_civ1_global_chain_diagnostic.gd /tmp/civ1skin/tools/godot_civ1_global_chain_shadow.gd | tee /tmp/civ1skin/evidence/shadow-transform.log
+          sha256sum /tmp/civ1skin/tools/godot_civ1_global_chain_shadow.gd | tee /tmp/civ1skin/evidence/shadow-probe-sha256.txt
 
       - name: Fetch and sanitize exact CIV-1 body source
         run: |
@@ -89,6 +95,7 @@ jobs:
           cp /tmp/civ1skin/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
           cp grand-bruxelles-game/tools/godot_civ1_skin_bind_preflight.gd "$PROJECT_ROOT/gb_civ1_skin_bind_preflight.gd"
           cp /tmp/civ1skin/tools/godot_civ1_global_chain_diagnostic.gd "$PROJECT_ROOT/gb_civ1_global_chain_diagnostic.gd"
+          cp /tmp/civ1skin/tools/godot_civ1_global_chain_shadow.gd "$PROJECT_ROOT/gb_civ1_global_chain_shadow.gd"
           "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1skin/evidence/import.log
 
       - name: Prove original Skin/Skeleton integrity before diagnostic renaming
@@ -97,17 +104,33 @@ jobs:
           "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_skin_bind_preflight.gd 2>&1 | tee /tmp/civ1skin/evidence/preflight.log
           python3 grand-bruxelles-game/tools/assess_civ1_skin_bind_log.py /tmp/civ1skin/evidence/preflight.log --success-marker CIV1_SKIN_BIND_PREFLIGHT_OK --output /tmp/civ1skin/evidence/skin-bind-integrity.json
 
-      - name: Run historical native retarget probe as downstream diagnostic
+      - name: Reproduce historical in-place rename warnings
         run: |
           set -euo pipefail
-          set +e
-          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_diagnostic.gd -- /tmp/civ1skin/evidence/global-chain.json 2>&1 | tee /tmp/civ1skin/evidence/probe.log
-          PROBE_RC=${PIPESTATUS[0]}
-          set -e
-          printf '%s\n' "$PROBE_RC" > /tmp/civ1skin/evidence/probe-exit-code.txt
-          grep -F "CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK" /tmp/civ1skin/evidence/probe.log
-          grep -E "Skin bind #[0-9]+ contains named bind .*Skeleton3D has no bone by that name" /tmp/civ1skin/evidence/probe.log > /tmp/civ1skin/evidence/post-rename-bind-warnings.log || true
-          test "$PROBE_RC" -eq 0
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_diagnostic.gd -- /tmp/civ1skin/evidence/historical-global-chain.json 2>&1 | tee /tmp/civ1skin/evidence/historical-probe.log
+          grep -F "CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK" /tmp/civ1skin/evidence/historical-probe.log
+          grep -E "Skin bind #[0-9]+ contains named bind .*Skeleton3D has no bone by that name" /tmp/civ1skin/evidence/historical-probe.log > /tmp/civ1skin/evidence/historical-bind-warnings.log
+          test "$(wc -l < /tmp/civ1skin/evidence/historical-bind-warnings.log)" -gt 0
+
+      - name: Prove shadow retarget preserves diagnostic without Skin mutation
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_shadow.gd -- /tmp/civ1skin/evidence/global-chain.json 2>&1 | tee /tmp/civ1skin/evidence/shadow-probe.log
+          grep -F "CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK" /tmp/civ1skin/evidence/shadow-probe.log
+          if grep -E "Skin bind #[0-9]+ contains named bind .*Skeleton3D has no bone by that name" /tmp/civ1skin/evidence/shadow-probe.log; then
+            echo "shadow diagnostic mutated a skinned Skeleton3D" >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          base = json.loads(Path('/tmp/civ1skin/evidence/historical-global-chain.json').read_text())
+          shadow = json.loads(Path('/tmp/civ1skin/evidence/global-chain.json').read_text())
+          if base != shadow:
+              raise SystemExit('shadow diagnostic output diverged from historical native probe')
+          Path('/tmp/civ1skin/evidence/shadow-parity.txt').write_text('exact_json_equal=true\n', encoding='utf-8')
+          print('CIV1_SHADOW_RETARGET_PARITY_OK')
+          PY
 
       - name: Upload native integrity evidence
         if: always()

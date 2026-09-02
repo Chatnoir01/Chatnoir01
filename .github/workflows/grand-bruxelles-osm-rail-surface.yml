@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
       - "grand-bruxelles-game/game/scripts/brussels_osm_rail_surface_material.gd"
       - "grand-bruxelles-game/game/scripts/brussels_osm_rail_surface_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_rail_surface_authority_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_rail_surface_visual_test.gd"
       - "grand-bruxelles-game/tests/test_brussels_osm_rail_surface_contract.py"
       - "grand-bruxelles-game/tests/check_brussels_osm_rail_surface_ab.py"
@@ -47,6 +48,14 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-rail-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-rail-import.log; then exit 1; fi
+      - name: Prove OSM rail surface ownership topology
+        if: success()
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_rail_surface_authority_test.gd 2>&1 | tee /tmp/osm-rail-authority.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_RAIL_SURFACE_AUTHORITY_FAIL" /tmp/osm-rail-authority.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_RAIL_SURFACE_AUTHORITY_OK" /tmp/osm-rail-authority.log
       - name: Capture legitimate normal-player rail A/B
         if: success()
         shell: bash
@@ -68,4 +77,5 @@ jobs:
             grand-bruxelles-game/artifacts/visual/brussels_osm_rail_surface_before.png
             grand-bruxelles-game/artifacts/visual/brussels_osm_rail_surface_after.png
             /tmp/osm-rail-import.log
+            /tmp/osm-rail-authority.log
             /tmp/osm-rail-visual.log

@@ -13,7 +13,7 @@ spec.loader.exec_module(patcher)
 
 
 def fixture() -> str:
-    return '''func _make_shadow_skeleton(original: Skeleton3D) -> Skeleton3D:\n    return Skeleton3D.new()\n\nfunc _reference_ab_summary_for_foot():\n    pass\n\nfunc _write_payload(payload: Dictionary) -> bool:\n    return true\n\nfunc _run() -> void:\n    var normalized_target_right_foot_y: Array[float] = []\n    var normalized_target_left_foot_y: Array[float] = []\n    normalized_target_right_foot_y.append(normalized_hips_relative.y)\n    normalized_target_left_foot_y.append(normalized_left_hips_relative.y)\n    var left_foot_reference_ab := _reference_ab_summary_for_foot(\n        "LeftFoot",\n        phase_vertical_summary,\n        normalized_target_left_foot_y,\n        source_left_reference_direction_global,\n        target_left_local_rest_origin,\n        normalized_target_left_local_rest_origin,\n        animation.length,\n    )\n    var payload := {\n        "left_foot_reference_ab": left_foot_reference_ab,\n    }\n'''
+    return '''func _make_shadow_skeleton(original: Skeleton3D) -> Skeleton3D:\n    return Skeleton3D.new()\n\nfunc _reference_ab_summary_for_foot():\n    pass\n\nfunc _write_payload(payload: Dictionary) -> bool:\n    return true\n\nfunc _run() -> void:\n    var normalized_target_right_foot_y: Array[float] = []\n    var normalized_target_left_foot_y: Array[float] = []\n    for sample_index in range(SAMPLE_COUNT):\n        normalized_target_right_foot_y.append(normalized_hips_relative.y)\n        normalized_target_left_foot_y.append(normalized_left_hips_relative.y)\n    var left_foot_reference_ab := _reference_ab_summary_for_foot(\n        "LeftFoot",\n        phase_vertical_summary,\n        normalized_target_left_foot_y,\n        source_left_reference_direction_global,\n        target_left_local_rest_origin,\n        normalized_target_left_local_rest_origin,\n        animation.length,\n    )\n    var payload := {\n        "left_foot_reference_ab": left_foot_reference_ab,\n    }\n'''
 
 
 def main() -> int:
@@ -30,7 +30,7 @@ def main() -> int:
     for broken in (
         fixture().replace('func _make_shadow_skeleton', 'func missing_shadow'),
         fixture().replace('left_foot_reference_ab', 'left_missing', 1),
-        fixture().replace('normalized_target_right_foot_y.append(normalized_hips_relative.y)\n', ''),
+        fixture().replace('        normalized_target_right_foot_y.append(normalized_hips_relative.y)\n', ''),
     ):
         try:
             patcher.transform(broken)

@@ -329,7 +329,7 @@ func _road_is_rendered(world: Node, osm_id: int) -> bool:
     var stack: Array[Node] = [world]
     while not stack.is_empty():
         var node: Node = stack.pop_back()
-        if str(node.name).begins_with(prefix):
+        if str(node.name).begins_with(prefix) and node is GeometryInstance3D and (node as GeometryInstance3D).is_visible_in_tree():
             return true
         for child: Node in node.get_children():
             stack.append(child)

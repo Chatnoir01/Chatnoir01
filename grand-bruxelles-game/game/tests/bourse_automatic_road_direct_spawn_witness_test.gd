@@ -11,6 +11,7 @@ const WIDTH := 1280
 const HEIGHT := 720
 const MIN_ROAD_AXIS_ALIGNMENT := 0.90
 const OFFSET_EPSILON_M := 0.01
+const CAMERA_EPSILON := 0.0001
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -150,6 +151,15 @@ func _run() -> void:
 
     var player := scene.get_node_or_null("Player") as CharacterBody3D
     if player == null: _fail("production Player missing"); return
+    var spring_arm := player.get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
+    var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
+    if spring_arm == null or camera == null: _fail("production player camera rig missing"); return
+    var camera_local_before := camera.transform
+    var camera_fov_before := camera.fov
+    var camera_projection_before := camera.projection
+    var spring_local_before := spring_arm.transform
+    var spring_length_before := spring_arm.spring_length
+
     var resolver := RESOLVER_SCRIPT.new()
     viewport.add_child(resolver)
     if not resolver.apply_to_player(player, BOURSE_ORTS_ID): _fail("road-411724192 did not resolve into a collision-safe rendered road"); return
@@ -158,6 +168,12 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha: _fail("source digest provenance drifted"); return
     if not str(player.get_meta("automatic_road_direct_source_name", "")).contains("Auguste Orts"): _fail("source road name drifted"); return
     if not bool(player.get_meta("automatic_road_direct_source_sightline_clear", false)): _fail("source sightline safety proof missing"); return
+
+    if not camera.transform.is_equal_approx(camera_local_before): _fail("automatic road resolver mutated production camera local transform"); return
+    if absf(camera.fov - camera_fov_before) > CAMERA_EPSILON: _fail("automatic road resolver mutated production camera FOV"); return
+    if camera.projection != camera_projection_before: _fail("automatic road resolver mutated production camera projection"); return
+    if not spring_arm.transform.is_equal_approx(spring_local_before): _fail("automatic road resolver mutated production spring-arm transform"); return
+    if absf(spring_arm.spring_length - spring_length_before) > CAMERA_EPSILON: _fail("automatic road resolver mutated production spring-arm length"); return
 
     var ground_y := float(player.get_meta("automatic_road_direct_ground_y", INF))
     if not is_finite(ground_y): _fail("physics-backed ground height missing"); return
@@ -175,11 +191,9 @@ func _run() -> void:
     var alignment := absf(Vector2(forward_3d.x, forward_3d.z).normalized().dot(tangent))
     if alignment < MIN_ROAD_AXIS_ALIGNMENT: _fail("player view is cross-road: alignment=%.4f required=%.2f" % [alignment, MIN_ROAD_AXIS_ALIGNMENT]); return
 
-    var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
-    if camera == null: _fail("production player camera missing"); return
     camera.current = true
     for _frame: int in range(12): await process_frame
     if not await _capture(viewport): _fail("1280x720 player-view capture failed"); return
 
-    print("BOURSE_AUTOMATIC_ROAD_PLAYER_WITNESS_GREEN: osm_id=%d name=%s spawn=(%.3f,%.3f) target=(%.3f,%.3f) ground_y=%.3f offset_m=%.3f road_axis_alignment=%.4f source_sha=%s destination_advertisable=false jouable_authorized=false frame=%s" % [BOURSE_ORTS_ID, str(player.get_meta("automatic_road_direct_source_name", "")), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, ground_y, offset_m, alignment, expected_source_sha, OUTPUT_PATH])
+    print("BOURSE_AUTOMATIC_ROAD_PLAYER_WITNESS_GREEN: osm_id=%d name=%s spawn=(%.3f,%.3f) target=(%.3f,%.3f) ground_y=%.3f offset_m=%.3f road_axis_alignment=%.4f camera_unchanged=true source_sha=%s destination_advertisable=false jouable_authorized=false frame=%s" % [BOURSE_ORTS_ID, str(player.get_meta("automatic_road_direct_source_name", "")), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, ground_y, offset_m, alignment, expected_source_sha, OUTPUT_PATH])
     quit(0)

@@ -25,6 +25,23 @@ assert bad["error_count"] == 2
 assert "mixamorig_Hips" in bad["affected_bones"]
 assert "mixamorig_RightFoot" in bad["affected_bones"]
 
+# Exact wording emitted by the native Godot 4.7.1 probe. This used to evade
+# the generic regexes because the line says "has no bone by that name" rather
+# than "not found"/"missing", producing a false ALLOW_DIAGNOSTIC_ONLY.
+native_named_bind = m.assess(
+    "ERROR: Skin bind #0 contains named bind 'mixamorig_Hips' but Skeleton3D has no bone by that name.\n"
+    "ERROR: Skin bind #46 contains named bind 'mixamorig_LeftFoot' but Skeleton3D has no bone by that name.\n"
+    "ERROR: Skin bind #50 contains named bind 'mixamorig_RightFoot' but Skeleton3D has no bone by that name.\n"
+    "CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK\n"
+)
+assert native_named_bind["diagnostic_complete"] is True
+assert native_named_bind["skin_bind_integrity_verified"] is False
+assert native_named_bind["verdict"] == "BLOCK_SKIN_BIND_INTEGRITY"
+assert native_named_bind["error_count"] == 3
+assert "mixamorig_Hips" in native_named_bind["affected_bones"]
+assert "mixamorig_LeftFoot" in native_named_bind["affected_bones"]
+assert "mixamorig_RightFoot" in native_named_bind["affected_bones"]
+
 incomplete = m.assess("Godot Engine v4.7.1\nprobe started\n")
 assert incomplete["diagnostic_complete"] is False
 assert incomplete["skin_bind_integrity_verified"] is False

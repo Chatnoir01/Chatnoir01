@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py"
+      - "grand-bruxelles-game/tools/patch_civ1_locomotion_metrics.py"
       - "grand-bruxelles-game/tests/test_civ1_locomotion_consequence.py"
+      - "grand-bruxelles-game/tests/test_civ1_locomotion_metrics_patch.py"
       - ".github/workflows/grand-bruxelles-civ1-locomotion-consequence.yml"
   workflow_dispatch:
 
@@ -27,8 +29,10 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "${{ github.event.pull_request.base.sha }}"
 
-      - name: Receipt integrity regression
-        run: python3 grand-bruxelles-game/tests/test_civ1_locomotion_consequence.py
+      - name: Receipt integrity regressions
+        run: |
+          python3 grand-bruxelles-game/tests/test_civ1_locomotion_consequence.py
+          python3 grand-bruxelles-game/tests/test_civ1_locomotion_metrics_patch.py
 
       - name: Preserve fail-closed production rails
         run: |
@@ -37,3 +41,121 @@ jobs:
           grep -F '"visual_approval_claimed": False' grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py
           grep -F 'frame_receipt_verified' grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py
           grep -F 'parser.add_argument("--frame", type=Path, required=True)' grand-bruxelles-game/tools/assess_civ1_locomotion_consequence.py
+
+  native-planted-foot-metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "${{ github.event.pull_request.base.sha }}"
+
+      - name: Prepare native evidence workspace
+        run: mkdir -p /tmp/civ1loc/source /tmp/civ1loc/tools /tmp/civ1loc/evidence
+
+      - name: Fetch pinned validated diagnostic transforms
+        run: |
+          set -euo pipefail
+          PROBE_REF='48c277eaf57b7ceafc98fbee67eea155c991f00c'
+          BILATERAL_REF='d1f9ba6faa5c54bcf2bb5c522c5b49325a28f814'
+          curl --fail --location --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/${PROBE_REF}/grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd" --output /tmp/civ1loc/tools/godot_civ1_global_chain_diagnostic.gd
+          curl --fail --location --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/${PROBE_REF}/grand-bruxelles-game/tools/strip_glb_animations.py" --output /tmp/civ1loc/tools/strip_glb_animations.py
+          curl --fail --location --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/${BILATERAL_REF}/grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py" --output /tmp/civ1loc/tools/patch_civ1_global_chain_shadow.py
+          printf '%s\n' "$PROBE_REF" > /tmp/civ1loc/evidence/probe-ref.txt
+          printf '%s\n' "$BILATERAL_REF" > /tmp/civ1loc/evidence/bilateral-transform-ref.txt
+          sha256sum /tmp/civ1loc/tools/* | tee /tmp/civ1loc/evidence/tool-sha256.txt
+          python3 /tmp/civ1loc/tools/patch_civ1_global_chain_shadow.py /tmp/civ1loc/tools/godot_civ1_global_chain_diagnostic.gd /tmp/civ1loc/tools/godot_civ1_global_chain_shadow.gd
+          python3 grand-bruxelles-game/tools/patch_civ1_locomotion_metrics.py /tmp/civ1loc/tools/godot_civ1_global_chain_shadow.gd /tmp/civ1loc/tools/godot_civ1_global_chain_locomotion.gd
+          sha256sum /tmp/civ1loc/tools/godot_civ1_global_chain_locomotion.gd | tee /tmp/civ1loc/evidence/native-locomotion-probe-sha256.txt
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1loc/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1loc/source/vitruvian_body.glb)" = "6879364"
+          python3 /tmp/civ1loc/tools/strip_glb_animations.py /tmp/civ1loc/source/vitruvian_body.glb /tmp/civ1loc/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1loc/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius animation source
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1loc/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1loc/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1loc/quaternius
+          unzip -q /tmp/civ1loc/quaternius.zip -d /tmp/civ1loc/quaternius
+          LICENSE_FILE="$(find /tmp/civ1loc/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1loc/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1loc/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1loc/engine
+          GODOT_BIN=/tmp/civ1loc/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1loc/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1loc/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import pinned sources
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1loc/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1loc/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1LocomotionMetrics"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+          cp /tmp/civ1loc/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp /tmp/civ1loc/tools/godot_civ1_global_chain_locomotion.gd "$PROJECT_ROOT/gb_civ1_global_chain_locomotion.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1loc/evidence/import.log
+
+      - name: Measure paired planted-foot consequence natively
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_locomotion.gd -- /tmp/civ1loc/evidence/global-chain-locomotion.json 2>&1 | tee /tmp/civ1loc/evidence/native-metrics.log
+          grep -F 'CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK' /tmp/civ1loc/evidence/native-metrics.log
+          python3 - <<'PY'
+          import json, math
+          p=json.load(open('/tmp/civ1loc/evidence/global-chain-locomotion.json'))
+          m=p['locomotion_measurements']
+          assert m['method']=='five_sample_source_vertical_min_window'
+          for foot in ('LeftFoot','RightFoot'):
+              r=m[foot]
+              assert r['same_animation_window'] is True
+              assert len(r['plant_window_sample_indices'])==5
+              for label in ('baseline','counterfactual'):
+                  x=r[label]
+                  assert x['planted_sample_count']==5
+                  assert math.isfinite(x['planted_horizontal_drift_m']) and x['planted_horizontal_drift_m'] >= 0
+                  assert math.isfinite(x['planted_vertical_span_m']) and x['planted_vertical_span_m'] >= 0
+          assert p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False
+          print(json.dumps(m, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload native locomotion metrics evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-native-locomotion-metrics-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1loc/evidence/
+          if-no-files-found: error
+          retention-days: 14

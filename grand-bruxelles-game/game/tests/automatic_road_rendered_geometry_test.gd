@@ -86,8 +86,57 @@ func _run() -> void:
     zero_surface_multimesh_decoy.queue_free()
     await process_frame
 
+    # Godot's CSGPolygon3D constructor has a real 4-point rectangle by default.
+    # Make the zero-payload case explicit instead of mistaking the default for empty.
+    var empty_csg_polygon := CSGPolygon3D.new()
+    empty_csg_polygon.name = "Road_%d_EmptyCSGPolygonDecoy" % ROAD_ID
+    empty_csg_polygon.polygon = PackedVector2Array()
+    world.add_child(empty_csg_polygon)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("explicitly empty CSGPolygon3D was accepted as rendered road geometry")
+        return
+    empty_csg_polygon.queue_free()
+    await process_frame
+
+    # Preserve the engine's real default rectangle as positive renderable content.
+    var default_csg_polygon := CSGPolygon3D.new()
+    default_csg_polygon.name = "Road_%d_DefaultCSGPolygon" % ROAD_ID
+    world.add_child(default_csg_polygon)
+    await process_frame
+    if not resolver._road_is_rendered(world, ROAD_ID):
+        _fail("default 4-point CSGPolygon3D was incorrectly rejected")
+        return
+    default_csg_polygon.queue_free()
+    await process_frame
+
+    # Three collinear points are still a zero-area profile and must fail closed.
+    var collinear_csg_polygon := CSGPolygon3D.new()
+    collinear_csg_polygon.name = "Road_%d_CollinearCSGPolygonDecoy" % ROAD_ID
+    collinear_csg_polygon.polygon = PackedVector2Array([Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(2.0, 0.0)])
+    world.add_child(collinear_csg_polygon)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("collinear CSGPolygon3D was accepted as rendered road geometry")
+        return
+    collinear_csg_polygon.queue_free()
+    await process_frame
+
+    # Invalid nested polygon content must not make a matching combiner look rendered.
+    var invalid_nested_combiner := CSGCombiner3D.new()
+    invalid_nested_combiner.name = "Road_%d_InvalidNestedCombinerDecoy" % ROAD_ID
+    var invalid_nested_polygon := CSGPolygon3D.new()
+    invalid_nested_polygon.polygon = PackedVector2Array([Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(2.0, 0.0)])
+    invalid_nested_combiner.add_child(invalid_nested_polygon)
+    world.add_child(invalid_nested_combiner)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("combiner with only degenerate CSGPolygon3D was accepted as rendered road geometry")
+        return
+    invalid_nested_combiner.queue_free()
+    await process_frame
+
     # CSGCombiner3D inherits CSGShape3D but renders nothing without child CSG geometry.
-    # A matching empty combiner must never be enough to advertise a road as rendered.
     var empty_csg_combiner := CSGCombiner3D.new()
     empty_csg_combiner.name = "Road_%d_EmptyCSGCombinerDecoy" % ROAD_ID
     world.add_child(empty_csg_combiner)
@@ -96,6 +145,20 @@ func _run() -> void:
         _fail("empty CSGCombiner3D was accepted as rendered road geometry")
         return
     empty_csg_combiner.queue_free()
+    await process_frame
+
+    # A valid nested polygon is real CSG content and must remain accepted.
+    var valid_nested_combiner := CSGCombiner3D.new()
+    valid_nested_combiner.name = "Road_%d_ValidNestedCombiner" % ROAD_ID
+    var valid_nested_polygon := CSGPolygon3D.new()
+    valid_nested_polygon.polygon = PackedVector2Array([Vector2(-1.0, -1.0), Vector2(1.0, -1.0), Vector2(1.0, 1.0), Vector2(-1.0, 1.0)])
+    valid_nested_combiner.add_child(valid_nested_polygon)
+    world.add_child(valid_nested_combiner)
+    await process_frame
+    if not resolver._road_is_rendered(world, ROAD_ID):
+        _fail("combiner with valid visible CSGPolygon3D was rejected")
+        return
+    valid_nested_combiner.queue_free()
     await process_frame
 
     # Even real geometry is not player-visible evidence while hidden.
@@ -115,5 +178,5 @@ func _run() -> void:
         _fail("visible GeometryInstance3D with exact road identity was rejected")
         return
 
-    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_surface_mesh_rejected=true zero_visible_multimesh_rejected=true zero_surface_multimesh_rejected=true empty_csg_combiner_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
+    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_surface_mesh_rejected=true zero_visible_multimesh_rejected=true zero_surface_multimesh_rejected=true explicit_empty_csg_polygon_rejected=true default_csg_polygon_accepted=true collinear_csg_polygon_rejected=true invalid_nested_csg_polygon_rejected=true empty_csg_combiner_rejected=true valid_nested_csg_polygon_accepted=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
     quit(0)

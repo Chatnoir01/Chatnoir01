@@ -5,11 +5,13 @@ on:
     paths:
       - "grand-bruxelles-game/tools/assess_civ1_skin_bind_log.py"
       - "grand-bruxelles-game/tools/assess_civ1_shadow_parity.py"
+      - "grand-bruxelles-game/tools/assess_civ1_bilateral_rest_causality.py"
       - "grand-bruxelles-game/tools/godot_civ1_skin_bind_preflight.gd"
       - "grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py"
       - "grand-bruxelles-game/tests/test_civ1_skin_bind_log.py"
       - "grand-bruxelles-game/tests/test_civ1_shadow_retarget_patch.py"
       - "grand-bruxelles-game/tests/test_civ1_shadow_parity.py"
+      - "grand-bruxelles-game/tests/test_civ1_bilateral_rest_causality.py"
       - ".github/workflows/grand-bruxelles-civ1-skin-bind-integrity.yml"
   workflow_dispatch:
 
@@ -40,6 +42,7 @@ jobs:
           python3 grand-bruxelles-game/tests/test_civ1_skin_bind_log.py
           python3 grand-bruxelles-game/tests/test_civ1_shadow_retarget_patch.py
           python3 grand-bruxelles-game/tests/test_civ1_shadow_parity.py
+          python3 grand-bruxelles-game/tests/test_civ1_bilateral_rest_causality.py
 
       - name: Prepare evidence workspace
         run: mkdir -p /tmp/civ1skin/source /tmp/civ1skin/evidence /tmp/civ1skin/tools
@@ -128,6 +131,21 @@ jobs:
             /tmp/civ1skin/evidence/historical-global-chain.json \
             /tmp/civ1skin/evidence/global-chain.json \
             --output /tmp/civ1skin/evidence/shadow-parity.json
+
+      - name: Classify bilateral rest-direction evidence fail-closed
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/assess_civ1_bilateral_rest_causality.py \
+            /tmp/civ1skin/evidence/global-chain.json \
+            --output /tmp/civ1skin/evidence/bilateral-rest-causality.json \
+            --expect-verdict BLOCK_INCOMPLETE_BILATERAL_REST_EVIDENCE
+          python3 - <<'PY'
+          import json
+          p = json.load(open('/tmp/civ1skin/evidence/bilateral-rest-causality.json'))
+          assert p['right_rest_direction_causality_supported'] is True
+          assert p['bilateral_counterfactual_complete'] is False
+          assert p['runtime_authorized'] is False
+          PY
 
       - name: Upload native integrity evidence
         if: always()

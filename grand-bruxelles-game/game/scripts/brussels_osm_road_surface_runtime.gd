@@ -136,6 +136,16 @@ func _is_generated_road_child(node: Node) -> bool:
     var parent := node.get_parent()
     return parent != null and _is_generated_roads_root(parent)
 
+func _is_authoritative_jette_official_surface(node: Node) -> bool:
+    if not node is MeshInstance3D or str(node.name) != "JetteOfficialStreetSurfaces":
+        return false
+    # Jette phase-2 builds this exact source-backed mesh as a direct child of its
+    # standalone zone scene. Requiring that immediate scene owner to be authoritative
+    # prevents a familiar-name clone nested under a foreign wrapper from capturing
+    # the shared ground-network presentation/provenance contract.
+    var scene_owner := node.get_parent()
+    return scene_owner != null and _is_authoritative_road_scene(scene_owner)
+
 func _schedule_road_bind() -> void:
     if _failed or _tearing_down or _road_bind_scheduled:
         return
@@ -247,7 +257,7 @@ func _register_official_surface(node: Node) -> void:
     var role := ""
     if str(node.name) == "StreetSurfaces_S" and node.get_parent() != null and str(node.get_parent().name) == "OfficialIxellesStreetSurfaces":
         role = "road"
-    elif str(node.name) == "JetteOfficialStreetSurfaces":
+    elif _is_authoritative_jette_official_surface(node):
         role = "street_surface"
     if role.is_empty():
         return

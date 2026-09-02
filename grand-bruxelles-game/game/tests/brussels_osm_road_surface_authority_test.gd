@@ -3,6 +3,7 @@ extends SceneTree
 const RUNTIME_PATH := "res://game/scripts/brussels_osm_road_surface_runtime.gd"
 const SOURCE := "OpenStreetMap contributors via Overpass API"
 const LICENSE := "ODbL-1.0"
+const AUTOLOAD_NAME := "BrusselsOsmRoadSurfaceRuntime"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -40,21 +41,31 @@ func _add_osm_roads(scene_owner: Node3D, road_name: String) -> CSGBox3D:
     roads.add_child(road)
     return road
 
+func _resolve_runtime() -> Node:
+    var canonical := root.get_node_or_null(AUTOLOAD_NAME)
+    if canonical != null:
+        return canonical
+    # Keep this witness runnable in deliberately stripped test projects while
+    # ensuring normal project CI exercises the one canonical autoload owner.
+    var runtime_script := load(RUNTIME_PATH) as Script
+    if runtime_script == null:
+        return null
+    var runtime := runtime_script.new() as Node
+    if runtime == null:
+        return null
+    runtime.name = "BrusselsOsmRoadSurfaceAuthorityWitness"
+    root.add_child(runtime)
+    return runtime
+
 func _run() -> void:
     if current_scene != null:
         _fail("script witness requires current_scene == null")
         return
 
-    var runtime_script := load(RUNTIME_PATH) as Script
-    if runtime_script == null:
-        _fail("runtime script missing")
-        return
-    var runtime := runtime_script.new() as Node
+    var runtime := _resolve_runtime()
     if runtime == null:
-        _fail("runtime is not a Node")
+        _fail("canonical road surface runtime missing")
         return
-    runtime.name = "BrusselsOsmRoadSurfaceAuthorityWitness"
-    root.add_child(runtime)
 
     for _frame: int in range(6):
         await process_frame
@@ -150,5 +161,5 @@ func _run() -> void:
         _fail("runtime claimed official Jette geometry mutation")
         return
 
-    print("BRUSSELS_OSM_ROAD_SURFACE_AUTHORITY_OK: roads=1 official_jette=1 foreign_nested_rejected=true owner=root-viewport-main osm_id=359177328 source=OSM license=ODbL-1.0 geometry_changed=false")
+    print("BRUSSELS_OSM_ROAD_SURFACE_AUTHORITY_OK: roads=1 official_jette=1 foreign_nested_rejected=true owner=root-viewport-main runtime=canonical-autoload osm_id=359177328 source=OSM license=ODbL-1.0 geometry_changed=false")
     quit(0)

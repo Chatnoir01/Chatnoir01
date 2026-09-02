@@ -1,0 +1,59 @@
+name: Grand Bruxelles Anneessens Building Runtime Conformance
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/game/tests/anneessens_osm_building_runtime_conformance_test.gd"
+      - ".github/workflows/grand-bruxelles-anneessens-building-runtime-conformance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact live-main merge base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          if [ "$base" != "${{ github.event.pull_request.base.sha }}" ]; then
+            echo "stale merge-base: $base != ${{ github.event.pull_request.base.sha }}" >&2
+            exit 1
+          fi
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/godot
+          curl -L --fail --retry 3 -o /tmp/godot/godot.zip https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot/godot.zip -d /tmp/godot
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/anneessens-building-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/anneessens-building-import.log; then exit 1; fi
+      - name: Prove source-to-runtime building conformance
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_building_runtime_conformance_test.gd 2>&1 | tee /tmp/anneessens-building-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_BUILDING_RUNTIME_CONFORMANCE_FAIL" /tmp/anneessens-building-runtime.log; then exit 1; fi
+          grep -q "ANNEESSENS_OSM_BUILDING_RUNTIME_CONFORMANCE_OK" /tmp/anneessens-building-runtime.log
+      - name: Upload conformance logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-building-runtime-conformance-${{ github.sha }}
+          path: |
+            /tmp/anneessens-building-import.log
+            /tmp/anneessens-building-runtime.log

@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/brussels_osm_sidewalk_surface_material.gd"
       - "grand-bruxelles-game/game/scripts/brussels_osm_sidewalk_surface_runtime.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_sidewalk_surface_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_sidewalk_surface_authority_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_sidewalk_surface_witness_test.gd"
       - ".github/workflows/grand-bruxelles-osm-sidewalk-surface.yml"
   workflow_dispatch:
@@ -40,6 +41,13 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_sidewalk_surface_test.gd 2>&1 | tee /tmp/osm-sidewalk-surface.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_SIDEWALK_SURFACE_FAIL" /tmp/osm-sidewalk-surface.log; then exit 1; fi
           grep -q "BRUSSELS_OSM_SIDEWALK_SURFACE_OK" /tmp/osm-sidewalk-surface.log
+      - name: Prove sidewalk root authority topology
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_sidewalk_surface_authority_test.gd 2>&1 | tee /tmp/osm-sidewalk-authority.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_SIDEWALK_SURFACE_AUTHORITY_FAIL" /tmp/osm-sidewalk-authority.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_SIDEWALK_SURFACE_AUTHORITY_OK" /tmp/osm-sidewalk-authority.log
       - name: 1280x720 normal-player sidewalk A/B
         shell: bash
         run: |

@@ -5,7 +5,7 @@ const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const TARGET_OSM_ID := 256376389
 const EXPECTED_HEIGHT := 14.0
 const EXPECTED_CENTER := Vector2(-285.4966, -185.4604)
-const EXPECTED_FOOTPRINT := [
+const EXPECTED_FOOTPRINT: Array[Vector2] = [
     Vector2(-285.331, -198.761),
     Vector2(-274.885, -190.701),
     Vector2(-277.514, -187.262),
@@ -95,7 +95,7 @@ func _run() -> void:
         _fail("runtime polygon vertex count drift")
         return
     for i: int in range(EXPECTED_FOOTPRINT.size()):
-        var expected_local := EXPECTED_FOOTPRINT[i] - EXPECTED_CENTER
+        var expected_local: Vector2 = EXPECTED_FOOTPRINT[i] - EXPECTED_CENTER
         if solid.polygon[i].distance_to(expected_local) > 0.001:
             _fail("runtime polygon no longer source-derived at vertex %d" % i)
             return

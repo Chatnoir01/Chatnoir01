@@ -86,15 +86,28 @@ func _run() -> void:
     zero_surface_multimesh_decoy.queue_free()
     await process_frame
 
-    # CSGPolygon3D is a CSGShape3D but its default empty polygon renders nothing.
+    # Godot's CSGPolygon3D constructor has a real 4-point rectangle by default.
+    # Make the zero-payload case explicit instead of mistaking the default for empty.
     var empty_csg_polygon := CSGPolygon3D.new()
     empty_csg_polygon.name = "Road_%d_EmptyCSGPolygonDecoy" % ROAD_ID
+    empty_csg_polygon.polygon = PackedVector2Array()
     world.add_child(empty_csg_polygon)
     await process_frame
     if resolver._road_is_rendered(world, ROAD_ID):
-        _fail("empty CSGPolygon3D was accepted as rendered road geometry")
+        _fail("explicitly empty CSGPolygon3D was accepted as rendered road geometry")
         return
     empty_csg_polygon.queue_free()
+    await process_frame
+
+    # Preserve the engine's real default rectangle as positive renderable content.
+    var default_csg_polygon := CSGPolygon3D.new()
+    default_csg_polygon.name = "Road_%d_DefaultCSGPolygon" % ROAD_ID
+    world.add_child(default_csg_polygon)
+    await process_frame
+    if not resolver._road_is_rendered(world, ROAD_ID):
+        _fail("default 4-point CSGPolygon3D was incorrectly rejected")
+        return
+    default_csg_polygon.queue_free()
     await process_frame
 
     # Three collinear points are still a zero-area profile and must fail closed.
@@ -165,5 +178,5 @@ func _run() -> void:
         _fail("visible GeometryInstance3D with exact road identity was rejected")
         return
 
-    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_surface_mesh_rejected=true zero_visible_multimesh_rejected=true zero_surface_multimesh_rejected=true empty_csg_polygon_rejected=true collinear_csg_polygon_rejected=true invalid_nested_csg_polygon_rejected=true empty_csg_combiner_rejected=true valid_nested_csg_polygon_accepted=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
+    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_surface_mesh_rejected=true zero_visible_multimesh_rejected=true zero_surface_multimesh_rejected=true explicit_empty_csg_polygon_rejected=true default_csg_polygon_accepted=true collinear_csg_polygon_rejected=true invalid_nested_csg_polygon_rejected=true empty_csg_combiner_rejected=true valid_nested_csg_polygon_accepted=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
     quit(0)

@@ -7,6 +7,7 @@ from pathlib import Path
 SUCCESS_MARKER = "CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK"
 PATTERNS = [
     re.compile(r"skin.*bind.*bone.*(?:not found|missing|invalid)", re.I),
+    re.compile(r"skin.*bind.*skeleton(?:3d)?.*has no bone(?: by that name)?", re.I),
     re.compile(r"bone.*(?:not found|missing).*skeleton", re.I),
     re.compile(r"bind.*(?:not found|missing).*skeleton", re.I),
 ]
@@ -30,7 +31,7 @@ def assess(text: str):
     else:
         verdict = "ALLOW_DIAGNOSTIC_ONLY"
     return {
-        "format": "grand-bruxelles-civ1-skin-bind-integrity-v3",
+        "format": "grand-bruxelles-civ1-skin-bind-integrity-v4",
         "diagnostic_complete": diagnostic_complete,
         "skin_bind_integrity_verified": verified,
         "runtime_authorized": False,

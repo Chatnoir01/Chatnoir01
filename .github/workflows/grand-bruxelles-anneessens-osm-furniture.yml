@@ -55,7 +55,7 @@ jobs:
         run: |
           set -o pipefail
           timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/anneessens_street_tree_witness_test.gd 2>&1 | tee /tmp/anneessens-tree-visual.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_STREET_TREE_FAIL" /tmp/anneessens-tree-visual.log; then exit 1; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_STREET_TREE_FAIL|Parent node is busy adding/removing children" /tmp/anneessens-tree-visual.log; then exit 1; fi
           grep -q "ANNEESSENS_STREET_TREE_OK" /tmp/anneessens-tree-visual.log
       - name: Upload Anneessens street-tree evidence
         uses: actions/upload-artifact@v4

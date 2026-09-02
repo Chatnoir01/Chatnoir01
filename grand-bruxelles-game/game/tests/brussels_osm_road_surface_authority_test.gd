@@ -84,8 +84,8 @@ func _run() -> void:
     var foreign_transform := foreign_road.global_transform
     var foreign_size := foreign_road.size
     var foreign_official := _make_official_surface()
-    foreign_main.add_child(foreign_official)
     var foreign_official_material := foreign_official.material_override
+    foreign_main.add_child(foreign_official)
 
     for _frame: int in range(12):
         await process_frame
@@ -118,8 +118,10 @@ func _run() -> void:
     var production_transform := production_road.global_transform
     var production_size := production_road.size
     var production_official := _make_official_surface()
-    main.add_child(production_official)
+    # node_added is synchronous enough for the canonical autoload to apply the
+    # shared presentation during add_child(); capture the true pre-mount baseline.
     var production_official_legacy := production_official.material_override
+    main.add_child(production_official)
 
     for _frame: int in range(18):
         await process_frame

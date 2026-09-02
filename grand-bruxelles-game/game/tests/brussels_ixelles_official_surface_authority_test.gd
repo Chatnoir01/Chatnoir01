@@ -17,13 +17,11 @@ func _make_surface() -> MeshInstance3D:
     surface.material_override = baseline
     return surface
 
-func _add_ixelles_surface(scene_owner: Node3D) -> MeshInstance3D:
+func _make_container(scene_owner: Node3D) -> Node3D:
     var container := Node3D.new()
     container.name = "OfficialIxellesStreetSurfaces"
     scene_owner.add_child(container)
-    var surface := _make_surface()
-    container.add_child(surface)
-    return surface
+    return container
 
 func _run() -> void:
     if current_scene != null:
@@ -40,8 +38,12 @@ func _run() -> void:
     var foreign_main := Node3D.new()
     foreign_main.name = "Main"
     foreign_wrapper.add_child(foreign_main)
-    var foreign_surface := _add_ixelles_surface(foreign_main)
+    var foreign_container := _make_container(foreign_main)
+    var foreign_surface := _make_surface()
+    # node_added can synchronously register official surfaces. Capture the true
+    # pre-mount baseline before add_child(), not the post-registration material.
     var foreign_material := foreign_surface.material_override
+    foreign_container.add_child(foreign_surface)
 
     for _frame: int in range(8):
         await process_frame
@@ -59,8 +61,10 @@ func _run() -> void:
     var main := Node3D.new()
     main.name = "Main"
     viewport.add_child(main)
-    var production_surface := _add_ixelles_surface(main)
+    var production_container := _make_container(main)
+    var production_surface := _make_surface()
     var production_legacy := production_surface.material_override
+    production_container.add_child(production_surface)
 
     for _frame: int in range(8):
         await process_frame

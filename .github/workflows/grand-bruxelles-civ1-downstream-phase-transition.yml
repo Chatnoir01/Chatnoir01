@@ -1,0 +1,30 @@
+name: Grand Bruxelles CIV-1 Downstream Phase Transition
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/analyze_civ1_downstream_phase_transition.py"
+      - "grand-bruxelles-game/tests/test_civ1_downstream_phase_transition.py"
+      - ".github/workflows/grand-bruxelles-civ1-downstream-phase-transition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  downstream-phase-transition-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Run deterministic transition regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_downstream_phase_transition.py
+      - name: Enforce QA-only rails
+        run: |
+          set -euo pipefail
+          grep -Fq 'diagnostic_only": True' grand-bruxelles-game/tools/analyze_civ1_downstream_phase_transition.py
+          grep -Fq 'runtime_authorized": False' grand-bruxelles-game/tools/analyze_civ1_downstream_phase_transition.py
+          grep -Fq 'visual_approval_claimed": False' grand-bruxelles-game/tools/analyze_civ1_downstream_phase_transition.py
+          grep -Fq 'threshold_was_modified": False' grand-bruxelles-game/tools/analyze_civ1_downstream_phase_transition.py

@@ -36,16 +36,23 @@ func _run() -> void:
     runtime.name = "BaseGroundOwnerIsolationProbe"
     root.add_child(runtime)
 
+    # A foreign nested clone with a perfectly valid Ground contract must still
+    # remain non-authoritative. Name/shape parity is not scene ownership.
     var foreign_holder := Node.new()
     foreign_holder.name = "ForeignMountedScene"
     root.add_child(foreign_holder)
-    var foreign_main := _make_main(EXPECTED_POSITION + Vector3(1.0, 0.0, 0.0))
+    var foreign_main := _make_main(EXPECTED_POSITION)
     foreign_holder.add_child(foreign_main)
+    var foreign_ground := foreign_main.get_node_or_null("Ground") as CSGBox3D
+    var foreign_legacy_material := foreign_ground.material
 
     for _frame: int in range(4):
         await process_frame
     if bool(runtime.call("failed")) or bool(runtime.call("ready_complete")):
-        _fail("nested same-name Main poisoned shared runtime before authoritative root/Main arrived")
+        _fail("valid nested same-name Main captured shared base-ground authority before authoritative root/Main arrived")
+        return
+    if foreign_ground.material != foreign_legacy_material:
+        _fail("foreign nested Ground material was mutated despite lacking scene authority")
         return
 
     foreign_holder.queue_free()
@@ -72,5 +79,5 @@ func _run() -> void:
         _fail("authoritative Ground presentation revision drifted")
         return
 
-    print("BRUSSELS_BASE_GROUND_ROOT_OWNER_ISOLATION_OK: foreign_nested_preserved=true authoritative_root_bound=true geometry_unchanged=true collision_unchanged=true")
+    print("BRUSSELS_BASE_GROUND_ROOT_OWNER_ISOLATION_OK: valid_foreign_nested_preserved=true authoritative_root_bound=true geometry_unchanged=true collision_unchanged=true")
     quit(0)

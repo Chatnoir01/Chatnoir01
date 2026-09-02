@@ -42,7 +42,9 @@ func _process(_delta: float) -> void:
         _start_watching()
         call_deferred("_try_bind")
         return
-    if not is_instance_valid(_player) or not _player.is_inside_tree():
+    if not is_instance_valid(_player):
+        _player = _scene.get_node_or_null("Player") as Node3D
+    if is_instance_valid(_player) and not _player.is_inside_tree():
         _player = _scene.get_node_or_null("Player") as Node3D
     if is_instance_valid(_root) and _root.get_parent() != _scene:
         _release_owned_root()
@@ -51,7 +53,7 @@ func _process(_delta: float) -> void:
         return
     if not is_instance_valid(_root):
         _build_once()
-    if is_instance_valid(_root):
+    if is_instance_valid(_root) and is_instance_valid(_player):
         var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
         _apply_tree_activation(active)
 

@@ -48,7 +48,7 @@ jobs:
         run: |
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_furniture_player_loss_test.gd 2>&1 | tee /tmp/anneessens-furniture-player-loss.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_FAIL" /tmp/anneessens-furniture-player-loss.log; then exit 1; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_FAIL|Condition \"!is_inside_tree\(\)\" is true" /tmp/anneessens-furniture-player-loss.log; then exit 1; fi
           grep -q "ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK" /tmp/anneessens-furniture-player-loss.log
       - name: Anneessens 1280x720 street-tree player A/B
         shell: bash

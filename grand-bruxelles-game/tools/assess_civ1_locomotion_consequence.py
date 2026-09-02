@@ -9,13 +9,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 from pathlib import Path
 
 FEET = ("LeftFoot", "RightFoot")
+SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 def _number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
 
 
 def assess(bilateral: dict, locomotion: dict) -> dict:
@@ -44,8 +51,11 @@ def assess(bilateral: dict, locomotion: dict) -> dict:
             failures.append("camera_rescue_detected")
         if capture.get("ai_generated") is not False:
             failures.append("ai_generated_evidence_forbidden")
-        if not isinstance(capture.get("frame_sha256"), str) or len(capture.get("frame_sha256", "")) != 64:
+        frame_sha256 = capture.get("frame_sha256")
+        if not isinstance(frame_sha256, str):
             failures.append("missing_frame_sha256")
+        elif SHA256_RE.fullmatch(frame_sha256) is None:
+            failures.append("invalid_frame_sha256")
 
     measurements = locomotion.get("feet")
     if not isinstance(measurements, dict):

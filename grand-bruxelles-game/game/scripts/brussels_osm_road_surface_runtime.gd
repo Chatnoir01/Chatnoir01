@@ -136,6 +136,17 @@ func _is_generated_road_child(node: Node) -> bool:
     var parent := node.get_parent()
     return parent != null and _is_generated_roads_root(parent)
 
+func _is_authoritative_ixelles_official_surface(node: Node) -> bool:
+    if not node is MeshInstance3D or str(node.name) != "StreetSurfaces_S":
+        return false
+    var container := node.get_parent()
+    if container == null or str(container.name) != "OfficialIxellesStreetSurfaces":
+        return false
+    if not is_inside_tree():
+        return container.get_parent() == null
+    var scene_owner := container.get_parent()
+    return scene_owner != null and _is_authoritative_road_scene(scene_owner)
+
 func _is_authoritative_jette_official_surface(node: Node) -> bool:
     if not node is MeshInstance3D or str(node.name) != "JetteOfficialStreetSurfaces":
         return false
@@ -261,7 +272,7 @@ func _register_official_surface(node: Node) -> void:
     if not node is MeshInstance3D:
         return
     var role := ""
-    if str(node.name) == "StreetSurfaces_S" and node.get_parent() != null and str(node.get_parent().name) == "OfficialIxellesStreetSurfaces":
+    if _is_authoritative_ixelles_official_surface(node):
         role = "road"
     elif _is_authoritative_jette_official_surface(node):
         role = "street_surface"

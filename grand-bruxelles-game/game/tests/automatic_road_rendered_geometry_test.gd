@@ -86,6 +86,18 @@ func _run() -> void:
     zero_surface_multimesh_decoy.queue_free()
     await process_frame
 
+    # CSGPolygon3D is a CSGShape3D but its default empty polygon renders nothing.
+    # It must not satisfy the rendered-road proof by inheritance alone.
+    var empty_csg_polygon := CSGPolygon3D.new()
+    empty_csg_polygon.name = "Road_%d_EmptyCSGPolygonDecoy" % ROAD_ID
+    world.add_child(empty_csg_polygon)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("empty CSGPolygon3D was accepted as rendered road geometry")
+        return
+    empty_csg_polygon.queue_free()
+    await process_frame
+
     # CSGCombiner3D inherits CSGShape3D but renders nothing without child CSG geometry.
     # A matching empty combiner must never be enough to advertise a road as rendered.
     var empty_csg_combiner := CSGCombiner3D.new()
@@ -115,5 +127,5 @@ func _run() -> void:
         _fail("visible GeometryInstance3D with exact road identity was rejected")
         return
 
-    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_surface_mesh_rejected=true zero_visible_multimesh_rejected=true zero_surface_multimesh_rejected=true empty_csg_combiner_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
+    print("AUTOMATIC_ROAD_RENDERED_GEOMETRY_GREEN: road_id=%d name_only_rejected=true empty_mesh_rejected=true zero_surface_mesh_rejected=true zero_visible_multimesh_rejected=true zero_surface_multimesh_rejected=true empty_csg_polygon_rejected=true empty_csg_combiner_rejected=true hidden_geometry_rejected=true visible_geometry_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
     quit(0)

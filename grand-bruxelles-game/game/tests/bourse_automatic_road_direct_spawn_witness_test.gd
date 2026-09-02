@@ -157,6 +157,9 @@ func _run() -> void:
     var camera_local_before := camera.transform
     var camera_fov_before := camera.fov
     var camera_projection_before := camera.projection
+    var camera_near_before := camera.near
+    var camera_far_before := camera.far
+    var camera_cull_mask_before := camera.cull_mask
     var spring_local_before := spring_arm.transform
     var spring_length_before := spring_arm.spring_length
 
@@ -172,6 +175,9 @@ func _run() -> void:
     if not camera.transform.is_equal_approx(camera_local_before): _fail("automatic road resolver mutated production camera local transform"); return
     if absf(camera.fov - camera_fov_before) > CAMERA_EPSILON: _fail("automatic road resolver mutated production camera FOV"); return
     if camera.projection != camera_projection_before: _fail("automatic road resolver mutated production camera projection"); return
+    if absf(camera.near - camera_near_before) > CAMERA_EPSILON: _fail("automatic road resolver mutated production camera near clip"); return
+    if absf(camera.far - camera_far_before) > CAMERA_EPSILON: _fail("automatic road resolver mutated production camera far clip"); return
+    if camera.cull_mask != camera_cull_mask_before: _fail("automatic road resolver mutated production camera cull mask"); return
     if not spring_arm.transform.is_equal_approx(spring_local_before): _fail("automatic road resolver mutated production spring-arm transform"); return
     if absf(spring_arm.spring_length - spring_length_before) > CAMERA_EPSILON: _fail("automatic road resolver mutated production spring-arm length"); return
 
@@ -195,5 +201,5 @@ func _run() -> void:
     for _frame: int in range(12): await process_frame
     if not await _capture(viewport): _fail("1280x720 player-view capture failed"); return
 
-    print("BOURSE_AUTOMATIC_ROAD_PLAYER_WITNESS_GREEN: osm_id=%d name=%s spawn=(%.3f,%.3f) target=(%.3f,%.3f) ground_y=%.3f offset_m=%.3f road_axis_alignment=%.4f camera_unchanged=true source_sha=%s destination_advertisable=false jouable_authorized=false frame=%s" % [BOURSE_ORTS_ID, str(player.get_meta("automatic_road_direct_source_name", "")), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, ground_y, offset_m, alignment, expected_source_sha, OUTPUT_PATH])
+    print("BOURSE_AUTOMATIC_ROAD_PLAYER_WITNESS_GREEN: osm_id=%d name=%s spawn=(%.3f,%.3f) target=(%.3f,%.3f) ground_y=%.3f offset_m=%.3f road_axis_alignment=%.4f camera_unchanged=true camera_clip_unchanged=true camera_cull_mask_unchanged=true source_sha=%s destination_advertisable=false jouable_authorized=false frame=%s" % [BOURSE_ORTS_ID, str(player.get_meta("automatic_road_direct_source_name", "")), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, ground_y, offset_m, alignment, expected_source_sha, OUTPUT_PATH])
     quit(0)

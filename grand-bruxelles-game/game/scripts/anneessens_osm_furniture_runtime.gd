@@ -44,8 +44,13 @@ func _process(_delta: float) -> void:
         return
     if not is_instance_valid(_player):
         _player = _scene.get_node_or_null("Player") as Node3D
+    if is_instance_valid(_player) and not _player.is_inside_tree():
+        _player = _scene.get_node_or_null("Player") as Node3D
     if is_instance_valid(_root) and _root.get_parent() != _scene:
         _release_owned_root()
+    if not is_instance_valid(_player) or not _player.is_inside_tree():
+        _apply_tree_activation(false)
+        return
     if not is_instance_valid(_root):
         _build_once()
     if is_instance_valid(_root) and is_instance_valid(_player):
@@ -76,7 +81,7 @@ func _stop_watching() -> void:
 func _release_owned_root() -> void:
     if is_instance_valid(_root):
         var parent := _root.get_parent()
-        if parent != null:
+        if parent != null and not _tearing_down:
             parent.remove_child(_root)
         _root.queue_free()
     _root = null
@@ -118,8 +123,6 @@ func _is_authoritative_production_scene(candidate: Node3D) -> bool:
     var parent := candidate.get_parent()
     if parent == tree.root:
         return true
-    # Preserve the established dormant root/SubViewport -> Main contract without
-    # letting an arbitrary nested viewport turn a foreign subtree into an owner.
     return (
         str(candidate.name) == "Main"
         and parent is Viewport

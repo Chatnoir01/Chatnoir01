@@ -150,9 +150,18 @@ func _is_production_main_candidate(main: Node) -> bool:
             return false
     return true
 
-func _is_authoritative_root_main(main: Node) -> bool:
+func _is_authoritative_main(main: Node) -> bool:
+    if main == null or not is_inside_tree():
+        return false
     var tree := get_tree()
-    return tree != null and main != null and main.get_parent() == tree.root
+    if tree == null:
+        return false
+    if tree.current_scene == main:
+        return true
+    var parent := main.get_parent()
+    if parent == tree.root:
+        return true
+    return str(main.name) == TARGET_MAIN_NODE and parent is Viewport and parent.get_parent() == tree.root
 
 func _ground_contract_error(main: Node) -> String:
     var ground_candidate := main.get_node_or_null(TARGET_GROUND_NODE)
@@ -188,7 +197,7 @@ func _bind_existing_main() -> void:
     for candidate: Node in tree.root.find_children(TARGET_MAIN_NODE, "", true, false):
         if not _is_production_main_candidate(candidate):
             continue
-        if not _ground_contract_error(candidate).is_empty():
+        if not _is_authoritative_main(candidate):
             continue
         _try_bind_main(candidate)
         return
@@ -199,10 +208,7 @@ func _on_node_added(node: Node) -> void:
     if node.name != TARGET_MAIN_NODE and node.name != TARGET_GROUND_NODE and not REQUIRED_MAIN_ANCHORS.has(str(node.name)):
         return
     var main := node if node.name == TARGET_MAIN_NODE else _find_main_ancestor(node)
-    if main == null or not _is_production_main_candidate(main):
-        return
-    var contract_error := _ground_contract_error(main)
-    if not contract_error.is_empty() and not _is_authoritative_root_main(main):
+    if main == null or not _is_production_main_candidate(main) or not _is_authoritative_main(main):
         return
     call_deferred("_try_bind_main", main)
 
@@ -222,16 +228,12 @@ func _on_node_removed(node: Node) -> void:
 func _try_bind_main(main: Node) -> void:
     if _tearing_down or not is_inside_tree() or _ready_complete or _failed or _bind_in_progress:
         return
-    if not _is_production_main_candidate(main):
+    if not _is_production_main_candidate(main) or not _is_authoritative_main(main):
         return
     _bind_in_progress = true
     var contract_error := _ground_contract_error(main)
     if not contract_error.is_empty():
-        if _is_authoritative_root_main(main):
-            _fail_binding(contract_error)
-        else:
-            _bind_in_progress = false
-            _awaiting_main = true
+        _fail_binding(contract_error)
         return
 
     _main = main
@@ -241,7 +243,7 @@ func _try_bind_main(main: Node) -> void:
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
     _finish_waiting()
-    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false camera_dependent=false multidirectional=true event_driven=true production_anchors=true" % [MATERIAL_FAMILY, PRESENTATION_REVISION])
+    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false camera_dependent=false multidirectional=true event_driven=true production_anchors=true authority_topology=true" % [MATERIAL_FAMILY, PRESENTATION_REVISION])
 
 func _fail_binding(message: String) -> void:
     if _tearing_down:

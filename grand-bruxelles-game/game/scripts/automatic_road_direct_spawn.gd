@@ -331,7 +331,9 @@ func _geometry_has_renderable_content(node: GeometryInstance3D) -> bool:
         return (node as MeshInstance3D).mesh != null
     if node is MultiMeshInstance3D:
         var multimesh := (node as MultiMeshInstance3D).multimesh
-        return multimesh != null and multimesh.mesh != null and multimesh.instance_count > 0
+        if multimesh == null or multimesh.mesh == null or multimesh.instance_count <= 0:
+            return false
+        return multimesh.visible_instance_count != 0
     if node is CSGShape3D:
         return true
     return false

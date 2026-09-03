@@ -18,9 +18,18 @@ def test_tree_points_are_validated_before_runtime_root_is_created() -> None:
     assert build.index("_collect_validated_tree_points") < build.index("_root = Node3D.new()")
 
 
+def test_validation_result_can_fail_closed_with_null() -> None:
+    source = _source()
+    assert "func _collect_validated_tree_points(data: Dictionary) -> Variant:" in source
+    build = _function_body(source, "func _build_once() -> void:")
+    assert "var validated_tree_points: Variant = _collect_validated_tree_points(data)" in build
+    assert "if validated_tree_points == null:" in build
+    assert "var tree_points := validated_tree_points as Array" in build
+
+
 def test_tree_osm_identity_is_strict_positive_unique_integer() -> None:
     source = _source()
-    parser = _function_body(source, "func _collect_validated_tree_points(data: Dictionary) -> Array:")
+    parser = _function_body(source, "func _collect_validated_tree_points(data: Dictionary) -> Variant:")
     assert "typeof(osm_id_value) != TYPE_INT" in parser
     assert "osm_id <= 0" in parser
     assert "seen_osm_ids.has(osm_id)" in parser
@@ -29,7 +38,7 @@ def test_tree_osm_identity_is_strict_positive_unique_integer() -> None:
 
 def test_tree_coordinates_are_numeric_and_finite_before_materialization() -> None:
     source = _source()
-    parser = _function_body(source, "func _collect_validated_tree_points(data: Dictionary) -> Array:")
+    parser = _function_body(source, "func _collect_validated_tree_points(data: Dictionary) -> Variant:")
     assert "TYPE_FLOAT" in parser
     assert "TYPE_INT" in parser
     assert "is_finite(x)" in parser

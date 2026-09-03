@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed contract for CIV-1 time-varying RightFoot rotation candidates.
+"""Fail-closed contract for CIV-1 time-varying RightFoot local-Z rotation candidates.
 
 This gate does not authorize runtime or visual approval. It binds candidates to the
 measured native CIV-1 source plant/cycle before native phase/grounding assessment.
@@ -14,6 +14,7 @@ from pathlib import Path
 BLOCK = "BLOCK_DYNAMIC_ROTATION_CONTRACT"
 ALLOW = "REQUIRE_NATIVE_PHASE_AND_GROUNDING_MEASUREMENT"
 EXPECTED_KIND = "civ1_rightfoot_dynamic_rotation_schedule"
+EXPECTED_AXIS = "target_local_z"
 EXPECTED_CENTER_SAMPLE = 59
 EXPECTED_CYCLE_SAMPLE_COUNT = 120
 MIN_RADIUS_SAMPLES = 2
@@ -24,7 +25,7 @@ def assess(data: dict) -> dict:
     result = {"verdict": BLOCK, "runtime_authorized": False, "visual_approval_claimed": False}
     if not isinstance(data, dict):
         return result
-    if data.get("candidate_kind") != EXPECTED_KIND:
+    if data.get("candidate_kind") != EXPECTED_KIND or data.get("rotation_axis") != EXPECTED_AXIS:
         return result
     for rail in ("candidate_is_native_measurement", "runtime_authorized", "visual_approval_claimed"):
         if rail not in data or data.get(rail) is not False:
@@ -96,6 +97,7 @@ def assess(data: dict) -> dict:
 
     result.update({
         "verdict": ALLOW,
+        "rotation_axis": EXPECTED_AXIS,
         "changed_samples": changed,
         "bound_source_plant_sample": baseline_center,
         "bound_cycle_sample_count": baseline_cycle,

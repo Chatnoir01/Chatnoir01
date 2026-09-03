@@ -16,18 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Confirm base lacked shared OSM preflight
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
-          if git show "$BASE_SHA:grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd" | grep -q '_collect_validated_points'; then
-            echo 'Base already contains the source preflight; rehydrate/re-scope instead of replaying stale work.' >&2
-            exit 1
-          fi
       - name: Prove fail-closed shared OSM source contract
         run: python grand-bruxelles-game/tests/test_brussels_osm_environment_source_preflight.py
       - name: Preserve visual-only source rails

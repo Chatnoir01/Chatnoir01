@@ -64,11 +64,21 @@ def zone_from_catalog(zone_id: str) -> dict[str, Any] | None:
     return None
 
 
-def game_bounds(manifest: dict[str, Any]) -> tuple[float, float, float, float]:
-    bbox = [float(v) for v in manifest["bbox"]]
-    origin = manifest["game_origin"]
-    xs = (bbox[0] - float(origin["e"]), bbox[2] - float(origin["e"]))
-    zs = (-(bbox[1] - float(origin["n"])), -(bbox[3] - float(origin["n"])))
+def game_bounds(manifest: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    bbox = manifest.get("bbox")
+    origin = manifest.get("game_origin")
+    if not isinstance(bbox, list) or len(bbox) != 4 or not isinstance(origin, dict):
+        return None
+    if "e" not in origin or "n" not in origin:
+        return None
+    try:
+        bbox_values = [float(v) for v in bbox]
+        origin_e = float(origin["e"])
+        origin_n = float(origin["n"])
+    except (TypeError, ValueError):
+        return None
+    xs = (bbox_values[0] - origin_e, bbox_values[2] - origin_e)
+    zs = (-(bbox_values[1] - origin_n), -(bbox_values[3] - origin_n))
     return min(xs), min(zs), max(xs), max(zs)
 
 
@@ -125,8 +135,8 @@ def validate_regional_osm(zone_id: str, candidate: dict[str, Any], cache_path: P
     stats = runtime.get("stats") if isinstance(runtime.get("stats"), dict) else {}
     cache_counts = cache.get("counts") if isinstance(cache.get("counts"), dict) else {}
     counts: Counter[str] = Counter()
-    point_contract_ok = True
-    xmin, zmin, xmax, zmax = game_bounds(execution_manifest)
+    bounds = game_bounds(execution_manifest)
+    point_contract_ok = bounds is not None
     tolerance = 2.0
     for point in points:
         if not isinstance(point, dict) or point.get("kind") not in OSM_KINDS:
@@ -136,19 +146,29 @@ def validate_regional_osm(zone_id: str, candidate: dict[str, Any], cache_path: P
         if not isinstance(pos, list) or len(pos) < 2:
             point_contract_ok = False
             continue
-        x, z = map(float, pos[:2])
-        if not (xmin - tolerance <= x <= xmax + tolerance and zmin - tolerance <= z <= zmax + tolerance):
+        try:
+            x, z = map(float, pos[:2])
+        except (TypeError, ValueError):
             point_contract_ok = False
+            continue
+        if bounds is not None:
+            xmin, zmin, xmax, zmax = bounds
+            if not (xmin - tolerance <= x <= xmax + tolerance and zmin - tolerance <= z <= zmax + tolerance):
+                point_contract_ok = False
         counts[str(point["kind"])] += 1
 
     counts_ok = int(stats.get("total", -1)) == len(points) and len(points) > 0
     for kind in OSM_KINDS:
         counts_ok = counts_ok and int(stats.get(kind, -1)) == counts[kind] and int(cache_counts.get(kind, -1)) == counts[kind]
     counts_ok = counts_ok and counts["tree"] > 0
+    bounds_detail = "missing_or_invalid"
+    if bounds is not None:
+        xmin, zmin, xmax, zmax = bounds
+        bounds_detail = f"({xmin:.2f},{zmin:.2f})..({xmax:.2f},{zmax:.2f})"
     rows.append(check(
         "regional_osm_points_contract",
         point_contract_ok and counts_ok,
-        f"total={len(points)} trees={counts['tree']} lamps={counts['street_lamp']} bollards={counts['bollard']} bounds=({xmin:.2f},{zmin:.2f})..({xmax:.2f},{zmax:.2f})",
+        f"total={len(points)} trees={counts['tree']} lamps={counts['street_lamp']} bollards={counts['bollard']} bounds={bounds_detail}",
     ))
     return rows
 

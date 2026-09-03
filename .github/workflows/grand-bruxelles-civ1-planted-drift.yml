@@ -1,0 +1,36 @@
+name: Grand Bruxelles CIV-1 Planted Drift Gate
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/assess_civ1_planted_drift.py"
+      - "grand-bruxelles-game/tests/test_civ1_planted_drift.py"
+      - ".github/workflows/grand-bruxelles-civ1-planted-drift.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measured-regression-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "${{ github.event.pull_request.base.sha }}"
+      - name: Reproduce measured planted-drift regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_planted_drift.py
+      - name: Preserve QA-only rails
+        run: |
+          set -euo pipefail
+          grep -F '"runtime_authorized":False' grand-bruxelles-game/tools/assess_civ1_planted_drift.py
+          grep -F '"visual_approval_claimed":False' grand-bruxelles-game/tools/assess_civ1_planted_drift.py
+          grep -F 'BLOCK_COUNTERFACTUAL_LOCOMOTION_REGRESSION' grand-bruxelles-game/tools/assess_civ1_planted_drift.py
+          grep -F 'rightfoot_planted_horizontal_drift_regressed' grand-bruxelles-game/tools/assess_civ1_planted_drift.py

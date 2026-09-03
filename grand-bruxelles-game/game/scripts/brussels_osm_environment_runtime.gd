@@ -107,11 +107,18 @@ func _collect_validated_points(document: Dictionary) -> Variant:
     return validated
 
 func _target() -> Node3D:
-    var player := get_tree().get_first_node_in_group("player") as Node3D
-    if player != null:
-        return player
-    var scene := get_tree().current_scene
-    return scene.get_node_or_null("Player") as Node3D if scene != null else null
+    var tree := get_tree()
+    var scene := tree.current_scene
+    if scene != null:
+        var canonical_player := scene.get_node_or_null("Player") as Node3D
+        if canonical_player != null:
+            return canonical_player
+        for node: Node in tree.get_nodes_in_group("player"):
+            var candidate := node as Node3D
+            if candidate != null and scene.is_ancestor_of(candidate):
+                return candidate
+        return null
+    return tree.get_first_node_in_group("player") as Node3D
 
 func _set_batches_visible(enabled: bool) -> void:
     for child: Node in get_children():

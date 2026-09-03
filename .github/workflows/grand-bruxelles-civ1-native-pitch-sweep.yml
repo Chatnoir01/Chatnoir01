@@ -1,0 +1,101 @@
+name: Grand Bruxelles CIV-1 Native Pitch Sweep
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/patch_civ1_retarget_pitch_candidate.py"
+      - "grand-bruxelles-game/tests/test_civ1_retarget_pitch_candidate.py"
+      - ".github/workflows/grand-bruxelles-civ1-native-pitch-sweep.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-pitch-candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Prove pitch transformer contract
+        run: python3 grand-bruxelles-game/tests/test_civ1_retarget_pitch_candidate.py
+      - name: Prepare pinned source and diagnostic chain
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1pitch/{tools,source,evidence,engine}
+          PROBE_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c
+          SHADOW_REF=d1f9ba6faa5c54bcf2bb5c522c5b49325a28f814
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd" -o /tmp/civ1pitch/tools/base.gd
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1pitch/tools/strip.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SHADOW_REF/grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py" -o /tmp/civ1pitch/tools/shadow.py
+          python3 /tmp/civ1pitch/tools/shadow.py /tmp/civ1pitch/tools/base.gd /tmp/civ1pitch/tools/bilateral.gd
+          for fraction in 0.25 0.50 0.75; do
+            key=${fraction/./_}
+            python3 grand-bruxelles-game/tools/patch_civ1_retarget_pitch_candidate.py /tmp/civ1pitch/tools/bilateral.gd "/tmp/civ1pitch/tools/pitch-$key.gd" --fraction "$fraction"
+          done
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1pitch/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1pitch/source/body.glb)" = 6879364
+          python3 /tmp/civ1pitch/tools/strip.py /tmp/civ1pitch/source/body.glb /tmp/civ1pitch/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1pitch/source/civ1_body.glb' | sha256sum -c -
+          curl -fL --retry 3 https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip -o /tmp/civ1pitch/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1pitch/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1pitch/quaternius.zip -d /tmp/civ1pitch/quaternius
+          LICENSE_FILE="$(find /tmp/civ1pitch/quaternius -iname 'LICENSE*' -type f -print -quit)"; test -n "$LICENSE_FILE"; grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+          sha256sum /tmp/civ1pitch/tools/* > /tmp/civ1pitch/evidence/tool-sha256.txt
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1pitch/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1pitch/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1pitch/godot.zip -d /tmp/civ1pitch/engine
+          GODOT_BIN=/tmp/civ1pitch/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee /tmp/civ1pitch/evidence/godot-version.txt
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1pitch/evidence/godot-version.txt
+      - name: Import and measure pitch phase
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1pitch/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then PROJECT_ROOT="$(dirname "$PROJECT_FILE")"; else PROJECT_ROOT="$(find /tmp/civ1pitch/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"; printf '[application]\nconfig/name="CIV1Pitch"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"; fi
+          cp /tmp/civ1pitch/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1pitch/evidence/import.log
+          for fraction in 0.25 0.50 0.75; do
+            key=${fraction/./_}
+            cp "/tmp/civ1pitch/tools/pitch-$key.gd" "$PROJECT_ROOT/gb_probe_$key.gd"
+            "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script "res://gb_probe_$key.gd" -- "/tmp/civ1pitch/evidence/pitch-$key.json" 2>&1 | tee "/tmp/civ1pitch/evidence/pitch-$key.log"
+            grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK "/tmp/civ1pitch/evidence/pitch-$key.log"
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/civ1pitch/evidence')
+          rows=[]
+          for fraction,key in ((0.25,'0_25'),(0.50,'0_50'),(0.75,'0_75')):
+              p=json.loads((root/f'pitch-{key}.json').read_text())
+              r=p['right_foot_reference_ab']
+              assert r['baseline_phase_delta_samples'] == 27
+              assert r['target_foot_length_preserved'] is True
+              rows.append({'candidate_id':f'pitch_{key}','fraction':fraction,'baseline_phase_delta_samples':27,'candidate_phase_delta_samples':r['normalized_phase_delta_samples'],'phase_improved':abs(r['normalized_phase_delta_samples'])<27,'phase_non_material':abs(r['normalized_phase_delta_samples'])<12,'target_foot_length_m':r['target_foot_length_m'],'candidate_foot_length_m':r['normalized_target_foot_length_m']})
+          verdict='REQUIRE_FULL_GROUNDING_ASSESSMENT' if any(x['phase_non_material'] for x in rows) else ('PITCH_PHASE_IMPROVES_BUT_STILL_MATERIAL' if any(x['phase_improved'] for x in rows) else 'BLOCK_PITCH_NO_PHASE_IMPROVEMENT')
+          out={'schema':'grand-bruxelles-civ1-native-pitch-phase-v1','godot_version':'4.7.1','candidates':rows,'verdict':verdict,'runtime_authorized':False,'visual_approval_claimed':False}
+          (root/'pitch-phase-assessment.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+      - name: Upload native pitch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-native-pitch-sweep-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1pitch/evidence/
+          if-no-files-found: error
+          retention-days: 14

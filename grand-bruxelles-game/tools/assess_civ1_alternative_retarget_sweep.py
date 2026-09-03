@@ -15,25 +15,42 @@ def _finite_non_negative(value, label):
     return float(value)
 
 
+def _sample_indices(data, foot):
+    samples = data.get("planted_sample_indices")
+    if not isinstance(samples, list) or len(samples) != EXPECTED_SAMPLES:
+        raise ValueError(f"{foot}.planted_sample_indices must contain exactly {EXPECTED_SAMPLES} entries")
+    normalized = []
+    for value in samples:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"{foot}.planted_sample_indices must be non-negative integers")
+        normalized.append(value)
+    if normalized != sorted(normalized) or len(set(normalized)) != EXPECTED_SAMPLES:
+        raise ValueError(f"{foot}.planted_sample_indices must be strictly increasing and unique")
+    return tuple(normalized)
+
+
 def _foot(candidate, foot):
     data = candidate.get("feet", {}).get(foot)
     if not isinstance(data, dict):
         raise ValueError(f"missing {foot} metrics")
-    if data.get("sample_count") != EXPECTED_SAMPLES:
+    if isinstance(data.get("sample_count"), bool) or data.get("sample_count") != EXPECTED_SAMPLES:
         raise ValueError(f"{foot} sample_count must be {EXPECTED_SAMPLES}")
+    samples = _sample_indices(data, foot)
     baseline_h = _finite_non_negative(data.get("baseline_horizontal_drift_m"), f"{foot}.baseline_horizontal_drift_m")
     measured_h = _finite_non_negative(data.get("candidate_horizontal_drift_m"), f"{foot}.candidate_horizontal_drift_m")
     baseline_v = _finite_non_negative(data.get("baseline_vertical_span_m"), f"{foot}.baseline_vertical_span_m")
     measured_v = _finite_non_negative(data.get("candidate_vertical_span_m"), f"{foot}.candidate_vertical_span_m")
     h_ratio = 0.0 if baseline_h == 0.0 and measured_h == 0.0 else (math.inf if baseline_h == 0.0 else measured_h / baseline_h)
     v_ratio = 0.0 if baseline_v == 0.0 and measured_v == 0.0 else (math.inf if baseline_v == 0.0 else measured_v / baseline_v)
-    return {"baseline_h": baseline_h, "candidate_h": measured_h, "baseline_v": baseline_v, "candidate_v": measured_v, "h_ratio": h_ratio, "v_ratio": v_ratio}
+    return {"samples": samples, "baseline_h": baseline_h, "candidate_h": measured_h, "baseline_v": baseline_v, "candidate_v": measured_v, "h_ratio": h_ratio, "v_ratio": v_ratio}
 
 
 def _require_shared_baseline(reference, current, cid):
     if reference is None:
-        return {foot: {"h": current[foot]["baseline_h"], "v": current[foot]["baseline_v"]} for foot in ("LeftFoot", "RightFoot")}
+        return {foot: {"samples": current[foot]["samples"], "h": current[foot]["baseline_h"], "v": current[foot]["baseline_v"]} for foot in ("LeftFoot", "RightFoot")}
     for foot in ("LeftFoot", "RightFoot"):
+        if current[foot]["samples"] != reference[foot]["samples"]:
+            raise ValueError(f"{cid}: {foot} planted sample indices differ across candidates")
         if abs(current[foot]["baseline_h"] - reference[foot]["h"]) > BASELINE_MATCH_TOLERANCE_M:
             raise ValueError(f"{cid}: {foot} horizontal baseline differs across candidates")
         if abs(current[foot]["baseline_v"] - reference[foot]["v"]) > BASELINE_MATCH_TOLERANCE_M:

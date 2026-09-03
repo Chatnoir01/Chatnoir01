@@ -1,6 +1,8 @@
 {
   "format": "grand-bruxelles-urbis-wfs-v1",
   "source": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+  "source_crs": "EPSG:31370",
+  "source_license": "CC0 for UrbIS vector classes used here; cadastral parcels excluded",
   "crs": "EPSG:31370",
   "bbox": [
     147250.0,
@@ -8,6 +10,13 @@
     148500.0,
     170250.0
   ],
+  "game_origin": {
+    "e": 147868.29422791934,
+    "n": 169538.62414926197,
+    "altitude": 0.0,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
   "layers": {
     "buildings": {
       "wfs_name": "urbisvector:Buildings",

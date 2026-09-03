@@ -1,0 +1,21 @@
+name: Grand Bruxelles Automatic Road Source Point Boundary
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/tests/automatic_road_source_point_boundary_contract_test.py'
+      - '.github/workflows/grand-bruxelles-automatic-road-source-point-boundary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-point-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate strict source-point boundary
+        run: python3 grand-bruxelles-game/game/tests/automatic_road_source_point_boundary_contract_test.py

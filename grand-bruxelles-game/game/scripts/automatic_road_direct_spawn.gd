@@ -207,15 +207,31 @@ func _source_bundle_by_id(osm_id: int) -> Dictionary:
     return {}
 
 
+func _exact_source_point_2d(raw: Variant) -> Variant:
+    if not raw is Array or raw.size() != 2:
+        return null
+    var values: Array[float] = []
+    for component: Variant in raw:
+        var raw_type := typeof(component)
+        if raw_type != TYPE_INT and raw_type != TYPE_FLOAT:
+            return null
+        var numeric := float(component)
+        if not is_finite(numeric):
+            return null
+        values.append(numeric)
+    return Vector2(values[0], values[1])
+
+
 func _road_points(road: Dictionary) -> PackedVector2Array:
     var result := PackedVector2Array()
     var raw_points: Variant = road.get("points", [])
     if not raw_points is Array:
         return result
     for raw: Variant in raw_points:
-        if not raw is Array or raw.size() < 2:
+        var point: Variant = _exact_source_point_2d(raw)
+        if not point is Vector2:
             return PackedVector2Array()
-        result.append(Vector2(float(raw[0]), float(raw[1])))
+        result.append(point as Vector2)
     return result
 
 

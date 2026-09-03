@@ -18,6 +18,12 @@ func _all_batches_visible(runtime: Node3D, expected: bool) -> bool:
                 return false
     return seen > 0
 
+func _first_batch_instance_id(runtime: Node3D) -> int:
+    for child: Node in runtime.get_children():
+        if child is MultiMeshInstance3D:
+            return child.get_instance_id()
+    return 0
+
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -49,8 +55,6 @@ func _run() -> void:
 
     # Exported runtime parameters are operational authority. Invalid values must
     # fail closed before source metadata is accepted or any MultiMesh is built.
-    # A negative refresh distance otherwise causes every process tick to rebuild
-    # the shared environment once the player moves at all.
     var invalid_runtime := RUNTIME_SCRIPT.new() as Node3D
     invalid_runtime.name = "BrusselsOsmEnvironmentInvalidConfigProbe"
     invalid_runtime.set("data_path", JETTE_DATA)
@@ -97,6 +101,39 @@ func _run() -> void:
         _fail("authored asset dimensions were misrepresented as source measurements")
         return
 
+    # OSM selection is horizontal (X/Z). A large vertical-only movement must not
+    # purge and recreate every MultiMesh batch when the horizontal neighborhood
+    # is unchanged. Horizontal travel beyond the refresh threshold must still
+    # rebuild normally.
+    var refresh_distance := float(runtime.get("refresh_distance_m"))
+    var batch_id_before_vertical := _first_batch_instance_id(runtime)
+    var anchor_before_vertical: Vector3 = runtime.get("_last_anchor")
+    if batch_id_before_vertical == 0:
+        _fail("baseline did not expose a batch identity for refresh regression")
+        return
+    live_player.position = JETTE_SPAWN + Vector3(0.0, refresh_distance + 5.0, 0.0)
+    runtime.call("_refresh", false)
+    if _first_batch_instance_id(runtime) != batch_id_before_vertical:
+        _fail("vertical-only Player movement rebuilt horizontal OSM environment batches")
+        return
+    if runtime.get("_last_anchor") != anchor_before_vertical:
+        _fail("vertical-only Player movement advanced the horizontal OSM refresh anchor")
+        return
+
+    live_player.position = JETTE_SPAWN + Vector3(refresh_distance + 5.0, 0.0, 0.0)
+    runtime.call("_refresh", false)
+    if _first_batch_instance_id(runtime) == batch_id_before_vertical:
+        _fail("horizontal Player movement beyond refresh threshold did not rebuild OSM environment batches")
+        return
+    var anchor_after_horizontal: Vector3 = runtime.get("_last_anchor")
+    if absf(anchor_after_horizontal.x - live_player.global_position.x) > 0.001 or absf(anchor_after_horizontal.z - live_player.global_position.z) > 0.001:
+        _fail("horizontal OSM refresh did not advance the renderer anchor")
+        return
+
+    # Restore the canonical spawn before lifecycle corruption tests.
+    live_player.position = JETTE_SPAWN
+    runtime.call("_refresh", true)
+
     # A corrupted/non-finite transform must never become renderer authority. Keep
     # the last known-good batches and anchor intact, but hide them fail-closed
     # until the canonical Player returns to a finite world position.
@@ -120,10 +157,6 @@ func _run() -> void:
         _fail("finite Player recovery did not restore existing environment batches")
         return
 
-    # queue_free() marks the canonical Player for deletion immediately, but the
-    # node remains in the current scene until the end of the frame. The shared
-    # renderer must fail closed during this teardown window instead of using a
-    # dying anchor for visibility or placement.
     live_player.queue_free()
     if runtime.call("_target") != null:
         _fail("renderer selected current_scene/Player after it was queued for deletion")
@@ -143,5 +176,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: config_fail_closed=true current_scene_authoritative=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: config_fail_closed=true current_scene_authoritative=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

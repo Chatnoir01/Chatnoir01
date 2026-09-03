@@ -75,10 +75,17 @@ func _target() -> Node3D:
     var scene := get_tree().current_scene
     return scene.get_node_or_null("Player") as Node3D if scene != null else null
 
+func _set_batches_visible(enabled: bool) -> void:
+    for child: Node in get_children():
+        if child is MultiMeshInstance3D:
+            (child as MultiMeshInstance3D).visible = enabled
+
 func _refresh(force: bool) -> void:
     var target := _target()
     if target == null:
+        _set_batches_visible(false)
         return
+    _set_batches_visible(true)
     var anchor := target.global_position
     if not force and _last_anchor != Vector3(INF, INF, INF) and anchor.distance_to(_last_anchor) < refresh_distance_m:
         return

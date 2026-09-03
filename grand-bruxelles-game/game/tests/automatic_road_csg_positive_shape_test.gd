@@ -18,6 +18,28 @@ func _run() -> void:
     var resolver := RESOLVER_SCRIPT.new()
     root.add_child(resolver)
 
+    var direct_subtract := CSGBox3D.new()
+    direct_subtract.name = "Road_%d_DirectSubtract" % ROAD_ID
+    direct_subtract.operation = CSGShape3D.OPERATION_SUBTRACTION
+    world.add_child(direct_subtract)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("direct subtraction CSG shape was accepted as positive rendered road geometry")
+        return
+    direct_subtract.queue_free()
+    await process_frame
+
+    var direct_intersection := CSGBox3D.new()
+    direct_intersection.name = "Road_%d_DirectIntersection" % ROAD_ID
+    direct_intersection.operation = CSGShape3D.OPERATION_INTERSECTION
+    world.add_child(direct_intersection)
+    await process_frame
+    if resolver._road_is_rendered(world, ROAD_ID):
+        _fail("direct intersection CSG shape was accepted as positive rendered road geometry")
+        return
+    direct_intersection.queue_free()
+    await process_frame
+
     var subtraction_only := CSGCombiner3D.new()
     subtraction_only.name = "Road_%d_SubtractionOnly" % ROAD_ID
     world.add_child(subtraction_only)
@@ -71,5 +93,5 @@ func _run() -> void:
         _fail("union CSG combiner was incorrectly rejected as rendered road geometry")
         return
 
-    print("AUTOMATIC_ROAD_CSG_POSITIVE_SHAPE_GREEN: road_id=%d subtraction_only_rejected=true intersection_only_rejected=true nested_subtractive_union_rejected=true union_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
+    print("AUTOMATIC_ROAD_CSG_POSITIVE_SHAPE_GREEN: road_id=%d direct_subtraction_rejected=true direct_intersection_rejected=true subtraction_only_rejected=true intersection_only_rejected=true nested_subtractive_union_rejected=true union_accepted=true destination_advertisable=false jouable=false" % ROAD_ID)
     quit(0)

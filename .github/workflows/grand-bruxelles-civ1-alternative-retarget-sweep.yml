@@ -1,0 +1,42 @@
+name: Grand Bruxelles CIV-1 Alternative Retarget Sweep
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py"
+      - "grand-bruxelles-game/tests/test_civ1_alternative_retarget_sweep.py"
+      - ".github/workflows/grand-bruxelles-civ1-alternative-retarget-sweep.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-selection-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base HEAD origin/main)"
+          test "$merge_base" = "$live_main"
+          printf '%s\n' "$live_main" > civ1-alternative-retarget-live-main.txt
+      - name: Reproduce alternative candidate selection contract
+        run: python3 grand-bruxelles-game/tests/test_civ1_alternative_retarget_sweep.py
+      - name: Preserve fail-closed Character/NPC rails
+        run: |
+          set -euo pipefail
+          grep -F 'BLOCK_NO_NONREGRESSING_RETARGET_CANDIDATE' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
+          grep -F 'ALLOW_QA_PLAYER_VIEW_CAPTURE' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
+          grep -F '"runtime_authorized": False' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
+          grep -F '"visual_approval_claimed": False' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-alternative-retarget-sweep-contract
+          path: civ1-alternative-retarget-live-main.txt

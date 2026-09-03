@@ -82,7 +82,7 @@ jobs:
             "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script "res://gb_probe_$pct.gd" -- "/tmp/civ1yaw/evidence/candidate-$pct.json" 2>&1 | tee "/tmp/civ1yaw/evidence/candidate-$pct.log"
             grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK "/tmp/civ1yaw/evidence/candidate-$pct.log"
           done
-      - name: Build immutable-baseline yaw sweep and assess
+      - name: Phase-first immutable-baseline yaw assessment
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -92,23 +92,42 @@ jobs:
           baseline=json.loads((root/'baseline.json').read_text())
           bm=baseline['locomotion_measurements']; cycle=baseline['sample_count'] - 1
           assert cycle > 5
-          candidates=[]
+          baseline_phase=int(baseline['right_foot_reference_ab']['baseline_phase_delta_samples'])
+          raw=[]
+          improved=[]
           for pct in (25,50,75):
               p=json.loads((root/f'candidate-{pct}.json').read_text())
               assert p['sample_count'] - 1 == cycle
+              r=p['right_foot_reference_ab']
+              phase=int(r['normalized_phase_delta_samples'])
+              record={'candidate_id':f'yaw_{pct}','fraction':pct/100.0,'phase_delta_samples':phase,'rightfoot_length_error_m':abs(r['normalized_target_foot_length_m']-r['target_foot_length_m'])}
+              raw.append(record)
+              if abs(phase) < abs(baseline_phase): improved.append((pct,p,record))
+          summary={'schema':'grand-bruxelles-civ1-native-yaw-phase-first-v1','godot_version':'4.7.1','baseline_phase_delta_samples':baseline_phase,'candidates':raw,'runtime_authorized':False,'visual_approval_claimed':False}
+          (root/'native-yaw-phase-summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True))
+          if not improved:
+              assessment={**summary,'verdict':'BLOCK_YAW_NO_PHASE_IMPROVEMENT','grounding_assessment_skipped':True,'reason':'no yaw candidate materially improves RightFoot phase; grounding cannot promote this family'}
+              (root/'native-yaw-assessment.json').write_text(json.dumps(assessment,indent=2,sort_keys=True))
+              print('CIV1_NATIVE_YAW_BLOCK_NO_PHASE_IMPROVEMENT')
+              raise SystemExit(0)
+          candidates=[]
+          for pct,p,record in improved:
               m=p['locomotion_measurements']; r=p['right_foot_reference_ab']; feet={}
               for foot in ('LeftFoot','RightFoot'):
                   control=bm[foot]; measured=m[foot]
                   control_idx=control['plant_window_sample_indices']; measured_idx=measured['plant_window_sample_indices']
                   assert control['same_animation_window'] is True and measured['same_animation_window'] is True
-                  assert len(control_idx)==5 and measured_idx == control_idx
+                  assert len(control_idx)==5 and measured_idx == control_idx, f'{foot} planted window drift for yaw_{pct}'
                   b=control['baseline']; c=measured['counterfactual']
                   feet[foot]={'sample_count':5,'animation_cycle_sample_count':cycle,'planted_sample_indices':control_idx,'baseline_horizontal_drift_m':b['planted_horizontal_drift_m'],'candidate_horizontal_drift_m':c['planted_horizontal_drift_m'],'baseline_vertical_span_m':b['planted_vertical_span_m'],'candidate_vertical_span_m':c['planted_vertical_span_m']}
-              candidates.append({'candidate_id':f'yaw_{pct}','counterfactual_only':True,'rightfoot_baseline_phase_delta_samples':baseline['right_foot_reference_ab']['baseline_phase_delta_samples'],'rightfoot_candidate_phase_delta_samples':r['normalized_phase_delta_samples'],'rightfoot_length_error_m':abs(r['normalized_target_foot_length_m']-r['target_foot_length_m']),'feet':feet})
+              candidates.append({'candidate_id':record['candidate_id'],'counterfactual_only':True,'rightfoot_baseline_phase_delta_samples':baseline_phase,'rightfoot_candidate_phase_delta_samples':record['phase_delta_samples'],'rightfoot_length_error_m':record['rightfoot_length_error_m'],'feet':feet})
           out={'schema':'grand-bruxelles-civ1-alternative-retarget-sweep-v2','godot_version':'4.7.1','same_animation_window':True,'runtime_authorized':False,'visual_approval_claimed':False,'candidates':candidates}
           (root/'native-yaw-sweep.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          (root/'phase-improved.flag').write_text('yes\n')
           PY
-          python3 grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py /tmp/civ1yaw/evidence/native-yaw-sweep.json /tmp/civ1yaw/evidence/native-yaw-assessment.json
+          if [ -f /tmp/civ1yaw/evidence/phase-improved.flag ]; then
+            python3 grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py /tmp/civ1yaw/evidence/native-yaw-sweep.json /tmp/civ1yaw/evidence/native-yaw-assessment.json
+          fi
           cat /tmp/civ1yaw/evidence/native-yaw-assessment.json
       - name: Upload native yaw evidence
         if: always()

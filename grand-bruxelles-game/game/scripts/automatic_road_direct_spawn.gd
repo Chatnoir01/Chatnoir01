@@ -337,7 +337,17 @@ func _csg_polygon_has_renderable_profile(polygon_node: CSGPolygon3D) -> bool:
         var current := points[index]
         var next := points[(index + 1) % points.size()]
         twice_area += current.x * next.y - next.x * current.y
-    return absf(twice_area) > 0.000001
+    if absf(twice_area) <= 0.000001:
+        return false
+    if polygon_node.mode == CSGPolygon3D.MODE_PATH:
+        var path_ref := polygon_node.path_node
+        if str(path_ref).is_empty():
+            return false
+        var path := polygon_node.get_node_or_null(path_ref) as Path3D
+        if path == null or path.curve == null or path.curve.get_point_count() < 2:
+            return false
+        return path.curve.get_baked_length() > 0.000001
+    return true
 
 
 func _csg_combiner_has_renderable_shape(combiner: CSGCombiner3D) -> bool:

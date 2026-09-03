@@ -71,7 +71,16 @@ def main() -> int:
         }
     assert tampered_checks["regional_osm_digest"]["status"] == "FAIL"
 
-    print("CITY_MACHINE_MIDI_PREFLIGHT_OK eligible=true crs=true arrival=true full_osm=true partial_slice_rejected=true tampered_digest_rejected=true")
+    # Fail-closed regression: an incomplete City Machine execution manifest must
+    # never raise KeyError from game_bounds(). The caller must be able to turn
+    # missing/invalid origin metadata into an ordinary BLOCKED check result.
+    assert preflight.game_bounds({"bbox": [147250, 168900, 148500, 170250]}) is None
+    assert preflight.game_bounds({
+        "bbox": [147250, 168900, 148500, 170250],
+        "game_origin": {"e": 148400},
+    }) is None
+
+    print("CITY_MACHINE_MIDI_PREFLIGHT_OK eligible=true crs=true arrival=true full_osm=true partial_slice_rejected=true tampered_digest_rejected=true missing_game_origin_fail_closed=true")
     return 0
 
 

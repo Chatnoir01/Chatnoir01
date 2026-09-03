@@ -22,6 +22,7 @@ var last_render_counts := {"tree": 0, "street_lamp": 0, "bollard": 0}
 var last_tree_lod_counts := {"near": 0, "far": 0, "foliage_instances": 0}
 var _points := {"tree": [], "street_lamp": [], "bollard": []}
 var _last_anchor := Vector3(INF, INF, INF)
+var _owned_batches: Array[MultiMeshInstance3D] = []
 
 func _ready() -> void:
     if not _validate_configuration():
@@ -150,9 +151,9 @@ func _target() -> Node3D:
     return fallback
 
 func _set_batches_visible(enabled: bool) -> void:
-    for child: Node in get_children():
-        if child is MultiMeshInstance3D:
-            (child as MultiMeshInstance3D).visible = enabled
+    for batch: MultiMeshInstance3D in _owned_batches:
+        if is_instance_valid(batch) and not batch.is_queued_for_deletion():
+            batch.visible = enabled
 
 func _refresh(force: bool) -> void:
     var target := _target()
@@ -191,10 +192,18 @@ func _nearby(kind: String, anchor: Vector3, limit: int) -> Array:
         rows.resize(limit)
     return rows
 
+func _clear_owned_batches() -> void:
+    for batch: MultiMeshInstance3D in _owned_batches:
+        if not is_instance_valid(batch):
+            continue
+        if batch.get_parent() == self:
+            remove_child(batch)
+        if not batch.is_queued_for_deletion():
+            batch.queue_free()
+    _owned_batches.clear()
+
 func _rebuild(anchor: Vector3) -> void:
-    for child in get_children():
-        remove_child(child)
-        child.queue_free()
+    _clear_owned_batches()
     var trees := _nearby("tree", anchor, max_trees)
     var lamps := _nearby("street_lamp", anchor, max_street_lamps)
     var bollards := _nearby("bollard", anchor, max_bollards)
@@ -220,6 +229,7 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array) -> void:
     instance.multimesh = multimesh
     instance.set_meta("source_dimensions_measured", false)
     add_child(instance)
+    _owned_batches.append(instance)
 
 func _build_tree_batches(rows: Array) -> void:
     if rows.is_empty():

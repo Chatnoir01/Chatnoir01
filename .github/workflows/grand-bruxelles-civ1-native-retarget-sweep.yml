@@ -1,0 +1,107 @@
+name: Grand Bruxelles CIV-1 Native Retarget Sweep
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/patch_civ1_retarget_blend_candidate.py"
+      - "grand-bruxelles-game/tests/test_civ1_retarget_blend_candidate.py"
+      - "grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py"
+      - ".github/workflows/grand-bruxelles-civ1-native-retarget-sweep.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Prove candidate transformer contract
+        run: python3 grand-bruxelles-game/tests/test_civ1_retarget_blend_candidate.py
+      - name: Prepare pinned tools and sources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1sweep/{tools,source,evidence,engine}
+          PROBE_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c
+          SHADOW_REF=d1f9ba6faa5c54bcf2bb5c522c5b49325a28f814
+          LOC_REF=53b85e30f3a5e32f7670a3dd91ad65c547c4bb23
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd" -o /tmp/civ1sweep/tools/base.gd
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1sweep/tools/strip.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SHADOW_REF/grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py" -o /tmp/civ1sweep/tools/shadow.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$LOC_REF/grand-bruxelles-game/tools/patch_civ1_locomotion_metrics.py" -o /tmp/civ1sweep/tools/loc.py
+          python3 /tmp/civ1sweep/tools/shadow.py /tmp/civ1sweep/tools/base.gd /tmp/civ1sweep/tools/bilateral.gd
+          for tag in 025 050 075; do
+            case "$tag" in 025) b=0.25;; 050) b=0.50;; 075) b=0.75;; esac
+            python3 grand-bruxelles-game/tools/patch_civ1_retarget_blend_candidate.py /tmp/civ1sweep/tools/bilateral.gd /tmp/civ1sweep/tools/blend-$tag.gd --blend "$b"
+            python3 /tmp/civ1sweep/tools/loc.py /tmp/civ1sweep/tools/blend-$tag.gd /tmp/civ1sweep/tools/probe-$tag.gd
+          done
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1sweep/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1sweep/source/body.glb)" = 6879364
+          python3 /tmp/civ1sweep/tools/strip.py /tmp/civ1sweep/source/body.glb /tmp/civ1sweep/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1sweep/source/civ1_body.glb' | sha256sum -c -
+          curl -fL --retry 3 https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip -o /tmp/civ1sweep/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1sweep/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1sweep/quaternius.zip -d /tmp/civ1sweep/quaternius
+          LICENSE_FILE="$(find /tmp/civ1sweep/quaternius -iname 'LICENSE*' -type f -print -quit)"; test -n "$LICENSE_FILE"; grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+          sha256sum /tmp/civ1sweep/tools/* > /tmp/civ1sweep/evidence/tool-sha256.txt
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1sweep/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1sweep/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1sweep/godot.zip -d /tmp/civ1sweep/engine
+          GODOT_BIN=/tmp/civ1sweep/engine/Godot_v4.7.1-stable_linux.x86_64; chmod +x "$GODOT_BIN"; echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee /tmp/civ1sweep/evidence/godot-version.txt
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1sweep/evidence/godot-version.txt
+      - name: Import and measure three native candidates
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1sweep/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then PROJECT_ROOT="$(dirname "$PROJECT_FILE")"; else PROJECT_ROOT="$(find /tmp/civ1sweep/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"; printf '[application]\nconfig/name="CIV1Sweep"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"; fi
+          cp /tmp/civ1sweep/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1sweep/evidence/import.log
+          for tag in 025 050 075; do
+            cp /tmp/civ1sweep/tools/probe-$tag.gd "$PROJECT_ROOT/gb_probe_$tag.gd"
+            "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script "res://gb_probe_$tag.gd" -- "/tmp/civ1sweep/evidence/candidate-$tag.json" 2>&1 | tee "/tmp/civ1sweep/evidence/candidate-$tag.log"
+            grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK "/tmp/civ1sweep/evidence/candidate-$tag.log"
+          done
+      - name: Build immutable-baseline sweep and assess
+        run: |
+          python3 - <<'PY'
+          import json, math
+          from pathlib import Path
+          root=Path('/tmp/civ1sweep/evidence')
+          candidates=[]
+          for tag in ('025','050','075'):
+              p=json.loads((root/f'candidate-{tag}.json').read_text())
+              m=p['locomotion_measurements']; r=p['right_foot_reference_ab']
+              feet={}
+              for foot in ('LeftFoot','RightFoot'):
+                  x=m[foot]; b=x['baseline']; c=x['counterfactual']; idx=x['plant_window_sample_indices']
+                  assert x['same_animation_window'] is True and len(idx)==5
+                  feet[foot]={'sample_count':5,'planted_sample_indices':idx,'baseline_horizontal_drift_m':b['planted_horizontal_drift_m'],'candidate_horizontal_drift_m':c['planted_horizontal_drift_m'],'baseline_vertical_span_m':b['planted_vertical_span_m'],'candidate_vertical_span_m':c['planted_vertical_span_m']}
+              candidates.append({'candidate_id':f'rest_direction_blend_{tag}','counterfactual_only':True,'rightfoot_baseline_phase_delta_samples':r['baseline_phase_delta_samples'],'rightfoot_candidate_phase_delta_samples':r['normalized_phase_delta_samples'],'rightfoot_length_error_m':abs(r['normalized_target_foot_length_m']-r['target_foot_length_m']),'feet':feet})
+          out={'schema':'grand-bruxelles-civ1-alternative-retarget-sweep-v2','godot_version':'4.7.1','same_animation_window':True,'runtime_authorized':False,'visual_approval_claimed':False,'candidates':candidates}
+          (root/'native-sweep.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          PY
+          python3 grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py /tmp/civ1sweep/evidence/native-sweep.json /tmp/civ1sweep/evidence/native-assessment.json
+          cat /tmp/civ1sweep/evidence/native-assessment.json
+      - name: Upload native candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-native-retarget-sweep-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1sweep/evidence/
+          if-no-files-found: error
+          retention-days: 14

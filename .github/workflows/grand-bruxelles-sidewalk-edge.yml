@@ -42,9 +42,16 @@ jobs:
     needs: sidewalk-edge-contract
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ success() && hashFiles('grand-bruxelles-game/game/scripts/brussels_sidewalk_edge_runtime.gd') != '' }}
+    if: ${{ success() }}
     steps:
       - uses: actions/checkout@v4
+      - name: Verify visual witness inputs exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f grand-bruxelles-game/game/scripts/brussels_sidewalk_edge_runtime.gd
+          test -f grand-bruxelles-game/game/tests/brussels_sidewalk_edge_runtime_test.gd
+          test -f grand-bruxelles-game/game/tests/brussels_sidewalk_edge_witness_test.gd
       - name: Install display dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1

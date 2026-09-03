@@ -1,0 +1,50 @@
+name: Grand Bruxelles Automatic Road CSG Positive Shape
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/tests/automatic_road_csg_positive_shape_test.gd"
+      - ".github/workflows/grand-bruxelles-automatic-road-csg-positive-shape.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  csg-positive-shape-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main merge base
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "${{ github.event.pull_request.base.sha }}"
+
+      - name: Install exact official Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version
+
+      - name: Prove positive CSG render contract
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_csg_positive_shape_test.gd 2>&1 | tee /tmp/automatic-road-csg-positive-shape.log
+          grep -F 'AUTOMATIC_ROAD_CSG_POSITIVE_SHAPE_GREEN:' /tmp/automatic-road-csg-positive-shape.log

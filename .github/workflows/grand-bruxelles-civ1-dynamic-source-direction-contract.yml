@@ -1,0 +1,49 @@
+name: Grand Bruxelles CIV-1 Dynamic Source Direction Contract
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/generate_civ1_dynamic_source_direction_candidate.py'
+      - 'grand-bruxelles-game/tools/patch_civ1_dynamic_source_direction_probe.py'
+      - 'grand-bruxelles-game/tests/test_civ1_dynamic_source_direction_generator.py'
+      - 'grand-bruxelles-game/tests/test_civ1_dynamic_source_direction_probe.py'
+      - '.github/workflows/grand-bruxelles-civ1-dynamic-source-direction-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dynamic-source-direction-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned pytest
+        run: python -m pip install --disable-pip-version-check 'pytest==8.4.2'
+      - name: Run dynamic source-direction regressions
+        run: |
+          python -m pytest -q grand-bruxelles-game/tests/test_civ1_dynamic_source_direction_generator.py
+          python -m pytest -q grand-bruxelles-game/tests/test_civ1_dynamic_source_direction_probe.py
+      - name: Exercise bounded candidate generation
+        run: |
+          tmp="$(mktemp)"
+          python grand-bruxelles-game/tools/generate_civ1_dynamic_source_direction_candidate.py "$tmp" --radius-samples 8 --peak-blend 0.75
+          grep -F '"candidate_kind": "civ1_rightfoot_dynamic_source_direction_schedule"' "$tmp"
+          grep -F '"component": "target_local_rest_direction"' "$tmp"
+          grep -F '"runtime_authorized": false' "$tmp"
+          grep -F '"visual_approval_claimed": false' "$tmp"

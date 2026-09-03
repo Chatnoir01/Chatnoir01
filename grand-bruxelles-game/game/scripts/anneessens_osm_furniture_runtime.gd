@@ -17,7 +17,7 @@ var _enhanced_trees_enabled := true
 var _manual_binding := false
 var _watching_tree := false
 var _tearing_down := false
-var _tree_activation_initialized := false
+var _tree_activation_initialized = false
 var _tree_active := false
 
 func _ready() -> void:
@@ -187,7 +187,7 @@ func _reset() -> void:
     _player = null
     _manual_binding = false
 
-func _collect_validated_tree_points(data: Dictionary) -> Array:
+func _collect_validated_tree_points(data: Dictionary) -> Variant:
     var environment_points: Variant = data.get("environment_points", null)
     if not environment_points is Array:
         push_error("Anneessens OSM furniture environment_points invalid")
@@ -255,9 +255,10 @@ func _build_once() -> void:
         push_error("Anneessens OSM furniture coordinate space invalid")
         return
 
-    var validated_tree_points: Array = _collect_validated_tree_points(data)
+    var validated_tree_points: Variant = _collect_validated_tree_points(data)
     if validated_tree_points == null:
         return
+    var tree_points := validated_tree_points as Array
 
     _root = Node3D.new()
     _root.name = "AnneessensOsmFurniture"
@@ -270,14 +271,14 @@ func _build_once() -> void:
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
 
-    for tree_point: Variant in validated_tree_points:
+    for tree_point: Variant in tree_points:
         var validated_point := tree_point as Dictionary
         _add_tree(int(validated_point["osm_id"]), validated_point["position"] as Vector3)
 
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0" % [validated_tree_points.size(), TREE_ASSET.ASSET_FAMILY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0" % [tree_points.size(), TREE_ASSET.ASSET_FAMILY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/analyze_civ1_right_downstream_transition.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_downstream_contributions.py'
       - 'grand-bruxelles-game/tests/test_civ1_right_downstream_transition.py'
+      - 'grand-bruxelles-game/tests/test_civ1_downstream_contributions.py'
       - '.github/workflows/grand-bruxelles-civ1-right-downstream-transition.yml'
   workflow_dispatch:
 
@@ -32,7 +34,9 @@ jobs:
       - name: Regression contract
         run: |
           python -m pip install --disable-pip-version-check 'pytest==8.4.2'
-          python -m pytest -q grand-bruxelles-game/tests/test_civ1_right_downstream_transition.py
+          python -m pytest -q \
+            grand-bruxelles-game/tests/test_civ1_right_downstream_transition.py \
+            grand-bruxelles-game/tests/test_civ1_downstream_contributions.py
       - name: Prepare exact diagnostic sources
         shell: bash
         run: |
@@ -63,7 +67,7 @@ jobs:
           chmod +x "$GODOT_BIN"; echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
           "$GODOT_BIN" --version | tee /tmp/civ1transition/evidence/godot-version.txt
           grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1transition/evidence/godot-version.txt
-      - name: Measure RightLowerLeg plus RightFoot composition transition
+      - name: Measure and decompose RightLowerLeg plus RightFoot transition
         shell: bash
         run: |
           set -euo pipefail
@@ -76,6 +80,8 @@ jobs:
           grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK /tmp/civ1transition/evidence/native.log
           python grand-bruxelles-game/tools/analyze_civ1_right_downstream_transition.py /tmp/civ1transition/evidence/native.json /tmp/civ1transition/evidence/transition.json | tee /tmp/civ1transition/evidence/transition.log
           grep -F CIV1_RIGHT_DOWNSTREAM_TRANSITION_OK /tmp/civ1transition/evidence/transition.log
+          python grand-bruxelles-game/tools/analyze_civ1_downstream_contributions.py /tmp/civ1transition/evidence/native.json /tmp/civ1transition/evidence/contributions.json | tee /tmp/civ1transition/evidence/contributions.log
+          grep -F CIV1_DOWNSTREAM_CONTRIBUTION_OK /tmp/civ1transition/evidence/contributions.log
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4

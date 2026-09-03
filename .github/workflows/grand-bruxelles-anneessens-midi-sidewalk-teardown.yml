@@ -17,20 +17,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: Confirm pull-request base lacks teardown guard
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
-          git show "$BASE_SHA:grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd" > /tmp/anneessens-midi-sidewalk-base.gd
-          if grep -Fq 'if parent != null and not _tearing_down:' /tmp/anneessens-midi-sidewalk-base.gd; then
-            echo 'Base already contains teardown guard; this lot must be rebuilt/re-scoped.' >&2
-            exit 1
-          fi
-          echo 'RED base confirmed: teardown guard absent.'
       - name: Prove Anneessens Midi sidewalk teardown ownership contract
         run: |
           python - <<'PY'

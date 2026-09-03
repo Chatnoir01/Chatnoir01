@@ -4,6 +4,7 @@ const ANNEESSENS := Vector2(-272.04, -217.07)
 const DETAIL_RADIUS_M := 150.0
 const EXPECTED_SOURCE := "OpenStreetMap contributors via Overpass API"
 const EXPECTED_LICENSE := "ODbL-1.0"
+const EXPECTED_ALIGNMENT_STATUS := "unverified_rendered_road"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -36,8 +37,11 @@ func _assert_proxy_contract(node: Node, label: String) -> bool:
     if str(node.get_meta("license", "")) != EXPECTED_LICENSE:
         _fail("%s source license mismatch" % label)
         return false
-    if not bool(node.get_meta("road_alignment_source_backed", false)):
-        _fail("%s road-alignment source contract missing" % label)
+    if bool(node.get_meta("road_alignment_source_backed", true)):
+        _fail("%s unverified rendered-road alignment was promoted as source-backed" % label)
+        return false
+    if str(node.get_meta("road_alignment_provenance_status", "")) != EXPECTED_ALIGNMENT_STATUS:
+        _fail("%s road-alignment provenance status mismatch" % label)
         return false
     for unsupported: String in ["sidewalk_presence_source_backed", "visual_dimensions_source_backed", "vertical_profile_source_backed", "material_identity_source_backed"]:
         if bool(node.get_meta(unsupported, true)):
@@ -140,8 +144,8 @@ func _run() -> void:
         return
 
     # Remove the first legitimate owner, then mount a fresh production Main directly
-    # under a root-level SubViewport. This is an established development/render-harness
-    # ownership shape and must not leave source-backed sidewalks/collisions dormant.
+    # under a root-level SubViewport. This established development/render-harness
+    # ownership shape must not leave authored sidewalk/collision state dormant.
     root.remove_child(scene)
     scene.queue_free()
     for _frame: int in range(12):
@@ -171,5 +175,5 @@ func _run() -> void:
     if not _assert_bound_scene(runtime, viewport_scene, viewport_expected, "root-subviewport-main"):
         return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: direct_root=true root_subviewport_main=true sidewalks=%d collisions=%d toggle_collision_sync=true current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true" % [viewport_expected, viewport_expected])
+    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: direct_root=true root_subviewport_main=true sidewalks=%d collisions=%d toggle_collision_sync=true current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true road_alignment_source_backed=false road_alignment_provenance_status=%s" % [viewport_expected, viewport_expected, EXPECTED_ALIGNMENT_STATUS])
     quit(0)

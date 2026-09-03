@@ -5,6 +5,7 @@ const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const TREE_ASSET := preload("res://game/scripts/brussels_street_tree_asset.gd")
 const VISUAL_OWNER_META := "shared_environment_visual_owner"
 const VISUAL_OWNER_ID := "anneessens_osm_furniture_runtime"
+const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 
 @export var activation_radius_m: float = 170.0
 
@@ -17,7 +18,7 @@ var _enhanced_trees_enabled := true
 var _manual_binding := false
 var _watching_tree := false
 var _tearing_down := false
-var _tree_activation_initialized = false
+var _tree_activation_initialized := false
 var _tree_active := false
 
 func _ready() -> void:
@@ -202,12 +203,16 @@ func _collect_validated_tree_points(data: Dictionary) -> Variant:
         if str(point.get("kind", "")) != "tree":
             continue
         var osm_id_value: Variant = point.get("osm_id", null)
-        if typeof(osm_id_value) != TYPE_INT:
-            push_error("Anneessens OSM tree osm_id must be an integer")
+        if typeof(osm_id_value) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("Anneessens OSM tree osm_id must be numeric")
             return null
-        var osm_id := int(osm_id_value)
-        if osm_id <= 0 or seen_osm_ids.has(osm_id):
-            push_error("Anneessens OSM tree osm_id invalid or duplicated")
+        var osm_id_number := float(osm_id_value)
+        if not is_finite(osm_id_number) or osm_id_number <= 0.0 or osm_id_number > MAX_EXACT_JSON_INTEGER or floor(osm_id_number) != osm_id_number:
+            push_error("Anneessens OSM tree osm_id must be a positive exact integer")
+            return null
+        var osm_id := int(osm_id_number)
+        if seen_osm_ids.has(osm_id):
+            push_error("Anneessens OSM tree osm_id duplicated")
             return null
         var position_value: Variant = point.get("position", null)
         if not position_value is Array or (position_value as Array).size() < 2:
@@ -273,7 +278,8 @@ func _build_once() -> void:
 
     for tree_point: Variant in tree_points:
         var validated_point := tree_point as Dictionary
-        _add_tree(int(validated_point["osm_id"]), validated_point["position"] as Vector3)
+        var world_position: Vector3 = validated_point["position"]
+        _add_tree(int(validated_point["osm_id"]), world_position)
 
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m

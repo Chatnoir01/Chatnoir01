@@ -8,6 +8,7 @@ class_name BrusselsOsmEnvironmentRuntime
 const SOURCE_FORMAT := "grand-bruxelles-osm-zone-environment-v1"
 const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
 const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
+const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 
 @export_file("*.json") var data_path := ""
 @export var render_radius_m := 350.0
@@ -47,26 +48,63 @@ func _load_points() -> bool:
     if str(document.get("format", "")) != SOURCE_FORMAT:
         push_error("OSM environment artifact format mismatch")
         return false
-    for row_variant in document.get("environment_points", []):
-        if not row_variant is Dictionary:
-            continue
-        var row := row_variant as Dictionary
-        var kind := str(row.get("kind", ""))
-        if kind not in SUPPORTED_KINDS:
-            push_error("Unsupported OSM environment kind: %s" % kind)
-            return false
-        var position = row.get("position", [])
-        if not position is Array or position.size() < 2:
-            push_error("OSM environment point missing X/Z position")
-            return false
-        (_points[kind] as Array).append({
-            "osm_id": int(row.get("osm_id", 0)),
-            "position": Vector3(float(position[0]), 0.0, float(position[1])),
-        })
+    var validated_points: Variant = _collect_validated_points(document)
+    if validated_points == null:
+        return false
+    _points = validated_points
     set_meta("source", str(document.get("source", "")))
     set_meta("license", str(document.get("license", "")))
     set_meta("source_dimensions_measured", false)
     return true
+
+func _collect_validated_points(document: Dictionary) -> Variant:
+    var rows_variant: Variant = document.get("environment_points", null)
+    if not rows_variant is Array:
+        push_error("OSM environment artifact environment_points must be an array")
+        return null
+    var validated := {"tree": [], "street_lamp": [], "bollard": []}
+    var seen_osm_ids: Dictionary = {}
+    for row_variant in rows_variant as Array:
+        if not row_variant is Dictionary:
+            push_error("OSM environment point must be an object")
+            return null
+        var row := row_variant as Dictionary
+        var kind := str(row.get("kind", ""))
+        if kind not in SUPPORTED_KINDS:
+            push_error("Unsupported OSM environment kind: %s" % kind)
+            return null
+        var osm_id_value: Variant = row.get("osm_id", null)
+        if typeof(osm_id_value) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("OSM environment point osm_id must be numeric")
+            return null
+        var osm_id_number := float(osm_id_value)
+        if not is_finite(osm_id_number) or osm_id_number <= 0.0 or osm_id_number > MAX_EXACT_JSON_INTEGER or floor(osm_id_number) != osm_id_number:
+            push_error("OSM environment point osm_id must be a positive exact JSON integer")
+            return null
+        var osm_id := int(osm_id_number)
+        if seen_osm_ids.has(osm_id):
+            push_error("Duplicate OSM environment point osm_id: %d" % osm_id)
+            return null
+        seen_osm_ids[osm_id] = true
+        var position: Variant = row.get("position", null)
+        if not position is Array or position.size() != 2:
+            push_error("OSM environment point missing exact X/Z position")
+            return null
+        var x_value: Variant = position[0]
+        var z_value: Variant = position[1]
+        if typeof(x_value) not in [TYPE_FLOAT, TYPE_INT] or typeof(z_value) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("OSM environment point X/Z must be numeric")
+            return null
+        var x := float(x_value)
+        var z := float(z_value)
+        if not is_finite(x) or not is_finite(z):
+            push_error("OSM environment point X/Z must be finite")
+            return null
+        (validated[kind] as Array).append({
+            "osm_id": osm_id,
+            "position": Vector3(x, 0.0, z),
+        })
+    return validated
 
 func _target() -> Node3D:
     var player := get_tree().get_first_node_in_group("player") as Node3D

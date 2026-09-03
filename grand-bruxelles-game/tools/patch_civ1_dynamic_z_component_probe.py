@@ -69,11 +69,12 @@ def _validated_blends(payload: dict) -> list[float]:
     active = [round(v, 12) for v in blends if v > 1e-12]
     if len(set(active)) < 2:
         raise ValueError("candidate is not time-varying")
-    for distance in range(radius):
-        inner = blends[(EXPECTED_CENTER + distance) % EXPECTED_CYCLE]
-        outer = blends[(EXPECTED_CENTER + distance + 1) % EXPECTED_CYCLE]
-        if outer > inner + 1e-12:
-            raise ValueError("blend taper grows away from plant center")
+    for direction in (-1, 1):
+        for distance in range(radius):
+            inner = blends[(EXPECTED_CENTER + direction * distance) % EXPECTED_CYCLE]
+            outer = blends[(EXPECTED_CENTER + direction * (distance + 1)) % EXPECTED_CYCLE]
+            if outer > inner + 1e-12:
+                raise ValueError("blend taper grows away from plant center")
     return blends
 
 

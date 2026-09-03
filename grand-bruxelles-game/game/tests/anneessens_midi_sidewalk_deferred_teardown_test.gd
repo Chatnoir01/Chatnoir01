@@ -67,10 +67,10 @@ func _run() -> void:
     deferred_runtime.queue_free()
     await process_frame
 
-    # Contract 2: after a successful bind, the generated sidewalk/collision
-    # subtree is owned by this runtime and must be synchronously detached when
-    # the runtime leaves the SceneTree. Otherwise 134 sidewalks + collisions can
-    # outlive their owner under Main.
+    # Contract 2: after a successful bind, leaving the SceneTree must clear the
+    # runtime ownership registries synchronously, but the generated subtree must
+    # be destroyed through queue_free instead of remove_child during _exit_tree.
+    # This preserves deterministic ownership without mutating a busy parent.
     var bound_scene := _load_production_main()
     if bound_scene == null:
         return
@@ -96,15 +96,21 @@ func _run() -> void:
 
     root.remove_child(bound_runtime)
 
-    if bound_scene.get_node_or_null("AnneessensMidiSidewalkKit") != null:
-        _fail("owned sidewalk root survived runtime teardown")
-        return
     if int(bound_runtime.call("diagnostic_sidewalk_count")) != 0:
         _fail("sidewalk ownership registry not cleared synchronously")
         return
     if int(bound_runtime.call("diagnostic_collision_count")) != 0:
         _fail("collision ownership registry not cleared synchronously")
         return
+    if not is_instance_valid(owned_root) or not owned_root.is_queued_for_deletion():
+        _fail("owned sidewalk root was not queued for teardown-safe destruction")
+        return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true owned_root_released=true sidewalks=%d collisions=%d" % [sidewalks, collisions])
+    await process_frame
+
+    if bound_scene.get_node_or_null("AnneessensMidiSidewalkKit") != null:
+        _fail("owned sidewalk root survived deferred teardown destruction")
+        return
+
+    print("ANNEESSENS_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true owned_root_queued=true owned_root_released=true sidewalks=%d collisions=%d" % [sidewalks, collisions])
     quit(0)

@@ -351,21 +351,26 @@ func _csg_polygon_has_renderable_profile(polygon_node: CSGPolygon3D) -> bool:
 
 
 func _csg_combiner_has_renderable_shape(combiner: CSGCombiner3D) -> bool:
-    var stack: Array[Node] = []
+    # A combiner needs a positive UNION contribution. SUBTRACTION and
+    # INTERSECTION only modify an already-positive sibling; by themselves they
+    # cannot prove that a matching Road_* node produces visible geometry.
+    # Requiring UNION at every nested combiner edge also prevents a UNION child
+    # hidden inside a subtractive/intersection wrapper from becoming false proof.
     for child: Node in combiner.get_children():
-        stack.append(child)
-    while not stack.is_empty():
-        var node: Node = stack.pop_back()
-        if node is CSGCombiner3D:
-            for child: Node in node.get_children():
-                stack.append(child)
+        if not child is CSGShape3D:
             continue
-        if node is CSGPolygon3D and (node as CSGPolygon3D).is_visible_in_tree():
-            if _csg_polygon_has_renderable_profile(node as CSGPolygon3D):
+        var shape := child as CSGShape3D
+        if not shape.is_visible_in_tree() or shape.operation != CSGShape3D.OPERATION_UNION:
+            continue
+        if shape is CSGCombiner3D:
+            if _csg_combiner_has_renderable_shape(shape as CSGCombiner3D):
                 return true
             continue
-        if node is CSGShape3D and (node as CSGShape3D).is_visible_in_tree():
-            return true
+        if shape is CSGPolygon3D:
+            if _csg_polygon_has_renderable_profile(shape as CSGPolygon3D):
+                return true
+            continue
+        return true
     return false
 
 

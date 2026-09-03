@@ -1,0 +1,20 @@
+name: Grand Bruxelles Anneessens Sidewalk Provenance Fail-Closed
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_provenance_failclosed.py"
+      - ".github/workflows/grand-bruxelles-anneessens-sidewalk-provenance-failclosed.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove Anneessens sidewalk provenance fails closed
+        run: python3 grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_provenance_failclosed.py

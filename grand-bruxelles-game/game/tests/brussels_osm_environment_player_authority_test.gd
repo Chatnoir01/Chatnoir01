@@ -74,8 +74,19 @@ func _run() -> void:
         _fail("authored asset dimensions were misrepresented as source measurements")
         return
 
-    live_world.remove_child(live_player)
+    # queue_free() marks the canonical Player for deletion immediately, but the
+    # node remains in the current scene until the end of the frame. The shared
+    # renderer must fail closed during this teardown window instead of using a
+    # dying anchor for visibility or placement.
     live_player.queue_free()
+    if runtime.call("_target") != null:
+        _fail("renderer selected current_scene/Player after it was queued for deletion")
+        return
+    runtime.call("_refresh", false)
+    if not _all_batches_visible(runtime, false):
+        _fail("environment batches remained visible while current-scene Player was queued for deletion")
+        return
+
     for _frame: int in range(8):
         await process_frame
 
@@ -86,5 +97,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: current_scene_authoritative=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: current_scene_authoritative=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

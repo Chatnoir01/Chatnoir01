@@ -33,6 +33,8 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'baseline_vertical_span_m' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
+          grep -F 'planted_sample_indices' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
+          grep -F 'planted sample indices differ across candidates' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
           grep -F 'no_vertical_regression' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
           grep -F 'BLOCK_NO_NONREGRESSING_RETARGET_CANDIDATE' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py
           grep -F 'ALLOW_QA_PLAYER_VIEW_CAPTURE' grand-bruxelles-game/tools/assess_civ1_alternative_retarget_sweep.py

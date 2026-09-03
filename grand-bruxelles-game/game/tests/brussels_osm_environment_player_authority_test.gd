@@ -1,0 +1,90 @@
+extends SceneTree
+
+const RUNTIME_SCRIPT := preload("res://game/scripts/brussels_osm_environment_runtime.gd")
+const JETTE_DATA := "res://data/osm/zones/jette/environment.game.json"
+const JETTE_SPAWN := Vector3(-687.700268506218, 1.05, -4952.774160383269)
+const STALE_SPAWN := Vector3(12000.0, 1.05, 12000.0)
+
+func _fail(message: String) -> void:
+    push_error("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_FAIL: %s" % message)
+    quit(1)
+
+func _all_batches_visible(runtime: Node3D, expected: bool) -> bool:
+    var seen := 0
+    for child: Node in runtime.get_children():
+        if child is MultiMeshInstance3D:
+            seen += 1
+            if (child as MultiMeshInstance3D).visible != expected:
+                return false
+    return seen > 0
+
+func _initialize() -> void:
+    call_deferred("_run")
+
+func _run() -> void:
+    if current_scene != null:
+        _fail("script witness requires current_scene == null before setup")
+        return
+
+    var stale_world := Node3D.new()
+    stale_world.name = "StaleWorld"
+    root.add_child(stale_world)
+
+    var stale_player := Node3D.new()
+    stale_player.name = "Player"
+    stale_player.add_to_group("player")
+    stale_player.position = STALE_SPAWN
+    stale_world.add_child(stale_player)
+
+    var live_world := Node3D.new()
+    live_world.name = "Main"
+    root.add_child(live_world)
+    current_scene = live_world
+
+    var live_player := Node3D.new()
+    live_player.name = "Player"
+    live_player.add_to_group("player")
+    live_player.position = JETTE_SPAWN
+    live_world.add_child(live_player)
+
+    var runtime := RUNTIME_SCRIPT.new() as Node3D
+    runtime.name = "BrusselsOsmEnvironmentPlayerAuthorityProbe"
+    runtime.set("data_path", JETTE_DATA)
+    live_world.add_child(runtime)
+
+    for _frame: int in range(18):
+        await process_frame
+
+    var selected := runtime.call("_target") as Node3D
+    if selected != live_player:
+        _fail("renderer selected a stale out-of-scene grouped Player over current_scene/Player")
+        return
+
+    var counts: Dictionary = runtime.get("last_render_counts")
+    if int(counts.get("tree", 0)) == 0 or int(counts.get("street_lamp", 0)) == 0:
+        _fail("current-scene Player did not drive source-backed Jette environment rendering")
+        return
+    if not _all_batches_visible(runtime, true):
+        _fail("current-scene Player baseline did not expose environment batches")
+        return
+    if str(runtime.get_meta("license", "")) != "ODbL-1.0":
+        _fail("OSM provenance contract missing")
+        return
+    if bool(runtime.get_meta("source_dimensions_measured", true)):
+        _fail("authored asset dimensions were misrepresented as source measurements")
+        return
+
+    live_world.remove_child(live_player)
+    live_player.queue_free()
+    for _frame: int in range(8):
+        await process_frame
+
+    if runtime.call("_target") != null:
+        _fail("renderer fell back to stale out-of-scene grouped Player after current-scene Player disappeared")
+        return
+    if not _all_batches_visible(runtime, false):
+        _fail("environment batches remained visible without a legitimate current-scene Player")
+        return
+
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: current_scene_authoritative=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    quit(0)

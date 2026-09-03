@@ -29,7 +29,7 @@ jobs:
             exit 1
           fi
       - name: Prove fail-closed source contract
-        run: python -m pytest -q grand-bruxelles-game/tests/test_anneessens_osm_furniture_source_guard.py
+        run: python grand-bruxelles-game/tests/test_anneessens_osm_furniture_source_guard.py
       - name: Preserve source/runtime rails
         run: |
           grep -F 'OpenStreetMap contributors via Overpass API' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd

@@ -71,6 +71,12 @@ def main():
     expect_error(sample_drift)
     boolean_phase = copy.deepcopy(BASE); boolean_phase["candidates"][1]["rightfoot_candidate_phase_delta_samples"] = True
     expect_error(boolean_phase)
+    baseline_forgery = copy.deepcopy(BASE)
+    baseline_forgery["candidates"][1]["feet"]["RightFoot"]["baseline_horizontal_drift_m"] = 0.050
+    expect_error(baseline_forgery)
+    baseline_forgery = copy.deepcopy(BASE)
+    baseline_forgery["candidates"][1]["feet"]["LeftFoot"]["baseline_horizontal_drift_m"] = 0.050
+    expect_error(baseline_forgery)
     rails = copy.deepcopy(BASE); rails["runtime_authorized"] = True
     expect_error(rails)
     print("CIV1_ALTERNATIVE_RETARGET_SWEEP_TEST_OK")

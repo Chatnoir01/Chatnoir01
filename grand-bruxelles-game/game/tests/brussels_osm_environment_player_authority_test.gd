@@ -47,6 +47,29 @@ func _run() -> void:
     live_player.position = JETTE_SPAWN
     live_world.add_child(live_player)
 
+    # Exported runtime parameters are operational authority. Invalid values must
+    # fail closed before source metadata is accepted or any MultiMesh is built.
+    # A negative refresh distance otherwise causes every process tick to rebuild
+    # the shared environment once the player moves at all.
+    var invalid_runtime := RUNTIME_SCRIPT.new() as Node3D
+    invalid_runtime.name = "BrusselsOsmEnvironmentInvalidConfigProbe"
+    invalid_runtime.set("data_path", JETTE_DATA)
+    invalid_runtime.set("refresh_distance_m", -1.0)
+    live_world.add_child(invalid_runtime)
+    for _frame: int in range(4):
+        await process_frame
+    if invalid_runtime.is_processing():
+        _fail("negative refresh_distance_m did not disable shared OSM processing")
+        return
+    if invalid_runtime.get_child_count() != 0:
+        _fail("invalid shared OSM configuration materialized render batches")
+        return
+    if invalid_runtime.has_meta("source") or invalid_runtime.has_meta("license"):
+        _fail("invalid shared OSM configuration accepted source provenance")
+        return
+    invalid_runtime.queue_free()
+    await process_frame
+
     var runtime := RUNTIME_SCRIPT.new() as Node3D
     runtime.name = "BrusselsOsmEnvironmentPlayerAuthorityProbe"
     runtime.set("data_path", JETTE_DATA)
@@ -97,5 +120,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: current_scene_authoritative=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: config_fail_closed=true current_scene_authoritative=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

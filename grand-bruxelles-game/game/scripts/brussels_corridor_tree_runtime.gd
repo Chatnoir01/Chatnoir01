@@ -51,7 +51,7 @@ func _exit_tree() -> void:
 func _release_owned_root() -> void:
     if is_instance_valid(_root):
         var parent := _root.get_parent()
-        if parent != null:
+        if parent != null and not _tearing_down:
             parent.remove_child(_root)
         _root.queue_free()
     _root = null
@@ -357,7 +357,6 @@ func _build() -> void:
     var anchor := _player_anchor()
     var activate_lod := lod_anchor_is_corridor_relevant(anchor, _source_positions)
     _rebuild_visual_batches(anchor if is_finite(anchor.x) else Vector3.ZERO, activate_lod)
-
     _collision_body = StaticBody3D.new()
     _collision_body.name = "TreeCollisions"
     _root.add_child(_collision_body)

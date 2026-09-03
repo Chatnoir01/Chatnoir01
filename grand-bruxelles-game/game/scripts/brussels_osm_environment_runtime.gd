@@ -24,6 +24,9 @@ var _points := {"tree": [], "street_lamp": [], "bollard": []}
 var _last_anchor := Vector3(INF, INF, INF)
 
 func _ready() -> void:
+    if not _validate_configuration():
+        set_process(false)
+        return
     if not _load_points():
         set_process(false)
         return
@@ -31,6 +34,27 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
     _refresh(false)
+
+func _validate_configuration() -> bool:
+    if not is_finite(render_radius_m) or render_radius_m < 0.0:
+        push_error("OSM environment render_radius_m must be finite and non-negative")
+        return false
+    if not is_finite(refresh_distance_m) or refresh_distance_m < 0.0:
+        push_error("OSM environment refresh_distance_m must be finite and non-negative")
+        return false
+    if refresh_distance_m > render_radius_m:
+        push_error("OSM environment refresh_distance_m must not exceed render_radius_m")
+        return false
+    if not is_finite(tree_full_detail_radius_m) or tree_full_detail_radius_m < 0.0:
+        push_error("OSM environment tree_full_detail_radius_m must be finite and non-negative")
+        return false
+    if tree_full_detail_radius_m > render_radius_m:
+        push_error("OSM environment tree_full_detail_radius_m must not exceed render_radius_m")
+        return false
+    if max_trees < 0 or max_street_lamps < 0 or max_bollards < 0:
+        push_error("OSM environment instance limits must be non-negative")
+        return false
+    return true
 
 func _load_points() -> bool:
     if data_path.is_empty() or not FileAccess.file_exists(data_path):

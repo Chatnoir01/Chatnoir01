@@ -1,0 +1,38 @@
+name: Grand Bruxelles Anneessens OSM Furniture Source Guard
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd'
+      - 'grand-bruxelles-game/tests/test_anneessens_osm_furniture_source_guard.py'
+      - '.github/workflows/grand-bruxelles-anneessens-osm-furniture-source-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Confirm base lacked point-level fail-closed guard
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          if git show "$BASE_SHA:grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd" | grep -q '_collect_validated_tree_points'; then
+            echo 'Base already contains the source guard; rehydrate/re-scope instead of replaying stale work.' >&2
+            exit 1
+          fi
+      - name: Prove fail-closed source contract
+        run: python grand-bruxelles-game/tests/test_anneessens_osm_furniture_source_guard.py
+      - name: Preserve source/runtime rails
+        run: |
+          grep -F 'OpenStreetMap contributors via Overpass API' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
+          grep -F 'ODbL-1.0' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
+          grep -F 'placement_source_backed", true' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
+          grep -F 'visual_dimensions_source_backed", false' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd

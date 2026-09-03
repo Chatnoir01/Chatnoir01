@@ -5,6 +5,7 @@ const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const TREE_ASSET := preload("res://game/scripts/brussels_street_tree_asset.gd")
 const VISUAL_OWNER_META := "shared_environment_visual_owner"
 const VISUAL_OWNER_ID := "anneessens_osm_furniture_runtime"
+const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 
 @export var activation_radius_m: float = 170.0
 
@@ -187,6 +188,51 @@ func _reset() -> void:
     _player = null
     _manual_binding = false
 
+func _collect_validated_tree_points(data: Dictionary) -> Variant:
+    var environment_points: Variant = data.get("environment_points", null)
+    if not environment_points is Array:
+        push_error("Anneessens OSM furniture environment_points invalid")
+        return null
+    var validated: Array = []
+    var seen_osm_ids: Dictionary = {}
+    for raw: Variant in environment_points as Array:
+        if not raw is Dictionary:
+            push_error("Anneessens OSM furniture point invalid")
+            return null
+        var point := raw as Dictionary
+        if str(point.get("kind", "")) != "tree":
+            continue
+        var osm_id_value: Variant = point.get("osm_id", null)
+        if typeof(osm_id_value) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("Anneessens OSM tree osm_id must be numeric")
+            return null
+        var osm_id_number := float(osm_id_value)
+        if not is_finite(osm_id_number) or osm_id_number <= 0.0 or osm_id_number > MAX_EXACT_JSON_INTEGER or floor(osm_id_number) != osm_id_number:
+            push_error("Anneessens OSM tree osm_id must be a positive exact integer")
+            return null
+        var osm_id := int(osm_id_number)
+        if seen_osm_ids.has(osm_id):
+            push_error("Anneessens OSM tree osm_id duplicated")
+            return null
+        var position_value: Variant = point.get("position", null)
+        if not position_value is Array or (position_value as Array).size() < 2:
+            push_error("Anneessens OSM tree position invalid")
+            return null
+        var position := position_value as Array
+        var x_value: Variant = position[0]
+        var z_value: Variant = position[1]
+        if typeof(x_value) not in [TYPE_FLOAT, TYPE_INT] or typeof(z_value) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("Anneessens OSM tree coordinates must be numeric")
+            return null
+        var x := float(x_value)
+        var z := float(z_value)
+        if not is_finite(x) or not is_finite(z):
+            push_error("Anneessens OSM tree coordinates must be finite")
+            return null
+        seen_osm_ids[osm_id] = true
+        validated.append({"osm_id": osm_id, "position": Vector3(x, 0.0, z)})
+    return validated
+
 func _build_once() -> void:
     if _tearing_down or not is_instance_valid(_scene) or is_instance_valid(_root):
         return
@@ -214,6 +260,11 @@ func _build_once() -> void:
         push_error("Anneessens OSM furniture coordinate space invalid")
         return
 
+    var validated_tree_points: Variant = _collect_validated_tree_points(data)
+    if validated_tree_points == null:
+        return
+    var tree_points := validated_tree_points as Array
+
     _root = Node3D.new()
     _root.name = "AnneessensOsmFurniture"
     _root.set_meta("source", str(data.get("source", "")))
@@ -225,24 +276,15 @@ func _build_once() -> void:
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
 
-    var built := 0
-    for raw: Variant in data.get("environment_points", []):
-        if not raw is Dictionary:
-            continue
-        var point := raw as Dictionary
-        if str(point.get("kind", "")) != "tree":
-            continue
-        var position_value: Variant = point.get("position", null)
-        if not position_value is Array or (position_value as Array).size() < 2:
-            continue
-        var position := position_value as Array
-        _add_tree(int(point.get("osm_id", 0)), Vector3(float(position[0]), 0.0, float(position[1])))
-        built += 1
+    for tree_point: Variant in tree_points:
+        var validated_point := tree_point as Dictionary
+        var world_position: Vector3 = validated_point["position"]
+        _add_tree(int(validated_point["osm_id"]), world_position)
 
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0" % [built, TREE_ASSET.ASSET_FAMILY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0" % [tree_points.size(), TREE_ASSET.ASSET_FAMILY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

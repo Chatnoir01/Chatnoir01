@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""Wire a validated CIV-1 dynamic RightFoot local-Z schedule into the native Godot probe.
+
+QA-only. LeftFoot stays untouched and this transformer never authorizes runtime or visual promotion.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from pathlib import Path
+
+RIGHT = "    var normalized_target_local_rest_origin := normalized_target_local_direction * target_local_rest_origin.length()\n"
+LEFT = "    var normalized_target_left_local_rest_origin := normalized_target_left_local_direction * target_left_local_rest_origin.length()\n"
+SAMPLE = "        var normalized_target_foot_origin := target_right_parent_pose.origin + target_right_parent_pose.basis * normalized_target_local_rest_origin\n"
+MARKER = "CIV1_DYNAMIC_ROTATION_NATIVE_PROBE"
+EXPECTED_KIND = "civ1_rightfoot_dynamic_rotation_schedule"
+EXPECTED_AXIS = "target_local_z"
+EXPECTED_CENTER = 59
+EXPECTED_CYCLE = 120
+NATIVE_LENGTH_TOLERANCE_M = 1e-6
+
+
+def _validated_angles(payload: dict) -> list[float]:
+    if payload.get("candidate_kind") != EXPECTED_KIND:
+        raise ValueError("unexpected candidate kind")
+    if payload.get("rotation_axis") != EXPECTED_AXIS:
+        raise ValueError("candidate must explicitly target local Z")
+    if payload.get("candidate_is_native_measurement") is not False:
+        raise ValueError("input must remain pre-native candidate evidence")
+    if payload.get("runtime_authorized") is not False or payload.get("visual_approval_claimed") is not False:
+        raise ValueError("promotion claim present in candidate evidence")
+    if payload.get("center_sample") != EXPECTED_CENTER or payload.get("baseline_source_plant_sample") != EXPECTED_CENTER:
+        raise ValueError("candidate is not bound to measured plant sample 59")
+    if payload.get("cycle_sample_count") != EXPECTED_CYCLE or payload.get("baseline_cycle_sample_count") != EXPECTED_CYCLE:
+        raise ValueError("candidate is not bound to measured 120-sample cycle")
+    radius = payload.get("radius_samples")
+    if isinstance(radius, bool) or not isinstance(radius, int) or not 2 <= radius < EXPECTED_CYCLE // 2:
+        raise ValueError("invalid radius")
+    samples = payload.get("samples")
+    if not isinstance(samples, list) or len(samples) != EXPECTED_CYCLE:
+        raise ValueError("candidate must contain exactly 120 samples")
+    angles: list[float] = []
+    for index, sample in enumerate(samples):
+        if not isinstance(sample, dict):
+            raise ValueError("invalid sample payload")
+        value = sample.get("rotation_delta_rad")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("rotation delta must be numeric")
+        angle = float(value)
+        if not math.isfinite(angle) or abs(angle) > math.pi / 2:
+            raise ValueError("rotation delta must be finite and bounded")
+        distance = min((index - EXPECTED_CENTER) % EXPECTED_CYCLE, (EXPECTED_CENTER - index) % EXPECTED_CYCLE)
+        if distance > radius and abs(angle) > 1e-12:
+            raise ValueError("rotation outside declared window")
+        for field, tolerance in (("right_foot_length_error_m", NATIVE_LENGTH_TOLERANCE_M), ("left_foot_delta_m", 1e-9)):
+            metric = sample.get(field)
+            if isinstance(metric, bool) or not isinstance(metric, (int, float)) or not math.isfinite(float(metric)):
+                raise ValueError(f"invalid {field}")
+            if abs(float(metric)) > tolerance:
+                raise ValueError(f"candidate violates {field} rail")
+        angles.append(angle)
+    if abs(angles[EXPECTED_CENTER]) <= 1e-9:
+        raise ValueError("center sample must be active")
+    if len({round(angles[i], 12) for i in range(EXPECTED_CYCLE) if abs(angles[i]) > 1e-12}) < 2:
+        raise ValueError("candidate is not time-varying")
+    return angles
+
+
+def transform(text: str, payload: dict) -> str:
+    angles = _validated_angles(payload)
+    if MARKER in text:
+        raise ValueError("input already contains dynamic rotation probe")
+    if "func _make_shadow_skeleton" not in text or "left_foot_reference_ab" not in text:
+        raise ValueError("input is not the validated bilateral shadow probe")
+    if text.count(RIGHT) != 1 or text.count(LEFT) != 1 or text.count(SAMPLE) != 1:
+        raise ValueError("validated dynamic-rotation anchors drifted")
+
+    encoded = ", ".join(format(v, ".17g") for v in angles)
+    right = (
+        f"    # {MARKER} center=59 cycle=120 axis=local_z\n"
+        f"    var right_dynamic_rotation_schedule := PackedFloat64Array([{encoded}])\n"
+        "    var normalized_target_local_rest_origin := target_local_rest_origin\n"
+    )
+    left = (
+        "    # Dynamic RightFoot candidates intentionally leave LeftFoot rest translation unchanged.\n"
+        "    var normalized_target_left_local_rest_origin := target_left_local_rest_origin\n"
+    )
+    sample = (
+        "        var right_dynamic_angle: float = right_dynamic_rotation_schedule[sample_idx % 120]\n"
+        "        var right_dynamic_sample_rest := Basis(Vector3.BACK, right_dynamic_angle) * normalized_target_local_rest_origin\n"
+        "        if right_dynamic_sample_rest.length() <= 0.000000001:\n"
+        "            push_error(\"CIV1_GLOBAL_CHAIN_DIAGNOSTIC_FAIL: dynamic rotation produced zero RightFoot rest length\")\n"
+        "            quit(19)\n"
+        "            return\n"
+        "        right_dynamic_sample_rest = right_dynamic_sample_rest.normalized() * target_local_rest_origin.length()\n"
+        "        if abs(right_dynamic_sample_rest.length() - target_local_rest_origin.length()) > 0.000001:\n"
+        "            push_error(\"CIV1_GLOBAL_CHAIN_DIAGNOSTIC_FAIL: dynamic rotation changed RightFoot length\")\n"
+        "            quit(19)\n"
+        "            return\n"
+        "        var normalized_target_foot_origin := target_right_parent_pose.origin + target_right_parent_pose.basis * right_dynamic_sample_rest\n"
+    )
+    out = text.replace(RIGHT, right, 1).replace(LEFT, left, 1).replace(SAMPLE, sample, 1)
+    if out.count(MARKER) != 1:
+        raise ValueError("dynamic rotation marker insertion failed")
+    return out
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_probe", type=Path)
+    parser.add_argument("schedule_json", type=Path)
+    parser.add_argument("output_probe", type=Path)
+    args = parser.parse_args()
+    payload = json.loads(args.schedule_json.read_text(encoding="utf-8"))
+    args.output_probe.write_text(transform(args.input_probe.read_text(encoding="utf-8"), payload), encoding="utf-8")
+    print("CIV1_DYNAMIC_ROTATION_NATIVE_PROBE_OK")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,106 @@
+name: Grand Bruxelles CIV-1 Native Global Source Direction Sweep
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/patch_civ1_global_source_direction_probe.py'
+      - 'grand-bruxelles-game/tests/test_civ1_global_source_direction_probe.py'
+      - '.github/workflows/grand-bruxelles-civ1-native-global-source-direction-sweep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-global-source-direction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned regression runtime
+        run: python -m pip install --disable-pip-version-check 'pytest==8.4.2'
+      - name: Prove global source-direction probe contract
+        run: python -m pytest -q grand-bruxelles-game/tests/test_civ1_global_source_direction_probe.py
+      - name: Prepare pinned sources and probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1global/{tools,source,evidence,engine}
+          PROBE_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c
+          SHADOW_REF=d1f9ba6faa5c54bcf2bb5c522c5b49325a28f814
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd" -o /tmp/civ1global/tools/base.gd
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1global/tools/strip.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SHADOW_REF/grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py" -o /tmp/civ1global/tools/shadow.py
+          python /tmp/civ1global/tools/shadow.py /tmp/civ1global/tools/base.gd /tmp/civ1global/tools/bilateral.gd
+          for key in p025 p050 p075 p100; do
+            case "$key" in p025) value=0.25;; p050) value=0.50;; p075) value=0.75;; p100) value=1.00;; esac
+            python grand-bruxelles-game/tools/patch_civ1_global_source_direction_probe.py /tmp/civ1global/tools/bilateral.gd "/tmp/civ1global/tools/probe-$key.gd" --blend "$value"
+            grep -F CIV1_GLOBAL_SOURCE_DIRECTION_BLEND_PROBE "/tmp/civ1global/tools/probe-$key.gd"
+          done
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1global/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1global/source/body.glb)" = 6879364
+          python /tmp/civ1global/tools/strip.py /tmp/civ1global/source/body.glb /tmp/civ1global/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1global/source/civ1_body.glb' | sha256sum -c -
+          curl -fL --retry 3 https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip -o /tmp/civ1global/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1global/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1global/quaternius.zip -d /tmp/civ1global/quaternius
+          LICENSE_FILE="$(find /tmp/civ1global/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1global/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1global/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1global/godot.zip -d /tmp/civ1global/engine
+          GODOT_BIN=/tmp/civ1global/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee /tmp/civ1global/evidence/godot-version.txt
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1global/evidence/godot-version.txt
+      - name: Import and measure phase
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1global/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then PROJECT_ROOT="$(dirname "$PROJECT_FILE")"; else PROJECT_ROOT="$(find /tmp/civ1global/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"; printf '[application]\nconfig/name="CIV1GlobalDirection"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"; fi
+          cp /tmp/civ1global/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1global/evidence/import.log
+          for key in p025 p050 p075 p100; do
+            cp "/tmp/civ1global/tools/probe-$key.gd" "$PROJECT_ROOT/gb_probe_$key.gd"
+            "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script "res://gb_probe_$key.gd" -- "/tmp/civ1global/evidence/native-$key.json" 2>&1 | tee "/tmp/civ1global/evidence/native-$key.log"
+            grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK "/tmp/civ1global/evidence/native-$key.log"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/civ1global/evidence'); rows=[]
+          for key,blend in [('p025',.25),('p050',.5),('p075',.75),('p100',1.0)]:
+              d=json.loads((root/f'native-{key}.json').read_text())
+              ab=d['right_foot_reference_ab']
+              target_len=float(ab['target_foot_length_m'])
+              normalized_len=float(ab['normalized_target_foot_length_m'])
+              rows.append({'candidate_id':f'global_source_direction_{key}','blend':blend,'baseline_phase_delta_samples':int(ab['baseline_phase_delta_samples']),'candidate_phase_delta_samples':int(ab['normalized_phase_delta_samples']),'target_foot_length_m':target_len,'candidate_foot_length_m':normalized_len,'phase_non_material':abs(int(ab['normalized_phase_delta_samples']))<12})
+          eligible=[r['candidate_id'] for r in rows if r['phase_non_material']]
+          payload={'schema':'grand-bruxelles-civ1-native-global-source-direction-phase-v1','godot_version':'4.7.1','component':'target_local_rest_direction','constant_over_cycle':True,'candidates':rows,'eligible_candidate_ids':eligible,'runtime_authorized':False,'visual_approval_claimed':False,'verdict':'REQUIRE_GROUNDING_MEASUREMENT' if eligible else 'BLOCK_GLOBAL_SOURCE_DIRECTION_NO_PHASE_IMPROVEMENT'}
+          (root/'native-global-source-direction-phase.json').write_text(json.dumps(payload,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(payload,indent=2,sort_keys=True))
+          PY
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-native-global-source-direction-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1global/evidence
+          if-no-files-found: error

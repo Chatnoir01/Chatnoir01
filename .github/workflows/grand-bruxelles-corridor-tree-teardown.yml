@@ -18,12 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - name: Confirm pull-request base lacks teardown guard
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
           git show "$BASE_SHA:grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd" > /tmp/corridor-tree-base.gd
           if grep -Fq 'if parent != null and not _tearing_down:' /tmp/corridor-tree-base.gd; then
             echo 'Base already contains teardown guard; this lot must be rebuilt/re-scoped.' >&2

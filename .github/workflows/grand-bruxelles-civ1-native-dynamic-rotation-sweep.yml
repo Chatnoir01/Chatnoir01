@@ -24,7 +24,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-
       - name: Require exact-current-main ancestry
         if: github.event_name == 'pull_request'
         shell: bash
@@ -32,24 +31,18 @@ jobs:
           set -euo pipefail
           git fetch origin main --no-tags
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install pinned regression runtime
         run: python -m pip install --disable-pip-version-check 'pytest==8.4.2'
-
       - name: Prove dynamic rotation contract
         run: python -m pytest -q grand-bruxelles-game/tests/test_civ1_dynamic_rotation_contract.py
-
       - name: Prove dynamic rotation generator
         run: python -m pytest -q grand-bruxelles-game/tests/test_civ1_dynamic_rotation_generator.py
-
       - name: Prove native probe wiring
         run: python -m pytest -q grand-bruxelles-game/tests/test_civ1_dynamic_rotation_probe.py
-
-      - name: Prepare pinned sources and dynamic probes
+      - name: Prepare pinned sources and local-Z dynamic probes
         shell: bash
         run: |
           set -euo pipefail
@@ -68,9 +61,13 @@ jobs:
               p0_20) value=0.20 ;;
             esac
             python grand-bruxelles-game/tools/generate_civ1_dynamic_rotation_candidate.py "/tmp/civ1dynamic/evidence/schedule-$peak.json" --radius-samples 4 --peak-rotation-rad "$value"
+            grep -F '"rotation_axis": "target_local_z"' "/tmp/civ1dynamic/evidence/schedule-$peak.json"
             python grand-bruxelles-game/tools/assess_civ1_dynamic_rotation_contract.py "/tmp/civ1dynamic/evidence/schedule-$peak.json" > "/tmp/civ1dynamic/evidence/contract-$peak.json"
             grep -F REQUIRE_NATIVE_PHASE_AND_GROUNDING_MEASUREMENT "/tmp/civ1dynamic/evidence/contract-$peak.json"
+            grep -F target_local_z "/tmp/civ1dynamic/evidence/contract-$peak.json"
             python grand-bruxelles-game/tools/patch_civ1_dynamic_rotation_probe.py /tmp/civ1dynamic/tools/bilateral.gd "/tmp/civ1dynamic/evidence/schedule-$peak.json" "/tmp/civ1dynamic/tools/probe-$peak.gd"
+            grep -F 'Basis(Vector3.BACK, right_dynamic_angle)' "/tmp/civ1dynamic/tools/probe-$peak.gd"
+            ! grep -F 'Basis(Vector3.RIGHT, right_dynamic_angle)' "/tmp/civ1dynamic/tools/probe-$peak.gd"
           done
           curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1dynamic/source/body.glb
           test "$(stat -c '%s' /tmp/civ1dynamic/source/body.glb)" = 6879364
@@ -83,7 +80,6 @@ jobs:
           test -n "$LICENSE_FILE"
           grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
           sha256sum /tmp/civ1dynamic/tools/* > /tmp/civ1dynamic/evidence/tool-sha256.txt
-
       - name: Install exact official Godot 4.7.1
         shell: bash
         run: |
@@ -96,18 +92,12 @@ jobs:
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
           "$GODOT_BIN" --version | tee /tmp/civ1dynamic/evidence/godot-version.txt
           grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1dynamic/evidence/godot-version.txt
-
-      - name: Import and measure native phase first
+      - name: Import and measure local-Z native phase first
         shell: bash
         run: |
           set -euo pipefail
           PROJECT_FILE="$(find /tmp/civ1dynamic/quaternius -name project.godot -type f -print -quit)"
-          if [ -n "$PROJECT_FILE" ]; then
-            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
-          else
-            PROJECT_ROOT="$(find /tmp/civ1dynamic/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
-            printf '[application]\nconfig/name="CIV1DynamicRotation"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
-          fi
+          if [ -n "$PROJECT_FILE" ]; then PROJECT_ROOT="$(dirname "$PROJECT_FILE")"; else PROJECT_ROOT="$(find /tmp/civ1dynamic/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"; printf '[application]\nconfig/name="CIV1DynamicRotation"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"; fi
           cp /tmp/civ1dynamic/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
           "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1dynamic/evidence/import.log
           for peak in m0_20 m0_10 p0_10 p0_20; do
@@ -118,23 +108,19 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          root=Path('/tmp/civ1dynamic/evidence')
-          rows=[]
+          root=Path('/tmp/civ1dynamic/evidence'); rows=[]
           for key,peak in [('m0_20',-0.20),('m0_10',-0.10),('p0_10',0.10),('p0_20',0.20)]:
-              p=json.loads((root/f'native-{key}.json').read_text())
-              r=p['right_foot_reference_ab']
-              assert r['source_vertical_min_sample_index'] == 59
-              assert r['baseline_phase_delta_samples'] == 27
+              p=json.loads((root/f'native-{key}.json').read_text()); r=p['right_foot_reference_ab']
+              assert r['source_vertical_min_sample_index']==59
+              assert r['baseline_phase_delta_samples']==27
               assert r['target_foot_length_preserved'] is True
               phase=r['normalized_phase_delta_samples']
-              rows.append({'candidate_id':f'dynamic_x_r4_{key}','radius_samples':4,'peak_rotation_rad':peak,'baseline_phase_delta_samples':27,'candidate_phase_delta_samples':phase,'phase_improved':abs(phase)<27,'phase_non_material':abs(phase)<12,'target_foot_length_m':r['target_foot_length_m'],'candidate_foot_length_m':r['normalized_target_foot_length_m']})
+              rows.append({'candidate_id':f'dynamic_z_r4_{key}','radius_samples':4,'peak_rotation_rad':peak,'baseline_phase_delta_samples':27,'candidate_phase_delta_samples':phase,'phase_improved':abs(phase)<27,'phase_non_material':abs(phase)<12,'target_foot_length_m':r['target_foot_length_m'],'candidate_foot_length_m':r['normalized_target_foot_length_m']})
           eligible=[x for x in rows if x['phase_non_material']]
           verdict='REQUIRE_FULL_GROUNDING_ASSESSMENT' if eligible else ('DYNAMIC_ROTATION_PHASE_IMPROVES_BUT_STILL_MATERIAL' if any(x['phase_improved'] for x in rows) else 'BLOCK_DYNAMIC_ROTATION_NO_PHASE_IMPROVEMENT')
-          out={'schema':'grand-bruxelles-civ1-native-dynamic-rotation-phase-v1','godot_version':'4.7.1','axis':'target_local_x','center_sample':59,'cycle_sample_count':120,'candidates':rows,'eligible_candidate_ids':[x['candidate_id'] for x in eligible],'verdict':verdict,'runtime_authorized':False,'visual_approval_claimed':False}
-          (root/'native-dynamic-rotation-phase.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
-          print(json.dumps(out,indent=2,sort_keys=True))
+          out={'schema':'grand-bruxelles-civ1-native-dynamic-rotation-phase-v1','godot_version':'4.7.1','axis':'target_local_z','center_sample':59,'cycle_sample_count':120,'candidates':rows,'eligible_candidate_ids':[x['candidate_id'] for x in eligible],'verdict':verdict,'runtime_authorized':False,'visual_approval_claimed':False}
+          (root/'native-dynamic-rotation-phase.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n'); print(json.dumps(out,indent=2,sort_keys=True))
           PY
-
       - name: Upload native dynamic rotation evidence
         if: always()
         uses: actions/upload-artifact@v4

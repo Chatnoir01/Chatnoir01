@@ -20,6 +20,7 @@ const ROAD_SUPPORT_OWNER_ID := "generic_osm_surface_collision_runtime"
 const ROAD_SUPPORT_OSM_IDS_META := "road_support_osm_ids"
 const CANONICAL_GROUND_NAME := "Ground"
 const MAX_GROUND_RAY_HITS := 32
+const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 
 var _runtime_index_attempted := false
 var _runtime_index_valid := false
@@ -103,6 +104,18 @@ func _parse_document(path: String) -> Dictionary:
     return parsed as Dictionary if parsed is Dictionary else {}
 
 
+func _exact_json_osm_id(raw_id: Variant) -> int:
+    var raw_type := typeof(raw_id)
+    if raw_type != TYPE_INT and raw_type != TYPE_FLOAT:
+        return 0
+    var numeric := float(raw_id)
+    if not is_finite(numeric) or numeric <= 0.0:
+        return 0
+    if floor(numeric) != numeric or numeric > MAX_EXACT_JSON_INTEGER:
+        return 0
+    return int(numeric)
+
+
 func _load_runtime_index() -> bool:
     if _runtime_index_attempted:
         return _runtime_index_valid
@@ -144,7 +157,7 @@ func _load_runtime_index() -> bool:
             return false
         _source_sha_by_path[source_path] = expected_sha
         for raw_id: Variant in road_ids:
-            var osm_id := int(raw_id)
+            var osm_id := _exact_json_osm_id(raw_id)
             if osm_id <= 0 or _road_source_path_by_id.has(osm_id):
                 return false
             _road_source_path_by_id[osm_id] = source_path
@@ -179,7 +192,7 @@ func _source_bundle_by_id(osm_id: int) -> Dictionary:
         if not raw is Dictionary:
             continue
         var road := raw as Dictionary
-        if int(road.get("osm_id", 0)) != osm_id:
+        if _exact_json_osm_id(road.get("osm_id", 0)) != osm_id:
             continue
         var source_name := str(road.get("name", "")).strip_edges()
         if source_name.is_empty() or not bool(road.get("drivable", false)) or _road_points(road).size() < 2:

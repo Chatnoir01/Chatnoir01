@@ -159,8 +159,11 @@ func _refresh(force: bool) -> void:
     if target == null:
         _set_batches_visible(false)
         return
-    _set_batches_visible(true)
     var anchor := target.global_position
+    if not is_finite(anchor.x) or not is_finite(anchor.y) or not is_finite(anchor.z):
+        _set_batches_visible(false)
+        return
+    _set_batches_visible(true)
     if not force and _last_anchor != Vector3(INF, INF, INF) and anchor.distance_to(_last_anchor) < refresh_distance_m:
         return
     _last_anchor = anchor

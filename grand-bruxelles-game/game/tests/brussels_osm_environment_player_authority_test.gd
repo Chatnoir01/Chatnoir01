@@ -97,6 +97,29 @@ func _run() -> void:
         _fail("authored asset dimensions were misrepresented as source measurements")
         return
 
+    # A corrupted/non-finite transform must never become renderer authority. Keep
+    # the last known-good batches and anchor intact, but hide them fail-closed
+    # until the canonical Player returns to a finite world position.
+    var batch_count_before_invalid_anchor := runtime.get_child_count()
+    var last_anchor_before_invalid: Vector3 = runtime.get("_last_anchor")
+    live_player.position = Vector3(NAN, JETTE_SPAWN.y, JETTE_SPAWN.z)
+    runtime.call("_refresh", false)
+    if runtime.get_child_count() != batch_count_before_invalid_anchor:
+        _fail("non-finite Player anchor rebuilt or purged valid environment batches")
+        return
+    if runtime.get("_last_anchor") != last_anchor_before_invalid:
+        _fail("non-finite Player anchor poisoned the last known-good renderer anchor")
+        return
+    if not _all_batches_visible(runtime, false):
+        _fail("environment batches remained visible for a non-finite Player anchor")
+        return
+
+    live_player.position = JETTE_SPAWN
+    runtime.call("_refresh", false)
+    if not _all_batches_visible(runtime, true):
+        _fail("finite Player recovery did not restore existing environment batches")
+        return
+
     # queue_free() marks the canonical Player for deletion immediately, but the
     # node remains in the current scene until the end of the frame. The shared
     # renderer must fail closed during this teardown window instead of using a
@@ -120,5 +143,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: config_fail_closed=true current_scene_authoritative=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: config_fail_closed=true current_scene_authoritative=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

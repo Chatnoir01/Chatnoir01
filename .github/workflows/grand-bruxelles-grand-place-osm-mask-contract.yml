@@ -54,23 +54,78 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-mask-base-import.log
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-mask-head-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-mask-base-import.log /tmp/osm-mask-head-import.log; then exit 1; fi
-      - name: Capture legacy halo RED and exact-footprint GREEN
+      - name: Classify exact mask contract and capture deterministic A/B
         shell: bash
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
         run: |
-          set -o pipefail
-          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 640x360 --script res://game/tests/grand_place_osm_mask_halo_capture_test.gd -- hidden /tmp/osm-mask-before.png 2>&1 | tee /tmp/osm-mask-before.log
-          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 640x360 --script res://game/tests/grand_place_osm_mask_halo_capture_test.gd -- visible /tmp/osm-mask-after.png 2>&1 | tee /tmp/osm-mask-after.log
+          set -euo pipefail
+          runtime_rel="grand-bruxelles-game/game/scripts/grand_place_complete_contour_runtime.gd"
+          read_grow() {
+            local root="$1"
+            python3 - "$root/$runtime_rel" <<'PY'
+          import re, sys
+          text = open(sys.argv[1], encoding="utf-8").read()
+          hits = re.findall(r'^const OSM_MASK_GROW_M := ([0-9]+(?:\.[0-9]+)?)$', text, re.M)
+          if len(hits) != 1:
+              raise SystemExit(f"expected exactly one OSM_MASK_GROW_M constant, got {hits!r}")
+          value = float(hits[0])
+          if value < 0.0:
+              raise SystemExit("OSM_MASK_GROW_M must be non-negative")
+          print(value)
+          PY
+          }
+          base_grow="$(read_grow base)"
+          head_grow="$(read_grow head)"
+          echo "base_osm_mask_grow_m=$base_grow"
+          echo "head_osm_mask_grow_m=$head_grow"
+
+          mode_for() {
+            python3 - "$1" <<'PY'
+          import sys
+          value = float(sys.argv[1])
+          print("visible" if value == 0.0 else "hidden")
+          PY
+          }
+          base_mode="$(mode_for "$base_grow")"
+          head_mode="$(mode_for "$head_grow")"
+
+          if [ "$base_grow" = "$head_grow" ]; then
+            transition="invariant"
+          elif python3 - "$base_grow" "$head_grow" <<'PY'
+          import sys
+          b, h = map(float, sys.argv[1:])
+          raise SystemExit(0 if b > 0.0 and h == 0.0 else 1)
+          PY
+          then
+            transition="halo_to_exact_footprint"
+          else
+            echo "GRAND_PLACE_OSM_MASK_CONTRACT_FAIL: unsupported mask transition base=$base_grow head=$head_grow" >&2
+            exit 1
+          fi
+          echo "mask_transition=$transition base_mode=$base_mode head_mode=$head_mode"
+
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 640x360 --script res://game/tests/grand_place_osm_mask_halo_capture_test.gd -- "$base_mode" /tmp/osm-mask-before.png 2>&1 | tee /tmp/osm-mask-before.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 640x360 --script res://game/tests/grand_place_osm_mask_halo_capture_test.gd -- "$head_mode" /tmp/osm-mask-after.png 2>&1 | tee /tmp/osm-mask-after.log
           grep -q "GRAND_PLACE_OSM_MASK_HALO_CAPTURE_OK: owner=" /tmp/osm-mask-before.log
-          grep -q "expected=hidden" /tmp/osm-mask-before.log
+          grep -q "expected=$base_mode" /tmp/osm-mask-before.log
           grep -q "GRAND_PLACE_OSM_MASK_HALO_CAPTURE_OK: owner=" /tmp/osm-mask-after.log
-          grep -q "expected=visible" /tmp/osm-mask-after.log
+          grep -q "expected=$head_mode" /tmp/osm-mask-after.log
           test -s /tmp/osm-mask-before.png
           test -s /tmp/osm-mask-after.png
-          if cmp -s /tmp/osm-mask-before.png /tmp/osm-mask-after.png; then
-            echo "Targeted OSM-mask BEFORE/AFTER are unexpectedly identical" >&2
-            exit 1
+
+          if [ "$transition" = "invariant" ]; then
+            cmp -s /tmp/osm-mask-before.png /tmp/osm-mask-after.png || {
+              echo "GRAND_PLACE_OSM_MASK_CONTRACT_FAIL: unchanged mask contract produced visual drift" >&2
+              exit 1
+            }
+            echo "GRAND_PLACE_OSM_MASK_INVARIANT_OK: grow_m=$head_grow mode=$head_mode byte_identical=true"
+          else
+            if cmp -s /tmp/osm-mask-before.png /tmp/osm-mask-after.png; then
+              echo "GRAND_PLACE_OSM_MASK_CONTRACT_FAIL: halo-to-exact-footprint transition produced no visual delta" >&2
+              exit 1
+            fi
+            echo "GRAND_PLACE_OSM_MASK_TRANSITION_OK: base_grow_m=$base_grow head_grow_m=$head_grow"
           fi
       - name: Stage owner-review evidence
         if: always()

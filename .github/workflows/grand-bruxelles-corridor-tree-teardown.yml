@@ -17,5 +17,24 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Confirm pull-request base lacks teardown guard
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git show "$BASE_SHA:grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd" > /tmp/corridor-tree-base.gd
+          if grep -Fq 'if parent != null and not _tearing_down:' /tmp/corridor-tree-base.gd; then
+            echo 'Base already contains teardown guard; this lot must be rebuilt/re-scoped.' >&2
+            exit 1
+          fi
+          echo 'RED base confirmed: teardown guard absent.'
       - name: Prove corridor tree teardown ownership contract
-        run: python -m pytest -q grand-bruxelles-game/game/tests/brussels_corridor_tree_teardown_contract_test.py
+        run: |
+          python - <<'PY'
+          import runpy
+          ns = runpy.run_path('grand-bruxelles-game/game/tests/brussels_corridor_tree_teardown_contract_test.py')
+          ns['test_corridor_tree_owned_root_never_detaches_synchronously_during_exit_tree']()
+          print('GREEN: corridor tree teardown contract holds')
+          PY

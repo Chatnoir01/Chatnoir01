@@ -17,6 +17,7 @@ const CANONICAL_GROUND_COLLISION_MASK := 1
 const SAFE_GROUND_COLLISION_MASK := ROAD_SUPPORT_COLLISION_MASK | CANONICAL_GROUND_COLLISION_MASK
 const ROAD_SUPPORT_OWNER_META := "grand_bruxelles_owner"
 const ROAD_SUPPORT_OWNER_ID := "generic_osm_surface_collision_runtime"
+const ROAD_SUPPORT_OSM_IDS_META := "road_support_osm_ids"
 const CANONICAL_GROUND_NAME := "Ground"
 const MAX_GROUND_RAY_HITS := 32
 
@@ -405,15 +406,38 @@ func _road_is_rendered(world: Node, osm_id: int) -> bool:
     return false
 
 
-func _ground_hit_is_authorized(collider: Object, canonical_ground: Node) -> bool:
+func _road_support_contains_osm_id(collider: Node, osm_id: int) -> bool:
+    if osm_id <= 0:
+        return true
+    var raw_ids: Variant = collider.get_meta(ROAD_SUPPORT_OSM_IDS_META, [])
+    if not raw_ids is Array or raw_ids.is_empty():
+        return false
+    var seen: Dictionary = {}
+    var requested_present := false
+    for raw_id: Variant in raw_ids:
+        if typeof(raw_id) != TYPE_INT:
+            return false
+        var candidate_id := int(raw_id)
+        if candidate_id <= 0 or seen.has(candidate_id):
+            return false
+        seen[candidate_id] = true
+        if candidate_id == osm_id:
+            requested_present = true
+    return requested_present
+
+
+func _ground_hit_is_authorized(collider: Object, canonical_ground: Node, osm_id: int = 0) -> bool:
     if canonical_ground != null and collider == canonical_ground:
         return true
     if collider is Node:
-        return str((collider as Node).get_meta(ROAD_SUPPORT_OWNER_META, "")) == ROAD_SUPPORT_OWNER_ID
+        var node := collider as Node
+        if str(node.get_meta(ROAD_SUPPORT_OWNER_META, "")) != ROAD_SUPPORT_OWNER_ID:
+            return false
+        return _road_support_contains_osm_id(node, osm_id)
     return false
 
 
-func _ground_y(body: CharacterBody3D, xz: Vector2) -> float:
+func _ground_y(body: CharacterBody3D, xz: Vector2, osm_id: int = 0) -> float:
     var world_3d := body.get_world_3d()
     if world_3d == null:
         return INF
@@ -434,7 +458,7 @@ func _ground_y(body: CharacterBody3D, xz: Vector2) -> float:
             return INF
         var collider: Variant = hit.get("collider")
         var position: Variant = hit.get("position")
-        if collider is Object and _ground_hit_is_authorized(collider as Object, canonical_ground):
+        if collider is Object and _ground_hit_is_authorized(collider as Object, canonical_ground, osm_id):
             return float((position as Vector3).y) if position is Vector3 else INF
         var hit_rid: Variant = hit.get("rid")
         if not hit_rid is RID or not (hit_rid as RID).is_valid():
@@ -485,7 +509,7 @@ func apply_to_player(player: Node, osm_id: int) -> bool:
         return false
     var spawn_xz: Vector2 = viewpoint["spawn"]
     var target_xz: Vector2 = viewpoint["target"]
-    var ground_y := _ground_y(body, spawn_xz)
+    var ground_y := _ground_y(body, spawn_xz, osm_id)
     if not is_finite(ground_y):
         return false
     body.global_position = Vector3(spawn_xz.x, ground_y + PLAYER_BODY_CLEARANCE_M, spawn_xz.y)

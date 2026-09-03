@@ -110,15 +110,20 @@ func _target() -> Node3D:
     var tree := get_tree()
     var scene := tree.current_scene
     if scene != null:
+        if scene.is_queued_for_deletion():
+            return null
         var canonical_player := scene.get_node_or_null("Player") as Node3D
-        if canonical_player != null:
+        if canonical_player != null and not canonical_player.is_queued_for_deletion():
             return canonical_player
         for node: Node in tree.get_nodes_in_group("player"):
             var candidate := node as Node3D
-            if candidate != null and scene.is_ancestor_of(candidate):
+            if candidate != null and not candidate.is_queued_for_deletion() and scene.is_ancestor_of(candidate):
                 return candidate
         return null
-    return tree.get_first_node_in_group("player") as Node3D
+    var fallback := tree.get_first_node_in_group("player") as Node3D
+    if fallback != null and fallback.is_queued_for_deletion():
+        return null
+    return fallback
 
 func _set_batches_visible(enabled: bool) -> void:
     for child: Node in get_children():

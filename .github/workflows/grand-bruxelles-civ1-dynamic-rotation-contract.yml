@@ -1,0 +1,33 @@
+name: Grand Bruxelles CIV-1 Dynamic Rotation Contract
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/assess_civ1_dynamic_rotation_contract.py'
+      - 'grand-bruxelles-game/tests/test_civ1_dynamic_rotation_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-dynamic-rotation-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
+      - name: Run dynamic rotation contract regressions
+        run: python -m pytest -q grand-bruxelles-game/tests/test_civ1_dynamic_rotation_contract.py
+      - name: Preserve no-promotion rails
+        run: |
+          grep -F 'runtime_authorized": False' grand-bruxelles-game/tools/assess_civ1_dynamic_rotation_contract.py
+          grep -F 'visual_approval_claimed": False' grand-bruxelles-game/tools/assess_civ1_dynamic_rotation_contract.py
+          grep -F 'EXPECTED_CENTER_SAMPLE = 59' grand-bruxelles-game/tools/assess_civ1_dynamic_rotation_contract.py
+          grep -F 'EXPECTED_CYCLE_SAMPLE_COUNT = 120' grand-bruxelles-game/tools/assess_civ1_dynamic_rotation_contract.py

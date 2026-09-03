@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/data/runtime/modules/grand_place_complete_contour.json"
       - "grand-bruxelles-game/data/qa/grand_place_complete_contour_witness_contract.json"
       - "grand-bruxelles-game/game/tests/grand_place_complete_contour_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_complete_contour_source_point_validation_test.gd"
       - "grand-bruxelles-game/game/tests/grand_place_complete_contour_capture_test.gd"
       - "grand-bruxelles-game/game/tests/grand_place_complete_contour_ab_compare_test.gd"
       - "grand-bruxelles-game/data/urbis/grand_place_lod2/**"
@@ -37,6 +38,13 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-contour-v2-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-contour-v2-import.log; then exit 1; fi
+      - name: Validate strict UrbIS source-point boundary
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_complete_contour_source_point_validation_test.gd 2>&1 | tee /tmp/grand-place-source-point-validation.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_SOURCE_POINT_VALIDATION_FAIL" /tmp/grand-place-source-point-validation.log; then exit 1; fi
+          grep -F "GRAND_PLACE_SOURCE_POINT_VALIDATION_OK" /tmp/grand-place-source-point-validation.log
       - name: Validate exact 23-owner triangle and collision accounting
         shell: bash
         run: |
@@ -59,26 +67,26 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: head
-      - name: Classify exact mask-only correction
+          fetch-depth: 0
+      - name: Classify visual expectation
         shell: bash
         run: |
           set -euo pipefail
+          classification=visual_change
           mask_only=true
           protected=(
             "grand-bruxelles-game/data/runtime/modules/grand_place_complete_contour.json"
             "grand-bruxelles-game/data/qa/grand_place_complete_contour_witness_contract.json"
-            "grand-bruxelles-game/game/tests/grand_place_complete_contour_runtime_test.gd"
             "grand-bruxelles-game/game/tests/grand_place_complete_contour_capture_test.gd"
             "grand-bruxelles-game/game/tests/grand_place_complete_contour_ab_compare_test.gd"
             "grand-bruxelles-game/data/urbis/grand_place_lod2"
           )
           for rel in "${protected[@]}"; do
             if ! diff -qr "base/$rel" "head/$rel" >/dev/null; then
-              echo "GRAND_PLACE_CONTOUR_MASK_ONLY_REJECT protected_input_changed=$rel"
               mask_only=false
             fi
           done
-          if ! python3 - <<'PY'
+          if $mask_only && python3 - <<'PY'
           from pathlib import Path
           rel = Path('grand-bruxelles-game/game/scripts/grand_place_complete_contour_runtime.gd')
           before = (Path('base') / rel).read_text(encoding='utf-8')
@@ -87,18 +95,67 @@ jobs:
           new = 'const OSM_MASK_GROW_M := 0.0'
           if before.count(old) != 1 or after.count(new) != 1:
               raise SystemExit(1)
-          # EOF newline presence is formatting-only. Ignore only that byte-level drift;
-          # every other character must still match after the one approved semantic edit.
           expected = before.replace(old, new, 1)
           if expected.rstrip('\n') != after.rstrip('\n'):
               raise SystemExit(1)
-          print('GRAND_PLACE_CONTOUR_MASK_ONLY_RUNTIME_DIFF_OK old=3.0 new=0.0 eof_newline_ignored=true')
           PY
           then
-            mask_only=false
+            classification=mask_only
           fi
-          printf '%s\n' "$mask_only" > /tmp/grand-place-mask-only
-          echo "GRAND_PLACE_CONTOUR_CHANGE_CLASS mask_only=$mask_only protected_inputs=${#protected[@]}"
+
+          if [ "$classification" = visual_change ]; then
+            source_boundary_only=true
+            allowed=(
+              ".github/workflows/grand-bruxelles-grand-place-complete-contour-v2.yml"
+              "grand-bruxelles-game/game/scripts/grand_place_complete_contour_runtime.gd"
+              "grand-bruxelles-game/game/tests/grand_place_complete_contour_runtime_test.gd"
+              "grand-bruxelles-game/game/tests/grand_place_complete_contour_source_point_validation_test.gd"
+            )
+            while IFS= read -r changed; do
+              matched=false
+              for rel in "${allowed[@]}"; do
+                if [ "$changed" = "$rel" ]; then matched=true; break; fi
+              done
+              if ! $matched; then
+                echo "GRAND_PLACE_SOURCE_BOUNDARY_REJECT unexpected_path=$changed"
+                source_boundary_only=false
+              fi
+            done < <(git -C head diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")
+
+            if $source_boundary_only && python3 - <<'PY'
+          import subprocess
+          path = 'grand-bruxelles-game/game/scripts/grand_place_complete_contour_runtime.gd'
+          patch = subprocess.check_output([
+              'git', '-C', 'head', 'diff', '--unified=0',
+              '${{ github.event.pull_request.base.sha }}', '${{ github.event.pull_request.head.sha }}', '--', path
+          ], text=True)
+          added = [line[1:] for line in patch.splitlines() if line.startswith('+') and not line.startswith('+++')]
+          removed = [line[1:] for line in patch.splitlines() if line.startswith('-') and not line.startswith('---')]
+          required_added = [
+              'func _source_point_is_valid(raw: Variant) -> bool:',
+              '        if component_type != TYPE_INT and component_type != TYPE_FLOAT:',
+              '    return point.is_finite()',
+              '                if not _source_point_is_valid(raw_point):',
+              '    if not _source_point_is_valid(raw):',
+          ]
+          for needle in required_added:
+              if not any(needle in line for line in added):
+                  raise SystemExit(f'missing source-boundary addition: {needle}')
+          if removed != ['    if typeof(raw) != TYPE_ARRAY or raw.size() != 3:']:
+              raise SystemExit(f'unexpected runtime removals: {removed!r}')
+          forbidden = ('OSM_MASK_GROW_M', 'Camera3D', 'fov', 'position', 'transform', 'collision', 'material', 'create_trimesh')
+          semantic_added = '\n'.join(added)
+          if any(token in semantic_added for token in forbidden):
+              raise SystemExit('source-boundary diff touched visual/geometry/collision semantics')
+          print('GRAND_PLACE_SOURCE_BOUNDARY_DIFF_OK')
+          PY
+            then
+              classification=source_boundary_no_drift
+            fi
+          fi
+
+          printf '%s\n' "$classification" > /tmp/grand-place-change-class
+          echo "GRAND_PLACE_CONTOUR_CHANGE_CLASS classification=$classification"
       - name: Install software renderer dependencies
         run: |
           sudo apt-get update
@@ -136,17 +193,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          classification="$(cat /tmp/grand-place-mask-only)"
+          classification="$(cat /tmp/grand-place-change-class)"
           case "$classification" in
-            true)
+            mask_only|source_boundary_no_drift)
               if ! cmp -s /tmp/grand-place-contour-before.png /tmp/grand-place-contour-after.png; then
-                echo "GRAND_PLACE_MASK_ONLY_CANONICAL_DRIFT: exact mask-only correction changed frozen canonical player frame" >&2
+                echo "GRAND_PLACE_NO_DRIFT_CONTRACT_FAIL: $classification changed frozen canonical player frame" >&2
                 exit 1
               fi
               sha256sum /tmp/grand-place-contour-before.png /tmp/grand-place-contour-after.png | tee /tmp/grand-place-contour-ab.log
-              echo "GRAND_PLACE_MASK_ONLY_CANONICAL_NO_REGRESSION_OK: frozen thresholds unchanged; targeted halo A/B remains authoritative for mask visibility" | tee -a /tmp/grand-place-contour-ab.log
+              echo "GRAND_PLACE_NO_DRIFT_CONTRACT_OK: classification=$classification frozen_thresholds_unchanged=true" | tee -a /tmp/grand-place-contour-ab.log
               ;;
-            false)
+            visual_change)
               set -o pipefail
               /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --script res://game/tests/grand_place_complete_contour_ab_compare_test.gd -- /tmp/grand-place-contour-before.png /tmp/grand-place-contour-after.png 2>&1 | tee /tmp/grand-place-contour-ab.log || true
               if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_COMPLETE_CONTOUR_AB_FAIL" /tmp/grand-place-contour-ab.log; then exit 1; fi

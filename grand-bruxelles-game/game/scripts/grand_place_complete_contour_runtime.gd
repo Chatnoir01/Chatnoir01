@@ -144,6 +144,16 @@ func _build_for_scene(scene: Node) -> void:
     set_meta("realism_complete", false)
     print("GRAND_PLACE_COMPLETE_CONTOUR_READY: owners=%d source_faces=%d source_triangles=%d wall_roof_source=%d render_triangles=%d degenerate_wall_roof=%d collisions=%d masked_osm=%d neutral=true" % [loaded_owner_ids.size(), source_face_count, source_triangle_count, wall_roof_source_triangle_count, render_triangle_count, degenerate_render_triangle_count, collision_body_count, masked_osm_count])
 
+func _source_point_is_valid(raw: Variant) -> bool:
+    if typeof(raw) != TYPE_ARRAY or raw.size() != 3:
+        return false
+    for raw_component: Variant in raw:
+        var component_type := typeof(raw_component)
+        if component_type != TYPE_INT and component_type != TYPE_FLOAT:
+            return false
+    var point := Vector3(float(raw[0]), float(raw[1]), float(raw[2]))
+    return point.is_finite()
+
 func _read_owner(owner_id: String) -> Dictionary:
     var path := SOURCE_DIR.path_join("%s.game.json" % owner_id)
     if not FileAccess.file_exists(path):
@@ -181,6 +191,10 @@ func _read_owner(owner_id: String) -> Dictionary:
             if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
                 push_error("Grand-Place contour malformed triangle: %s" % owner_id)
                 return {}
+            for raw_point: Variant in raw_triangle:
+                if not _source_point_is_valid(raw_point):
+                    push_error("Grand-Place contour non-canonical source point: %s" % owner_id)
+                    return {}
             counted_triangles += 1
     if counted_triangles != int(evidence.get("triangle_count", 0)):
         push_error("Grand-Place contour triangle count mismatch: %s" % owner_id)
@@ -198,7 +212,7 @@ func _create_neutral_materials() -> void:
     _roof_material.cull_mode = BaseMaterial3D.CULL_BACK
 
 func _point(raw: Variant) -> Vector3:
-    if typeof(raw) != TYPE_ARRAY or raw.size() != 3:
+    if not _source_point_is_valid(raw):
         return Vector3.INF
     return Vector3(float(raw[0]), float(raw[1]), float(raw[2]))
 

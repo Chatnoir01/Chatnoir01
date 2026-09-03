@@ -164,6 +164,25 @@ func _run() -> void:
     if runtime == null:
         _fail("runtime registry did not mount GrandPlaceCompleteContourRuntime")
         return
+
+    var canonical_point: Vector3 = runtime.call("_point", [281.3858, 0.0, -472.4659])
+    if not canonical_point.is_finite() or not canonical_point.is_equal_approx(Vector3(281.3858, 0.0, -472.4659)):
+        _fail("runtime changed canonical numeric source point")
+        return
+    for rejected_point: Variant in [
+        ["281.3858", 0.0, -472.4659],
+        [true, 0.0, -472.4659],
+        [NAN, 0.0, -472.4659],
+        [INF, 0.0, -472.4659],
+        [281.3858, -INF, -472.4659],
+        [281.3858, 0.0],
+        {"x": 281.3858, "y": 0.0, "z": -472.4659}
+    ]:
+        var rejected: Vector3 = runtime.call("_point", rejected_point)
+        if rejected.is_finite():
+            _fail("runtime coerced non-canonical source point: %s -> %s" % [rejected_point, rejected])
+            return
+
     if runtime.has_method("bind_scene"):
         runtime.call("bind_scene", scene)
     for _frame: int in range(60):

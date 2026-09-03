@@ -16,13 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
       - name: Require exact-current-main ancestry
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git fetch --no-tags --depth=1 origin "$BASE_SHA"
-          test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
+          test "$(git merge-base "$HEAD_SHA" "$BASE_SHA")" = "$BASE_SHA"
       - name: Run dynamic rotation contract regressions
         run: python -m pytest -q grand-bruxelles-game/tests/test_civ1_dynamic_rotation_contract.py
       - name: Preserve no-promotion rails

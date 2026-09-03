@@ -1,0 +1,21 @@
+name: Grand Bruxelles Corridor Tree Teardown
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_corridor_tree_teardown_contract_test.py"
+      - ".github/workflows/grand-bruxelles-corridor-tree-teardown.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  teardown-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove corridor tree teardown ownership contract
+        run: python -m pytest -q grand-bruxelles-game/game/tests/brussels_corridor_tree_teardown_contract_test.py

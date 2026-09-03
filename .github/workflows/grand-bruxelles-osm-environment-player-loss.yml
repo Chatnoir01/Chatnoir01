@@ -1,0 +1,36 @@
+name: Grand Bruxelles OSM Environment Player Loss
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-environment-player-loss.yml"
+      - "grand-bruxelles-game/data/osm/zones/jette/environment.game.json"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_environment_player_loss_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  player-loss-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-environment-player-loss-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-environment-player-loss-import.log; then exit 1; fi
+      - name: Prove generic OSM environment Player-loss contract
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_environment_player_loss_test.gd 2>&1 | tee /tmp/osm-environment-player-loss.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_ENVIRONMENT_PLAYER_LOSS_FAIL" /tmp/osm-environment-player-loss.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_ENVIRONMENT_PLAYER_LOSS_OK" /tmp/osm-environment-player-loss.log

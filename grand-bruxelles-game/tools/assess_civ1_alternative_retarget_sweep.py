@@ -5,6 +5,7 @@ from pathlib import Path
 
 KNOWN_BASELINE_PHASE = 27
 EXPECTED_SAMPLES = 5
+BASELINE_MATCH_TOLERANCE_M = 1e-12
 
 
 def _finite_non_negative(value, label):
@@ -29,6 +30,15 @@ def _foot(candidate, foot):
     return {"baseline": baseline, "candidate": measured, "vertical": vertical, "ratio": ratio}
 
 
+def _require_shared_baseline(reference, current, cid):
+    if reference is None:
+        return {foot: current[foot]["baseline"] for foot in ("LeftFoot", "RightFoot")}
+    for foot in ("LeftFoot", "RightFoot"):
+        if abs(current[foot]["baseline"] - reference[foot]) > BASELINE_MATCH_TOLERANCE_M:
+            raise ValueError(f"{cid}: {foot} baseline drift differs across candidates")
+    return reference
+
+
 def assess(payload):
     if payload.get("schema") != "grand-bruxelles-civ1-alternative-retarget-sweep-v1":
         raise ValueError("unexpected schema")
@@ -41,8 +51,10 @@ def assess(payload):
     candidates = payload.get("candidates")
     if not isinstance(candidates, list) or len(candidates) < 2:
         raise ValueError("at least two alternative candidates are required")
-    seen = set(); evaluated = []
+    seen = set(); evaluated = []; shared_baseline = None
     for candidate in candidates:
+        if not isinstance(candidate, dict):
+            raise ValueError("each candidate must be an object")
         cid = candidate.get("candidate_id")
         if not isinstance(cid, str) or not cid.strip() or cid in seen:
             raise ValueError("candidate_id must be unique and non-empty")
@@ -56,6 +68,7 @@ def assess(payload):
             raise ValueError(f"{cid}: candidate phase delta must be integer")
         length_error = _finite_non_negative(candidate.get("rightfoot_length_error_m"), f"{cid}.rightfoot_length_error_m")
         left = _foot(candidate, "LeftFoot"); right = _foot(candidate, "RightFoot")
+        shared_baseline = _require_shared_baseline(shared_baseline, {"LeftFoot": left, "RightFoot": right}, cid)
         phase_fixed = abs(normalized) < 12
         length_preserved = length_error <= 1e-6
         no_horizontal_regression = left["candidate"] <= left["baseline"] + 1e-9 and right["candidate"] <= right["baseline"] + 1e-9

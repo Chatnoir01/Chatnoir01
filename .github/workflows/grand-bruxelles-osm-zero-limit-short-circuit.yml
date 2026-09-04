@@ -1,0 +1,35 @@
+name: Grand Bruxelles OSM Zero Limit Short Circuit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-zero-limit-short-circuit.yml"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_zero_limit_short_circuit_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zero-limit-short-circuit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-zero-limit-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-zero-limit-import.log; then exit 1; fi
+      - name: Prove zero-limit short circuit
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_zero_limit_short_circuit_test.gd 2>&1 | tee /tmp/osm-zero-limit.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_ZERO_LIMIT_SHORT_CIRCUIT_FAIL" /tmp/osm-zero-limit.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_ZERO_LIMIT_SHORT_CIRCUIT_OK" /tmp/osm-zero-limit.log

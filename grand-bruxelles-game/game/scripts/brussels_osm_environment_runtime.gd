@@ -240,6 +240,8 @@ func _refresh(force: bool) -> void:
     _rebuild(anchor)
 
 func _nearby(kind: String, anchor: Vector3, limit: int) -> Array:
+    if limit <= 0:
+        return []
     var rows: Array = []
     var radius_sq := render_radius_m * render_radius_m
     for item_variant in _points[kind]:

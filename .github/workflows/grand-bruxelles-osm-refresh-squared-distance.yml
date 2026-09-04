@@ -20,4 +20,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: Prove refresh threshold avoids sqrt
-        run: python -m pytest -q grand-bruxelles-game/game/tests/test_osm_environment_refresh_squared_distance_contract.py
+        run: python grand-bruxelles-game/game/tests/test_osm_environment_refresh_squared_distance_contract.py

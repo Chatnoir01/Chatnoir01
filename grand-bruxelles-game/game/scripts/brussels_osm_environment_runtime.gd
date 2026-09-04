@@ -305,7 +305,7 @@ func _refresh(force: bool) -> void:
         var horizontal_delta := Vector2(anchor.x - _last_anchor.x, anchor.z - _last_anchor.z)
         if horizontal_delta.length_squared() == 0.0:
             return
-        if horizontal_delta.length() < refresh_distance_m:
+        if horizontal_delta.length_squared() < refresh_distance_m * refresh_distance_m:
             if _tree_lod_boundary_crossed(anchor):
                 _refresh_tree_lod(anchor)
             return

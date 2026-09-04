@@ -17,6 +17,7 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INDEX_PATH = PROJECT_ROOT / "data/runtime/road_destination_runtime_index.json"
+RUNTIME_PATH = PROJECT_ROOT / "game/scripts/automatic_road_direct_spawn.gd"
 EXPECTED_INDEX_FORMAT = "grand-bruxelles-road-runtime-index-v1"
 
 
@@ -59,6 +60,23 @@ def _load_json(path: Path) -> Any:
         return json.load(handle)
 
 
+def _assert_runtime_parser_strict() -> None:
+    runtime = RUNTIME_PATH.read_text(encoding="utf-8")
+    start = runtime.find("func _source_building_polygons(document: Dictionary)")
+    end = runtime.find("\n\nfunc ", start + 1)
+    if start < 0 or end < 0:
+        raise AssertionError("runtime building parser function could not be isolated")
+    body = runtime[start:end]
+    if "_exact_source_point_2d(pair)" not in body:
+        raise AssertionError("runtime building parser does not reuse exact source-point boundary")
+    if "return Array[PackedVector2Array]()" not in body and "return []" not in body:
+        raise AssertionError("runtime building parser must fail the whole document closed on malformed geometry")
+    if "float(pair[0])" in body or "float(pair[1])" in body:
+        raise AssertionError("runtime building parser still coerces source coordinates")
+    if "pair.size() >= 2" in body:
+        raise AssertionError("runtime building parser still accepts over/underspecified point shapes")
+
+
 def _assert_mutation_regressions(sample_document: dict[str, Any]) -> None:
     buildings = sample_document.get("buildings")
     if not isinstance(buildings, list) or not buildings:
@@ -86,6 +104,8 @@ def _assert_mutation_regressions(sample_document: dict[str, Any]) -> None:
 
 
 def main() -> None:
+    _assert_runtime_parser_strict()
+
     index = _load_json(INDEX_PATH)
     if not isinstance(index, dict) or index.get("format") != EXPECTED_INDEX_FORMAT:
         raise AssertionError("automatic-road runtime index format drifted")
@@ -147,7 +167,7 @@ def main() -> None:
 
     print(
         "AUTOMATIC_ROAD_BUILDING_SOURCE_BOUNDARY_OK: "
-        f"documents={checked} exact_points=true hash_pinned=true mutation_regression=true"
+        f"documents={checked} exact_points=true hash_pinned=true runtime_parser_strict=true mutation_regression=true"
     )
 
 

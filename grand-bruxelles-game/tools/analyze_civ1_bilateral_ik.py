@@ -31,10 +31,13 @@ def quat_from_to(a,b):
     c=cross(a,b); s=math.sqrt((1.0+d)*2.0); q=[c[0]/s,c[1]/s,c[2]/s,s*0.5]
     qn=math.sqrt(sum(x*x for x in q)); return [x/qn for x in q]
 def qangle(q): return 2.0*math.acos(clamp(abs(q[3]),-1.0,1.0))
+def two_bone_reachable(hip,knee,foot,goal,tol=1e-7):
+    l1=dist(hip,knee); l2=dist(knee,foot); d=dist(hip,goal)
+    return l1>=EPS and l2>=EPS and d>=EPS and d<=l1+l2+tol and d>=abs(l1-l2)-tol
 
 def solve_two_bone(hip,knee,foot,goal):
     l1=dist(hip,knee); l2=dist(knee,foot); d=dist(hip,goal)
-    if l1<EPS or l2<EPS or d<EPS or d>l1+l2+1e-7 or d<abs(l1-l2)-1e-7: raise ValueError('unreachable two-bone target')
+    if not two_bone_reachable(hip,knee,foot,goal): raise ValueError('unreachable two-bone target')
     axis=unit(sub(goal,hip)); a=(l1*l1-l2*l2+d*d)/(2.0*d); h=math.sqrt(max(0.0,l1*l1-a*a)); center=add(hip,mul(axis,a))
     rel=sub(knee,center); bend=sub(rel,mul(axis,dot(rel,axis)))
     if norm(bend)<EPS:
@@ -62,10 +65,10 @@ def allowed_dys(samples,seq,cap_mm):
     rows=[]
     for i,s in enumerate(samples[:CYCLE]):
         hips=origin(s,'Hips'); rf=origin(s,'RightFoot'); lf=origin(s,'LeftFoot'); rh=origin(s,'RightUpperLeg'); rk=origin(s,'RightLowerLeg'); lh=origin(s,'LeftUpperLeg'); lk=origin(s,'LeftLowerLeg')
-        rr=dist(rh,rk)+dist(rk,rf); lr=dist(lh,lk)+dist(lk,lf); goal=[rf[0],hips[1]+seq[i][1],rf[2]]; ok=[]
+        goal=[rf[0],hips[1]+seq[i][1],rf[2]]; ok=[]
         for mm in range(-cap_mm,cap_mm+1):
-            dy=mm/1000.0
-            if dist([rh[0],rh[1]+dy,rh[2]],goal)<=rr+1e-6 and dist([lh[0],lh[1]+dy,lh[2]],lf)<=lr+1e-6: ok.append(mm)
+            dy=mm/1000.0; rh2=[rh[0],rh[1]+dy,rh[2]]; lh2=[lh[0],lh[1]+dy,lh[2]]
+            if two_bone_reachable(rh2,rk,rf,goal,1e-6) and two_bone_reachable(lh2,lk,lf,lf,1e-6): ok.append(mm)
         rows.append(ok)
     return rows
 def smooth_path(rows,max_step_m):
@@ -114,7 +117,7 @@ def analyze(p):
     max_r_foot=max(x['foot_error_m'] for x in right); max_l_foot=max(x['foot_error_m'] for x in left); max_len=max(max(x['upper_length_error_m'],x['lower_length_error_m']) for x in right+left)
     max_angle=max(max(x['upper_angle_rad'],x['lower_angle_rad']) for x in right+left); max_knee=max(dist(right[i]['knee'],origin(samples[i],'RightLowerLeg')) for i in range(CYCLE)); max_left_knee=max(dist(left[i]['knee'],origin(samples[i],'LeftLowerLeg')) for i in range(CYCLE))
     pass_all=abs(phase)<=MATERIAL and abs(phase)<abs(baseline_phase) and vertical<=baseline_v+1e-9 and horizontal<=baseline_h+1e-12 and max_r_foot<=1e-9 and max_l_foot<=1e-9 and max_len<=1e-7
-    return {'schema':'grand-bruxelles-civ1-bilateral-ik-v2','diagnostic_only':True,'runtime_authorized':False,'visual_approval_claimed':False,'grounding_verified':False,'candidate':{'vertical_shift_samples':SHIFT,'pelvis_cap_mm':cap,'required_cap_margin_mm':MIN_MARGIN_MM},'cap_evidence':cap_evidence,'baseline_phase_delta_samples':baseline_phase,'phase_delta_samples':phase,'baseline_vertical_range_m':baseline_v,'vertical_range_m':vertical,'baseline_horizontal_travel_m':baseline_h,'horizontal_travel_m':horizontal,'max_right_foot_target_error_m':max_r_foot,'max_left_foot_target_error_m':max_l_foot,'max_bone_length_error_m':max_len,'max_joint_delta_rad':max_angle,'max_right_knee_displacement_m':max_knee,'max_left_knee_displacement_m':max_left_knee,'max_abs_pelvis_delta_m':max(abs(x) for x in path),'max_pelvis_step_m':max(abs(path[i]-path[i-1]) for i in range(1,CYCLE)),'joint_solution_pass':pass_all,'verdict':'AMELIORER_BILATERAL_IK' if pass_all else 'JETER_BILATERAL_IK'}
+    return {'schema':'grand-bruxelles-civ1-bilateral-ik-v3','diagnostic_only':True,'runtime_authorized':False,'visual_approval_claimed':False,'grounding_verified':False,'candidate':{'vertical_shift_samples':SHIFT,'pelvis_cap_mm':cap,'required_cap_margin_mm':MIN_MARGIN_MM},'cap_evidence':cap_evidence,'baseline_phase_delta_samples':baseline_phase,'phase_delta_samples':phase,'baseline_vertical_range_m':baseline_v,'vertical_range_m':vertical,'baseline_horizontal_travel_m':baseline_h,'horizontal_travel_m':horizontal,'max_right_foot_target_error_m':max_r_foot,'max_left_foot_target_error_m':max_l_foot,'max_bone_length_error_m':max_len,'max_joint_delta_rad':max_angle,'max_right_knee_displacement_m':max_knee,'max_left_knee_displacement_m':max_left_knee,'max_abs_pelvis_delta_m':max(abs(x) for x in path),'max_pelvis_step_m':max(abs(path[i]-path[i-1]) for i in range(1,CYCLE)),'joint_solution_pass':pass_all,'verdict':'AMELIORER_BILATERAL_IK' if pass_all else 'JETER_BILATERAL_IK'}
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('native_json'); ap.add_argument('output_json'); a=ap.parse_args(); r=analyze(json.loads(Path(a.native_json).read_text())); Path(a.output_json).write_text(json.dumps(r,indent=2,sort_keys=True)+'\n'); print('CIV1_BILATERAL_IK_OK '+f"cap={r['candidate']['pelvis_cap_mm']} phase={r['baseline_phase_delta_samples']}->{r['phase_delta_samples']} vertical={r['baseline_vertical_range_m']:.9f}->{r['vertical_range_m']:.9f} horizontal={r['baseline_horizontal_travel_m']:.9f}->{r['horizontal_travel_m']:.9f} max_joint_rad={r['max_joint_delta_rad']:.6f} verdict={r['verdict']}")
 if __name__=='__main__': main()

@@ -202,6 +202,11 @@ func _target() -> Node3D:
     if scene != null:
         if scene.is_queued_for_deletion():
             return null
+        # Zone-scoped renderers must be owned by the authoritative current scene.
+        # During scene replacement an old scene can remain alive until deferred
+        # teardown; never let that stale renderer borrow the new scene's Player.
+        if self != scene and not scene.is_ancestor_of(self):
+            return null
         var canonical_player := scene.get_node_or_null("Player") as Node3D
         if canonical_player != null and not canonical_player.is_queued_for_deletion():
             return canonical_player

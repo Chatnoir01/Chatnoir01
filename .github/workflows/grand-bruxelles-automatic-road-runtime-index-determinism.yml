@@ -1,0 +1,29 @@
+name: Grand Bruxelles Automatic Road Runtime-Index Determinism
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/osm/**"
+      - "grand-bruxelles-game/game/tests/automatic_road_runtime_index_determinism_contract_test.py"
+      - ".github/workflows/grand-bruxelles-automatic-road-runtime-index-determinism.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-runtime-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prove deterministic source-bound road runtime index
+        run: python grand-bruxelles-game/game/tests/automatic_road_runtime_index_determinism_contract_test.py

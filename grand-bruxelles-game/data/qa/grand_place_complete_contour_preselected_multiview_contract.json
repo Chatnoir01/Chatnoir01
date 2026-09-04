@@ -1,0 +1,44 @@
+{
+  "schema": "grand-bruxelles-grand-place-preselected-multiview-v1",
+  "status": "independent_post_selection_capture",
+  "selection_provenance": {
+    "source_head": "125b980f200c87f8ad3e30199f4390a979873666",
+    "workflow_run_id": 33834994119,
+    "artifact_id": 9922999722,
+    "artifact_digest_sha256": "c86c314a02933c090c5d0205546a21e1cad680b75d21c9eda4f39806efe64abc",
+    "selection_stage": "before_png_capture",
+    "metric": "physics_center_ray_clearance_ratio",
+    "tie_break": "lowest_yaw_degrees"
+  },
+  "camera_seed": {
+    "position": [319.01, 1.72, -535.20],
+    "target": [321.91, 11.8, -485.66],
+    "fov_degrees": 62.0,
+    "resolution": [1280, 720]
+  },
+  "views": [
+    {"id": "q0_selected", "quadrant": "q0", "yaw_degrees_from_seed": 0, "selected_clearance_ratio": 1.0},
+    {"id": "q1_selected", "quadrant": "q1", "yaw_degrees_from_seed": 135, "selected_clearance_ratio": 0.38012512557908},
+    {"id": "q2_selected", "quadrant": "q2", "yaw_degrees_from_seed": 225, "selected_clearance_ratio": 0.76488839055681},
+    {"id": "q3_selected", "quadrant": "q3", "yaw_degrees_from_seed": 270, "selected_clearance_ratio": 1.0}
+  ],
+  "capture_rules": {
+    "selection_is_pinned_before_capture": true,
+    "derive_views_only_by_exact_yaw_rotation_about_seed_target": true,
+    "preserve_seed_radius_height_target_and_fov": true,
+    "post_capture_reselection_allowed": false,
+    "rejected_legacy_multiview_may_not_change_selected_yaws": true,
+    "owner_full_frame_review_required": true
+  },
+  "hard_rules": {
+    "source_geometry_modified": false,
+    "collision_modified": false,
+    "runtime_modified": false,
+    "production_camera_modified": false,
+    "camera_rescue_allowed": false,
+    "threshold_rescue_allowed": false,
+    "destination_advertisable": false,
+    "visual_acceptance": false,
+    "jouable_authorized": false
+  }
+}

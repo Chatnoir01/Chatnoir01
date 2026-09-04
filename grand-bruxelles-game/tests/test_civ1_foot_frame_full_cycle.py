@@ -17,7 +17,7 @@ def payload():
   out.append({'sample_index':i,'bones':bones})
  return {'rotation_enabled':True,'position_enabled':False,'scale_enabled':False,'model_space_samples':out}
 def test_full_cycle_contract_is_fail_closed_and_length_preserving():
- r=m.analyze(payload());assert r['diagnostic_only'] and not r['runtime_authorized'] and not r['visual_approval_claimed'] and not r['grounding_verified'];assert len(r['support_samples'])==5;assert r['candidate_length_m']==pytest.approx(r['target_length_m'],abs=1e-10);assert isinstance(r['full_cycle_gate_pass'],bool)
+ r=m.analyze(payload());assert r['diagnostic_only'] and not r['runtime_authorized'] and not r['visual_approval_claimed'] and not r['grounding_verified'];assert len(r['support_samples'])==5;assert r['candidate_length_m']==pytest.approx(r['target_length_m'],abs=1e-10);assert isinstance(r['full_cycle_gate_pass'],bool);assert r['blend_sweep']['alpha_step']==pytest.approx(0.01);assert isinstance(r['blend_sweep']['simple_blend_family_viable'],bool);assert math.isfinite(r['horizontal_regression_pct'])
 def test_requires_exact_121_samples():
  p=payload();p['model_space_samples'].pop()
  with pytest.raises(ValueError,match='121'):m.analyze(p)

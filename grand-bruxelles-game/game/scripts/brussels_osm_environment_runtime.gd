@@ -6,6 +6,8 @@ class_name BrusselsOsmEnvironmentRuntime
 ## presentation dimensions; none of those dimensions are source measurements.
 
 const SOURCE_FORMAT := "grand-bruxelles-osm-zone-environment-v1"
+const REQUIRED_SOURCE := "OpenStreetMap contributors via Overpass API"
+const REQUIRED_LICENSE := "ODbL-1.0"
 const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
 const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
@@ -73,12 +75,20 @@ func _load_points() -> bool:
     if str(document.get("format", "")) != SOURCE_FORMAT:
         push_error("OSM environment artifact format mismatch")
         return false
+    var source := str(document.get("source", ""))
+    if source != REQUIRED_SOURCE:
+        push_error("OSM environment artifact source mismatch")
+        return false
+    var license := str(document.get("license", ""))
+    if license != REQUIRED_LICENSE:
+        push_error("OSM environment artifact license mismatch")
+        return false
     var validated_points: Variant = _collect_validated_points(document)
     if validated_points == null:
         return false
     _points = validated_points
-    set_meta("source", str(document.get("source", "")))
-    set_meta("license", str(document.get("license", "")))
+    set_meta("source", source)
+    set_meta("license", license)
     set_meta("source_dimensions_measured", false)
     return true
 

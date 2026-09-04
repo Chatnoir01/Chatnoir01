@@ -53,6 +53,41 @@ func _run() -> void:
     live_player.position = JETTE_SPAWN
     live_world.add_child(live_player)
 
+    # The runtime itself owns the final provenance trust boundary. A structurally
+    # valid artifact with valid points but spoofed source/license must never render.
+    var spoofed_path := "user://brussels_osm_spoofed_provenance.json"
+    var spoofed_file := FileAccess.open(spoofed_path, FileAccess.WRITE)
+    if spoofed_file == null:
+        _fail("could not create spoofed provenance regression artifact")
+        return
+    spoofed_file.store_string(JSON.stringify({
+        "format": "grand-bruxelles-osm-zone-environment-v1",
+        "source": "untrusted replacement",
+        "license": "UNKNOWN",
+        "environment_points": [
+            {"kind": "tree", "osm_id": 1, "position": [JETTE_SPAWN.x, JETTE_SPAWN.z]},
+        ],
+    }))
+    spoofed_file.close()
+    var spoofed_runtime := RUNTIME_SCRIPT.new() as Node3D
+    spoofed_runtime.name = "BrusselsOsmEnvironmentSpoofedProvenanceProbe"
+    spoofed_runtime.set("data_path", spoofed_path)
+    live_world.add_child(spoofed_runtime)
+    for _frame: int in range(4):
+        await process_frame
+    if spoofed_runtime.is_processing():
+        _fail("spoofed OSM source/license did not disable shared OSM processing")
+        return
+    if spoofed_runtime.get_child_count() != 0:
+        _fail("spoofed OSM source/license materialized render batches")
+        return
+    if spoofed_runtime.has_meta("source") or spoofed_runtime.has_meta("license"):
+        _fail("spoofed OSM source/license was accepted as runtime provenance")
+        return
+    spoofed_runtime.queue_free()
+    await process_frame
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(spoofed_path))
+
     # Exported runtime parameters are operational authority. Invalid values must
     # fail closed before source metadata is accepted or any MultiMesh is built.
     var invalid_runtime := RUNTIME_SCRIPT.new() as Node3D
@@ -189,5 +224,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: config_fail_closed=true current_scene_authoritative=true owned_batch_rebuild=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: provenance_fail_closed=true config_fail_closed=true current_scene_authoritative=true owned_batch_rebuild=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

@@ -16,6 +16,14 @@ def test_unreachable_target_rejected():
     except ValueError as e: assert 'unreachable' in str(e)
     else: raise AssertionError('expected unreachable rejection')
 
+def test_inner_annulus_target_rejected():
+    hip=[0.,0.,0.]; knee=[0.,-2.,0.]; foot=[0.,-3.,0.]
+    goal=[0.,-0.5,0.]
+    assert not m.two_bone_reachable(hip,knee,foot,goal)
+    try:m.solve_two_bone(hip,knee,foot,goal)
+    except ValueError as e: assert 'unreachable' in str(e)
+    else: raise AssertionError('expected inner-annulus rejection')
+
 def test_quaternion_from_to_is_normalized():
     q=m.quat_from_to([1,0,0],[0,1,0])
     assert abs(sum(x*x for x in q)-1.0) < 1e-12
@@ -26,7 +34,6 @@ def test_robust_path_skips_zero_margin_candidate(monkeypatch):
     def allowed(_samples,_seq,cap): return [[0]]*m.CYCLE if cap>=56 else [[]]+[[0]]*(m.CYCLE-1)
     def smooth(rows,_step):
         if not rows[0]: return None
-        cap=56 if rows[0] else 0
         return [0.056]*m.CYCLE
     monkeypatch.setattr(m,'allowed_dys',allowed); monkeypatch.setattr(m,'smooth_path',smooth)
     cap,path,evidence=m.choose_robust_path([],[],0.02)

@@ -30,6 +30,24 @@ def test_correction_continuity_detects_added_spike():
     knee_step,_=m.correction_continuity(sols)
     assert knee_step >= 0.08
 
+def _state(mm, correction=0.0, angle=0.0):
+    leg={'knee':[correction,0.0,0.0],'knee_ref':[0.0,0.0,0.0],'upper_angle_rad':angle,'lower_angle_rad':angle,'upper_length_error_m':0.0,'lower_length_error_m':0.0}
+    return {'mm':mm,'right':dict(leg),'left':dict(leg)}
+
+def test_continuous_cycle_requires_119_to_0_wrap_pass():
+    rows=[{0:_state(0)} for _ in range(m.CYCLE)]
+    rows[-1]={0:_state(0,correction=0.08)}
+    assert m.continuous_cycle(rows,10) is None
+
+def test_continuous_cycle_finds_path_inside_unchanged_rails():
+    rows=[{0:_state(0)} for _ in range(m.CYCLE)]
+    cap,path=m.continuous_cycle(rows,10)
+    assert cap == 0
+    assert path == [0]*m.CYCLE
+
+def test_transition_rejects_joint_step_above_12_degrees():
+    assert not m.transition_ok(_state(0,angle=0.0),_state(0,angle=m.MAX_JOINT_STEP_RAD+0.01),10)
+
 def test_probe_contract_is_rotation_only():
     try:
         m.analyze({'rotation_enabled':False,'position_enabled':False,'scale_enabled':False})

@@ -264,13 +264,13 @@ func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
             return true
     return false
 
-func _clear_tree_batches() -> void:
+func _clear_tree_foliage_batches() -> void:
     for index in range(_owned_batches.size() - 1, -1, -1):
         var batch := _owned_batches[index]
         if not is_instance_valid(batch):
             _owned_batches.remove_at(index)
             continue
-        if not batch.name.begins_with("Tree"):
+        if not batch.name.begins_with("TreeFoliage"):
             continue
         if batch.get_parent() == self:
             remove_child(batch)
@@ -286,8 +286,8 @@ func _refresh_tree_lod(anchor: Vector3) -> void:
         var dx := p.x - anchor.x
         var dz := p.z - anchor.z
         rows.append({"osm_id": source_row["osm_id"], "position": p, "distance_sq": dx * dx + dz * dz})
-    _clear_tree_batches()
-    _build_tree_batches(rows)
+    _clear_tree_foliage_batches()
+    _build_tree_foliage_batches(rows)
     _last_tree_lod_anchor = anchor
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
 
@@ -398,12 +398,11 @@ func _ensure_bollard_presentation_meshes() -> void:
     _presentation_meshes["bollard_body"] = BrusselsBollardAsset.create_body_mesh(materials["body"])
     _presentation_meshes["bollard_cap"] = BrusselsBollardAsset.create_cap_mesh(materials["cap"])
 
-func _build_tree_batches(rows: Array) -> void:
+func _build_tree_foliage_batches(rows: Array) -> void:
     if rows.is_empty():
         last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
         return
     _ensure_tree_presentation_meshes()
-    var trunk: Array = []
     var dark: Array = []
     var light: Array = []
     var near_count := 0
@@ -413,7 +412,6 @@ func _build_tree_batches(rows: Array) -> void:
         var row := row_variant as Dictionary
         var base: Vector3 = row["position"]
         var osm_id := int(row["osm_id"])
-        trunk.append(BrusselsStreetTreeAsset.trunk_transform(base))
         var lobe_indices: Array = []
         if float(row.get("distance_sq", 0.0)) <= full_detail_radius_sq:
             near_count += 1
@@ -427,9 +425,20 @@ func _build_tree_batches(rows: Array) -> void:
             var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
             (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
     last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}
-    _batch("TreeTrunks", _presentation_meshes["tree_trunk"] as Mesh, trunk)
     _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark)
     _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light)
+
+func _build_tree_batches(rows: Array) -> void:
+    if rows.is_empty():
+        last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
+        return
+    _ensure_tree_presentation_meshes()
+    var trunk: Array = []
+    for row_variant in rows:
+        var base: Vector3 = (row_variant as Dictionary)["position"]
+        trunk.append(BrusselsStreetTreeAsset.trunk_transform(base))
+    _batch("TreeTrunks", _presentation_meshes["tree_trunk"] as Mesh, trunk)
+    _build_tree_foliage_batches(rows)
 
 func _build_lamp_batches(rows: Array) -> void:
     if rows.is_empty():

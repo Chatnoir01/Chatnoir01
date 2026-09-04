@@ -1,0 +1,33 @@
+name: Grand Bruxelles Automatic Road Building Source Boundary
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/tests/automatic_road_building_source_boundary_contract_test.py'
+      - '.github/workflows/grand-bruxelles-automatic-road-building-source-boundary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-building-source-boundary:
+    name: Exact building source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fail closed on malformed automatic-road building source geometry
+        run: python grand-bruxelles-game/game/tests/automatic_road_building_source_boundary_contract_test.py

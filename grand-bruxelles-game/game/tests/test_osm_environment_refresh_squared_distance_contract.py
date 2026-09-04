@@ -9,7 +9,10 @@ def verify_refresh_threshold_uses_squared_distance_without_sqrt() -> None:
     end = source.index("\nfunc _nearby", start)
     refresh = source[start:end]
 
-    assert "horizontal_delta.length_squared() < refresh_distance_m * refresh_distance_m" in refresh
+    assert "var horizontal_distance_sq := horizontal_delta.length_squared()" in refresh
+    assert "if horizontal_distance_sq == 0.0:" in refresh
+    assert "if horizontal_distance_sq < refresh_distance_m * refresh_distance_m:" in refresh
+    assert refresh.count("horizontal_delta.length_squared()") == 1
     assert "horizontal_delta.length() < refresh_distance_m" not in refresh
 
 

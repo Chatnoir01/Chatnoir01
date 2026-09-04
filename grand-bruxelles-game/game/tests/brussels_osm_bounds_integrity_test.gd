@@ -91,24 +91,34 @@ func _run() -> void:
         _fail("canonical Jette source artifact no longer loads")
         return
 
-    var valid_path := "user://osm_bounds_integrity_valid.json"
-    if not _write_fixture(valid_path, [0.0, 0.0, 10.0, 10.0], [10.0, 10.0]):
-        _fail("could not write valid bounds fixture")
+    var boundary_path := "user://osm_bounds_integrity_boundary.json"
+    if not _write_fixture(boundary_path, [0.0, 0.0, 10.0, 10.0], [10.0, 10.0]):
+        _fail("could not write boundary fixture")
         return
-    var valid_runtime := RUNTIME_SCRIPT.new() as Node3D
-    valid_runtime.data_path = valid_path
-    if not valid_runtime._load_points():
+    var boundary_runtime := RUNTIME_SCRIPT.new() as Node3D
+    boundary_runtime.data_path = boundary_path
+    if not boundary_runtime._load_points():
         _fail("inclusive boundary point was rejected")
         return
 
+    var quantized_edge_path := "user://osm_bounds_integrity_quantized_edge.json"
+    if not _write_fixture(quantized_edge_path, [0.0, 0.0, 10.0, 10.0], [10.005, 5.0]):
+        _fail("could not write quantized-edge fixture")
+        return
+    var quantized_edge_runtime := RUNTIME_SCRIPT.new() as Node3D
+    quantized_edge_runtime.data_path = quantized_edge_path
+    if not quantized_edge_runtime._load_points():
+        _fail("half-centimeter source quantization edge was rejected")
+        return
+
     var outside_path := "user://osm_bounds_integrity_outside.json"
-    if not _write_fixture(outside_path, [0.0, 0.0, 10.0, 10.0], [10.001, 5.0]):
+    if not _write_fixture(outside_path, [0.0, 0.0, 10.0, 10.0], [10.006, 5.0]):
         _fail("could not write out-of-bounds fixture")
         return
     var outside_runtime := RUNTIME_SCRIPT.new() as Node3D
     outside_runtime.data_path = outside_path
     if outside_runtime._load_points():
-        _fail("source point outside declared bounds_m was accepted")
+        _fail("source point beyond bounds quantization tolerance was accepted")
         return
 
     var malformed_path := "user://osm_bounds_integrity_malformed.json"

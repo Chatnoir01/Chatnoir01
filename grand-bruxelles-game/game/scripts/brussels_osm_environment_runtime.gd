@@ -29,6 +29,8 @@ var last_render_counts := {"tree": 0, "street_lamp": 0, "bollard": 0}
 var last_tree_lod_counts := {"near": 0, "far": 0, "foliage_instances": 0}
 var _points := {"tree": [], "street_lamp": [], "bollard": []}
 var _last_anchor := Vector3(INF, INF, INF)
+var _last_tree_lod_anchor := Vector3(INF, INF, INF)
+var _rendered_trees: Array = []
 var _owned_batches: Array[MultiMeshInstance3D] = []
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
@@ -71,6 +73,8 @@ func _reset_loaded_source_state() -> void:
     _clear_owned_batches()
     _points = {"tree": [], "street_lamp": [], "bollard": []}
     _last_anchor = Vector3(INF, INF, INF)
+    _last_tree_lod_anchor = Vector3(INF, INF, INF)
+    _rendered_trees.clear()
     last_render_counts = {"tree": 0, "street_lamp": 0, "bollard": 0}
     last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
     for key: StringName in [&"source", &"license", &"source_dimensions_measured", &"render_counts", &"tree_lod_counts"]:
@@ -243,6 +247,50 @@ func _set_batches_visible(enabled: bool) -> void:
         if is_instance_valid(batch) and not batch.is_queued_for_deletion():
             batch.visible = enabled
 
+func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
+    if _rendered_trees.is_empty() or _last_tree_lod_anchor == Vector3(INF, INF, INF):
+        return false
+    var detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m
+    for row_variant in _rendered_trees:
+        var row := row_variant as Dictionary
+        var p: Vector3 = row["position"]
+        var old_dx := p.x - _last_tree_lod_anchor.x
+        var old_dz := p.z - _last_tree_lod_anchor.z
+        var new_dx := p.x - anchor.x
+        var new_dz := p.z - anchor.z
+        var was_near := old_dx * old_dx + old_dz * old_dz <= detail_radius_sq
+        var is_near := new_dx * new_dx + new_dz * new_dz <= detail_radius_sq
+        if was_near != is_near:
+            return true
+    return false
+
+func _clear_tree_batches() -> void:
+    for index in range(_owned_batches.size() - 1, -1, -1):
+        var batch := _owned_batches[index]
+        if not is_instance_valid(batch):
+            _owned_batches.remove_at(index)
+            continue
+        if not batch.name.begins_with("Tree"):
+            continue
+        if batch.get_parent() == self:
+            remove_child(batch)
+        if not batch.is_queued_for_deletion():
+            batch.queue_free()
+        _owned_batches.remove_at(index)
+
+func _refresh_tree_lod(anchor: Vector3) -> void:
+    var rows: Array = []
+    for row_variant in _rendered_trees:
+        var source_row := row_variant as Dictionary
+        var p: Vector3 = source_row["position"]
+        var dx := p.x - anchor.x
+        var dz := p.z - anchor.z
+        rows.append({"osm_id": source_row["osm_id"], "position": p, "distance_sq": dx * dx + dz * dz})
+    _clear_tree_batches()
+    _build_tree_batches(rows)
+    _last_tree_lod_anchor = anchor
+    set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
+
 func _refresh(force: bool) -> void:
     var target := _target()
     if target == null:
@@ -258,6 +306,8 @@ func _refresh(force: bool) -> void:
         if horizontal_delta.length_squared() == 0.0:
             return
         if horizontal_delta.length() < refresh_distance_m:
+            if _tree_lod_boundary_crossed(anchor):
+                _refresh_tree_lod(anchor)
             return
     _last_anchor = anchor
     _rebuild(anchor)
@@ -299,6 +349,8 @@ func _rebuild(anchor: Vector3) -> void:
     var trees := _nearby("tree", anchor, max_trees)
     var lamps := _nearby("street_lamp", anchor, max_street_lamps)
     var bollards := _nearby("bollard", anchor, max_bollards)
+    _rendered_trees = trees.duplicate(true)
+    _last_tree_lod_anchor = anchor
     last_render_counts = {"tree": trees.size(), "street_lamp": lamps.size(), "bollard": bollards.size()}
     _build_tree_batches(trees)
     _build_lamp_batches(lamps)

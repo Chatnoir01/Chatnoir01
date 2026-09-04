@@ -1,0 +1,23 @@
+name: Grand Bruxelles OSM Refresh Squared Distance
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/test_osm_environment_refresh_squared_distance_contract.py"
+      - ".github/workflows/grand-bruxelles-osm-refresh-squared-distance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  squared-distance-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prove refresh threshold avoids sqrt
+        run: python -m pytest -q grand-bruxelles-game/game/tests/test_osm_environment_refresh_squared_distance_contract.py

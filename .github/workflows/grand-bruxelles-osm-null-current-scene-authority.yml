@@ -1,0 +1,36 @@
+name: Grand Bruxelles OSM Null Current Scene Authority
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-null-current-scene-authority.yml"
+      - "grand-bruxelles-game/data/osm/zones/jette/environment.game.json"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_null_current_scene_authority_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  null-current-scene-authority:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-null-current-scene-authority-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-null-current-scene-authority-import.log; then exit 1; fi
+      - name: Prove null-current-scene authority stays root-scoped
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_null_current_scene_authority_test.gd 2>&1 | tee /tmp/osm-null-current-scene-authority.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_NULL_CURRENT_SCENE_AUTHORITY_FAIL" /tmp/osm-null-current-scene-authority.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_NULL_CURRENT_SCENE_AUTHORITY_OK" /tmp/osm-null-current-scene-authority.log

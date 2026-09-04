@@ -11,9 +11,6 @@ const REQUIRED_LICENSE := "ODbL-1.0"
 const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
 const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
-# Canonical environment bounds are serialized at 0.01 m while point positions
-# retain 0.001 m precision. Half a bound quantization step is therefore the
-# maximum source-preserving edge discrepancy; the epsilon is numeric only.
 const BOUNDS_HALF_QUANTIZATION_M := 0.005
 const BOUNDS_NUMERIC_EPSILON_M := 0.0000001
 
@@ -30,6 +27,9 @@ var last_tree_lod_counts := {"near": 0, "far": 0, "foliage_instances": 0}
 var _points := {"tree": [], "street_lamp": [], "bollard": []}
 var _last_anchor := Vector3(INF, INF, INF)
 var _owned_batches: Array[MultiMeshInstance3D] = []
+# Runtime-local cache: these meshes/materials are authored presentation resources,
+# independent of source point selection. Keep them stable across transform refreshes.
+var _presentation_meshes: Dictionary = {}
 
 func _ready() -> void:
     if not _validate_configuration():
@@ -75,9 +75,6 @@ func _reset_loaded_source_state() -> void:
             remove_meta(key)
 
 func _load_points() -> bool:
-    # A replacement source is authoritative as soon as loading is attempted.
-    # If validation fails, retaining any previously trusted points/provenance or
-    # materialized batches would present stale data under the rejected data_path.
     _reset_loaded_source_state()
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
         push_error("OSM environment artifact missing: %s" % data_path)
@@ -133,12 +130,7 @@ func _validated_bounds_m(document: Dictionary) -> Variant:
     if numbers[0] > numbers[2] or numbers[1] > numbers[3]:
         push_error("OSM environment artifact bounds_m min/max order is invalid")
         return null
-    return {
-        "min_x": numbers[0],
-        "min_z": numbers[1],
-        "max_x": numbers[2],
-        "max_z": numbers[3],
-    }
+    return {"min_x": numbers[0], "min_z": numbers[1], "max_x": numbers[2], "max_z": numbers[3]}
 
 func _collect_validated_points(document: Dictionary, bounds: Dictionary) -> Variant:
     var rows_variant: Variant = document.get("environment_points", null)
@@ -187,10 +179,7 @@ func _collect_validated_points(document: Dictionary, bounds: Dictionary) -> Vari
         if x < float(bounds["min_x"]) - bounds_tolerance or x > float(bounds["max_x"]) + bounds_tolerance or z < float(bounds["min_z"]) - bounds_tolerance or z > float(bounds["max_z"]) + bounds_tolerance:
             push_error("OSM environment point lies outside declared bounds_m beyond source quantization")
             return null
-        (validated[kind] as Array).append({
-            "osm_id": osm_id,
-            "position": Vector3(x, 0.0, z),
-        })
+        (validated[kind] as Array).append({"osm_id": osm_id, "position": Vector3(x, 0.0, z)})
     return validated
 
 func _target() -> Node3D:
@@ -295,11 +284,34 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array) -> void:
     add_child(instance)
     _owned_batches.append(instance)
 
+func _ensure_tree_presentation_meshes() -> void:
+    if _presentation_meshes.has("tree_trunk"):
+        return
+    var materials := BrusselsStreetTreeAsset.create_materials()
+    _presentation_meshes["tree_trunk"] = BrusselsStreetTreeAsset.create_trunk_mesh(materials["trunk"])
+    _presentation_meshes["tree_foliage_dark"] = BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_dark"])
+    _presentation_meshes["tree_foliage_light"] = BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_light"])
+
+func _ensure_lamp_presentation_meshes() -> void:
+    if _presentation_meshes.has("lamp_pole"):
+        return
+    var materials := BrusselsStreetLampAsset.create_materials()
+    _presentation_meshes["lamp_pole"] = BrusselsStreetLampAsset.create_pole_mesh(materials["metal"])
+    _presentation_meshes["lamp_arm"] = BrusselsStreetLampAsset.create_arm_mesh(materials["metal"])
+    _presentation_meshes["lamp_luminaire"] = BrusselsStreetLampAsset.create_luminaire_mesh(materials["luminaire"])
+
+func _ensure_bollard_presentation_meshes() -> void:
+    if _presentation_meshes.has("bollard_body"):
+        return
+    var materials := BrusselsBollardAsset.create_materials()
+    _presentation_meshes["bollard_body"] = BrusselsBollardAsset.create_body_mesh(materials["body"])
+    _presentation_meshes["bollard_cap"] = BrusselsBollardAsset.create_cap_mesh(materials["cap"])
+
 func _build_tree_batches(rows: Array) -> void:
     if rows.is_empty():
         last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
         return
-    var materials := BrusselsStreetTreeAsset.create_materials()
+    _ensure_tree_presentation_meshes()
     var trunk: Array = []
     var dark: Array = []
     var light: Array = []
@@ -324,14 +336,14 @@ func _build_tree_batches(rows: Array) -> void:
             var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
             (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
     last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}
-    _batch("TreeTrunks", BrusselsStreetTreeAsset.create_trunk_mesh(materials["trunk"]), trunk)
-    _batch("TreeFoliageDark", BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_dark"]), dark)
-    _batch("TreeFoliageLight", BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_light"]), light)
+    _batch("TreeTrunks", _presentation_meshes["tree_trunk"] as Mesh, trunk)
+    _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark)
+    _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light)
 
 func _build_lamp_batches(rows: Array) -> void:
     if rows.is_empty():
         return
-    var materials := BrusselsStreetLampAsset.create_materials()
+    _ensure_lamp_presentation_meshes()
     var poles: Array = []
     var arms: Array = []
     var luminaires: Array = []
@@ -340,19 +352,19 @@ func _build_lamp_batches(rows: Array) -> void:
         poles.append(BrusselsStreetLampAsset.pole_transform(base))
         arms.append(BrusselsStreetLampAsset.arm_transform(base))
         luminaires.append(BrusselsStreetLampAsset.luminaire_transform(base))
-    _batch("LampPoles", BrusselsStreetLampAsset.create_pole_mesh(materials["metal"]), poles)
-    _batch("LampArms", BrusselsStreetLampAsset.create_arm_mesh(materials["metal"]), arms)
-    _batch("LampLuminaires", BrusselsStreetLampAsset.create_luminaire_mesh(materials["luminaire"]), luminaires)
+    _batch("LampPoles", _presentation_meshes["lamp_pole"] as Mesh, poles)
+    _batch("LampArms", _presentation_meshes["lamp_arm"] as Mesh, arms)
+    _batch("LampLuminaires", _presentation_meshes["lamp_luminaire"] as Mesh, luminaires)
 
 func _build_bollard_batches(rows: Array) -> void:
     if rows.is_empty():
         return
-    var materials := BrusselsBollardAsset.create_materials()
+    _ensure_bollard_presentation_meshes()
     var bodies: Array = []
     var caps: Array = []
     for row_variant in rows:
         var base: Vector3 = (row_variant as Dictionary)["position"]
         bodies.append(BrusselsBollardAsset.body_transform(base))
         caps.append(BrusselsBollardAsset.cap_transform(base))
-    _batch("BollardBodies", BrusselsBollardAsset.create_body_mesh(materials["body"]), bodies)
-    _batch("BollardCaps", BrusselsBollardAsset.create_cap_mesh(materials["cap"]), caps)
+    _batch("BollardBodies", _presentation_meshes["bollard_body"] as Mesh, bodies)
+    _batch("BollardCaps", _presentation_meshes["bollard_cap"] as Mesh, caps)

@@ -177,6 +177,8 @@ func _refresh(force: bool) -> void:
     _set_batches_visible(true)
     if not force and _last_anchor != Vector3(INF, INF, INF):
         var horizontal_delta := Vector2(anchor.x - _last_anchor.x, anchor.z - _last_anchor.z)
+        if horizontal_delta.length_squared() == 0.0:
+            return
         if horizontal_delta.length() < refresh_distance_m:
             return
     _last_anchor = anchor

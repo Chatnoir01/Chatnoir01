@@ -215,10 +215,28 @@ func _target() -> Node3D:
             if candidate != null and not candidate.is_queued_for_deletion() and scene.is_ancestor_of(candidate):
                 return candidate
         return null
-    var fallback := tree.get_first_node_in_group("player") as Node3D
-    if fallback != null and fallback.is_queued_for_deletion():
-        return null
-    return fallback
+    # Headless/dev witnesses legitimately run without current_scene. Scope that
+    # fallback to the runtime's own top-level world so a stale nested renderer
+    # cannot borrow a Player from a sibling replacement world during transitions.
+    var scope: Node = tree.root
+    if get_parent() != tree.root:
+        scope = self
+        while scope.get_parent() != null and scope.get_parent() != tree.root:
+            scope = scope.get_parent()
+    if scope != tree.root:
+        var scoped_player := scope.get_node_or_null("Player") as Node3D
+        if scoped_player != null and not scoped_player.is_queued_for_deletion():
+            return scoped_player
+    for node: Node in tree.get_nodes_in_group("player"):
+        var fallback := node as Node3D
+        if fallback == null or fallback.is_queued_for_deletion():
+            continue
+        if scope == tree.root:
+            if fallback.get_parent() == tree.root:
+                return fallback
+        elif scope.is_ancestor_of(fallback):
+            return fallback
+    return null
 
 func _set_batches_visible(enabled: bool) -> void:
     for batch: MultiMeshInstance3D in _owned_batches:

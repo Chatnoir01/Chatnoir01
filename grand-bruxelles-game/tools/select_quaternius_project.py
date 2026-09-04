@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import argparse
+import os
 from pathlib import Path
 
 SOURCE_BASENAME = 'UAL1_Standard.glb'
@@ -18,30 +19,42 @@ def _nearest_project(path: Path, root: Path) -> Path | None:
     return None
 
 
-def _owned(root: Path, basename: str) -> dict[Path, list[Path]]:
-    owners: dict[Path, list[Path]] = {}
-    for p in sorted(root.rglob(basename)):
-        owner = _nearest_project(p.resolve(), root)
-        if owner is not None:
-            owners.setdefault(owner, []).append(p.resolve())
-    return owners
+def _exactly_one(root: Path, basename: str) -> Path:
+    matches = [p.resolve() for p in sorted(root.rglob(basename))]
+    if len(matches) != 1:
+        raise ValueError(f'expected exactly one {basename}, found {len(matches)}')
+    return matches[0]
+
+
+def _common_asset_root(source: Path, scene: Path, root: Path) -> Path:
+    common = Path(os.path.commonpath([source.parent, scene.parent])).resolve()
+    if common != root and root not in common.parents:
+        raise ValueError('asset common root escapes archive root')
+    if common == root:
+        raise ValueError('source and scene only share archive root; refusing broad ephemeral project')
+    return common
 
 
 def select_project_root(archive_root: Path) -> Path:
     root = archive_root.resolve()
     if not root.is_dir():
         raise ValueError('archive root missing')
-    source_owners = _owned(root, SOURCE_BASENAME)
-    scene_owners = _owned(root, SCENE_BASENAME)
-    candidates = sorted(set(source_owners) & set(scene_owners))
-    if len(candidates) != 1:
-        raise ValueError(f'expected exactly one project owning both pinned source and scene, found {len(candidates)}')
-    project_root = candidates[0]
-    if len(source_owners[project_root]) != 1:
-        raise ValueError('selected project must own exactly one UAL1_Standard.glb')
-    if len(scene_owners[project_root]) != 1:
-        raise ValueError('selected project must own exactly one Master_Rigged.tscn')
-    return project_root
+
+    source = _exactly_one(root, SOURCE_BASENAME)
+    scene = _exactly_one(root, SCENE_BASENAME)
+    source_owner = _nearest_project(source, root)
+    scene_owner = _nearest_project(scene, root)
+
+    if source_owner is not None or scene_owner is not None:
+        if source_owner is None or scene_owner is None or source_owner != scene_owner:
+            raise ValueError('pinned source and scene do not share one existing Godot project owner')
+        return source_owner
+
+    # The pinned Quaternius archive is an addon snapshot and intentionally has
+    # no project.godot. Use the narrowest common asset directory as an
+    # ephemeral diagnostic project root; the workflow creates project.godot
+    # there only in /tmp, never in canonical repository/runtime content.
+    return _common_asset_root(source, scene, root)
 
 
 def main() -> None:

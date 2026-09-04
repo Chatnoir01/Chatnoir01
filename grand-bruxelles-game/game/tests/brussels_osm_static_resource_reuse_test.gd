@@ -21,7 +21,7 @@ func _material_id(runtime: Node3D, batch_name: String) -> int:
     var batch := _batch(runtime, batch_name)
     if batch == null or batch.multimesh == null or batch.multimesh.mesh == null:
         return 0
-    var material := batch.multimesh.mesh.material
+    var material: Material = batch.multimesh.mesh.material
     return material.get_instance_id() if material != null else 0
 
 func _initialize() -> void:

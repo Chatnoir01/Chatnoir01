@@ -4,6 +4,8 @@ on:
     paths:
       - 'grand-bruxelles-game/tools/analyze_civ1_lowerleg_local_dynamic_sweep.py'
       - 'grand-bruxelles-game/tests/test_civ1_lowerleg_local_dynamic_sweep.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_rightfoot_vertical_phase_feasibility.py'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_vertical_phase_feasibility.py'
       - 'grand-bruxelles-game/tools/select_quaternius_project.py'
       - '.github/workflows/grand-bruxelles-civ1-lowerleg-local-dynamic-sweep.yml'
   workflow_dispatch:
@@ -23,7 +25,7 @@ jobs:
       - name: Regression contract
         run: |
           python -m pip install -q 'pytest==8.4.2'
-          python -m pytest -q grand-bruxelles-game/tests/test_civ1_lowerleg_local_dynamic_sweep.py
+          python -m pytest -q grand-bruxelles-game/tests/test_civ1_lowerleg_local_dynamic_sweep.py grand-bruxelles-game/tests/test_civ1_rightfoot_vertical_phase_feasibility.py
       - name: Prepare exact native inputs
         run: |
           set -euo pipefail; mkdir -p /tmp/civ1dyn/{tools,source,evidence,engine}
@@ -47,7 +49,7 @@ jobs:
           echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1dyn/godot.zip' | sha256sum -c -
           unzip -q /tmp/civ1dyn/godot.zip -d /tmp/civ1dyn/engine; chmod +x /tmp/civ1dyn/engine/Godot_v4.7.1-stable_linux.x86_64
           echo 'GODOT_BIN=/tmp/civ1dyn/engine/Godot_v4.7.1-stable_linux.x86_64' >> "$GITHUB_ENV"
-      - name: Measure native bounded local correction family
+      - name: Measure native bounded local correction and vertical feasibility
         run: |
           set -euo pipefail
           PROJECT_ROOT="$(cat /tmp/civ1dyn/evidence/project-root.txt)"; test -f "$PROJECT_ROOT/project.godot"
@@ -60,6 +62,8 @@ jobs:
           grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK /tmp/civ1dyn/evidence/native.log
           python grand-bruxelles-game/tools/analyze_civ1_lowerleg_local_dynamic_sweep.py /tmp/civ1dyn/evidence/native.json /tmp/civ1dyn/evidence/lowerleg-local-dynamic-sweep.json | tee /tmp/civ1dyn/evidence/lowerleg-local-dynamic-sweep.log
           grep -F CIV1_LOWERLEG_LOCAL_DYNAMIC_SWEEP_OK /tmp/civ1dyn/evidence/lowerleg-local-dynamic-sweep.log
+          python grand-bruxelles-game/tools/analyze_civ1_rightfoot_vertical_phase_feasibility.py /tmp/civ1dyn/evidence/native.json /tmp/civ1dyn/evidence/rightfoot-vertical-phase-feasibility.json | tee /tmp/civ1dyn/evidence/rightfoot-vertical-phase-feasibility.log
+          grep -F CIV1_RIGHTFOOT_VERTICAL_PHASE_FEASIBILITY_OK /tmp/civ1dyn/evidence/rightfoot-vertical-phase-feasibility.log
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: "civ1-lowerleg-local-dynamic-sweep-${{ github.event.pull_request.head.sha || github.sha }}", path: /tmp/civ1dyn/evidence, if-no-files-found: error, retention-days: 14}

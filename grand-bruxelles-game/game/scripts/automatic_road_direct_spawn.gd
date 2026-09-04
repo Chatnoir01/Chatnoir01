@@ -185,6 +185,8 @@ func _source_bundle_by_id(osm_id: int) -> Dictionary:
     var document := _parse_document(path)
     if document.is_empty() or not document.has("roads") or not document.has("buildings"):
         return {}
+    if not _source_buildings_are_exact(document):
+        return {}
     var roads: Variant = document.get("roads", [])
     if not roads is Array:
         return {}
@@ -235,6 +237,22 @@ func _road_points(road: Dictionary) -> PackedVector2Array:
     return result
 
 
+func _source_buildings_are_exact(document: Dictionary) -> bool:
+    var buildings: Variant = document.get("buildings", [])
+    if not buildings is Array:
+        return false
+    for raw: Variant in buildings:
+        if not raw is Dictionary:
+            return false
+        var footprint_raw: Variant = (raw as Dictionary).get("footprint", [])
+        if not footprint_raw is Array or footprint_raw.size() < 3:
+            return false
+        for pair: Variant in footprint_raw:
+            if not _exact_source_point_2d(pair) is Vector2:
+                return false
+    return true
+
+
 func _source_building_polygons(document: Dictionary) -> Array[PackedVector2Array]:
     var result: Array[PackedVector2Array] = []
     var buildings: Variant = document.get("buildings", [])
@@ -242,16 +260,17 @@ func _source_building_polygons(document: Dictionary) -> Array[PackedVector2Array
         return result
     for raw: Variant in buildings:
         if not raw is Dictionary:
-            continue
+            return []
         var footprint_raw: Variant = (raw as Dictionary).get("footprint", [])
         if not footprint_raw is Array or footprint_raw.size() < 3:
-            continue
+            return []
         var polygon := PackedVector2Array()
         for pair: Variant in footprint_raw:
-            if pair is Array and pair.size() >= 2:
-                polygon.append(Vector2(float(pair[0]), float(pair[1])))
-        if polygon.size() >= 3:
-            result.append(polygon)
+            var point: Variant = _exact_source_point_2d(pair)
+            if not point is Vector2:
+                return []
+            polygon.append(point as Vector2)
+        result.append(polygon)
     return result
 
 

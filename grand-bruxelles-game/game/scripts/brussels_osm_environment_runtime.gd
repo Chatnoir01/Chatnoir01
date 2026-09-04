@@ -64,7 +64,21 @@ func _validate_configuration() -> bool:
         return false
     return true
 
+func _reset_loaded_source_state() -> void:
+    _clear_owned_batches()
+    _points = {"tree": [], "street_lamp": [], "bollard": []}
+    _last_anchor = Vector3(INF, INF, INF)
+    last_render_counts = {"tree": 0, "street_lamp": 0, "bollard": 0}
+    last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
+    for key: StringName in [&"source", &"license", &"source_dimensions_measured", &"render_counts", &"tree_lod_counts"]:
+        if has_meta(key):
+            remove_meta(key)
+
 func _load_points() -> bool:
+    # A replacement source is authoritative as soon as loading is attempted.
+    # If validation fails, retaining any previously trusted points/provenance or
+    # materialized batches would present stale data under the rejected data_path.
+    _reset_loaded_source_state()
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
         push_error("OSM environment artifact missing: %s" % data_path)
         return false

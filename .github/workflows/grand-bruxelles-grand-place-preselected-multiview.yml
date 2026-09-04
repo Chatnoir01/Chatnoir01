@@ -1,0 +1,117 @@
+name: Grand Bruxelles Grand-Place Preselected Multiview
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/grand_place_complete_contour_preselected_multiview_contract.json"
+      - "grand-bruxelles-game/game/tests/grand_place_complete_contour_preselected_multiview_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-grand-place-preselected-multiview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-preselected-multiview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture-preselected-four-views:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate preselected witness contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, pathlib, re
+          p=pathlib.Path('grand-bruxelles-game/data/qa/grand_place_complete_contour_preselected_multiview_contract.json')
+          d=json.loads(p.read_text())
+          assert d['schema']=='grand-bruxelles-grand-place-preselected-multiview-v1'
+          prov=d['selection_provenance']
+          assert re.fullmatch(r'[0-9a-f]{40}', prov['source_head'])
+          assert prov['source_head']=='125b980f200c87f8ad3e30199f4390a979873666'
+          assert prov['workflow_run_id']==33834994119
+          assert prov['artifact_id']==9922999722
+          assert re.fullmatch(r'[0-9a-f]{64}', prov['artifact_digest_sha256'])
+          assert prov['selection_stage']=='before_png_capture'
+          assert prov['metric']=='physics_center_ray_clearance_ratio'
+          seed=d['camera_seed']
+          assert seed['position']==[319.01,1.72,-535.20]
+          assert seed['target']==[321.91,11.8,-485.66]
+          assert seed['fov_degrees']==62.0 and seed['resolution']==[1280,720]
+          expected=[('q0_selected','q0',0,1.0),('q1_selected','q1',135,0.38012512557908),('q2_selected','q2',225,0.76488839055681),('q3_selected','q3',270,1.0)]
+          actual=[]
+          for v in d['views']:
+              assert type(v['yaw_degrees_from_seed']) in (int,float) and math.isfinite(v['yaw_degrees_from_seed'])
+              assert type(v['selected_clearance_ratio']) in (int,float) and math.isfinite(v['selected_clearance_ratio'])
+              actual.append((v['id'],v['quadrant'],v['yaw_degrees_from_seed'],v['selected_clearance_ratio']))
+          assert actual==expected
+          rules=d['capture_rules']
+          assert rules['selection_is_pinned_before_capture'] is True
+          assert rules['post_capture_reselection_allowed'] is False
+          assert rules['rejected_legacy_multiview_may_not_change_selected_yaws'] is True
+          assert rules['owner_full_frame_review_required'] is True
+          hard=d['hard_rules']
+          for k in ('source_geometry_modified','collision_modified','runtime_modified','production_camera_modified','camera_rescue_allowed','threshold_rescue_allowed','destination_advertisable','visual_acceptance','jouable_authorized'):
+              assert hard[k] is False
+          print('GRAND_PLACE_PRESELECTED_MULTIVIEW_CONTRACT_OK')
+          PY
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/gp-preselected-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/gp-preselected-import.log; then exit 1; fi
+      - name: Capture pinned selected views
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gp-preselected
+          for view in q0_selected q1_selected q2_selected q3_selected; do
+            set -o pipefail
+            xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_complete_contour_preselected_multiview_capture_test.gd -- "$view" "/tmp/gp-preselected/$view.png" 2>&1 | tee "/tmp/gp-preselected/$view.log"
+            if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_PRESELECTED_MULTIVIEW_FAIL" "/tmp/gp-preselected/$view.log"; then exit 1; fi
+            grep -F "GRAND_PLACE_PRESELECTED_MULTIVIEW_OK: view=$view" "/tmp/gp-preselected/$view.log"
+            test -s "/tmp/gp-preselected/$view.png"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, struct
+          hashes=[]
+          for name in ('q0_selected','q1_selected','q2_selected','q3_selected'):
+              p=Path('/tmp/gp-preselected')/f'{name}.png'
+              b=p.read_bytes()
+              assert b[:8]==b'\x89PNG\r\n\x1a\n'
+              assert struct.unpack('>II',b[16:24])==(1280,720)
+              hashes.append(hashlib.sha256(b).hexdigest())
+          assert len(set(hashes))==4, hashes
+          print('GRAND_PLACE_PRESELECTED_FOUR_FULL_FRAMES_OK owner_review_required=true visual_acceptance=false jouable_authorized=false')
+          PY
+      - name: Stage evidence
+        if: always()
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/grand_place_complete_contour_preselected_multiview
+          cp /tmp/gp-preselected/* grand-bruxelles-game/artifacts/qa/grand_place_complete_contour_preselected_multiview/ 2>/dev/null || true
+          cp /tmp/gp-preselected-import.log grand-bruxelles-game/artifacts/qa/grand_place_complete_contour_preselected_multiview/import.log 2>/dev/null || true
+          sha256sum grand-bruxelles-game/artifacts/qa/grand_place_complete_contour_preselected_multiview/*.png > grand-bruxelles-game/artifacts/qa/grand_place_complete_contour_preselected_multiview/png_sha256.txt 2>/dev/null || true
+      - name: Upload owner-review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-complete-contour-preselected-multiview
+          path: grand-bruxelles-game/artifacts/qa/grand_place_complete_contour_preselected_multiview
+          if-no-files-found: error

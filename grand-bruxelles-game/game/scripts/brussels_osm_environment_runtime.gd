@@ -83,7 +83,10 @@ func _load_points() -> bool:
     if license != REQUIRED_LICENSE:
         push_error("OSM environment artifact license mismatch")
         return false
-    var validated_points: Variant = _collect_validated_points(document)
+    var bounds_variant: Variant = _validated_bounds_m(document)
+    if bounds_variant == null:
+        return false
+    var validated_points: Variant = _collect_validated_points(document, bounds_variant as Dictionary)
     if validated_points == null:
         return false
     _points = validated_points
@@ -92,7 +95,33 @@ func _load_points() -> bool:
     set_meta("source_dimensions_measured", false)
     return true
 
-func _collect_validated_points(document: Dictionary) -> Variant:
+func _validated_bounds_m(document: Dictionary) -> Variant:
+    var bounds_variant: Variant = document.get("bounds_m", null)
+    if not bounds_variant is Array or bounds_variant.size() != 4:
+        push_error("OSM environment artifact bounds_m must be an exact four-value array")
+        return null
+    var bounds := bounds_variant as Array
+    var numbers: Array[float] = []
+    for value: Variant in bounds:
+        if typeof(value) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("OSM environment artifact bounds_m values must be numeric")
+            return null
+        var number := float(value)
+        if not is_finite(number):
+            push_error("OSM environment artifact bounds_m values must be finite")
+            return null
+        numbers.append(number)
+    if numbers[0] > numbers[2] or numbers[1] > numbers[3]:
+        push_error("OSM environment artifact bounds_m min/max order is invalid")
+        return null
+    return {
+        "min_x": numbers[0],
+        "min_z": numbers[1],
+        "max_x": numbers[2],
+        "max_z": numbers[3],
+    }
+
+func _collect_validated_points(document: Dictionary, bounds: Dictionary) -> Variant:
     var rows_variant: Variant = document.get("environment_points", null)
     if not rows_variant is Array:
         push_error("OSM environment artifact environment_points must be an array")
@@ -134,6 +163,9 @@ func _collect_validated_points(document: Dictionary) -> Variant:
         var z := float(z_value)
         if not is_finite(x) or not is_finite(z):
             push_error("OSM environment point X/Z must be finite")
+            return null
+        if x < float(bounds["min_x"]) or x > float(bounds["max_x"]) or z < float(bounds["min_z"]) or z > float(bounds["max_z"]):
+            push_error("OSM environment point lies outside declared bounds_m")
             return null
         (validated[kind] as Array).append({
             "osm_id": osm_id,

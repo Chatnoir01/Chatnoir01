@@ -1,0 +1,51 @@
+{
+  "schema": "grand-bruxelles-grand-place-preselected-multiview-review-v1",
+  "capture_head": "34d7cb9a38cfd7e27ca1e4c34277c0679c3246b6",
+  "workflow_run_id": 33835477889,
+  "artifact_id": 9923169120,
+  "artifact_digest_sha256": "297eeea75d193b31765e80a76110caf8d2256c84bc502a71c90763977aaa067a",
+  "resolution": [1280, 720],
+  "full_frame_inspected": true,
+  "selection_was_pinned_before_capture": true,
+  "post_capture_reselection_performed": false,
+  "views": [
+    {
+      "id": "q0_selected",
+      "yaw_degrees_from_seed": 0,
+      "png_sha256": "48378427ef734be7c93619cf6a4e553d3911b031bcf55388090a34d748091167",
+      "verdict": "USABLE_WITNESS_ONLY",
+      "reason": "contour visible; does not independently establish full-square acceptance"
+    },
+    {
+      "id": "q1_selected",
+      "yaw_degrees_from_seed": 135,
+      "png_sha256": "9224e20fa6e99175369943d4a1db4c6daf3780c4e1964d0471d1a4b0ee40f9f5",
+      "verdict": "REJECT",
+      "reason": "near facade dominates most of the frame and prevents an honest zero-large-gap contour witness"
+    },
+    {
+      "id": "q2_selected",
+      "yaw_degrees_from_seed": 225,
+      "png_sha256": "3cc87d11c9a8f5d1e7c8403b47cf00d0b37ed84f576fda24339645308ebf02a6",
+      "verdict": "REJECT",
+      "reason": "near facade occupies a large foreground fraction and leaves the square contour inadequately observable"
+    },
+    {
+      "id": "q3_selected",
+      "yaw_degrees_from_seed": 270,
+      "png_sha256": "a4a363c2ebf391209b1dd387ac804ae6e3ff464174cc7d1d00fa854657cc45c3",
+      "verdict": "USABLE_WITNESS_ONLY",
+      "reason": "contour visible; does not independently establish full-square acceptance"
+    }
+  ],
+  "overall_verdict": "REJECT",
+  "camera_rescue_allowed": false,
+  "threshold_rescue_allowed": false,
+  "source_geometry_modified": false,
+  "collision_modified": false,
+  "runtime_modified": false,
+  "destination_advertisable": false,
+  "visual_acceptance": false,
+  "jouable_authorized": false,
+  "next_scope": "official_source_backed_grand_place_ground_street_player_foot_collision_continuity"
+}

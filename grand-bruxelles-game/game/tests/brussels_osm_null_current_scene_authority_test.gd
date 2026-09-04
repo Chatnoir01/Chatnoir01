@@ -51,10 +51,10 @@ func _run() -> void:
         _fail("baseline runtime did not materialize visible Jette batches")
         return
 
-    # Reproduce the transition gap: SceneTree has no authoritative current_scene,
-    # the old zone remains alive for deferred teardown, and another root-owned
-    # world already exposes a Player group member. The stale zone renderer must
-    # not use the global group fallback to borrow that unrelated Player.
+    # Reproduce the transition gap: the old Player has already left its world,
+    # the old zone renderer remains alive for deferred teardown, SceneTree has no
+    # authoritative current_scene, and a sibling replacement world already owns
+    # a Player. The stale renderer must not borrow that unrelated global Player.
     var replacement_world := Node3D.new()
     replacement_world.name = "ReplacementWorld"
     root.add_child(replacement_world)
@@ -64,21 +64,22 @@ func _run() -> void:
     replacement_player.position = JETTE_SPAWN
     replacement_world.add_child(replacement_player)
 
-    old_player.remove_from_group("player")
+    old_world.remove_child(old_player)
+    old_player.queue_free()
+    for _frame: int in range(2):
+        await process_frame
     current_scene = null
 
     if stale_runtime.call("_target") != null:
-        _fail("nested stale runtime borrowed global Player authority while current_scene was null")
+        _fail("nested stale runtime borrowed sibling-world Player authority while current_scene was null")
         return
     stale_runtime.call("_refresh", false)
     if not _all_batches_visible(stale_runtime, false):
         _fail("nested stale runtime kept old-zone OSM batches visible during null-current-scene transition")
         return
 
-    # Positive control for existing headless harnesses: when no current_scene is
-    # installed, only direct SceneTree-root runtime + Player siblings may use the
-    # explicit fallback. This keeps test/dev use deterministic without reopening
-    # cross-world authority for nested production scene nodes.
+    # Positive control for headless harnesses: direct SceneTree-root runtime and
+    # Player siblings may still use the explicit root fallback.
     replacement_player.remove_from_group("player")
     var harness_player := Node3D.new()
     harness_player.name = "HarnessPlayer"

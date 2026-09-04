@@ -2,8 +2,8 @@ import json
 import pathlib
 import re
 
-REPO = pathlib.Path(__file__).resolve().parents[3]
-RECEIPT = REPO / "data/qa/grand_place_complete_contour_preselected_multiview_review.json"
+GAME_ROOT = pathlib.Path(__file__).resolve().parents[2]
+RECEIPT = GAME_ROOT / "data/qa/grand_place_complete_contour_preselected_multiview_review.json"
 
 EXPECTED = {
     "q0_selected": (0, "48378427ef734be7c93619cf6a4e553d3911b031bcf55388090a34d748091167", "USABLE_WITNESS_ONLY"),

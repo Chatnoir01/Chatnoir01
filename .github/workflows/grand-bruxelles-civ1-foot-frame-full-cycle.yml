@@ -1,0 +1,50 @@
+name: Grand Bruxelles CIV-1 Foot Frame Full Cycle
+on:
+  pull_request:
+    paths: ['grand-bruxelles-game/tools/analyze_civ1_foot_frame_full_cycle.py','grand-bruxelles-game/tests/test_civ1_foot_frame_full_cycle.py','.github/workflows/grand-bruxelles-civ1-foot-frame-full-cycle.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  native-foot-frame-full-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: git fetch origin main --no-tags && test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Regression contract
+        run: python -m pip install -q 'pytest==8.4.2' && python -m pytest -q grand-bruxelles-game/tests/test_civ1_foot_frame_full_cycle.py
+      - name: Prepare exact native inputs
+        run: |
+          set -euo pipefail; mkdir -p /tmp/civ1cycle/{tools,source,evidence,engine}
+          PROBE_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c; SHADOW_REF=d1f9ba6faa5c54bcf2bb5c522c5b49325a28f814
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd" -o /tmp/civ1cycle/tools/base.gd
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1cycle/tools/strip.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SHADOW_REF/grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py" -o /tmp/civ1cycle/tools/shadow.py
+          python /tmp/civ1cycle/tools/shadow.py /tmp/civ1cycle/tools/base.gd /tmp/civ1cycle/tools/probe.gd
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1cycle/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1cycle/source/body.glb)" = 6879364
+          python /tmp/civ1cycle/tools/strip.py /tmp/civ1cycle/source/body.glb /tmp/civ1cycle/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1cycle/source/civ1_body.glb' | sha256sum -c -
+          curl -fL --retry 3 https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip -o /tmp/civ1cycle/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1cycle/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1cycle/quaternius.zip -d /tmp/civ1cycle/quaternius; L="$(find /tmp/civ1cycle/quaternius -iname 'LICENSE*' -type f -print -quit)"; test -n "$L"; grep -Eqi 'cc0|creative commons zero' "$L"
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1cycle/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1cycle/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1cycle/godot.zip -d /tmp/civ1cycle/engine; chmod +x /tmp/civ1cycle/engine/Godot_v4.7.1-stable_linux.x86_64; echo 'GODOT_BIN=/tmp/civ1cycle/engine/Godot_v4.7.1-stable_linux.x86_64' >> "$GITHUB_ENV"
+      - name: Measure native full cycle
+        run: |
+          set -euo pipefail; PROJECT_FILE="$(find /tmp/civ1cycle/quaternius -name project.godot -type f -print -quit)"; PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          cp /tmp/civ1cycle/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"; cp /tmp/civ1cycle/tools/probe.gd "$PROJECT_ROOT/gb_probe.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit > /tmp/civ1cycle/evidence/import.log 2>&1
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_probe.gd -- /tmp/civ1cycle/evidence/native.json 2>&1 | tee /tmp/civ1cycle/evidence/native.log
+          grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK /tmp/civ1cycle/evidence/native.log
+          python grand-bruxelles-game/tools/analyze_civ1_foot_frame_full_cycle.py /tmp/civ1cycle/evidence/native.json /tmp/civ1cycle/evidence/full-cycle.json | tee /tmp/civ1cycle/evidence/full-cycle.log
+          grep -F CIV1_FOOT_FRAME_FULL_CYCLE_OK /tmp/civ1cycle/evidence/full-cycle.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: "civ1-foot-frame-full-cycle-${{ github.event.pull_request.head.sha || github.sha }}", path: /tmp/civ1cycle/evidence, if-no-files-found: error, retention-days: 14}

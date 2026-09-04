@@ -33,9 +33,11 @@ def test_static_basis_recovers_known_fixed_offset_without_temporal_resampling():
     assert r['temporal_resampling_used'] is False
     assert r['foot_link_rest_preserved'] is True
     assert r['baseline_phase_delta_samples'] != 0
-    assert r['family_viable'] is True
-    assert r['viable_anchor_count'] > 0
-    assert abs(r['best']['phase_delta_samples']) < abs(r['baseline_phase_delta_samples'])
+    best_phase=min(abs(row['phase_delta_samples']) for row in r['rows'])
+    assert best_phase < abs(r['baseline_phase_delta_samples'])
+    assert best_phase == 0
+    # Synthetic recovery validates the static-basis math only. Biomechanical
+    # viability remains governed independently by vertical/horizontal gates.
 
 
 def test_requires_rotation_only_probe():

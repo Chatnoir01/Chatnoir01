@@ -215,10 +215,16 @@ func _target() -> Node3D:
             if candidate != null and not candidate.is_queued_for_deletion() and scene.is_ancestor_of(candidate):
                 return candidate
         return null
-    var fallback := tree.get_first_node_in_group("player") as Node3D
-    if fallback != null and fallback.is_queued_for_deletion():
+    # No-current-scene fallback exists only for direct SceneTree-root harnesses.
+    # A nested renderer belongs to some world/zone even while current_scene is
+    # transiently null, so it must never borrow a global Player from another one.
+    if get_parent() != tree.root:
         return null
-    return fallback
+    for node: Node in tree.get_nodes_in_group("player"):
+        var fallback := node as Node3D
+        if fallback != null and not fallback.is_queued_for_deletion() and fallback.get_parent() == tree.root:
+            return fallback
+    return null
 
 func _set_batches_visible(enabled: bool) -> void:
     for batch: MultiMeshInstance3D in _owned_batches:

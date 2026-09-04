@@ -41,6 +41,10 @@ jobs:
           echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1cycle/quaternius.zip' | sha256sum -c -
           unzip -q /tmp/civ1cycle/quaternius.zip -d /tmp/civ1cycle/quaternius
           L="$(find /tmp/civ1cycle/quaternius -iname 'LICENSE*' -type f -print -quit)"; test -n "$L"; grep -Eqi 'cc0|creative commons zero' "$L"
+          {
+            echo '# Quaternius pinned archive topology relevant to project ownership'
+            find /tmp/civ1cycle/quaternius -type f \( -name 'project.godot' -o -iname 'UAL1_Standard.glb' -o -iname 'Master_Rigged.tscn' \) -print | sort
+          } | tee /tmp/civ1cycle/evidence/archive-topology.txt
           python grand-bruxelles-game/tools/select_quaternius_project.py /tmp/civ1cycle/quaternius | tee /tmp/civ1cycle/evidence/project-root.txt
           curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1cycle/godot.zip
           echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1cycle/godot.zip' | sha256sum -c -

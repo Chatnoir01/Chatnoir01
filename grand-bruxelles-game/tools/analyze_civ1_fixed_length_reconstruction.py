@@ -45,6 +45,14 @@ def correction_continuity(solutions):
     for i in range(CYCLE):
         prev=(i-1)%CYCLE; ks.append(norm(sub(offs[i],offs[prev]))); js.append(max(abs(solutions[i]['upper_angle_rad']-solutions[prev]['upper_angle_rad']),abs(solutions[i]['lower_angle_rad']-solutions[prev]['lower_angle_rad'])))
     return max(ks),max(js)
+def transition_ok(a,b,step_mm):
+    if abs(a['mm']-b['mm'])>step_mm:return False
+    for leg in ('right','left'):
+        aa=a[leg]; bb=b[leg]
+        ao=sub(aa['knee'],aa['knee_ref']); bo=sub(bb['knee'],bb['knee_ref'])
+        if norm(sub(bo,ao))>MAX_KNEE_CORRECTION_STEP_M+1e-12:return False
+        if max(abs(bb['upper_angle_rad']-aa['upper_angle_rad']),abs(bb['lower_angle_rad']-aa['lower_angle_rad']))>MAX_JOINT_STEP_RAD+1e-12:return False
+    return True
 def origin(s,b,side='target'): return v3(s['bones'][b][side]['model_origin'],f'{b}.{side}')
 def rel(s,b,side='target'): return sub(origin(s,b,side),origin(s,'Hips',side))
 def minidx(seq): return min(range(CYCLE),key=lambda i:seq[i][1])
@@ -60,32 +68,49 @@ def contact_gate(base,src_min,baseline_phase,baseline_v,baseline_h,shift):
     seq=[[base[i][0],base[(i+shift)%CYCLE][1],base[i][2]] for i in range(CYCLE)]; phase=circ(minidx(seq),src_min); sup=support(seq,src_min); vertical=vr(sup); horizontal=ht(sup)
     ok=abs(phase)<=MATERIAL and abs(phase)<abs(baseline_phase) and vertical<=baseline_v+1e-9 and horizontal<=baseline_h+1e-12
     return seq,{'shift_samples':shift,'phase_delta_samples':phase,'vertical_range_m':vertical,'horizontal_travel_m':horizontal,'contact_gate':ok}
-def allowed_rows(samples,seq,limit_mm):
+def frame_state(s,goal,mm):
+    dy=mm/1000.0; rf=origin(s,'RightFoot'); lf=origin(s,'LeftFoot'); rh=origin(s,'RightUpperLeg'); rk=origin(s,'RightLowerLeg'); lh=origin(s,'LeftUpperLeg'); lk=origin(s,'LeftLowerLeg')
+    rl1,rl2=dist(rh,rk),dist(rk,rf); ll1,ll2=dist(lh,lk),dist(lk,lf)
+    rhip=[rh[0],rh[1]+dy,rh[2]]; lhip=[lh[0],lh[1]+dy,lh[2]]
+    if not fixed_reachable(rhip,goal,rl1,rl2,1e-6) or not fixed_reachable(lhip,lf,ll1,ll2,1e-6): return None
+    return {'mm':mm,'right':solve_fixed(rhip,rk,rf,goal,rl1,rl2),'left':solve_fixed(lhip,lk,lf,lf,ll1,ll2)}
+def state_rows(samples,seq,max_used_mm):
     rows=[]
     for i,s in enumerate(samples[:CYCLE]):
-        hips=origin(s,'Hips'); rf=origin(s,'RightFoot'); lf=origin(s,'LeftFoot'); rh=origin(s,'RightUpperLeg'); rk=origin(s,'RightLowerLeg'); lh=origin(s,'LeftUpperLeg'); lk=origin(s,'LeftLowerLeg'); rl1,rl2=dist(rh,rk),dist(rk,rf); ll1,ll2=dist(lh,lk),dist(lk,lf); goal=[rf[0],hips[1]+seq[i][1],rf[2]]; ok=[]
-        for mm in range(-limit_mm,limit_mm+1):
-            dy=mm/1000.0
-            if fixed_reachable([rh[0],rh[1]+dy,rh[2]],goal,rl1,rl2,1e-6) and fixed_reachable([lh[0],lh[1]+dy,lh[2]],lf,ll1,ll2,1e-6): ok.append(mm)
-        rows.append(ok)
+        hips=origin(s,'Hips'); rf=origin(s,'RightFoot'); goal=[rf[0],hips[1]+seq[i][1],rf[2]]; row={}
+        for mm in range(-max_used_mm,max_used_mm+1):
+            st=frame_state(s,goal,mm)
+            if st is not None: row[mm]=st
+        rows.append(row)
     return rows
-def smooth_path(rows,step_mm):
-    if any(not r for r in rows): return None
-    costs={x:(abs(x),[x]) for x in rows[0]}
-    for row in rows[1:]:
-        nxt={}
-        for cur in row:
-            opts=[(cost+abs(cur),path+[cur]) for prev,(cost,path) in costs.items() if abs(cur-prev)<=step_mm]
-            if opts:nxt[cur]=min(opts,key=lambda z:z[0])
-        if not nxt:return None
-        costs=nxt
-    return min(costs.values(),key=lambda z:z[0])[1]
-def minimal_path(samples,seq,max_used_mm,step_mm):
-    rows=allowed_rows(samples,seq,max_used_mm)
-    for used in range(max_used_mm+1):
-        path=smooth_path([[x for x in r if abs(x)<=used] for r in rows],step_mm)
-        if path is not None:return used,path
-    return None,None
+def continuous_cycle(rows,step_mm):
+    if any(not r for r in rows):return None
+    max_cap=max(max(abs(x) for x in r) for r in rows)
+    for cap in range(max_cap+1):
+        starts=[m for m in rows[0] if abs(m)<=cap]
+        for start in starts:
+            reachable={start}; parents=[]
+            for i in range(1,CYCLE):
+                par={}; nxt=set()
+                for mm,cur in rows[i].items():
+                    if abs(mm)>cap:continue
+                    for pm in range(mm-step_mm,mm+step_mm+1):
+                        if pm in reachable and pm in rows[i-1] and transition_ok(rows[i-1][pm],cur,step_mm):
+                            par[mm]=pm; nxt.add(mm); break
+                parents.append(par); reachable=nxt
+                if not reachable:break
+            if not reachable:continue
+            for end in reachable:
+                if not transition_ok(rows[-1][end],rows[0][start],step_mm):continue
+                path=[end]; cur=end
+                for i in range(CYCLE-1,0,-1):
+                    cur=parents[i-1][cur]; path.append(cur)
+                return cap,list(reversed(path))
+    return None
+def path_metrics(rows,path):
+    right=[rows[i][path[i]]['right'] for i in range(CYCLE)]; left=[rows[i][path[i]]['left'] for i in range(CYCLE)]
+    max_len=max(max(x['upper_length_error_m'],x['lower_length_error_m']) for x in right+left); rk,rj=correction_continuity(right); lk,lj=correction_continuity(left)
+    return {'right':right,'left':left,'max_len':max_len,'max_kstep':max(rk,lk),'max_jstep':max(rj,lj),'max_r':max(dist(x['knee'],x['knee_ref']) for x in right),'max_l':max(dist(x['knee'],x['knee_ref']) for x in left)}
 def analyze(p):
     if p.get('rotation_enabled') is not True or p.get('position_enabled') is not False or p.get('scale_enabled') is not False: raise ValueError('rotation-only probe required')
     samples=p.get('model_space_samples')
@@ -97,17 +122,17 @@ def analyze(p):
     evidence=[]; candidates=[]
     for shift in range(1,MAX_SHIFT+1):
         seq,e=contact_gate(base,si,baseline_phase,bv,bh,shift)
-        if not e['contact_gate']: continue
-        used,path=minimal_path(samples,seq,max_used,step_mm); e['reachable_path']=path is not None; e['max_used_mm']=used; evidence.append(e)
-        if path is not None:candidates.append((used,abs(e['phase_delta_samples']),shift,seq,path,e))
-    if not candidates: raise ValueError('no fixed-length bilateral path inside source pelvis envelope')
-    used,_,shift,seq,pathmm,chosen=min(candidates,key=lambda x:(x[0],x[1],x[2])); right=[]; left=[]
-    for i,s in enumerate(samples[:CYCLE]):
-        dy=pathmm[i]/1000.0; hips=origin(s,'Hips'); rf=origin(s,'RightFoot'); lf=origin(s,'LeftFoot'); rh=origin(s,'RightUpperLeg'); rk=origin(s,'RightLowerLeg'); lh=origin(s,'LeftUpperLeg'); lk=origin(s,'LeftLowerLeg'); rl1,rl2=dist(rh,rk),dist(rk,rf); ll1,ll2=dist(lh,lk),dist(lk,lf); goal=[rf[0],hips[1]+seq[i][1],rf[2]]
-        right.append(solve_fixed([rh[0],rh[1]+dy,rh[2]],rk,rf,goal,rl1,rl2)); left.append(solve_fixed([lh[0],lh[1]+dy,lh[2]],lk,lf,lf,ll1,ll2))
-    max_len=max(max(x['upper_length_error_m'],x['lower_length_error_m']) for x in right+left); rkstep,rjstep=correction_continuity(right); lkstep,ljstep=correction_continuity(left); max_kstep=max(rkstep,lkstep); max_jstep=max(rjstep,ljstep); max_r=max(dist(x['knee'],x['knee_ref']) for x in right); max_l=max(dist(x['knee'],x['knee_ref']) for x in left); max_pstep=max(abs(pathmm[i]-pathmm[i-1]) for i in range(1,CYCLE))/1000.0
-    physical=max_len<=1e-7 and max_pstep<=source_step+1e-12 and (used+MIN_MARGIN_MM)/1000<=source_range+1e-12; continuity=max_kstep<=MAX_KNEE_CORRECTION_STEP_M and max_jstep<=MAX_JOINT_STEP_RAD; verdict='AMELIORER_FIXED_LENGTH_RECONSTRUCTION' if physical and continuity else 'JETER_FIXED_LENGTH_RECONSTRUCTION'
-    return {'schema':'grand-bruxelles-civ1-fixed-length-reconstruction-v1','diagnostic_only':True,'runtime_authorized':False,'visual_approval_claimed':False,'grounding_verified':False,'baseline_phase_delta_samples':baseline_phase,'baseline_vertical_range_m':bv,'baseline_horizontal_travel_m':bh,'source_pelvis_range_m':source_range,'source_pelvis_max_step_m':source_step,'candidate':{'vertical_shift_samples':shift,'max_used_pelvis_mm':used,'required_cap_mm':used+MIN_MARGIN_MM},'contact_gated_shift_evidence':evidence,'phase_delta_samples':chosen['phase_delta_samples'],'vertical_range_m':chosen['vertical_range_m'],'horizontal_travel_m':chosen['horizontal_travel_m'],'max_bone_length_error_m':max_len,'max_right_knee_displacement_m':max_r,'max_left_knee_displacement_m':max_l,'max_pelvis_step_m':max_pstep,'max_knee_correction_step_m':max_kstep,'max_joint_step_rad':max_jstep,'continuity_limits':{'max_knee_correction_step_m':MAX_KNEE_CORRECTION_STEP_M,'max_joint_step_rad':MAX_JOINT_STEP_RAD},'physical_envelope_pass':physical,'correction_continuity_pass':continuity,'verdict':verdict}
+        if not e['contact_gate']:continue
+        rows=state_rows(samples,seq,max_used); cycle=continuous_cycle(rows,step_mm); e['reachable_path']=all(bool(r) for r in rows); e['continuous_path']=cycle is not None; e['max_used_mm']=cycle[0] if cycle else None; evidence.append(e)
+        if cycle is not None:
+            used,path=cycle; candidates.append((used,abs(e['phase_delta_samples']),shift,seq,path,e,rows))
+    if not candidates: raise ValueError('no fixed-length bilateral continuous cycle inside source pelvis envelope')
+    used,_,shift,seq,pathmm,chosen,rows=min(candidates,key=lambda x:(x[0],x[1],x[2])); metrics=path_metrics(rows,pathmm)
+    max_pstep=max(abs(pathmm[i]-pathmm[i-1]) for i in range(CYCLE))/1000.0
+    physical=metrics['max_len']<=1e-7 and max_pstep<=source_step+1e-12 and (used+MIN_MARGIN_MM)/1000<=source_range+1e-12
+    continuity=metrics['max_kstep']<=MAX_KNEE_CORRECTION_STEP_M and metrics['max_jstep']<=MAX_JOINT_STEP_RAD
+    verdict='AMELIORER_FIXED_LENGTH_CONTINUOUS_CYCLE' if physical and continuity else 'JETER_FIXED_LENGTH_RECONSTRUCTION'
+    return {'schema':'grand-bruxelles-civ1-fixed-length-reconstruction-v2','diagnostic_only':True,'runtime_authorized':False,'visual_approval_claimed':False,'grounding_verified':False,'baseline_phase_delta_samples':baseline_phase,'baseline_vertical_range_m':bv,'baseline_horizontal_travel_m':bh,'source_pelvis_range_m':source_range,'source_pelvis_max_step_m':source_step,'candidate':{'vertical_shift_samples':shift,'max_used_pelvis_mm':used,'required_cap_mm':used+MIN_MARGIN_MM},'contact_gated_shift_evidence':evidence,'pelvis_path_mm':pathmm,'phase_delta_samples':chosen['phase_delta_samples'],'vertical_range_m':chosen['vertical_range_m'],'horizontal_travel_m':chosen['horizontal_travel_m'],'max_bone_length_error_m':metrics['max_len'],'max_right_knee_displacement_m':metrics['max_r'],'max_left_knee_displacement_m':metrics['max_l'],'max_pelvis_step_m':max_pstep,'max_knee_correction_step_m':metrics['max_kstep'],'max_joint_step_rad':metrics['max_jstep'],'continuity_limits':{'max_knee_correction_step_m':MAX_KNEE_CORRECTION_STEP_M,'max_joint_step_rad':MAX_JOINT_STEP_RAD},'physical_envelope_pass':physical,'correction_continuity_pass':continuity,'verdict':verdict}
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('native_json'); ap.add_argument('output_json'); a=ap.parse_args(); r=analyze(json.loads(Path(a.native_json).read_text())); Path(a.output_json).write_text(json.dumps(r,indent=2,sort_keys=True)+'\n'); c=r['candidate']; print('CIV1_FIXED_LENGTH_RECONSTRUCTION_OK '+f"shift={c['vertical_shift_samples']} used_mm={c['max_used_pelvis_mm']} phase={r['baseline_phase_delta_samples']}->{r['phase_delta_samples']} bone_error={r['max_bone_length_error_m']:.3e} knee_corr_step={r['max_knee_correction_step_m']:.6f} joint_step={r['max_joint_step_rad']:.6f} verdict={r['verdict']}")
 if __name__=='__main__': main()

@@ -6,7 +6,9 @@ on:
       - 'grand-bruxelles-game/tools/analyze_civ1_right_downstream_transition.py'
       - 'grand-bruxelles-game/tools/analyze_civ1_downstream_contributions.py'
       - 'grand-bruxelles-game/tools/analyze_civ1_foot_rotation_transition.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_foot_link_projection.py'
       - 'grand-bruxelles-game/tests/test_civ1_foot_rotation_transition.py'
+      - 'grand-bruxelles-game/tests/test_civ1_foot_link_projection.py'
       - '.github/workflows/grand-bruxelles-civ1-foot-rotation-transition.yml'
   workflow_dispatch:
 
@@ -34,7 +36,9 @@ jobs:
       - name: Regression contract
         run: |
           python -m pip install --disable-pip-version-check 'pytest==8.4.2'
-          python -m pytest -q grand-bruxelles-game/tests/test_civ1_foot_rotation_transition.py
+          python -m pytest -q \
+            grand-bruxelles-game/tests/test_civ1_foot_rotation_transition.py \
+            grand-bruxelles-game/tests/test_civ1_foot_link_projection.py
       - name: Prepare exact diagnostic sources
         shell: bash
         run: |
@@ -65,7 +69,7 @@ jobs:
           chmod +x "$GODOT_BIN"; echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
           "$GODOT_BIN" --version | tee /tmp/civ1rot/evidence/godot-version.txt
           grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1rot/evidence/godot-version.txt
-      - name: Measure native transition and isolate foot quaternion delta
+      - name: Measure native transition and isolate foot-link projection
         shell: bash
         run: |
           set -euo pipefail
@@ -82,6 +86,8 @@ jobs:
           grep -F CIV1_DOWNSTREAM_CONTRIBUTION_OK /tmp/civ1rot/evidence/contributions.log
           python grand-bruxelles-game/tools/analyze_civ1_foot_rotation_transition.py /tmp/civ1rot/evidence/native.json /tmp/civ1rot/evidence/foot-rotation.json | tee /tmp/civ1rot/evidence/foot-rotation.log
           grep -F CIV1_FOOT_ROTATION_TRANSITION_OK /tmp/civ1rot/evidence/foot-rotation.log
+          python grand-bruxelles-game/tools/analyze_civ1_foot_link_projection.py /tmp/civ1rot/evidence/native.json /tmp/civ1rot/evidence/foot-link-projection.json | tee /tmp/civ1rot/evidence/foot-link-projection.log
+          grep -F CIV1_FOOT_LINK_PROJECTION_OK /tmp/civ1rot/evidence/foot-link-projection.log
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4

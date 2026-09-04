@@ -11,6 +11,11 @@ const REQUIRED_LICENSE := "ODbL-1.0"
 const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
 const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
+# Canonical environment bounds are serialized at 0.01 m while point positions
+# retain 0.001 m precision. Half a bound quantization step is therefore the
+# maximum source-preserving edge discrepancy; the epsilon is numeric only.
+const BOUNDS_HALF_QUANTIZATION_M := 0.005
+const BOUNDS_NUMERIC_EPSILON_M := 0.0000001
 
 @export_file("*.json") var data_path := ""
 @export var render_radius_m := 350.0
@@ -128,6 +133,7 @@ func _collect_validated_points(document: Dictionary, bounds: Dictionary) -> Vari
         return null
     var validated := {"tree": [], "street_lamp": [], "bollard": []}
     var seen_osm_ids: Dictionary = {}
+    var bounds_tolerance := BOUNDS_HALF_QUANTIZATION_M + BOUNDS_NUMERIC_EPSILON_M
     for row_variant in rows_variant as Array:
         if not row_variant is Dictionary:
             push_error("OSM environment point must be an object")
@@ -164,8 +170,8 @@ func _collect_validated_points(document: Dictionary, bounds: Dictionary) -> Vari
         if not is_finite(x) or not is_finite(z):
             push_error("OSM environment point X/Z must be finite")
             return null
-        if x < float(bounds["min_x"]) or x > float(bounds["max_x"]) or z < float(bounds["min_z"]) or z > float(bounds["max_z"]):
-            push_error("OSM environment point lies outside declared bounds_m")
+        if x < float(bounds["min_x"]) - bounds_tolerance or x > float(bounds["max_x"]) + bounds_tolerance or z < float(bounds["min_z"]) - bounds_tolerance or z > float(bounds["max_z"]) + bounds_tolerance:
+            push_error("OSM environment point lies outside declared bounds_m beyond source quantization")
             return null
         (validated[kind] as Array).append({
             "osm_id": osm_id,

@@ -1,0 +1,111 @@
+name: Grand Bruxelles Grand-Place Safe View Selection
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/grand_place_complete_contour_safe_view_contract.json"
+      - "grand-bruxelles-game/game/tests/grand_place_complete_contour_safe_view_selection_test.gd"
+      - ".github/workflows/grand-bruxelles-grand-place-safe-view-selection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-safe-view-selection-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select-safe-views:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate pre-capture selection contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, pathlib
+          p=pathlib.Path('grand-bruxelles-game/data/qa/grand_place_complete_contour_safe_view_contract.json')
+          d=json.loads(p.read_text())
+          assert d['schema']=='grand-bruxelles-grand-place-safe-view-selection-v1'
+          assert d['candidate_yaws_degrees']==[0,45,90,135,180,225,270,315]
+          assert [(q['id'],q['candidate_yaws_degrees']) for q in d['quadrants']]==[
+            ('q0',[0,45]),('q1',[90,135]),('q2',[180,225]),('q3',[270,315])]
+          seed=d['camera_seed']
+          assert seed['position']==[319.01,1.72,-535.20]
+          assert seed['target']==[321.91,11.8,-485.66]
+          assert seed['fov_degrees']==62.0 and seed['resolution']==[1280,720]
+          for v in (seed['position'], seed['target']):
+            assert all(type(x) in (int,float) and math.isfinite(x) for x in v)
+          r=d['selection_rule']
+          assert r=={
+            'metric':'physics_center_ray_clearance_ratio',
+            'select_exactly_one_per_quadrant':True,
+            'winner':'maximum_clearance_ratio',
+            'tie_break':'lowest_yaw_degrees',
+            'selection_happens_before_png_capture':True,
+            'post_capture_reselection_allowed':False,
+            'rejected_multiview_evidence_may_not_influence_selection':True,
+          }
+          h=d['hard_rules']
+          for key in ('source_geometry_modified','collision_modified','runtime_modified','production_camera_modified','threshold_rescue_allowed','selection_authorizes_visual_acceptance','visual_acceptance','jouable_authorized'):
+            assert h[key] is False
+          assert h['preserve_seed_radius_height_target_fov'] is True
+          print('GRAND_PLACE_SAFE_VIEW_SELECTION_CONTRACT_OK')
+          PY
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/gp-safe-view-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/gp-safe-view-import.log; then exit 1; fi
+      - name: Select views from collision truth before capture
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gp-safe-view
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/grand_place_complete_contour_safe_view_selection_test.gd -- /tmp/gp-safe-view/selection.json 2>&1 | tee /tmp/gp-safe-view/selection.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_SAFE_VIEW_SELECTION_FAIL" /tmp/gp-safe-view/selection.log; then exit 1; fi
+          grep -F 'GRAND_PLACE_SAFE_VIEW_SELECTION_OK:' /tmp/gp-safe-view/selection.log
+          python3 - <<'PY'
+          import json
+          p='/tmp/gp-safe-view/selection.json'
+          d=json.load(open(p))
+          assert d['schema']=='grand-bruxelles-grand-place-safe-view-selection-receipt-v1'
+          assert d['selection_stage']=='before_png_capture'
+          assert len(d['measurements'])==8 and len(d['selected'])==4
+          assert [x['quadrant'] for x in d['selected']]==['q0','q1','q2','q3']
+          assert len({x['yaw_degrees'] for x in d['selected']})==4
+          assert d['visual_acceptance'] is False and d['jouable_authorized'] is False
+          for item in d['selected']:
+            assert item['yaw_degrees'] in (0,45,90,135,180,225,270,315)
+            assert 0.0 <= item['clearance_ratio'] <= 1.000001
+          print('GRAND_PLACE_SAFE_VIEW_SELECTION_RECEIPT_OK')
+          PY
+      - name: Stage selection evidence
+        if: always()
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/grand_place_safe_view_selection
+          cp /tmp/gp-safe-view/* grand-bruxelles-game/artifacts/qa/grand_place_safe_view_selection/ 2>/dev/null || true
+          cp /tmp/gp-safe-view-import.log grand-bruxelles-game/artifacts/qa/grand_place_safe_view_selection/import.log 2>/dev/null || true
+      - name: Upload selection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-safe-view-selection
+          path: grand-bruxelles-game/artifacts/qa/grand_place_safe_view_selection
+          if-no-files-found: error

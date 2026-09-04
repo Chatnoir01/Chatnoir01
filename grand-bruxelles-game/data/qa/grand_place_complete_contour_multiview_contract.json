@@ -1,0 +1,47 @@
+{
+  "schema": "grand-bruxelles-grand-place-complete-contour-multiview-v1",
+  "status": "owner_review_required",
+  "source_witness": "#711/#753",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0"
+  },
+  "camera_seed": {
+    "resolution": [1280, 720],
+    "position": [319.01, 1.72, -535.20],
+    "target": [321.91, 11.8, -485.66],
+    "fov_degrees": 62.0
+  },
+  "views": [
+    {"id": "canonical", "yaw_degrees_from_seed": 0.0},
+    {"id": "quarter_left", "yaw_degrees_from_seed": 90.0},
+    {"id": "opposite", "yaw_degrees_from_seed": 180.0},
+    {"id": "quarter_right", "yaw_degrees_from_seed": 270.0}
+  ],
+  "capture_rules": {
+    "derive_views_only_by_exact_yaw_rotation_about_seed_target": true,
+    "preserve_seed_radius_height_target_and_fov": true,
+    "post_capture_camera_tuning_allowed": false,
+    "ui_hidden": true,
+    "player_hidden": true,
+    "vehicles_hidden": true,
+    "npc_and_ambient_frozen": true,
+    "shared_root_world3d_required": true,
+    "all_four_full_frames_required": true
+  },
+  "hard_rules": {
+    "source_geometry_modified": false,
+    "collision_modified": false,
+    "runtime_modified": false,
+    "camera_rescue_allowed": false,
+    "threshold_rescue_allowed": false,
+    "numeric_pass_authorizes_merge": false,
+    "owner_full_frame_review_required": true,
+    "visual_acceptance": false,
+    "jouable_authorized": false
+  }
+}

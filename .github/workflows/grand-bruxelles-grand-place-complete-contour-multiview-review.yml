@@ -1,0 +1,21 @@
+name: Grand Bruxelles Grand-Place Complete Contour Multiview Review
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/grand_place_complete_contour_multiview_review.json'
+      - 'grand-bruxelles-game/game/tests/grand_place_complete_contour_multiview_review_contract_test.py'
+      - '.github/workflows/grand-bruxelles-grand-place-complete-contour-multiview-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate fail-closed multiview review receipt
+        run: python3 grand-bruxelles-game/game/tests/grand_place_complete_contour_multiview_review_contract_test.py

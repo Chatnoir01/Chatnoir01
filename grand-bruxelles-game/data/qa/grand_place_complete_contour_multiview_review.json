@@ -1,0 +1,37 @@
+{
+  "schema": "grand-bruxelles-grand-place-complete-contour-multiview-review-v1",
+  "capture_head_sha": "16bb06ca17f04924498a69f79ef124c9b0619a41",
+  "workflow_run_id": 33823428958,
+  "artifact_id": 9919123342,
+  "artifact_digest": "sha256:8abd1adb84a9b0f52778bfc3d1f2cc6a2c26d9b5fb24f684ed8c6b5078635365",
+  "resolution": [1280, 720],
+  "full_frame_inspected": true,
+  "source_geometry_modified": false,
+  "collision_modified": false,
+  "camera_modified_after_capture": false,
+  "overall_witness_verdict": "REJECT",
+  "visual_acceptance": false,
+  "jouable_authorized": false,
+  "views": {
+    "canonical.png": {
+      "sha256": "48378427ef734be7c93619cf6a4e553d3911b031bcf55388090a34d748091167",
+      "verdict": "KEEP",
+      "reason": "usable full-frame contour witness; no new visual acceptance inferred"
+    },
+    "quarter_left.png": {
+      "sha256": "b69facfc7a6c5d417e09f9b2d5157c2c5c2432d3379dc155b8de471a9d03c70d",
+      "verdict": "REJECT",
+      "reason": "near facade dominates the frame, so this camera is not a valid zero-large-gap review witness"
+    },
+    "opposite.png": {
+      "sha256": "57673d16c902e3f6c6192c182c580f492dba3693725a76213835172a7a3c3898",
+      "verdict": "KEEP",
+      "reason": "usable full-frame contour witness; no new visual acceptance inferred"
+    },
+    "quarter_right.png": {
+      "sha256": "a4a363c2ebf391209b1dd387ac804ae6e3ff464174cc7d1d00fa854657cc45c3",
+      "verdict": "KEEP",
+      "reason": "usable full-frame contour witness; no new visual acceptance inferred"
+    }
+  }
+}

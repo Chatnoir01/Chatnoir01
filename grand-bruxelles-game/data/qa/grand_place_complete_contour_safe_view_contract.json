@@ -1,0 +1,46 @@
+{
+  "schema": "grand-bruxelles-grand-place-safe-view-selection-v1",
+  "status": "pre_capture_selection_only",
+  "source_witness": "#711/#753",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0"
+  },
+  "camera_seed": {
+    "position": [319.01, 1.72, -535.20],
+    "target": [321.91, 11.8, -485.66],
+    "fov_degrees": 62.0,
+    "resolution": [1280, 720]
+  },
+  "candidate_yaws_degrees": [0, 45, 90, 135, 180, 225, 270, 315],
+  "quadrants": [
+    {"id": "q0", "candidate_yaws_degrees": [0, 45]},
+    {"id": "q1", "candidate_yaws_degrees": [90, 135]},
+    {"id": "q2", "candidate_yaws_degrees": [180, 225]},
+    {"id": "q3", "candidate_yaws_degrees": [270, 315]}
+  ],
+  "selection_rule": {
+    "metric": "physics_center_ray_clearance_ratio",
+    "select_exactly_one_per_quadrant": true,
+    "winner": "maximum_clearance_ratio",
+    "tie_break": "lowest_yaw_degrees",
+    "selection_happens_before_png_capture": true,
+    "post_capture_reselection_allowed": false,
+    "rejected_multiview_evidence_may_not_influence_selection": true
+  },
+  "hard_rules": {
+    "preserve_seed_radius_height_target_fov": true,
+    "source_geometry_modified": false,
+    "collision_modified": false,
+    "runtime_modified": false,
+    "production_camera_modified": false,
+    "threshold_rescue_allowed": false,
+    "selection_authorizes_visual_acceptance": false,
+    "visual_acceptance": false,
+    "jouable_authorized": false
+  }
+}

@@ -32,7 +32,7 @@ def finite_accessor_bounds(doc: dict) -> bool:
     return True
 
 
-def inspect(path: Path) -> dict:
+def inspect(path: Path, expected_sha256: str = EXPECTED_SHA256) -> dict:
     doc, data = parse_glb(path)
     meshes = doc.get("meshes", []); nodes = doc.get("nodes", []); skins = doc.get("skins", []); mats = doc.get("materials", [])
     primitives = [p for mesh in meshes for p in mesh.get("primitives", [])]
@@ -43,16 +43,14 @@ def inspect(path: Path) -> dict:
     report = {
         "schema": "grand-bruxelles-civ1-head-intake-v2",
         "asset": EXPECTED_ASSET, "upstream": EXPECTED_UPSTREAM,
-        "sha256": digest, "sha256_pinned": digest == EXPECTED_SHA256, "bytes": len(data),
+        "sha256": digest, "sha256_pinned": digest == expected_sha256, "bytes": len(data),
         "scene_count": len(doc.get("scenes", [])), "node_count": len(nodes),
         "mesh_count": len(meshes), "primitive_count": len(primitives),
         "material_count": len(mats), "material_bound_primitive_count": material_bound,
         "morph_target_primitive_count": morph_primitives, "morph_target_names": target_names,
         "skin_count": len(skins), "animations": len(doc.get("animations", [])),
-        "attachment_mode": "rigid_to_body_head_bone",
-        "attachment_bone": "mixamorig_Head",
-        "source_wiring_required": True,
-        "finite_accessor_bounds": finite_accessor_bounds(doc),
+        "attachment_mode": "rigid_to_body_head_bone", "attachment_bone": "mixamorig_Head",
+        "source_wiring_required": True, "finite_accessor_bounds": finite_accessor_bounds(doc),
         "diagnostic_only": True, "runtime_authorized": False, "visual_approval_claimed": False,
     }
     required = (

@@ -10,10 +10,10 @@ assert spec.loader is not None
 spec.loader.exec_module(module)
 
 
-def _frame(index: int, right_y: float, left_y: float, right_x: float = 0.0, left_x: float = 0.0, hips_x: float = 0.0) -> dict:
+def _frame(index: int, right_y: float, left_y: float, right_x: float = 0.0, left_x: float = 0.0, hips_x: float = 0.0, right_z: float = 0.0) -> dict:
     return {"sample_index": index, "poses": {
         "Hips": {"origin": [hips_x, 1.0, 0.0]},
-        "RightFoot": {"origin": [right_x, right_y, 0.0]},
+        "RightFoot": {"origin": [right_x, right_y, right_z]},
         "LeftFoot": {"origin": [left_x, left_y, 0.0]},
     }}
 
@@ -27,6 +27,7 @@ def test_cyclic_vertical_stability_merges_edge_window() -> None:
     right = module.analyze_foot(frames, "RightFoot")
     assert right["vertical_velocity_metric"] == "cyclic_central_difference_m_per_sample"
     assert right["vertical_stability_entry_estimator"] == module.ENTRY_ESTIMATOR
+    assert right["directional_liftoff_release"] == module.LIFTOFF_RELEASE
     assert right["hysteresis_exit_multiplier"] == 2.0
     assert right["eligible_vertical_stability_window_count"] >= 1
     assert any(window["wraps_cycle"] for window in right["windows"])
@@ -59,17 +60,30 @@ def test_root_relative_motion_separates_body_translation_from_local_foot_motion(
     assert window["root_relative_max_horizontal_step_m"] < 1e-12
 
 
+def test_rising_liftoff_is_released_before_large_horizontal_departure() -> None:
+    frames = []
+    right_y = {69: 0.189214, 70: 0.183883, 71: 0.189780, 72: 0.206171}
+    right_z = {69: 0.339912, 70: 0.340306, 71: 0.329600, 72: 0.284516}
+    for i in range(120):
+        frames.append(_frame(i, right_y.get(i, 1.0), 1.0, right_z=right_z.get(i, 0.0)))
+    right = module.analyze_foot(frames, "RightFoot")
+    assert right["directional_liftoff_release"] == "positive_central_velocity_above_enter_while_rising"
+    assert right["eligible_vertical_stability_window_count"] == 0
+    assert all(72 not in window["sample_indices"] for window in right["windows"])
+    assert right["max_eligible_horizontal_path_m"] == 0.0
+
+
 def test_bundle_contract_remains_fail_closed() -> None:
     frames = [_frame(i, 0.0 if 10 <= i <= 12 else 1.0, 0.0 if 50 <= i <= 52 else 1.0) for i in range(120)]
     bundle = {"schema": module.BUNDLE_SCHEMA, "runtime_authorized": False, "visual_approval_claimed": False, "player_view_claimed": False, "frames": frames}
     result = module.analyze_bundle(bundle)
-    assert result["schema"] == "grand-bruxelles-civ1-contact-windows-v3"
+    assert result["schema"] == "grand-bruxelles-civ1-contact-windows-v4"
     assert result["root_relative_reference_semantic"] == "Hips"
     assert result["ground_contact_claimed"] is False
     assert result["runtime_authorized"] is False
     assert result["visual_approval_claimed"] is False
     assert result["player_view_claimed"] is False
-    assert result["verdict"] == "AMELIORER_ROOT_RELATIVE_STABILITY_CLASSIFIED_GROUND_CONTACT_UNPROVEN"
+    assert result["verdict"] == "AMELIORER_LIFTOFF_RELEASE_CLASSIFIED_GROUND_CONTACT_UNPROVEN"
     assert "planted" not in str(result).lower()
     bad = dict(bundle); bad["runtime_authorized"] = True
     try:
@@ -84,5 +98,6 @@ if __name__ == "__main__":
     test_cyclic_vertical_stability_merges_edge_window()
     test_transient_low_sweep_is_not_promoted_to_stable_contact()
     test_root_relative_motion_separates_body_translation_from_local_foot_motion()
+    test_rising_liftoff_is_released_before_large_horizontal_departure()
     test_bundle_contract_remains_fail_closed()
     print("CIV1_CONTACT_WINDOWS_TESTS_OK")

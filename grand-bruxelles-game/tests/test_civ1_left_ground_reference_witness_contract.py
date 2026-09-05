@@ -15,6 +15,9 @@ def test_left_ground_reference_witness_contract() -> None:
         '"ground_contact_claimed":false',
         '"reference_is_external_scene_ground":true',
         '"placement_semantic":"align_bilateral_cycle_lower_envelope_to_canonical_ground_top"',
+        'camera.position=Vector3(0.0,0.95+placement_y,3.0)',
+        'camera.look_at(Vector3(0.0,0.85+placement_y,0.0))',
+        '"camera_tracks_placement_y":true',
         'PhysicsRayQueryParameters3D.create',
         'canonical_ground.use_collision',
         'mixamorig_Head',
@@ -38,6 +41,8 @@ def test_left_ground_reference_witness_contract() -> None:
         '"visual_approval_claimed":true',
         '"player_view_claimed":true',
         '"reference_semantic":"bilateral_cycle_lower_envelope_y"',
+        'camera.position=Vector3(0.0,1.18,3.0)',
+        'camera.look_at(Vector3(0.0,1.08,0.0))',
     ]
     for token in forbidden:
         assert token not in source, token

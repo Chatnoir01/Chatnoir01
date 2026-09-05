@@ -4,6 +4,8 @@ on:
     paths:
       - 'grand-bruxelles-game/tools/godot_civ1_dynamic_full_character_witness.gd'
       - 'grand-bruxelles-game/tests/test_civ1_dynamic_full_character_witness_contract.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_contact_windows.py'
+      - 'grand-bruxelles-game/tests/test_civ1_contact_windows.py'
       - '.github/workflows/grand-bruxelles-civ1-dynamic-full-character.yml'
   workflow_dispatch:
 permissions: {contents: read}
@@ -21,7 +23,9 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - name: Regression contract
-        run: python grand-bruxelles-game/tests/test_civ1_dynamic_full_character_witness_contract.py
+        run: |
+          python grand-bruxelles-game/tests/test_civ1_dynamic_full_character_witness_contract.py
+          python grand-bruxelles-game/tests/test_civ1_contact_windows.py
 
       - name: Prepare pinned sources and validated lower-body tooling
         run: |
@@ -79,6 +83,25 @@ jobs:
           grep -F 'verdict=AMELIORER_FIXED_LENGTH_CONTINUOUS_CYCLE' /tmp/civ1dyn/evidence/fixed-length.log
           python /tmp/civ1dyn/tools/bundle.py /tmp/civ1dyn/evidence/native.json /tmp/civ1dyn/evidence/fixed-length.json /tmp/civ1dyn/evidence/skeleton-bundle.json 2>&1 | tee /tmp/civ1dyn/evidence/bundle.log
           grep -F CIV1_SKELETON_WITNESS_BUNDLE_OK /tmp/civ1dyn/evidence/bundle.log
+
+      - name: Measure contiguous low-foot contact windows
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_contact_windows.py \
+            /tmp/civ1dyn/evidence/skeleton-bundle.json \
+            /tmp/civ1dyn/evidence/contact-windows.json | tee /tmp/civ1dyn/evidence/contact-windows.log
+          grep -F CIV1_CONTACT_WINDOWS_OK /tmp/civ1dyn/evidence/contact-windows.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/civ1dyn/evidence/contact-windows.json').read_text())
+          assert p['schema']=='grand-bruxelles-civ1-contact-windows-v1'
+          assert p['diagnostic_only'] is True
+          assert p['runtime_authorized'] is False and p['visual_approval_claimed'] is False and p['player_view_claimed'] is False
+          assert p['frame_count']==120
+          assert set(p['feet'])=={'RightFoot','LeftFoot'}
+          assert p['verdict']=='AMELIORER_CONTACT_WINDOWS_REQUIRE_GROUNDING_REVIEW'
+          PY
 
       - name: Run dynamic full-character Godot 4.7.1 witness
         run: |

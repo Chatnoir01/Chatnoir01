@@ -71,10 +71,15 @@ def analyze_foot(frames: list[dict[str, Any]], semantic: str) -> dict[str, Any]:
     for indices in windows:
         path = 0.0
         max_step = 0.0
+        max_step_from: int | None = None
+        max_step_to: int | None = None
         for previous_index, current_index in zip(indices, indices[1:]):
             step = _horizontal_distance(points[previous_index], points[current_index])
             path += step
-            max_step = max(max_step, step)
+            if step > max_step:
+                max_step = step
+                max_step_from = previous_index
+                max_step_to = current_index
         net = _horizontal_distance(points[indices[0]], points[indices[-1]]) if len(indices) > 1 else 0.0
         measured.append(
             {
@@ -86,6 +91,8 @@ def analyze_foot(frames: list[dict[str, Any]], semantic: str) -> dict[str, Any]:
                 "horizontal_path_m": path,
                 "net_horizontal_displacement_m": net,
                 "max_horizontal_step_m": max_step,
+                "max_horizontal_step_from_sample": max_step_from,
+                "max_horizontal_step_to_sample": max_step_to,
                 "sample_indices": indices,
             }
         )

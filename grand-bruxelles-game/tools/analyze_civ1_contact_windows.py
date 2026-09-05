@@ -2,15 +2,15 @@
 """Fail-closed CIV-1 contact-candidate classifier.
 
 Low foot height is only geometric evidence. This diagnostic adds cyclic vertical
-stability plus foot motion relative to Hips. It never claims ground contact or
-authorizes runtime/player-view/visual approval.
+stability, directional liftoff release, and foot motion relative to Hips. It
+never claims ground contact or authorizes runtime/player-view/visual approval.
 """
 from __future__ import annotations
 import json, math, statistics, sys
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "grand-bruxelles-civ1-contact-windows-v3"
+SCHEMA = "grand-bruxelles-civ1-contact-windows-v4"
 BUNDLE_SCHEMA = "grand-bruxelles-civ1-skeleton-witness-bundle-v1"
 FOOT_SEMANTICS = ("RightFoot", "LeftFoot")
 ROOT_SEMANTIC = "Hips"
@@ -18,6 +18,7 @@ LOW_BAND_FRACTION = 0.10
 MIN_CANDIDATE_WINDOW_SAMPLES = 3
 HYSTERESIS_EXIT_MULTIPLIER = 2.0
 ENTRY_ESTIMATOR = "lower_half_median_abs_cyclic_central_difference_low_band"
+LIFTOFF_RELEASE = "positive_central_velocity_above_enter_while_rising"
 
 
 def _point(frame: dict[str, Any], semantic: str) -> tuple[float, float, float]:
@@ -80,9 +81,12 @@ def _stable_mask(ys: list[float], low_mask: list[bool]) -> tuple[list[bool], flo
     output = [False] * len(ys)
     for _ in range(2):
         for index in range(len(ys)):
-            speed = abs(_vertical_velocity(ys, index))
+            velocity = _vertical_velocity(ys, index)
+            speed = abs(velocity)
+            previous_y = ys[(index - 1) % len(ys)]
+            directional_liftoff = velocity > enter and ys[index] > previous_y
             if state:
-                if (not low_mask[index]) or speed > exit_threshold:
+                if (not low_mask[index]) or speed > exit_threshold or directional_liftoff:
                     state = False
             elif low_mask[index] and speed <= enter:
                 state = True
@@ -150,6 +154,7 @@ def analyze_foot(frames: list[dict[str, Any]], semantic: str) -> dict[str, Any]:
         "band_threshold_y_m": band_threshold, "low_sample_count": len(low_indices), "low_window_count": len(low_windows),
         "vertical_velocity_metric": "cyclic_central_difference_m_per_sample",
         "vertical_stability_entry_estimator": ENTRY_ESTIMATOR,
+        "directional_liftoff_release": LIFTOFF_RELEASE,
         "vertical_stability_enter_m_per_sample": enter, "vertical_stability_exit_m_per_sample": exit_threshold,
         "hysteresis_exit_multiplier": HYSTERESIS_EXIT_MULTIPLIER, "vertical_stable_sample_count": len(stable_indices),
         "vertical_stability_window_count": len(measured), "eligible_vertical_stability_window_count": len(eligible),
@@ -173,7 +178,7 @@ def analyze_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         "frame_count": 120, "minimum_vertical_stability_window_samples": MIN_CANDIDATE_WINDOW_SAMPLES,
         "root_relative_reference_semantic": ROOT_SEMANTIC,
         "feet": {semantic: analyze_foot(frames, semantic) for semantic in FOOT_SEMANTICS},
-        "verdict": "AMELIORER_ROOT_RELATIVE_STABILITY_CLASSIFIED_GROUND_CONTACT_UNPROVEN",
+        "verdict": "AMELIORER_LIFTOFF_RELEASE_CLASSIFIED_GROUND_CONTACT_UNPROVEN",
     }
 
 

@@ -3,7 +3,13 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/godot_civ1_left_ground_reference_witness.gd'
+      - 'grand-bruxelles-game/tools/validate_civ1_sole_proxy_report.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_rendered_sole_capture.py'
+      - 'grand-bruxelles-game/tools/correlate_civ1_rendered_sole_motion.py'
       - 'grand-bruxelles-game/tests/test_civ1_left_ground_reference_witness_contract.py'
+      - 'grand-bruxelles-game/tests/test_civ1_sole_proxy_report_validator.py'
+      - 'grand-bruxelles-game/tests/test_civ1_rendered_sole_capture_analyzer.py'
+      - 'grand-bruxelles-game/tests/test_civ1_rendered_sole_motion_correlation.py'
       - '.github/workflows/grand-bruxelles-civ1-left-ground-reference.yml'
   workflow_dispatch:
 permissions: {contents: read}
@@ -24,7 +30,11 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - name: Regression contract
-        run: python grand-bruxelles-game/tests/test_civ1_left_ground_reference_witness_contract.py
+        run: |
+          python grand-bruxelles-game/tests/test_civ1_left_ground_reference_witness_contract.py
+          python grand-bruxelles-game/tests/test_civ1_sole_proxy_report_validator.py
+          python grand-bruxelles-game/tests/test_civ1_rendered_sole_capture_analyzer.py
+          python grand-bruxelles-game/tests/test_civ1_rendered_sole_motion_correlation.py
       - name: Prepare pinned sources and proven bundle tooling
         run: |
           set -euo pipefail
@@ -129,6 +139,27 @@ jobs:
               assert s['left_collider_name']=='CanonicalMainGround'
               assert s['right_collider_name']=='CanonicalMainGround'
               assert s['sole_proxy_collider_name']=='CanonicalMainGround'
+          PY
+      - name: Correlate real raster with canonical-ground world motion
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/validate_civ1_sole_proxy_report.py /tmp/civ1ground/evidence/left-ground-reference.json
+          python grand-bruxelles-game/tools/analyze_civ1_rendered_sole_capture.py /tmp/civ1ground/captures /tmp/civ1ground/evidence/rendered-sole-raster.json
+          python grand-bruxelles-game/tools/correlate_civ1_rendered_sole_motion.py /tmp/civ1ground/evidence/rendered-sole-raster.json /tmp/civ1ground/evidence/left-ground-reference.json /tmp/civ1ground/evidence/rendered-sole-world-correlation.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/civ1ground/evidence/rendered-sole-world-correlation.json').read_text())
+          assert p['schema']=='grand-bruxelles-civ1-rendered-sole-world-correlation-v1'
+          assert p['candidate_samples']==[115,116,117,118]
+          assert p['world_horizontal_path_m']>=0.0 and p['raster_centroid_path_px']>=0.0
+          assert p['calibrated_player_distance_m'] is None
+          assert p['perceptual_2_8m_claimed'] is False
+          assert p['planted_contact_claimed'] is False and p['rendered_sole_contact_claimed'] is False
+          assert p['ground_contact_claimed'] is False and p['runtime_authorized'] is False
+          assert p['animation_correction_authorized'] is False
+          assert p['visual_approval_claimed'] is False and p['player_view_claimed'] is False
+          assert p['verdict']=='AMELIORER_MOTION_CORRELATED_PLAYER_DISTANCE_UNCALIBRATED'
           PY
       - uses: actions/upload-artifact@v4
         if: always()

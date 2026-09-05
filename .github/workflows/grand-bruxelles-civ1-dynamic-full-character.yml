@@ -98,7 +98,8 @@ jobs:
           assert p['runtime_authorized'] is False and p['visual_approval_claimed'] is False and p['player_view_claimed'] is False
           assert p['body_mesh_count'] > 0 and p['head_mesh_count'] > 0
           assert p['head_surface_count']==p['head_material_surface_count']
-          assert p['head_follow_metric']=='calibrated_bone_attachment_world_residual'
+          assert p['head_follow_metric']=='settled_calibrated_bone_attachment_world_residual'
+          assert p['head_settle_frames']==2
           assert p['max_pose_origin_error_m'] <= 1e-4
           assert p['max_head_follow_error_m'] <= 1e-4
           assert len(p['captures']) >= 1

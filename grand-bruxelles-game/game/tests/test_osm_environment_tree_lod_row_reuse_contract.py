@@ -14,8 +14,9 @@ def verify_tree_lod_refresh_reuses_selected_rows_without_dictionary_churn() -> N
 
     refresh_lod = section(source, "func _refresh_tree_lod(anchor: Vector3) -> void:", "\nfunc _refresh(force: bool)")
     rebuild = section(source, "func _rebuild(anchor: Vector3) -> void:", "\nfunc _batch(")
+    foliage = section(source, "func _build_tree_foliage_batches(", "\nfunc _build_tree_batches(")
 
-    assert "_build_tree_foliage_batches_for_anchor(_rendered_trees, anchor)" in refresh_lod, (
+    assert "_build_tree_foliage_batches(_rendered_trees, anchor)" in refresh_lod, (
         "tree-only LOD refresh must consume the already selected tree rows directly"
     )
     assert "rows.append(" not in refresh_lod, (
@@ -34,16 +35,15 @@ def verify_tree_lod_refresh_reuses_selected_rows_without_dictionary_churn() -> N
         "full rebuild owns the selected tree row Array already; deep-copying it duplicates up to max_trees rows"
     )
 
-    anchor_builder = section(
-        source,
-        "func _build_tree_foliage_batches_for_anchor(rows: Array, anchor: Vector3) -> void:",
-        "\nfunc _build_tree_batches(",
+    assert "anchor: Vector3 = Vector3(INF, INF, INF)" in foliage
+    assert "var dx := base.x - anchor.x" in foliage
+    assert "var dz := base.z - anchor.z" in foliage
+    assert "dx * dx + dz * dz" in foliage
+    assert 'row.get("distance_sq", 0.0)' in foliage, (
+        "full rebuild must reuse selection-time distance_sq while LOD refresh recomputes from the current anchor"
     )
-    assert "var dx := base.x - anchor.x" in anchor_builder
-    assert "var dz := base.z - anchor.z" in anchor_builder
-    assert "dx * dx + dz * dz" in anchor_builder
-    assert "_build_tree_foliage_batches_from_distances" in anchor_builder, (
-        "anchor refresh path must retain the canonical foliage batching implementation"
+    assert "var distances" not in foliage and "distances.append" not in foliage, (
+        "canonical foliage batching must not reintroduce the transient per-tree distance buffer"
     )
 
 

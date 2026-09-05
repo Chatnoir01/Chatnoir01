@@ -32,6 +32,7 @@ var _last_anchor := Vector3(INF, INF, INF)
 var _last_tree_lod_anchor := Vector3(INF, INF, INF)
 var _rendered_trees: Array = []
 var _owned_batches: Array[MultiMeshInstance3D] = []
+var _batches_visible := true
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
 var _presentation_meshes: Dictionary = {}
@@ -243,6 +244,9 @@ func _target() -> Node3D:
     return null
 
 func _set_batches_visible(enabled: bool) -> void:
+    if _batches_visible == enabled:
+        return
+    _batches_visible = enabled
     for batch: MultiMeshInstance3D in _owned_batches:
         if is_instance_valid(batch) and not batch.is_queued_for_deletion():
             batch.visible = enabled
@@ -373,6 +377,7 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array) -> void:
     instance.name = name_value
     instance.multimesh = multimesh
     instance.set_meta("source_dimensions_measured", false)
+    instance.visible = _batches_visible
     add_child(instance)
     _owned_batches.append(instance)
 

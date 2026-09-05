@@ -1,0 +1,23 @@
+name: Grand Bruxelles OSM Batch Visibility Cache
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/test_osm_environment_batch_visibility_cache_contract.py"
+      - ".github/workflows/grand-bruxelles-osm-batch-visibility-cache.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  visibility-cache-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prove OSM batch visibility writes occur only on transitions
+        run: python grand-bruxelles-game/game/tests/test_osm_environment_batch_visibility_cache_contract.py

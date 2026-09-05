@@ -18,9 +18,8 @@ class FakeSole:
         self.fail_8m = fail_8m
 
     def bottom_silhouette(self, path: Path) -> dict:
-        name = path.name
-        distance = int(name.split("-")[2][:-1])
-        sample = int(name.rsplit("-", 1)[1].split(".")[0])
+        distance = int(path.name.split("-")[2][:-1])
+        sample = int(path.name.rsplit("-", 1)[1].split(".")[0])
         if self.fail_8m and distance == 8 and sample == 116:
             raise ValueError("insufficient rendered silhouette pixels")
         scale = {2: 2.0, 4: 1.0, 8: 0.5}[distance]
@@ -39,27 +38,65 @@ def _captures(root: Path) -> None:
             (root / f"civ1-distance-{distance}m-{sample}.png").write_bytes(b"fixture")
 
 
+def _fake_multirow(_sole, path: Path) -> dict:
+    distance = int(path.name.split("-")[2][:-1])
+    sample = int(path.name.rsplit("-", 1)[1].split(".")[0])
+    scale = {2: 1.9, 4: 0.95, 8: 0.48}[distance]
+    return {
+        "bottom_y_px": 350,
+        "row_depth": 4,
+        "pixel_count": 80,
+        "centroid_x_px": 500.0 + (sample - 115) * scale,
+        "centroid_y_px": 348.5,
+    }
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         _captures(root)
-        original = mod._load_sole_module
+        original_load = mod._load_sole_module
+        original_multirow = mod._multirow_silhouette
         try:
+            mod._multirow_silhouette = _fake_multirow
             mod._load_sole_module = lambda: FakeSole(False)
             report = mod.analyze(root)
-            assert report["unresolved_distances_m"] == []
-            assert [d["bottom_centroid_path_px"] for d in report["distance_measurements"]] == [6.0, 3.0, 1.5]
+            assert report["schema"].endswith("v2")
+            assert report["primary_unresolved_distances_m"] == []
+            assert report["multirow_unresolved_distances_m"] == []
+            assert report["recovered_by_multirow_distances_m"] == []
+            assert [d["primary"]["bottom_centroid_path_px"] for d in report["distance_measurements"]] == [6.0, 3.0, 1.5]
+            assert [round(d["multirow"]["centroid_path_px"], 2) for d in report["distance_measurements"]] == [5.7, 2.85, 1.44]
+            assert all(d["ab_agreement_claimed"] is False for d in report["distance_measurements"])
             for key in ("perceptual_2_8m_claimed", "planted_contact_claimed", "animation_correction_authorized", "runtime_authorized", "visual_approval_claimed", "player_view_claimed"):
                 assert report[key] is False
 
             mod._load_sole_module = lambda: FakeSole(True)
             report = mod.analyze(root)
-            assert report["unresolved_distances_m"] == [8]
-            assert report["distance_measurements"][2]["measurement_resolved"] is False
-            assert report["distance_measurements"][2]["bottom_centroid_path_px"] is None
-            assert report["verdict"] == "AMELIORER_DISTANCE_RASTER_UNDER_RESOLVED"
+            assert report["primary_unresolved_distances_m"] == [8]
+            assert report["multirow_unresolved_distances_m"] == []
+            assert report["recovered_by_multirow_distances_m"] == [8]
+            eight = report["distance_measurements"][2]
+            assert eight["primary"]["measurement_resolved"] is False
+            assert eight["primary"]["bottom_centroid_path_px"] is None
+            assert eight["multirow"]["measurement_resolved"] is True
+            assert round(eight["multirow"]["centroid_path_px"], 2) == 1.44
+            assert report["verdict"] == "AMELIORER_MULTIROW_AB_EVIDENCE_RECORDED_NO_PROMOTION"
+
+            def fail_multirow(_sole, path: Path) -> dict:
+                if "-8m-116.png" in path.name:
+                    raise ValueError("insufficient multirow silhouette pixels")
+                return _fake_multirow(_sole, path)
+
+            mod._multirow_silhouette = fail_multirow
+            report = mod.analyze(root)
+            assert report["primary_unresolved_distances_m"] == [8]
+            assert report["multirow_unresolved_distances_m"] == [8]
+            assert report["recovered_by_multirow_distances_m"] == []
+            assert report["distance_measurements"][2]["multirow"]["centroid_path_px"] is None
         finally:
-            mod._load_sole_module = original
+            mod._load_sole_module = original_load
+            mod._multirow_silhouette = original_multirow
     print("CIV1_PLAYER_DISTANCE_RASTER_ANALYZER_TEST_OK")
 
 

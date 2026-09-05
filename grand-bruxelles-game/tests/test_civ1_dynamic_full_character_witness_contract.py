@@ -13,11 +13,14 @@ def test_dynamic_full_character_witness_contract() -> None:
         'BoneAttachment3D.new()',
         'head_rig.global_transform = Transform3D.IDENTITY',
         'func _head_expected_world(',
-        'expected_head_world.affine_inverse() * attachment.global_transform',
+        'var max_pose_error := _apply_frame(skeleton, mapping, frames[0])',
+        'await process_frame\n    await process_frame',
+        'settled_expected_head_world.affine_inverse() * attachment.global_transform',
         'var predicted_attachment_world := expected_head_world * head_follow_calibration',
         'attachment.global_transform.origin.distance_to(predicted_attachment_world.origin)',
-        '"head_follow_metric": "calibrated_bone_attachment_world_residual"',
+        '"head_follow_metric": "settled_calibrated_bone_attachment_world_residual"',
         '"head_attachment_calibration_offset_m": head_attachment_calibration_offset_m',
+        '"head_settle_frames": 2',
         '_support_band_path(frames, "RightFoot")',
         '_support_band_path(frames, "LeftFoot")',
         'pelvis_vertical_range_m',
@@ -41,6 +44,7 @@ def test_dynamic_full_character_witness_contract() -> None:
         'var hi := ys.max()',
         'var knee_corr := max(',
         'attachment.global_transform.origin.distance_to(expected_head_origin)',
+        'expected_head_world.affine_inverse() * attachment.global_transform\n            head_attachment_calibration_offset_m',
     ]
     for token in forbidden:
         assert token not in source, token

@@ -1,0 +1,88 @@
+name: Grand Bruxelles CIV-1 Body Head Witness
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_body_head_witness.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_body_head_witness_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-body-head-witness.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+
+jobs:
+  body-head-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: git fetch origin main --no-tags && test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Regression contract
+        run: |
+          python -m pip install -q 'pytest==8.4.2'
+          python -m pytest -q grand-bruxelles-game/tests/test_civ1_body_head_witness_contract.py
+      - name: Fetch pinned body/head provenance
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1compose/{project,evidence,engine}
+          REF=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          BASE=https://raw.githubusercontent.com/ibrews/VitruvianGodot/$REF
+          curl -fL --retry 3 "$BASE/NOTICE.md" -o /tmp/civ1compose/evidence/NOTICE.md
+          grep -Fq 'vitruvian_head.glb' /tmp/civ1compose/evidence/NOTICE.md
+          grep -Eqi 'CC0|public domain' /tmp/civ1compose/evidence/NOTICE.md
+          curl -fL --retry 3 "$BASE/godot_project/vitruvian_body.glb" -o /tmp/civ1compose/project/vitruvian_body.glb
+          curl -fL --retry 3 "$BASE/godot_project/vitruvian_head.glb" -o /tmp/civ1compose/project/vitruvian_head.glb
+          test "$(stat -c '%s' /tmp/civ1compose/project/vitruvian_body.glb)" = 6879364
+          test "$(stat -c '%s' /tmp/civ1compose/project/vitruvian_head.glb)" = 10189832
+          echo '54efb42e9f3dd7e7cf3c3e86ed5298f3ba26e341d5743245cbe2621c547c5f1f  /tmp/civ1compose/project/vitruvian_head.glb' | sha256sum -c -
+          sha256sum /tmp/civ1compose/project/vitruvian_body.glb | tee /tmp/civ1compose/evidence/body.sha256
+          sha256sum /tmp/civ1compose/project/vitruvian_head.glb | tee /tmp/civ1compose/evidence/head.sha256
+      - name: Prepare Godot 4.7.1 GL Compatibility witness
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1compose/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1compose/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1compose/godot.zip -d /tmp/civ1compose/engine
+          chmod +x /tmp/civ1compose/engine/Godot_v4.7.1-stable_linux.x86_64
+          cp grand-bruxelles-game/tools/godot_civ1_body_head_witness.gd /tmp/civ1compose/project/witness.gd
+          cat > /tmp/civ1compose/project/project.godot <<'EOF'
+          [application]
+          config/name="CIV1BodyHeadWitness"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          window/size/window_width_override=1280
+          window/size/window_height_override=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          /tmp/civ1compose/engine/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path /tmp/civ1compose/project --quit 2>&1 | tee /tmp/civ1compose/evidence/import.log
+          ! grep -Eqi 'ERROR:|Parse Error|failed to import' /tmp/civ1compose/evidence/import.log
+      - name: Render real 1280x720 body-head witness
+        run: |
+          set -euo pipefail
+          xvfb-run -a /tmp/civ1compose/engine/Godot_v4.7.1-stable_linux.x86_64 --path /tmp/civ1compose/project --script res://witness.gd -- /tmp/civ1compose/evidence/body-head.json /tmp/civ1compose/evidence/body-head.png 2>&1 | tee /tmp/civ1compose/evidence/witness.log
+          grep -F CIV1_BODY_HEAD_WITNESS_OK /tmp/civ1compose/evidence/witness.log
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('/tmp/civ1compose/evidence/body-head.json')
+          d=json.loads(p.read_text())
+          assert d['composition_pass'] is True
+          assert d['head_bone']=='mixamorig_Head'
+          assert d['attachment_mode']=='rigid_to_body_head_bone'
+          assert d['head_material_surface_count']==d['head_surface_count'] and d['head_surface_count']>0
+          assert [d['frame_width'],d['frame_height']]==[1280,720]
+          assert d['runtime_authorized'] is False and d['visual_approval_claimed'] is False
+          assert pathlib.Path('/tmp/civ1compose/evidence/body-head.png').stat().st_size > 10000
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-body-head-witness-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1compose/evidence
+          if-no-files-found: error
+          retention-days: 14

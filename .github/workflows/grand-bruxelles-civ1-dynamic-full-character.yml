@@ -93,15 +93,16 @@ jobs:
           import json
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1dyn/evidence/contact-windows.json').read_text())
-          assert p['schema']=='grand-bruxelles-civ1-contact-windows-v3'
+          assert p['schema']=='grand-bruxelles-civ1-contact-windows-v4'
           assert p['diagnostic_only'] is True and p['ground_contact_claimed'] is False
           assert p['runtime_authorized'] is False and p['visual_approval_claimed'] is False and p['player_view_claimed'] is False
           assert p['frame_count']==120 and p['root_relative_reference_semantic']=='Hips'
           assert set(p['feet'])=={'RightFoot','LeftFoot'}
-          assert p['verdict']=='AMELIORER_ROOT_RELATIVE_STABILITY_CLASSIFIED_GROUND_CONTACT_UNPROVEN'
+          assert p['verdict']=='AMELIORER_LIFTOFF_RELEASE_CLASSIFIED_GROUND_CONTACT_UNPROVEN'
           assert 'planted' not in str(p).lower()
           for foot in p['feet'].values():
               assert foot['vertical_stability_entry_estimator']=='lower_half_median_abs_cyclic_central_difference_low_band'
+              assert foot['directional_liftoff_release']=='positive_central_velocity_above_enter_while_rising'
               assert foot['root_relative_reference_semantic']=='Hips'
               for window in foot['windows']:
                   assert 'root_relative_horizontal_path_m' in window

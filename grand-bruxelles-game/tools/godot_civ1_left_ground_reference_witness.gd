@@ -2,11 +2,14 @@ extends SceneTree
 
 const BODY_PATH := "res://civ1_body.glb"
 const HEAD_PATH := "res://vitruvian_head.glb"
+const MAIN_SCENE_PATH := "res://game/main.tscn"
+const MAIN_GROUND_PATH := NodePath("Ground")
 const HEAD_BONE := "mixamorig_Head"
 const WIDTH := 1280
 const HEIGHT := 720
 const POSE_BONES := ["Hips", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot"]
 const TARGET_SAMPLES := [114, 115, 116, 117, 118, 119]
+const CANDIDATE_SAMPLES := [115, 116, 117, 118]
 const ALIASES := {
     "Hips":["hips","pelvis"], "RightUpperLeg":["rightupperleg","rightupleg","rupperleg"],
     "RightLowerLeg":["rightlowerleg","rightleg","rlowerleg"], "RightFoot":["rightfoot","rfoot"],
@@ -79,6 +82,15 @@ func _write_json(path:String,data:Dictionary)->bool:
     if f==null:return false
     f.store_string(JSON.stringify(data,"  ")); f.close(); return true
 
+func _foot_world(skeleton:Skeleton3D, mapping:Dictionary, semantic:String)->Vector3:
+    return (skeleton.global_transform*skeleton.get_bone_global_pose(int(mapping[semantic]))).origin
+
+func _ground_hit(world:Node3D, from:Vector3)->Dictionary:
+    var query:=PhysicsRayQueryParameters3D.create(from+Vector3.UP*0.25,from+Vector3.DOWN*0.75)
+    query.collide_with_areas=false
+    query.collide_with_bodies=true
+    return world.get_world_3d().direct_space_state.intersect_ray(query)
+
 func _run()->void:
     var bundle=_read_json(_bundle_path)
     if not bundle is Dictionary or bundle.get("schema","")!="grand-bruxelles-civ1-skeleton-witness-bundle-v1": push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: bundle"); quit(3); return
@@ -86,54 +98,68 @@ func _run()->void:
     var frames:Array=bundle.get("frames",[])
     if frames.size()!=120: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: frames"); quit(5); return
     var body_scene:=load(BODY_PATH) as PackedScene; var head_scene:=load(HEAD_PATH) as PackedScene
-    if body_scene==null or head_scene==null: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: assets"); quit(6); return
-    var world:=Node3D.new(); root.add_child(world); var body:=body_scene.instantiate(); world.add_child(body); var skeleton:=_find_skeleton(body)
-    if skeleton==null: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: skeleton"); quit(7); return
+    var main_scene:=load(MAIN_SCENE_PATH) as PackedScene
+    if body_scene==null or head_scene==null or main_scene==null: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: assets_or_main_scene"); quit(6); return
+    var canonical_main:=main_scene.instantiate()
+    var canonical_ground:=canonical_main.get_node_or_null(MAIN_GROUND_PATH) as CSGBox3D
+    if canonical_ground==null or not canonical_ground.use_collision: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: canonical_ground"); canonical_main.free(); quit(7); return
+    if abs(canonical_ground.rotation.x)>1e-8 or abs(canonical_ground.rotation.y)>1e-8 or abs(canonical_ground.rotation.z)>1e-8: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: rotated_ground"); canonical_main.free(); quit(8); return
+    var ground_top_y:=canonical_ground.position.y+canonical_ground.size.y*0.5
+    var ground_copy:=canonical_ground.duplicate() as CSGBox3D
+    canonical_main.free()
+    if ground_copy==null or not ground_copy.use_collision: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: ground_duplicate"); quit(9); return
+    ground_copy.name="CanonicalMainGround"
+    var world:=Node3D.new(); world.name="CIV1CanonicalGroundWitness"; root.add_child(world); world.add_child(ground_copy)
+    var body:=body_scene.instantiate(); world.add_child(body); var skeleton:=_find_skeleton(body)
+    if skeleton==null: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: skeleton"); quit(10); return
     var mapping:={}
     for semantic in POSE_BONES:
         var idx:=_bone_index(skeleton,semantic)
-        if idx<0: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: bone "+semantic); quit(8); return
+        if idx<0: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: bone "+semantic); quit(11); return
         mapping[semantic]=idx
     var head_idx:=skeleton.find_bone(HEAD_BONE)
-    if head_idx<0: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: head bone"); quit(9); return
+    if head_idx<0: push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: head bone"); quit(12); return
     var attachment:=BoneAttachment3D.new(); skeleton.add_child(attachment); attachment.bone_idx=head_idx
     var head_rig:=Node3D.new(); attachment.add_child(head_rig); head_rig.global_transform=Transform3D.IDENTITY
     head_rig.add_child(head_scene.instantiate())
     var bilateral_floor_y:=INF
     for frame in frames:
         bilateral_floor_y=min(bilateral_floor_y,_frame_pose(frame,"LeftFoot").origin.y,_frame_pose(frame,"RightFoot").origin.y)
-    if not is_finite(bilateral_floor_y): push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: reference"); quit(10); return
-    var plane_mesh:=PlaneMesh.new(); plane_mesh.size=Vector2(2.4,2.4)
-    var mat:=StandardMaterial3D.new(); mat.albedo_color=Color(0.28,0.32,0.34,1.0); mat.roughness=1.0; plane_mesh.material=mat
-    var plane:=MeshInstance3D.new(); plane.mesh=plane_mesh; plane.position.y=bilateral_floor_y; world.add_child(plane)
-    var camera:=Camera3D.new(); camera.position=Vector3(0.0,0.95,3.0); camera.fov=40.0; world.add_child(camera); camera.look_at(Vector3(0.0,0.85,0.0)); camera.current=true
+    if not is_finite(bilateral_floor_y): push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: placement_reference"); quit(13); return
+    var placement_y:=ground_top_y-bilateral_floor_y
+    body.position.y=placement_y
+    var camera:=Camera3D.new(); camera.position=Vector3(0.0,1.18,3.0); camera.fov=40.0; world.add_child(camera); camera.look_at(Vector3(0.0,1.08,0.0)); camera.current=true
     var key:=DirectionalLight3D.new(); key.rotation_degrees=Vector3(-35,-25,0); key.light_energy=1.5; world.add_child(key)
-    var fill:=OmniLight3D.new(); fill.position=Vector3(1.2,1.4,2.0); fill.omni_range=6.0; fill.light_energy=3.0; world.add_child(fill)
+    var fill:=OmniLight3D.new(); fill.position=Vector3(1.2,1.6,2.0); fill.omni_range=6.0; fill.light_energy=3.0; world.add_child(fill)
     root.size=Vector2i(WIDTH,HEIGHT)
-    var max_pose_error:=_apply_frame(skeleton,mapping,frames[0]); await process_frame; await process_frame
+    var max_pose_error:=_apply_frame(skeleton,mapping,frames[0]); await process_frame; await physics_frame; await process_frame
     var expected0:=skeleton.global_transform*skeleton.get_bone_global_pose(head_idx); var calibration:=expected0.affine_inverse()*attachment.global_transform
-    var max_head_follow_error:=0.0; var clearances:Array=[]; var captures:Array=[]
+    var max_head_follow_error:=0.0; var samples:Array=[]; var captures:Array=[]
     DirAccess.make_dir_recursive_absolute(_capture_dir)
     for i in range(frames.size()):
-        max_pose_error=max(max_pose_error,_apply_frame(skeleton,mapping,frames[i])); await process_frame
+        max_pose_error=max(max_pose_error,_apply_frame(skeleton,mapping,frames[i])); await process_frame; await physics_frame
         var expected:=skeleton.global_transform*skeleton.get_bone_global_pose(head_idx)*calibration
         max_head_follow_error=max(max_head_follow_error,attachment.global_transform.origin.distance_to(expected.origin))
         if i in TARGET_SAMPLES:
-            var left:=_frame_pose(frames[i],"LeftFoot").origin; var right:=_frame_pose(frames[i],"RightFoot").origin
-            var rec={"sample_index":i,"left_clearance_m":left.y-bilateral_floor_y,"right_clearance_m":right.y-bilateral_floor_y,"left_xz":[left.x,left.z]}; clearances.append(rec)
+            var left:=_foot_world(skeleton,mapping,"LeftFoot"); var right:=_foot_world(skeleton,mapping,"RightFoot")
+            var left_hit:=_ground_hit(world,left); var right_hit:=_ground_hit(world,right)
+            if left_hit.is_empty() or right_hit.is_empty(): push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: canonical_ground_ray_miss"); quit(14); return
+            var left_collider:=left_hit.get("collider") as Object; var right_collider:=right_hit.get("collider") as Object
+            var left_hit_y:=float(Vector3(left_hit["position"]).y); var right_hit_y:=float(Vector3(right_hit["position"]).y)
+            var rec={"sample_index":i,"left_world":[left.x,left.y,left.z],"right_world":[right.x,right.y,right.z],"left_ground_hit_y_m":left_hit_y,"right_ground_hit_y_m":right_hit_y,"left_clearance_m":left.y-left_hit_y,"right_clearance_m":right.y-right_hit_y,"left_xz":[left.x,left.z],"left_collider_name":String(left_collider.get("name")) if left_collider!=null else "","right_collider_name":String(right_collider.get("name")) if right_collider!=null else ""}; samples.append(rec)
             var png:=_capture_dir.path_join("left-ground-%03d.png"%i)
-            if not await _capture(png): push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: capture"); quit(11); return
+            if not await _capture(png): push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: capture"); quit(15); return
             captures.append({"sample_index":i,"png":png})
     var candidate:Array=[]
-    for rec in clearances:
-        if int(rec["sample_index"]) in [115,116,117,118]: candidate.append(rec)
+    for rec in samples:
+        if int(rec["sample_index"]) in CANDIDATE_SAMPLES: candidate.append(rec)
     var path:=0.0
     for j in range(1,candidate.size()):
         var a:Array=candidate[j-1]["left_xz"]; var b:Array=candidate[j]["left_xz"]; path+=Vector2(float(b[0])-float(a[0]),float(b[1])-float(a[1])).length()
     var min_clear:=INF; var max_clear:=-INF
     for rec in candidate: min_clear=min(min_clear,float(rec["left_clearance_m"])); max_clear=max(max_clear,float(rec["left_clearance_m"]))
-    var report={"schema":"grand-bruxelles-civ1-left-ground-reference-v1","diagnostic_only":true,"ground_contact_claimed":false,"reference_is_external_scene_ground":false,"reference_semantic":"bilateral_cycle_lower_envelope_y","reference_y_m":bilateral_floor_y,"target_left_candidate_samples":[115,116,117,118],"context_samples":TARGET_SAMPLES,"candidate_left_horizontal_path_m":path,"candidate_left_min_clearance_m":min_clear,"candidate_left_max_clearance_m":max_clear,"runtime_authorized":false,"visual_approval_claimed":false,"player_view_claimed":false,"resolution":[WIDTH,HEIGHT],"max_pose_origin_error_m":max_pose_error,"max_head_follow_error_m":max_head_follow_error,"captures":captures,"verdict":"AMELIORER_REFERENCE_PLANE_ONLY_GROUND_CONTACT_UNPROVEN"}
+    var report={"schema":"grand-bruxelles-civ1-left-ground-reference-v2","diagnostic_only":true,"ground_contact_claimed":false,"reference_is_external_scene_ground":true,"reference_semantic":"canonical_main_ground_collision_raycast","source_scene":MAIN_SCENE_PATH,"source_ground_node":String(MAIN_GROUND_PATH),"ground_use_collision":true,"ground_top_y_m":ground_top_y,"placement_semantic":"align_bilateral_cycle_lower_envelope_to_canonical_ground_top","placement_y_m":placement_y,"target_left_candidate_samples":CANDIDATE_SAMPLES,"context_samples":TARGET_SAMPLES,"candidate_left_horizontal_path_m":path,"candidate_left_min_clearance_m":min_clear,"candidate_left_max_clearance_m":max_clear,"runtime_authorized":false,"visual_approval_claimed":false,"player_view_claimed":false,"resolution":[WIDTH,HEIGHT],"max_pose_origin_error_m":max_pose_error,"max_head_follow_error_m":max_head_follow_error,"samples":samples,"captures":captures,"verdict":"AMELIORER_CANONICAL_SCENE_GROUND_RAY_HIT_CONTACT_UNPROVEN"}
     if max_pose_error>0.0001 or max_head_follow_error>0.0001: report["verdict"]="JETER_DYNAMIC_TECHNICAL_DRIFT"
-    if not _write_json(_report_path,report): push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: report"); quit(12); return
-    print("CIV1_LEFT_GROUND_REFERENCE_OK reference_y=%.6f left_path=%.6f clearance=[%.6f,%.6f] pose=%.9f head=%.9f"%[bilateral_floor_y,path,min_clear,max_clear,max_pose_error,max_head_follow_error])
-    quit(0 if report["verdict"]!="JETER_DYNAMIC_TECHNICAL_DRIFT" else 13)
+    if not _write_json(_report_path,report): push_error("CIV1_LEFT_GROUND_REFERENCE_FAIL: report"); quit(16); return
+    print("CIV1_LEFT_GROUND_REFERENCE_OK ground_top=%.6f placement_y=%.6f left_path=%.6f clearance=[%.6f,%.6f] pose=%.9f head=%.9f"%[ground_top_y,placement_y,path,min_clear,max_clear,max_pose_error,max_head_follow_error])
+    quit(0 if report["verdict"]!="JETER_DYNAMIC_TECHNICAL_DRIFT" else 17)

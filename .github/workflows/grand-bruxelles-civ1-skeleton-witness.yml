@@ -1,0 +1,131 @@
+name: Grand Bruxelles CIV-1 Skeleton Witness
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_fixed_length_reconstruction.py'
+      - 'grand-bruxelles-game/tools/build_civ1_skeleton_witness_bundle.py'
+      - 'grand-bruxelles-game/tools/godot_civ1_skeleton_witness.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_fixed_length_reconstruction.py'
+      - 'grand-bruxelles-game/tests/test_civ1_skeleton_witness_bundle.py'
+      - '.github/workflows/grand-bruxelles-civ1-skeleton-witness.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+
+jobs:
+  native-skeleton-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: git fetch origin main --no-tags && test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+
+      - name: Regression contract
+        run: |
+          python -m pip install -q 'pytest==8.4.2'
+          python -m pytest -q \
+            grand-bruxelles-game/tests/test_civ1_fixed_length_reconstruction.py \
+            grand-bruxelles-game/tests/test_civ1_skeleton_witness_bundle.py
+
+      - name: Prepare pinned native inputs
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1witness/{tools,source,evidence,engine}
+          PROBE_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c
+          SHADOW_REF=d1f9ba6faa5c54bcf2bb5c522c5b49325a28f814
+          SELECT_REF=a9ac6276c5ff69927e4d4212efc4f1aff2bb21ac
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd" -o /tmp/civ1witness/tools/base.gd
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1witness/tools/strip.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SHADOW_REF/grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py" -o /tmp/civ1witness/tools/shadow.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SELECT_REF/grand-bruxelles-game/tools/select_quaternius_project.py" -o /tmp/civ1witness/tools/select.py
+          python /tmp/civ1witness/tools/shadow.py /tmp/civ1witness/tools/base.gd /tmp/civ1witness/tools/probe.gd
+
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1witness/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1witness/source/body.glb)" = 6879364
+          python /tmp/civ1witness/tools/strip.py /tmp/civ1witness/source/body.glb /tmp/civ1witness/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1witness/source/civ1_body.glb' | sha256sum -c -
+
+          curl -fL --retry 3 https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip -o /tmp/civ1witness/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1witness/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1witness/quaternius.zip -d /tmp/civ1witness/quaternius
+          L="$(find /tmp/civ1witness/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$L"
+          grep -Eqi 'cc0|creative commons zero' "$L"
+          python /tmp/civ1witness/tools/select.py /tmp/civ1witness/quaternius | tee /tmp/civ1witness/evidence/project-root.txt
+          PROJECT_ROOT="$(cat /tmp/civ1witness/evidence/project-root.txt)"
+          if [ ! -f "$PROJECT_ROOT/project.godot" ]; then
+            printf '[application]\nconfig/name="CIV1SkeletonWitness"\n[display]\nwindow/size/viewport_width=1280\nwindow/size/viewport_height=720\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1witness/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1witness/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1witness/godot.zip -d /tmp/civ1witness/engine
+          chmod +x /tmp/civ1witness/engine/Godot_v4.7.1-stable_linux.x86_64
+          echo 'GODOT_BIN=/tmp/civ1witness/engine/Godot_v4.7.1-stable_linux.x86_64' >> "$GITHUB_ENV"
+          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+
+      - name: Reproduce native continuous-cycle candidate
+        run: |
+          set -euo pipefail
+          cp /tmp/civ1witness/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp /tmp/civ1witness/tools/probe.gd "$PROJECT_ROOT/gb_probe.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1witness/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_probe.gd -- /tmp/civ1witness/evidence/native.json 2>&1 | tee /tmp/civ1witness/evidence/native.log
+          grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK /tmp/civ1witness/evidence/native.log
+          python grand-bruxelles-game/tools/analyze_civ1_fixed_length_reconstruction.py \
+            /tmp/civ1witness/evidence/native.json /tmp/civ1witness/evidence/fixed-length.json 2>&1 | tee /tmp/civ1witness/evidence/fixed-length.log
+          grep -F 'verdict=AMELIORER_FIXED_LENGTH_CONTINUOUS_CYCLE' /tmp/civ1witness/evidence/fixed-length.log
+
+      - name: Build exact Skeleton pose bundle
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/build_civ1_skeleton_witness_bundle.py \
+            /tmp/civ1witness/evidence/native.json \
+            /tmp/civ1witness/evidence/fixed-length.json \
+            /tmp/civ1witness/evidence/skeleton-bundle.json 2>&1 | tee /tmp/civ1witness/evidence/skeleton-bundle.log
+          grep -F CIV1_SKELETON_WITNESS_BUNDLE_OK /tmp/civ1witness/evidence/skeleton-bundle.log
+
+      - name: Render real 1280x720 Skeleton witness in Godot 4.7.1
+        run: |
+          set -euo pipefail
+          command -v xvfb-run
+          cp grand-bruxelles-game/tools/godot_civ1_skeleton_witness.gd "$PROJECT_ROOT/gb_skeleton_witness.gd"
+          xvfb-run -a "$GODOT_BIN" --path "$PROJECT_ROOT" --resolution 1280x720 \
+            --script res://gb_skeleton_witness.gd -- \
+            /tmp/civ1witness/evidence/skeleton-bundle.json \
+            /tmp/civ1witness/evidence/skeleton-witness.png \
+            /tmp/civ1witness/evidence/skeleton-witness.json \
+            2>&1 | tee /tmp/civ1witness/evidence/skeleton-witness.log
+          grep -F CIV1_SKELETON_WITNESS_OK /tmp/civ1witness/evidence/skeleton-witness.log
+          test "$(file -b --mime-type /tmp/civ1witness/evidence/skeleton-witness.png)" = image/png
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/civ1witness/evidence/skeleton-witness.json').read_text())
+          assert p['resolution']==[1280,720]
+          assert p['diagnostic_only'] is True
+          assert p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False
+          assert p['player_view_claimed'] is False
+          assert p['capture_nonflat'] is True
+          assert p['max_global_pose_origin_error_m'] <= 1e-4
+          assert p['max_global_pose_rotation_error_rad'] <= 1e-3
+          assert p['mesh_instance_count'] > 0
+          assert p['material_surface_count'] > 0
+          assert p['skin_binding_count'] > 0
+          assert p['verdict']=='REQUIRE_HUMAN_VISUAL_REVIEW'
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-skeleton-witness-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1witness/evidence
+          if-no-files-found: error
+          retention-days: 14

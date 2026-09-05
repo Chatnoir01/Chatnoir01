@@ -306,8 +306,9 @@ func _refresh(force: bool) -> void:
         return
     _set_batches_visible(true)
     if not force and _last_anchor != Vector3(INF, INF, INF):
-        var horizontal_delta := Vector2(anchor.x - _last_anchor.x, anchor.z - _last_anchor.z)
-        var horizontal_distance_sq := horizontal_delta.length_squared()
+        var horizontal_dx := anchor.x - _last_anchor.x
+        var horizontal_dz := anchor.z - _last_anchor.z
+        var horizontal_distance_sq := horizontal_dx * horizontal_dx + horizontal_dz * horizontal_dz
         if horizontal_distance_sq == 0.0:
             return
         if horizontal_distance_sq < refresh_distance_m * refresh_distance_m:

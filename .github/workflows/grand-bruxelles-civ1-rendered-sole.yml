@@ -1,0 +1,26 @@
+name: Grand Bruxelles CIV-1 Rendered Sole Evidence
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_rendered_sole_capture.py'
+      - 'grand-bruxelles-game/tests/test_civ1_rendered_sole_capture_analyzer.py'
+      - '.github/workflows/grand-bruxelles-civ1-rendered-sole.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+
+jobs:
+  rendered-sole-analyzer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Rendered sole raster analyzer regression
+        run: python grand-bruxelles-game/tests/test_civ1_rendered_sole_capture_analyzer.py

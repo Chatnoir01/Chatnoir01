@@ -20,7 +20,7 @@ def _frame(index: int, right_y: float, left_y: float, right_x: float = 0.0, left
     }
 
 
-def test_contact_windows_split_and_merge_cycle_edges() -> None:
+def test_contact_candidates_split_and_merge_cycle_edges() -> None:
     frames = []
     for i in range(120):
         right_y = 1.0
@@ -39,14 +39,15 @@ def test_contact_windows_split_and_merge_cycle_edges() -> None:
     window = right["windows"][0]
     assert window["wraps_cycle"] is True
     assert window["sample_indices"] == [118, 119, 0, 1, 2]
-    assert window["eligible_planted_window"] is True
+    assert window["eligible_contact_candidate_window"] is True
+    assert "eligible_planted_window" not in window
     assert window["max_horizontal_step_from_sample"] == 119
     assert window["max_horizontal_step_to_sample"] == 0
 
     assert left["low_sample_count"] == 6
     assert left["window_count"] == 2
     assert [w["sample_indices"] for w in left["windows"]] == [[20, 21, 22], [40, 41, 42]]
-    assert left["eligible_window_count"] == 2
+    assert left["candidate_window_count"] == 2
     assert all(w["max_horizontal_step_from_sample"] is not None for w in left["windows"])
     assert all(w["max_horizontal_step_to_sample"] is not None for w in left["windows"])
 
@@ -63,10 +64,12 @@ def test_bundle_contract_is_fail_closed_and_never_claims_grounding() -> None:
     result = module.analyze_bundle(bundle)
     assert result["schema"] == module.SCHEMA
     assert result["diagnostic_only"] is True
+    assert result["ground_contact_claimed"] is False
     assert result["runtime_authorized"] is False
     assert result["visual_approval_claimed"] is False
     assert result["player_view_claimed"] is False
-    assert result["verdict"] == "AMELIORER_CONTACT_WINDOWS_REQUIRE_GROUNDING_REVIEW"
+    assert result["verdict"] == "AMELIORER_CONTACT_CANDIDATES_REQUIRE_CONTACT_CLASSIFIER"
+    assert "planted" not in str(result).lower()
 
     bad = dict(bundle)
     bad["runtime_authorized"] = True
@@ -79,6 +82,6 @@ def test_bundle_contract_is_fail_closed_and_never_claims_grounding() -> None:
 
 
 if __name__ == "__main__":
-    test_contact_windows_split_and_merge_cycle_edges()
+    test_contact_candidates_split_and_merge_cycle_edges()
     test_bundle_contract_is_fail_closed_and_never_claims_grounding()
     print("CIV1_CONTACT_WINDOWS_TESTS_OK")

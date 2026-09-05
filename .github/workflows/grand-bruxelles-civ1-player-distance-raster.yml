@@ -3,7 +3,10 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/godot_civ1_player_distance_raster_witness.gd'
+      - 'grand-bruxelles-game/tools/analyze_civ1_player_distance_raster.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_rendered_sole_capture.py'
       - 'grand-bruxelles-game/tests/test_civ1_player_distance_raster_witness_contract.py'
+      - 'grand-bruxelles-game/tests/test_civ1_player_distance_raster_analyzer.py'
       - '.github/workflows/grand-bruxelles-civ1-player-distance-raster.yml'
   workflow_dispatch:
 permissions: {contents: read}
@@ -25,7 +28,10 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - name: Regression contract
-        run: python grand-bruxelles-game/tests/test_civ1_player_distance_raster_witness_contract.py
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tests/test_civ1_player_distance_raster_witness_contract.py
+          python grand-bruxelles-game/tests/test_civ1_player_distance_raster_analyzer.py
       - name: Prepare pinned source bundle and Godot 4.7.1
         run: |
           set -euo pipefail
@@ -99,7 +105,7 @@ jobs:
           cp grand-bruxelles-game/tools/godot_civ1_player_distance_raster_witness.gd "$CANONICAL_PROJECT/gb_player_distance.gd"
           "$GODOT_BIN" --headless --editor --path "$CANONICAL_PROJECT" --quit 2>&1 | tee /tmp/civ1distance/evidence/canonical-import.log
           echo "CANONICAL_PROJECT=$CANONICAL_PROJECT" >> "$GITHUB_ENV"
-      - name: Render twelve real 2m 4m 8m rasters
+      - name: Render twelve real 2m 4m 8m rasters and analyze A/B
         run: |
           set -euo pipefail
           command -v xvfb-run
@@ -122,6 +128,22 @@ jobs:
           assert len({(c['sample_index'],float(c['distance_m'])) for c in p['captures']})==12
           for c in p['captures']:
               q=Path(c['png']); assert q.is_file() and q.stat().st_size>0
+          PY
+          python grand-bruxelles-game/tools/analyze_civ1_player_distance_raster.py /tmp/civ1distance/captures /tmp/civ1distance/evidence/player-distance-raster-analysis.json | tee /tmp/civ1distance/evidence/player-distance-raster-analysis.log
+          grep -F CIV1_PLAYER_DISTANCE_ANALYSIS_OK /tmp/civ1distance/evidence/player-distance-raster-analysis.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/civ1distance/evidence/player-distance-raster-analysis.json').read_text())
+          assert p['schema']=='grand-bruxelles-civ1-player-distance-raster-analysis-v2'
+          assert p['distances_m']==[2,4,8] and p['samples']==[115,116,117,118]
+          assert p['multirow_depth']==4
+          assert p['perceptual_2_8m_claimed'] is False and p['planted_contact_claimed'] is False
+          assert p['animation_correction_authorized'] is False and p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False and p['player_view_claimed'] is False
+          assert p['verdict']=='AMELIORER_MULTIROW_AB_EVIDENCE_RECORDED_NO_PROMOTION'
+          assert len(p['distance_measurements'])==3
+          assert all(d['ab_agreement_claimed'] is False for d in p['distance_measurements'])
           PY
       - uses: actions/upload-artifact@v4
         if: always()

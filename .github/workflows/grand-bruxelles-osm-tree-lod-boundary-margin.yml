@@ -1,0 +1,21 @@
+name: Grand Bruxelles OSM Tree LOD Boundary Margin
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/test_osm_environment_tree_lod_boundary_margin_contract.py'
+      - '.github/workflows/grand-bruxelles-osm-tree-lod-boundary-margin.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify safe tree LOD boundary margin contract
+        run: python3 grand-bruxelles-game/game/tests/test_osm_environment_tree_lod_boundary_margin_contract.py

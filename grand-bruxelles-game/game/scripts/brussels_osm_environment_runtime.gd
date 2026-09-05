@@ -33,6 +33,8 @@ var _last_tree_lod_anchor := Vector3(INF, INF, INF)
 var _rendered_trees: Array = []
 var _owned_batches: Array[MultiMeshInstance3D] = []
 var _batches_visible := true
+var _tree_lod_boundary_margin_m := 0.0
+var _tree_lod_boundary_margin_radius_m := INF
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
 var _presentation_meshes: Dictionary = {}
@@ -75,6 +77,8 @@ func _reset_loaded_source_state() -> void:
     _points = {"tree": [], "street_lamp": [], "bollard": []}
     _last_anchor = Vector3(INF, INF, INF)
     _last_tree_lod_anchor = Vector3(INF, INF, INF)
+    _tree_lod_boundary_margin_m = 0.0
+    _tree_lod_boundary_margin_radius_m = INF
     _rendered_trees.clear()
     last_render_counts = {"tree": 0, "street_lamp": 0, "bollard": 0}
     last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
@@ -251,8 +255,30 @@ func _set_batches_visible(enabled: bool) -> void:
         if is_instance_valid(batch) and not batch.is_queued_for_deletion():
             batch.visible = enabled
 
+func _update_tree_lod_boundary_margin() -> void:
+    _tree_lod_boundary_margin_radius_m = tree_full_detail_radius_m
+    if _rendered_trees.is_empty() or _last_tree_lod_anchor == Vector3(INF, INF, INF):
+        _tree_lod_boundary_margin_m = 0.0
+        return
+    var minimum_margin := INF
+    for row_variant in _rendered_trees:
+        var row := row_variant as Dictionary
+        var p: Vector3 = row["position"]
+        var dx := p.x - _last_tree_lod_anchor.x
+        var dz := p.z - _last_tree_lod_anchor.z
+        var radial_distance := sqrt(dx * dx + dz * dz)
+        minimum_margin = min(minimum_margin, abs(radial_distance - tree_full_detail_radius_m))
+    _tree_lod_boundary_margin_m = max(0.0, minimum_margin - BOUNDS_NUMERIC_EPSILON_M)
+
 func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
     if _rendered_trees.is_empty() or _last_tree_lod_anchor == Vector3(INF, INF, INF):
+        return false
+    if _tree_lod_boundary_margin_radius_m != tree_full_detail_radius_m:
+        return true
+    var anchor_dx := anchor.x - _last_tree_lod_anchor.x
+    var anchor_dz := anchor.z - _last_tree_lod_anchor.z
+    var anchor_distance_sq := anchor_dx * anchor_dx + anchor_dz * anchor_dz
+    if anchor_distance_sq < _tree_lod_boundary_margin_m * _tree_lod_boundary_margin_m:
         return false
     var detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m
     for row_variant in _rendered_trees:
@@ -293,6 +319,7 @@ func _refresh_tree_lod(anchor: Vector3) -> void:
     _clear_tree_foliage_batches()
     _build_tree_foliage_batches(rows)
     _last_tree_lod_anchor = anchor
+    _update_tree_lod_boundary_margin()
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
 
 func _refresh(force: bool) -> void:
@@ -309,7 +336,7 @@ func _refresh(force: bool) -> void:
         var horizontal_dx := anchor.x - _last_anchor.x
         var horizontal_dz := anchor.z - _last_anchor.z
         var horizontal_distance_sq := horizontal_dx * horizontal_dx + horizontal_dz * horizontal_dz
-        if horizontal_distance_sq == 0.0:
+        if horizontal_distance_sq == 0.0 and _tree_lod_boundary_margin_radius_m == tree_full_detail_radius_m:
             return
         if horizontal_distance_sq < refresh_distance_m * refresh_distance_m:
             if _tree_lod_boundary_crossed(anchor):
@@ -361,6 +388,7 @@ func _rebuild(anchor: Vector3) -> void:
     _build_tree_batches(trees)
     _build_lamp_batches(lamps)
     _build_bollard_batches(bollards)
+    _update_tree_lod_boundary_margin()
     set_meta("render_counts", last_render_counts.duplicate(true))
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
     print("BRUSSELS_OSM_ENVIRONMENT_READY: %s radius=%.0fm tree_lod=%s" % [JSON.stringify(last_render_counts), render_radius_m, JSON.stringify(last_tree_lod_counts)])

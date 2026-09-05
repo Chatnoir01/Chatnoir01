@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Fail-closed diagnostic for contiguous CIV-1 low-foot contact windows.
+"""Fail-closed diagnostic for contiguous CIV-1 low-foot contact candidates.
 
-This does not authorize runtime or claim grounding. It decomposes the existing
-10%-low support band into contiguous, cyclic-aware windows so separated stance
-phases are never summed into one misleading foot-slide number.
+This does not authorize runtime, claim grounding, or infer that a low foot is
+planted. It decomposes the existing 10%-low support band into contiguous,
+cyclic-aware candidate windows so separated phases are never summed into one
+misleading foot-slide number. A later contact classifier must decide whether a
+candidate actually represents planted support.
 """
 from __future__ import annotations
 
@@ -17,7 +19,7 @@ SCHEMA = "grand-bruxelles-civ1-contact-windows-v1"
 BUNDLE_SCHEMA = "grand-bruxelles-civ1-skeleton-witness-bundle-v1"
 FOOT_SEMANTICS = ("RightFoot", "LeftFoot")
 LOW_BAND_FRACTION = 0.10
-MIN_WINDOW_SAMPLES = 3
+MIN_CANDIDATE_WINDOW_SAMPLES = 3
 
 
 def _point(frame: dict[str, Any], semantic: str) -> tuple[float, float, float]:
@@ -87,7 +89,7 @@ def analyze_foot(frames: list[dict[str, Any]], semantic: str) -> dict[str, Any]:
                 "end_sample": indices[-1],
                 "wraps_cycle": indices[0] > indices[-1],
                 "sample_count": len(indices),
-                "eligible_planted_window": len(indices) >= MIN_WINDOW_SAMPLES,
+                "eligible_contact_candidate_window": len(indices) >= MIN_CANDIDATE_WINDOW_SAMPLES,
                 "horizontal_path_m": path,
                 "net_horizontal_displacement_m": net,
                 "max_horizontal_step_m": max_step,
@@ -97,7 +99,7 @@ def analyze_foot(frames: list[dict[str, Any]], semantic: str) -> dict[str, Any]:
             }
         )
 
-    eligible = [window for window in measured if window["eligible_planted_window"]]
+    candidates = [window for window in measured if window["eligible_contact_candidate_window"]]
     return {
         "semantic": semantic,
         "min_y_m": low,
@@ -106,9 +108,9 @@ def analyze_foot(frames: list[dict[str, Any]], semantic: str) -> dict[str, Any]:
         "band_threshold_y_m": threshold,
         "low_sample_count": len(low_indices),
         "window_count": len(measured),
-        "eligible_window_count": len(eligible),
-        "max_eligible_window_horizontal_path_m": max((w["horizontal_path_m"] for w in eligible), default=0.0),
-        "max_eligible_window_horizontal_step_m": max((w["max_horizontal_step_m"] for w in eligible), default=0.0),
+        "candidate_window_count": len(candidates),
+        "max_candidate_window_horizontal_path_m": max((w["horizontal_path_m"] for w in candidates), default=0.0),
+        "max_candidate_window_horizontal_step_m": max((w["max_horizontal_step_m"] for w in candidates), default=0.0),
         "windows": measured,
     }
 
@@ -124,13 +126,14 @@ def analyze_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema": SCHEMA,
         "diagnostic_only": True,
+        "ground_contact_claimed": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
         "frame_count": len(frames),
-        "minimum_planted_window_samples": MIN_WINDOW_SAMPLES,
+        "minimum_contact_candidate_window_samples": MIN_CANDIDATE_WINDOW_SAMPLES,
         "feet": {semantic: analyze_foot(frames, semantic) for semantic in FOOT_SEMANTICS},
-        "verdict": "AMELIORER_CONTACT_WINDOWS_REQUIRE_GROUNDING_REVIEW",
+        "verdict": "AMELIORER_CONTACT_CANDIDATES_REQUIRE_CONTACT_CLASSIFIER",
     }
 
 
@@ -152,8 +155,8 @@ def main(argv: list[str]) -> int:
     left = result["feet"]["LeftFoot"]
     print(
         "CIV1_CONTACT_WINDOWS_OK "
-        f"right_windows={right['eligible_window_count']} right_max_path={right['max_eligible_window_horizontal_path_m']:.9f} "
-        f"left_windows={left['eligible_window_count']} left_max_path={left['max_eligible_window_horizontal_path_m']:.9f}"
+        f"right_candidates={right['candidate_window_count']} right_max_path={right['max_candidate_window_horizontal_path_m']:.9f} "
+        f"left_candidates={left['candidate_window_count']} left_max_path={left['max_candidate_window_horizontal_path_m']:.9f}"
     )
     return 0
 

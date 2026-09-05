@@ -40,11 +40,15 @@ def test_contact_windows_split_and_merge_cycle_edges() -> None:
     assert window["wraps_cycle"] is True
     assert window["sample_indices"] == [118, 119, 0, 1, 2]
     assert window["eligible_planted_window"] is True
+    assert window["max_horizontal_step_from_sample"] == 119
+    assert window["max_horizontal_step_to_sample"] == 0
 
     assert left["low_sample_count"] == 6
     assert left["window_count"] == 2
     assert [w["sample_indices"] for w in left["windows"]] == [[20, 21, 22], [40, 41, 42]]
     assert left["eligible_window_count"] == 2
+    assert all(w["max_horizontal_step_from_sample"] is not None for w in left["windows"])
+    assert all(w["max_horizontal_step_to_sample"] is not None for w in left["windows"])
 
 
 def test_bundle_contract_is_fail_closed_and_never_claims_grounding() -> None:

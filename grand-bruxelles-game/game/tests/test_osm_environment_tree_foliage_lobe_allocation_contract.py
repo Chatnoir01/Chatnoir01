@@ -19,13 +19,19 @@ def verify_tree_foliage_batching_avoids_per_tree_lobe_arrays() -> None:
     assert "lobe_indices.append" not in foliage
     assert "lobe_indices.assign" not in foliage
     assert "for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):" in foliage, (
-        "near trees must still emit the complete canonical foliage lobe family"
+        "near trees must still emit the complete canonical foliage lobe family directly"
     )
     assert "for index_variant in TREE_FAR_FOLIAGE_LOBE_INDICES:" in foliage, (
-        "far trees must still emit exactly the frozen reduced foliage lobe set"
+        "far trees must still emit exactly the frozen reduced foliage lobe set directly"
     )
-    assert "BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)" in foliage
-    assert "BrusselsStreetTreeAsset.foliage_is_light(index)" in foliage
+    transform_call = "BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)"
+    material_call = "BrusselsStreetTreeAsset.foliage_is_light(index)"
+    assert foliage.count(transform_call) == 2, (
+        "near and far branches must each preserve the canonical lobe transform call"
+    )
+    assert foliage.count(material_call) == 2, (
+        "near and far branches must each preserve the canonical light/dark material routing"
+    )
     assert "<= full_detail_radius_sq" in foliage
 
 

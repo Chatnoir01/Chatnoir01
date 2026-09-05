@@ -34,6 +34,7 @@ jobs:
           grep -Fq 'vitruvian_head.glb' /tmp/civ1head/source/NOTICE.md
           grep -Eqi 'CC0|public domain' /tmp/civ1head/source/NOTICE.md
           curl -fL --retry 3 "$BASE/godot_project/vitruvian_head.glb" -o /tmp/civ1head/source/vitruvian_head.glb
+          echo '54efb42e9f3dd7e7cf3c3e86ed5298f3ba26e341d5743245cbe2621c547c5f1f  /tmp/civ1head/source/vitruvian_head.glb' | sha256sum -c -
           sha256sum /tmp/civ1head/source/vitruvian_head.glb | tee /tmp/civ1head/evidence/head.sha256
           stat -c '%s' /tmp/civ1head/source/vitruvian_head.glb | tee /tmp/civ1head/evidence/head.bytes
           python grand-bruxelles-game/tools/inspect_civ1_head_glb.py /tmp/civ1head/source/vitruvian_head.glb /tmp/civ1head/evidence/head-intake.json | tee /tmp/civ1head/evidence/head-intake.log
@@ -53,7 +54,7 @@ jobs:
           renderer/rendering_method.mobile="gl_compatibility"
           EOF
           /tmp/civ1head/engine/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path /tmp/civ1head/project --quit 2>&1 | tee /tmp/civ1head/evidence/godot-import.log
-          test -f /tmp/civ1head/project/.godot/imported/vitruvian_head.glb-*.scn
+          find /tmp/civ1head/project/.godot/imported -name 'vitruvian_head.glb-*.scn' -type f | grep -q .
           ! grep -Eqi 'ERROR:|Parse Error|failed to import' /tmp/civ1head/evidence/godot-import.log
           printf 'GODOT_HEAD_IMPORT_OK\n' | tee /tmp/civ1head/evidence/godot-verdict.txt
       - uses: actions/upload-artifact@v4

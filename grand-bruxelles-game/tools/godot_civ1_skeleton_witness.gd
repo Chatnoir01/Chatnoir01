@@ -67,7 +67,7 @@ func _read_json(path: String) -> Variant:
     var f := FileAccess.open(path, FileAccess.READ)
     if f == null:
         return null
-    var parsed := JSON.parse_string(f.get_as_text())
+    var parsed: Variant = JSON.parse_string(f.get_as_text())
     f.close()
     return parsed
 
@@ -216,7 +216,7 @@ func _run() -> void:
         max_origin_error = max(max_origin_error, actual.origin.distance_to(wanted.origin))
         var aq := actual.basis.get_rotation_quaternion().normalized()
         var wq := wanted.basis.get_rotation_quaternion().normalized()
-        var dot_abs := clamp(abs(aq.dot(wq)), 0.0, 1.0)
+        var dot_abs: float = clampf(absf(aq.dot(wq)), 0.0, 1.0)
         max_rotation_error_rad = max(max_rotation_error_rad, 2.0 * acos(dot_abs))
         var wp := skeleton.to_global(actual.origin)
         min_world = Vector3(min(min_world.x, wp.x), min(min_world.y, wp.y), min(min_world.z, wp.z))
@@ -228,7 +228,7 @@ func _run() -> void:
 
     var center := (min_world + max_world) * 0.5
     var extent := max_world - min_world
-    var radius := max(0.75, max(extent.x, max(extent.y, extent.z)) * 0.75)
+    var radius: float = maxf(0.75, maxf(extent.x, maxf(extent.y, extent.z)) * 0.75)
 
     var camera := Camera3D.new()
     root.add_child(camera)

@@ -403,6 +403,13 @@ func _nearby(kind: String, anchor: Vector3, limit: int) -> Array:
         var dz := p.z - anchor.z
         var distance_sq := dx * dx + dz * dz
         if distance_sq <= radius_sq:
+            var osm_id := int(item["osm_id"])
+            if rows.size() >= limit:
+                var worst := rows[0] as Dictionary
+                var worst_distance_sq := float(worst["distance_sq"])
+                var worst_osm_id := int(worst["osm_id"])
+                if distance_sq > worst_distance_sq or (distance_sq == worst_distance_sq and osm_id >= worst_osm_id):
+                    continue
             var candidate := {"osm_id": item["osm_id"], "position": p, "distance_sq": distance_sq}
             _push_nearby_candidate(rows, candidate, limit)
     rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:

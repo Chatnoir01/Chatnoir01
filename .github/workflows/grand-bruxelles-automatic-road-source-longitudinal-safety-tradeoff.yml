@@ -1,0 +1,161 @@
+name: Grand Bruxelles Automatic Road Source Longitudinal Safety Tradeoff
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/tests/automatic_road_source_longitudinal_safety_tradeoff_diagnostic_test.gd"
+      - ".github/workflows/grand-bruxelles-automatic-road-source-longitudinal-safety-tradeoff.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-longitudinal-safety-tradeoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main merge base
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "${{ github.event.pull_request.base.sha }}"
+
+      - name: Install exact official Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version
+
+      - name: Import project for deterministic class/resource state
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path . --quit-after 2
+
+      - name: Measure and enforce safety versus balanced-context tradeoff
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          log=/tmp/automatic-road-source-longitudinal-safety-tradeoff.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_source_longitudinal_safety_tradeoff_diagnostic_test.gd 2>&1 | tee "$log"
+          line="$(grep -F 'AUTOMATIC_ROAD_SOURCE_LONGITUDINAL_SAFETY_TRADEOFF_DIAGNOSTIC_GREEN:' "$log" | tail -n 1)"
+          test -n "$line"
+
+          # Safety remains the frozen primary contract. A visually balanced candidate may
+          # only become resolver-eligible when it is source-safety-equivalent inside the
+          # existing 1 mm epsilon. Today Anneessens is not equivalent, so fail closed on
+          # any accidental re-ranking that would trade metres of building clearance for
+          # presentation quality.
+          grep -F 'safety_equivalent=false' <<<"$line"
+
+          LINE="$line" HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          line = os.environ['LINE']
+          head_sha = os.environ['HEAD_SHA']
+
+          def number(name):
+              match = re.search(rf'\b{name}=(-?[0-9]+(?:\.[0-9]+)?)', line)
+              if not match:
+                  raise SystemExit(f'missing {name} in diagnostic line')
+              return float(match.group(1))
+
+          def candidate_number(candidate_text, name):
+              match = re.search(rf'\b{name}=([+-]?[0-9]+(?:\.[0-9]+)?)', candidate_text)
+              if not match:
+                  raise SystemExit(f'missing candidate field {name}')
+              return float(match.group(1))
+
+          road = re.search(r'\broad_id=(\d+)', line)
+          safest = re.search(r'\bsafest=\{([^}]*)\}', line)
+          balanced = re.search(r'\bbest_balanced=\{([^}]*)\}', line)
+          if not road or not safest or not balanced:
+              raise SystemExit('missing exact candidates in diagnostic line')
+
+          clearance_gap_m = number('clearance_gap_m')
+          relative_gap = number('relative_gap')
+          epsilon_m = number('epsilon_m')
+          safest_continuation = int(candidate_number(safest.group(1), 'continuation'))
+          balanced_continuation = int(candidate_number(balanced.group(1), 'continuation'))
+          continuation_gain = balanced_continuation - safest_continuation
+
+          if clearance_gap_m <= epsilon_m:
+              raise SystemExit('tradeoff became safety-equivalent; revisit resolver eligibility instead of preserving blocker classification')
+
+          payload = {
+              'head_sha': head_sha,
+              'road_id': int(road.group(1)),
+              'safest': safest.group(1),
+              'best_balanced': balanced.group(1),
+              'clearance_gap_m': clearance_gap_m,
+              'relative_gap': relative_gap,
+              'epsilon_m': epsilon_m,
+              'safety_equivalent': False,
+              'safest_continuation': safest_continuation,
+              'balanced_continuation': balanced_continuation,
+              'balanced_continuation_gain': continuation_gain,
+              'resolver_mutation_allowed': False,
+              'policy': 'SOURCE_VIEW_CORRIDOR_SAFETY_PRECEDES_NETWORK_CONTINUATION_AND_VISUAL_CONTEXT',
+              'decision': 'KEEP_SOURCE_VIEW_SAFETY_PRIMARY_AND_ROUTE_CONTEXT_BLOCKER_TO_SOURCE_COVERAGE_QA',
+              'camera_unchanged': True,
+              'source_only': True,
+              'geometry_unchanged': True,
+              'destination_advertisable': False,
+              'visual_acceptance': False,
+              'jouable': False,
+          }
+          Path('/tmp/automatic-road-source-longitudinal-safety-tradeoff.json').write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          Path('/tmp/automatic-road-source-longitudinal-safety-policy.txt').write_text(
+              'SOURCE_VIEW_CORRIDOR_SAFETY_PRECEDES_NETWORK_CONTINUATION_AND_VISUAL_CONTEXT\n'
+              f'head_sha={head_sha}\n'
+              f'road_id={payload["road_id"]}\n'
+              f'clearance_gap_m={clearance_gap_m:.6f}\n'
+              f'relative_gap={relative_gap:.6f}\n'
+              f'epsilon_m={epsilon_m:.6f}\n'
+              f'balanced_continuation_gain={continuation_gain}\n'
+              'resolver_mutation_allowed=false\n'
+              'destination_advertisable=false\n'
+              'visual_acceptance=false\n'
+              'jouable=false\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(payload, sort_keys=True))
+          PY
+
+      - name: Persist exact safety tradeoff diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automatic-road-source-longitudinal-safety-tradeoff-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/automatic-road-source-longitudinal-safety-tradeoff.log
+            /tmp/automatic-road-source-longitudinal-safety-tradeoff.json
+            /tmp/automatic-road-source-longitudinal-safety-policy.txt
+          if-no-files-found: error
+          retention-days: 14

@@ -8,7 +8,7 @@ def require(text: str, needle: str) -> None:
     assert needle in text, f"missing contract: {needle}"
 
 
-def main() -> None:
+def validate_contract() -> None:
     text = WITNESS.read_text(encoding="utf-8")
     require(text, 'const WIDTH := 1280')
     require(text, 'const HEIGHT := 720')
@@ -35,6 +35,14 @@ def main() -> None:
     require(text, '"JETER_DYNAMIC_TECHNICAL_DRIFT"')
     require(text, 'civ1-distance-%sm-%03d.png')
     assert text.count('for distance_m in PLAYER_DISTANCES_M:') == 1
+
+
+def test_contract() -> None:
+    validate_contract()
+
+
+def main() -> None:
+    validate_contract()
     print("CIV1_PLAYER_DISTANCE_RASTER_WITNESS_CONTRACT_OK")
 
 

@@ -86,8 +86,8 @@ func _frame_pose(frame: Dictionary, semantic: String) -> Transform3D:
 func _support_band_path(frames: Array, semantic: String) -> Dictionary:
     var ys: Array[float] = []
     for f in frames: ys.append(_frame_pose(f, semantic).origin.y)
-    var lo := ys.min()
-    var hi := ys.max()
+    var lo: float = float(ys.min())
+    var hi: float = float(ys.max())
     var threshold: float = lo + (hi - lo) * 0.10
     var path := 0.0
     var count := 0
@@ -185,7 +185,7 @@ func _run() -> void:
         var pelvis_y := _frame_pose(frame, "Hips").origin.y
         if pelvis_y < pelvis_min: pelvis_min = pelvis_y
         if pelvis_y > pelvis_max: pelvis_max = pelvis_y; max_pelvis_frame = i
-        var knee_corr := max(float(frame.get("right_knee_correction_m", 0.0)), float(frame.get("left_knee_correction_m", 0.0)))
+        var knee_corr: float = max(float(frame.get("right_knee_correction_m", 0.0)), float(frame.get("left_knee_correction_m", 0.0)))
         if knee_corr > max_knee_correction: max_knee_correction = knee_corr; max_knee_frame = i
         var right_y := _frame_pose(frame, "RightFoot").origin.y
         if right_y < min_right_foot_y: min_right_foot_y = right_y; right_contact_frame = i

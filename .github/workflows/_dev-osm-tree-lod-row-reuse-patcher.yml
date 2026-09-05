@@ -1,0 +1,52 @@
+name: Dev OSM Tree LOD Row Reuse Patcher
+
+on:
+  push:
+    branches:
+      - env/osm-tree-lod-row-reuse-5c82403
+    paths:
+      - '.github/workflows/_dev-osm-tree-lod-row-reuse-patcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: env/osm-tree-lod-row-reuse-5c82403
+          fetch-depth: 0
+      - name: Apply allocation-safe tree LOD reuse
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd')
+          source = path.read_text(encoding='utf-8')
+          old_refresh = '''func _refresh_tree_lod(anchor: Vector3) -> void:\n    var rows: Array = []\n    for row_variant in _rendered_trees:\n        var source_row := row_variant as Dictionary\n        var p: Vector3 = source_row["position"]\n        var dx := p.x - anchor.x\n        var dz := p.z - anchor.z\n        rows.append({"osm_id": source_row["osm_id"], "position": p, "distance_sq": dx * dx + dz * dz})\n    _clear_tree_foliage_batches()\n    _build_tree_foliage_batches(rows)\n    _last_tree_lod_anchor = anchor\n'''
+          new_refresh = '''func _refresh_tree_lod(anchor: Vector3) -> void:\n    _clear_tree_foliage_batches()\n    _build_tree_foliage_batches_for_anchor(_rendered_trees, anchor)\n    _last_tree_lod_anchor = anchor\n'''
+          old_assign = '    _rendered_trees = trees.duplicate(true)\n'
+          new_assign = '    _rendered_trees = trees\n'
+          marker = 'func _build_tree_foliage_batches(rows: Array) -> void:\n'
+          helper = '''func _build_tree_foliage_batches_for_anchor(rows: Array, anchor: Vector3) -> void:\n    var distances: Array = []\n    for row_variant in rows:\n        var row := row_variant as Dictionary\n        var base: Vector3 = row["position"]\n        var dx := base.x - anchor.x\n        var dz := base.z - anchor.z\n        distances.append(dx * dx + dz * dz)\n    _build_tree_foliage_batches_from_distances(rows, distances)\n\nfunc _build_tree_foliage_batches_from_distances(rows: Array, distances: Array) -> void:\n    if rows.is_empty():\n        last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}\n        return\n    assert(rows.size() == distances.size())\n    _ensure_tree_presentation_meshes()\n    var dark: Array = []\n    var light: Array = []\n    var near_count := 0\n    var far_count := 0\n    var full_detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m\n    for row_index in range(rows.size()):\n        var row := rows[row_index] as Dictionary\n        var base: Vector3 = row["position"]\n        var osm_id := int(row["osm_id"] )\n        var lobe_indices: Array = []\n        if float(distances[row_index]) <= full_detail_radius_sq:\n            near_count += 1\n            for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):\n                lobe_indices.append(index)\n        else:\n            far_count += 1\n            lobe_indices.assign(TREE_FAR_FOLIAGE_LOBE_INDICES)\n        for index_variant in lobe_indices:\n            var index := int(index_variant)\n            var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)\n            (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)\n    last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}\n    _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark)\n    _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light)\n\n'''
+          old_builder_start = source.index(marker)
+          old_builder_end = source.index('\nfunc _build_tree_batches(', old_builder_start)
+          old_builder = source[old_builder_start:old_builder_end]
+          replacement_builder = '''func _build_tree_foliage_batches(rows: Array) -> void:\n    var distances: Array = []\n    for row_variant in rows:\n        distances.append(float((row_variant as Dictionary).get("distance_sq", 0.0)))\n    _build_tree_foliage_batches_from_distances(rows, distances)\n\n'''
+          assert source.count(old_refresh) == 1
+          assert source.count(old_assign) == 1
+          source = source.replace(old_refresh, new_refresh, 1)
+          source = source.replace(old_assign, new_assign, 1)
+          source = source[:old_builder_start] + helper + replacement_builder + source[old_builder_end:]
+          path.write_text(source, encoding='utf-8')
+      - name: Verify regression contract before commit
+        run: python3 grand-bruxelles-game/game/tests/test_osm_environment_tree_lod_row_reuse_contract.py
+      - name: Remove ephemeral patcher and push exact fix
+        run: |
+          git rm .github/workflows/_dev-osm-tree-lod-row-reuse-patcher.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd
+          git commit -m 'perf(env): reuse selected tree rows during LOD refresh'
+          git push origin HEAD:env/osm-tree-lod-row-reuse-5c82403

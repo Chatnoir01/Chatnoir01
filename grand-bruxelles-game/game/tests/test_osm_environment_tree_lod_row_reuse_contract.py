@@ -24,6 +24,10 @@ def verify_tree_lod_refresh_reuses_selected_rows_without_dictionary_churn() -> N
     assert '"distance_sq"' not in refresh_lod, (
         "tree-only LOD refresh must recompute distance at foliage emission without materializing transient rows"
     )
+    assert "_rendered_trees.clear()" not in refresh_lod
+    assert "_rendered_trees =" not in refresh_lod, (
+        "tree-only LOD refresh is presentation-only and must not mutate the source-backed selected tree set"
+    )
 
     assert "_rendered_trees = trees" in rebuild
     assert "_rendered_trees = trees.duplicate(true)" not in rebuild, (

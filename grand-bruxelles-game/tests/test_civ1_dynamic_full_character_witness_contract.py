@@ -24,9 +24,20 @@ def test_dynamic_full_character_witness_contract() -> None:
         'max_pose_error > 0.0001 or max_head_follow_error > 0.0001',
         '"JETER_DYNAMIC_TECHNICAL_DRIFT"',
         'root.size = Vector2i(WIDTH, HEIGHT)',
+        'var lo: float = float(ys.min())',
+        'var hi: float = float(ys.max())',
+        'var knee_corr: float = max(',
     ]
     for token in required:
         assert token in source, token
+
+    forbidden_variant_inference = [
+        'var lo := ys.min()',
+        'var hi := ys.max()',
+        'var knee_corr := max(',
+    ]
+    for token in forbidden_variant_inference:
+        assert token not in source, token
 
     assert 'runtime_authorized": true' not in source
     assert 'visual_approval_claimed": true' not in source

@@ -377,6 +377,7 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array) -> void:
     instance.name = name_value
     instance.multimesh = multimesh
     instance.set_meta("source_dimensions_measured", false)
+    instance.visible = _batches_visible
     add_child(instance)
     _owned_batches.append(instance)
 

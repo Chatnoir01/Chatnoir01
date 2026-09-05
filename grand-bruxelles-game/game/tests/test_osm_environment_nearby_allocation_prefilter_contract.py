@@ -30,6 +30,13 @@ def verify_nearby_rejects_worse_candidates_before_dictionary_allocation() -> Non
     guard = nearby[guard_start:allocation_start]
     assert "rows[0]" in guard
     assert "continue" in guard
+    assert 'var worst_distance_sq := float(worst["distance_sq"])' in guard
+    assert 'var worst_osm_id := int(worst["osm_id"])' in guard
+    assert "distance_sq > worst_distance_sq" in guard
+    assert "distance_sq == worst_distance_sq" in guard
+    assert "osm_id >= worst_osm_id" in guard, (
+        "equal-distance candidates must preserve the canonical smaller-osm_id winner"
+    )
 
 
 if __name__ == "__main__":

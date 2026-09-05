@@ -1,0 +1,21 @@
+name: Grand Bruxelles OSM Tree LOD Row Reuse
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/test_osm_environment_tree_lod_row_reuse_contract.py'
+      - '.github/workflows/grand-bruxelles-osm-tree-lod-row-reuse.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify tree LOD row reuse contract
+        run: python3 grand-bruxelles-game/game/tests/test_osm_environment_tree_lod_row_reuse_contract.py

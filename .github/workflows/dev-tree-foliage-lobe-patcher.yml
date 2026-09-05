@@ -21,35 +21,25 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           path = Path('grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd')
-          text = path.read_text()
-          old = '''        var lobe_indices: Array = []
-          if distance_sq <= full_detail_radius_sq:
-              near_count += 1
-              for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):
-                  lobe_indices.append(index)
-          else:
-              far_count += 1
-              lobe_indices.assign(TREE_FAR_FOLIAGE_LOBE_INDICES)
-          for index_variant in lobe_indices:
-              var index := int(index_variant)
-              var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
-              (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
-          '''
-          new = '''        if distance_sq <= full_detail_radius_sq:
-              near_count += 1
-              for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):
-                  var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
-                  (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
-          else:
-              far_count += 1
-              for index_variant in TREE_FAR_FOLIAGE_LOBE_INDICES:
-                  var index := int(index_variant)
-                  var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
-                  (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
-          '''
-          if old not in text:
-              raise SystemExit('expected foliage allocation block not found')
-          path.write_text(text.replace(old, new, 1))
+          lines = path.read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if line.strip() == 'var lobe_indices: Array = []')
+          end = next(i for i in range(start, len(lines)) if lines[i].strip() == '(light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)') + 1
+          replacement = [
+              '        if distance_sq <= full_detail_radius_sq:',
+              '            near_count += 1',
+              '            for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):',
+              '                var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)',
+              '                (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)',
+              '        else:',
+              '            far_count += 1',
+              '            for index_variant in TREE_FAR_FOLIAGE_LOBE_INDICES:',
+              '                var index := int(index_variant)',
+              '                var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)',
+              '                (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)',
+          ]
+          if any('lobe_indices' in line for line in lines[:start] + lines[end:]):
+              raise SystemExit('unexpected additional lobe_indices use')
+          path.write_text('\n'.join(lines[:start] + replacement + lines[end:]) + '\n')
           PY
       - name: Run causal regression contract
         run: python3 grand-bruxelles-game/game/tests/test_osm_environment_tree_foliage_lobe_allocation_contract.py

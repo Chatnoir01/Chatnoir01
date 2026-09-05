@@ -37,3 +37,10 @@ def test_witness_cannot_self_authorize_runtime_or_visual_acceptance():
     assert '"visual_approval_claimed": false' in s
     assert '"AMELIORER_BODY_HEAD_WITNESS"' in s
     assert '"JETER_BODY_HEAD_WITNESS"' in s
+
+
+def test_witness_avoids_gdscript_reserved_pass_identifier():
+    s = source()
+    assert "var pass :=" not in s
+    assert "var composition_pass :=" in s
+    assert '"composition_pass": composition_pass' in s

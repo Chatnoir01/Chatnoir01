@@ -74,9 +74,9 @@ func _run() -> void:
     var attachment_origin := attachment.global_transform.origin
     var image := root.get_texture().get_image()
     var image_ok := image != null and image.get_width() == 1280 and image.get_height() == 720 and image.save_png(frame_path) == OK
-    var pass := body_meshes.size() >= 3 and head_meshes.size() >= 1 and head_total_surfaces > 0 and head_material_surfaces == head_total_surfaces and image_ok
+    var composition_pass := body_meshes.size() >= 3 and head_meshes.size() >= 1 and head_total_surfaces > 0 and head_material_surfaces == head_total_surfaces and image_ok
     var receipt := {
-        "verdict": "AMELIORER_BODY_HEAD_WITNESS" if pass else "JETER_BODY_HEAD_WITNESS",
+        "verdict": "AMELIORER_BODY_HEAD_WITNESS" if composition_pass else "JETER_BODY_HEAD_WITNESS",
         "attachment_mode": "rigid_to_body_head_bone",
         "head_bone": HEAD_BONE,
         "head_bone_index": head_bone_idx,
@@ -88,10 +88,10 @@ func _run() -> void:
         "head_material_surface_count": head_material_surfaces,
         "frame_width": image.get_width() if image != null else 0,
         "frame_height": image.get_height() if image != null else 0,
-        "composition_pass": pass,
+        "composition_pass": composition_pass,
         "runtime_authorized": false,
         "visual_approval_claimed": false
     }
     FileAccess.open(receipt_path, FileAccess.WRITE).store_string(JSON.stringify(receipt, "  "))
-    print("CIV1_BODY_HEAD_WITNESS_" + ("OK" if pass else "FAIL"))
-    quit(0 if pass else 6)
+    print("CIV1_BODY_HEAD_WITNESS_" + ("OK" if composition_pass else "FAIL"))
+    quit(0 if composition_pass else 6)

@@ -345,6 +345,52 @@ func _refresh(force: bool) -> void:
     _last_anchor = anchor
     _rebuild(anchor)
 
+func _nearby_candidate_is_better(a: Dictionary, b: Dictionary) -> bool:
+    var a_distance := float(a["distance_sq"])
+    var b_distance := float(b["distance_sq"])
+    if a_distance == b_distance:
+        return int(a["osm_id"]) < int(b["osm_id"])
+    return a_distance < b_distance
+
+func _nearby_candidate_is_worse(a: Dictionary, b: Dictionary) -> bool:
+    return _nearby_candidate_is_better(b, a)
+
+func _nearby_heap_sift_up(rows: Array, index: int) -> void:
+    while index > 0:
+        var parent := int((index - 1) / 2)
+        if not _nearby_candidate_is_worse(rows[index] as Dictionary, rows[parent] as Dictionary):
+            return
+        var temporary: Variant = rows[parent]
+        rows[parent] = rows[index]
+        rows[index] = temporary
+        index = parent
+
+func _nearby_heap_sift_down(rows: Array, index: int) -> void:
+    while true:
+        var left := index * 2 + 1
+        if left >= rows.size():
+            return
+        var worst := left
+        var right := left + 1
+        if right < rows.size() and _nearby_candidate_is_worse(rows[right] as Dictionary, rows[left] as Dictionary):
+            worst = right
+        if not _nearby_candidate_is_worse(rows[worst] as Dictionary, rows[index] as Dictionary):
+            return
+        var temporary: Variant = rows[index]
+        rows[index] = rows[worst]
+        rows[worst] = temporary
+        index = worst
+
+func _push_nearby_candidate(rows: Array, candidate: Dictionary, limit: int) -> void:
+    if rows.size() < limit:
+        rows.append(candidate)
+        _nearby_heap_sift_up(rows, rows.size() - 1)
+        return
+    if not _nearby_candidate_is_better(candidate, rows[0] as Dictionary):
+        return
+    rows[0] = candidate
+    _nearby_heap_sift_down(rows, 0)
+
 func _nearby(kind: String, anchor: Vector3, limit: int) -> Array:
     if limit <= 0:
         return []
@@ -357,14 +403,13 @@ func _nearby(kind: String, anchor: Vector3, limit: int) -> Array:
         var dz := p.z - anchor.z
         var distance_sq := dx * dx + dz * dz
         if distance_sq <= radius_sq:
-            rows.append({"osm_id": item["osm_id"], "position": p, "distance_sq": distance_sq})
+            var candidate := {"osm_id": item["osm_id"], "position": p, "distance_sq": distance_sq}
+            _push_nearby_candidate(rows, candidate, limit)
     rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
         if float(a["distance_sq"]) == float(b["distance_sq"]):
             return int(a["osm_id"]) < int(b["osm_id"])
         return float(a["distance_sq"]) < float(b["distance_sq"])
     )
-    if rows.size() > limit:
-        rows.resize(limit)
     return rows
 
 func _clear_owned_batches() -> void:

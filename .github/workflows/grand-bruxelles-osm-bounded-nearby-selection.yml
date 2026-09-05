@@ -1,0 +1,21 @@
+name: Grand Bruxelles OSM Bounded Nearby Selection
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/test_osm_environment_bounded_nearby_selection_contract.py'
+      - '.github/workflows/grand-bruxelles-osm-bounded-nearby-selection.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify bounded deterministic nearby selection contract
+        run: python3 grand-bruxelles-game/game/tests/test_osm_environment_bounded_nearby_selection_contract.py

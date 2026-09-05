@@ -173,11 +173,17 @@ func _run() -> void:
     var fill := OmniLight3D.new(); fill.position = Vector3(1.2, 1.4, 2.0); fill.omni_range = 6.0; fill.light_energy = 3.0; world.add_child(fill)
     root.size = Vector2i(WIDTH, HEIGHT)
 
-    var max_pose_error := 0.0
+    # BoneAttachment3D updates on the scene frame after a Skeleton pose change.
+    # Prime frame 0 and allow two scene frames before calibrating, otherwise the
+    # initial attachment transform is still the pre-pose transform and creates a
+    # false constant ~22 cm residual over the entire cycle.
+    var max_pose_error := _apply_frame(skeleton, mapping, frames[0])
+    await process_frame
+    await process_frame
+    var settled_expected_head_world := _head_expected_world(skeleton, head_idx)
+    var head_follow_calibration := settled_expected_head_world.affine_inverse() * attachment.global_transform
+    var head_attachment_calibration_offset_m := head_follow_calibration.origin.length()
     var max_head_follow_error := 0.0
-    var head_follow_calibration := Transform3D.IDENTITY
-    var head_follow_calibrated := false
-    var head_attachment_calibration_offset_m := 0.0
     var pelvis_min := INF; var pelvis_max := -INF; var max_pelvis_frame := 0
     var max_knee_correction := -1.0; var max_knee_frame := 0
     var min_right_foot_y := INF; var right_contact_frame := 0
@@ -186,10 +192,6 @@ func _run() -> void:
         max_pose_error = max(max_pose_error, _apply_frame(skeleton, mapping, frame))
         await process_frame
         var expected_head_world := _head_expected_world(skeleton, head_idx)
-        if not head_follow_calibrated:
-            head_follow_calibration = expected_head_world.affine_inverse() * attachment.global_transform
-            head_attachment_calibration_offset_m = head_follow_calibration.origin.length()
-            head_follow_calibrated = true
         var predicted_attachment_world := expected_head_world * head_follow_calibration
         max_head_follow_error = max(max_head_follow_error, attachment.global_transform.origin.distance_to(predicted_attachment_world.origin))
         var pelvis_y := _frame_pose(frame, "Hips").origin.y
@@ -229,8 +231,9 @@ func _run() -> void:
         "head_surface_count": head_surfaces,
         "head_material_surface_count": head_materials,
         "head_attachment_bone": HEAD_BONE,
-        "head_follow_metric": "calibrated_bone_attachment_world_residual",
+        "head_follow_metric": "settled_calibrated_bone_attachment_world_residual",
         "head_attachment_calibration_offset_m": head_attachment_calibration_offset_m,
+        "head_settle_frames": 2,
         "max_pose_origin_error_m": max_pose_error,
         "max_head_follow_error_m": max_head_follow_error,
         "pelvis_vertical_range_m": pelvis_max - pelvis_min,

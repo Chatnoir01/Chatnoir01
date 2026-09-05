@@ -1,0 +1,65 @@
+name: Grand Bruxelles CIV-1 Head Intake
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/inspect_civ1_head_glb.py'
+      - 'grand-bruxelles-game/tests/test_civ1_head_glb_intake.py'
+      - '.github/workflows/grand-bruxelles-civ1-head-intake.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  head-intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: git fetch origin main --no-tags && test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Regression contract
+        run: |
+          python -m pip install -q 'pytest==8.4.2'
+          python -m pytest -q grand-bruxelles-game/tests/test_civ1_head_glb_intake.py
+      - name: Fetch pinned source, license and head
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1head/{source,evidence,engine,project}
+          REF=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          BASE=https://raw.githubusercontent.com/ibrews/VitruvianGodot/$REF
+          curl -fL --retry 3 "$BASE/LICENSE" -o /tmp/civ1head/source/LICENSE
+          curl -fL --retry 3 "$BASE/NOTICE.md" -o /tmp/civ1head/source/NOTICE.md
+          grep -Fq 'vitruvian_head.glb' /tmp/civ1head/source/NOTICE.md
+          grep -Eqi 'CC0|public domain' /tmp/civ1head/source/NOTICE.md
+          curl -fL --retry 3 "$BASE/godot_project/vitruvian_head.glb" -o /tmp/civ1head/source/vitruvian_head.glb
+          sha256sum /tmp/civ1head/source/vitruvian_head.glb | tee /tmp/civ1head/evidence/head.sha256
+          stat -c '%s' /tmp/civ1head/source/vitruvian_head.glb | tee /tmp/civ1head/evidence/head.bytes
+          python grand-bruxelles-game/tools/inspect_civ1_head_glb.py /tmp/civ1head/source/vitruvian_head.glb /tmp/civ1head/evidence/head-intake.json | tee /tmp/civ1head/evidence/head-intake.log
+      - name: Import in Godot 4.7.1 GL Compatibility
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1head/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1head/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1head/godot.zip -d /tmp/civ1head/engine
+          chmod +x /tmp/civ1head/engine/Godot_v4.7.1-stable_linux.x86_64
+          cp /tmp/civ1head/source/vitruvian_head.glb /tmp/civ1head/project/
+          cat > /tmp/civ1head/project/project.godot <<'EOF'
+          [application]
+          config/name="CIV1HeadIntake"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          /tmp/civ1head/engine/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path /tmp/civ1head/project --quit 2>&1 | tee /tmp/civ1head/evidence/godot-import.log
+          test -f /tmp/civ1head/project/.godot/imported/vitruvian_head.glb-*.scn
+          ! grep -Eqi 'ERROR:|Parse Error|failed to import' /tmp/civ1head/evidence/godot-import.log
+          printf 'GODOT_HEAD_IMPORT_OK\n' | tee /tmp/civ1head/evidence/godot-verdict.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-head-intake-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1head/evidence
+          if-no-files-found: error
+          retention-days: 14

@@ -84,7 +84,7 @@ jobs:
           python /tmp/civ1dyn/tools/bundle.py /tmp/civ1dyn/evidence/native.json /tmp/civ1dyn/evidence/fixed-length.json /tmp/civ1dyn/evidence/skeleton-bundle.json 2>&1 | tee /tmp/civ1dyn/evidence/bundle.log
           grep -F CIV1_SKELETON_WITNESS_BUNDLE_OK /tmp/civ1dyn/evidence/bundle.log
 
-      - name: Measure contiguous low-foot contact windows
+      - name: Measure contiguous low-foot contact candidates
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/analyze_civ1_contact_windows.py \
@@ -96,11 +96,15 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1dyn/evidence/contact-windows.json').read_text())
           assert p['schema']=='grand-bruxelles-civ1-contact-windows-v1'
-          assert p['diagnostic_only'] is True
+          assert p['diagnostic_only'] is True and p['ground_contact_claimed'] is False
           assert p['runtime_authorized'] is False and p['visual_approval_claimed'] is False and p['player_view_claimed'] is False
           assert p['frame_count']==120
           assert set(p['feet'])=={'RightFoot','LeftFoot'}
-          assert p['verdict']=='AMELIORER_CONTACT_WINDOWS_REQUIRE_GROUNDING_REVIEW'
+          assert p['verdict']=='AMELIORER_CONTACT_CANDIDATES_REQUIRE_CONTACT_CLASSIFIER'
+          for foot in p['feet'].values():
+              assert 'eligible_window_count' not in foot
+              for window in foot['windows']:
+                  assert 'eligible_planted_window' not in window
           PY
 
       - name: Run dynamic full-character Godot 4.7.1 witness

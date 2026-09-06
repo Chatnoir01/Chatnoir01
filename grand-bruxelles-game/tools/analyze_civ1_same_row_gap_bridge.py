@@ -6,6 +6,11 @@ measurement primitive. A sample below the 20-pixel resolution floor may be used
 only as a gap bridge when it still has a strong same-row observation and is
 bracketed by resolved samples whose centroids bound it. No multi-row/component
 fallback is used, and no production/contact/player-view claim is promoted.
+
+A same-row bridge is not automatically credible as a motion-magnitude witness.
+For fixed FOV and the same world-space motion, projected raster motion must not
+increase when camera distance increases. The report therefore records a separate
+fail-closed distance-scale consistency gate.
 """
 from __future__ import annotations
 
@@ -22,6 +27,7 @@ SAMPLES = (115, 116, 117, 118)
 MIN_RESOLVED_PIXELS = 20
 MIN_BRIDGE_PIXELS = 15
 MAX_BRACKET_OVERSHOOT_PX = 1.0
+DISTANCE_SCALE_EPSILON_PX = 1e-9
 
 
 def _paeth(a: int, b: int, c: int) -> int:
@@ -129,9 +135,36 @@ def _path(xs: list[float]) -> float:
     return value
 
 
+def distance_scale_consistency(distance_measurements: list[dict]) -> dict:
+    """Require projected motion to be non-increasing as camera distance grows."""
+    failures: list[dict] = []
+    usable = [
+        (d["distance_m"], d["effective_bottom_row_path_px"])
+        for d in distance_measurements
+        if d["effective_bottom_row_path_px"] is not None
+    ]
+    for (near_d, near_path), (far_d, far_path) in zip(usable, usable[1:]):
+        if far_d <= near_d:
+            raise ValueError("distance measurements not strictly increasing")
+        if far_path > near_path + DISTANCE_SCALE_EPSILON_PX:
+            failures.append({
+                "near_distance_m": near_d,
+                "far_distance_m": far_d,
+                "near_path_px": near_path,
+                "far_path_px": far_path,
+                "reason": "projected_motion_increased_with_distance",
+            })
+    return {
+        "rule": "effective_bottom_row_path_px_non_increasing_with_distance",
+        "epsilon_px": DISTANCE_SCALE_EPSILON_PX,
+        "passed": len(usable) == len(DISTANCES) and not failures,
+        "failures": failures,
+    }
+
+
 def analyze(capture_dir: Path) -> dict:
     distances = []
-    qualified = []
+    raw_bridges = []
     for distance in DISTANCES:
         records = []
         for sample in SAMPLES:
@@ -159,7 +192,7 @@ def analyze(capture_dir: Path) -> dict:
                 bridge_failures.append({"sample_index": rec["sample_index"], "reasons": reasons})
         effective_path = _path(effective_xs) if all_effective and len(effective_xs) == len(records) else None
         if bridged:
-            qualified.append(distance)
+            raw_bridges.append(distance)
         distances.append({
             "distance_m": distance,
             "records": records,
@@ -168,8 +201,18 @@ def analyze(capture_dir: Path) -> dict:
             "effective_bottom_row_path_px": effective_path,
             "all_samples_effective": all_effective,
         })
+
+    scale = distance_scale_consistency(distances)
+    scale_consistent_bridges = raw_bridges if scale["passed"] else []
+    verdict = (
+        "AMELIORER_SAME_ROW_BRIDGE_SCALE_CONSISTENT_NO_PROMOTION"
+        if scale_consistent_bridges
+        else "AMELIORER_SAME_ROW_BRIDGE_REJECTED_BY_DISTANCE_SCALE_NO_PROMOTION"
+        if raw_bridges and not scale["passed"]
+        else "AMELIORER_SAME_ROW_GAP_BRIDGE_UNAVAILABLE_NO_PROMOTION"
+    )
     return {
-        "schema": "grand-bruxelles-civ1-same-row-gap-bridge-v1",
+        "schema": "grand-bruxelles-civ1-same-row-gap-bridge-v2",
         "diagnostic_only": True,
         "source_semantic": "actual_godot_1280x720_bottom_most_near_white_row",
         "distances_m": list(DISTANCES),
@@ -177,15 +220,18 @@ def analyze(capture_dir: Path) -> dict:
         "min_resolved_pixels": MIN_RESOLVED_PIXELS,
         "min_bridge_pixels": MIN_BRIDGE_PIXELS,
         "max_bracket_overshoot_px": MAX_BRACKET_OVERSHOOT_PX,
-        "qualified_bridge_distances_m": qualified,
+        "raw_same_row_bridge_distances_m": raw_bridges,
+        "scale_consistent_bridge_distances_m": scale_consistent_bridges,
+        "distance_scale_consistency": scale,
         "distance_measurements": distances,
+        "motion_magnitude_credible": scale["passed"],
         "perceptual_2_8m_claimed": False,
         "planted_contact_claimed": False,
         "animation_correction_authorized": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "verdict": "AMELIORER_SAME_ROW_GAP_BRIDGE_AVAILABLE_NO_PROMOTION" if qualified else "AMELIORER_SAME_ROW_GAP_BRIDGE_UNAVAILABLE_NO_PROMOTION",
+        "verdict": verdict,
     }
 
 
@@ -199,7 +245,12 @@ def main(argv: list[str]) -> int:
     except Exception as exc:
         print(f"CIV1_SAME_ROW_GAP_BRIDGE_FAIL: {exc}", file=sys.stderr)
         return 3
-    print("CIV1_SAME_ROW_GAP_BRIDGE_OK", report["qualified_bridge_distances_m"])
+    print(
+        "CIV1_SAME_ROW_GAP_BRIDGE_OK",
+        "raw=", report["raw_same_row_bridge_distances_m"],
+        "scale_consistent=", report["scale_consistent_bridge_distances_m"],
+        "scale_passed=", report["distance_scale_consistency"]["passed"],
+    )
     return 0
 
 

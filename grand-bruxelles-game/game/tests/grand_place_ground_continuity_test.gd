@@ -4,6 +4,7 @@ const DATA_PATH := "res://data/visual/grand_place_granite_paving.json"
 const EXPECTED_FEATURE_ID := "https://databrussels.be/id/streetsurface/42405"
 const EXPECTED_COLLIDER := "OfficialGraniteStreetSurfaceCollision"
 const MIN_TRIANGLE_CENTROID_SAMPLES := 80
+const EDGE_INSET_FRACTION := 0.10
 const RAY_TOP_Y := 1.80
 const RAY_BOTTOM_Y := -0.50
 const EXPECTED_SURFACE_Y := 0.012
@@ -122,6 +123,8 @@ func _run() -> void:
     var total_area := 0.0
     var sampled_area := 0.0
     var triangle_index := 0
+    var centroid_sample_count := 0
+    var edge_inset_sample_count := 0
     for i: int in range(0, indices.size(), 3):
         var a := polygon[indices[i]]
         var b := polygon[indices[i + 1]]
@@ -132,52 +135,72 @@ func _run() -> void:
             return
         total_area += area
         var centroid := (a + b + c) / 3.0
-        var query := PhysicsRayQueryParameters3D.create(
-            Vector3(centroid.x, RAY_TOP_Y, centroid.y),
-            Vector3(centroid.x, RAY_BOTTOM_Y, centroid.y),
-            1
-        )
-        var hit: Dictionary = space.intersect_ray(query)
-        if hit.is_empty():
-            _fail("player-foot collision hole at source triangle centroid %d" % triangle_index)
-            return
-        var collider: Object = hit.get("collider")
-        var collider_name := str((collider as Node).name) if collider is Node else str(collider)
-        if collider_name != EXPECTED_COLLIDER:
-            _fail("triangle centroid %d hit %s instead of official paving collision" % [triangle_index, collider_name])
-            return
-        var hit_pos: Vector3 = hit.get("position", Vector3.INF)
-        if not is_finite(hit_pos.x) or not is_finite(hit_pos.y) or not is_finite(hit_pos.z):
-            _fail("non-finite collision hit at triangle %d" % triangle_index)
-            return
-        var hit_y_error := absf(hit_pos.y - EXPECTED_SURFACE_Y)
-        if hit_y_error > SURFACE_Y_TOLERANCE:
-            _fail("triangle %d collision height drift %.4f m" % [triangle_index, hit_y_error])
-            return
-        max_hit_y_error = maxf(max_hit_y_error, hit_y_error)
+        var probe_points: Array[Dictionary] = [
+            {"kind": "centroid", "edge": -1, "point": centroid},
+            {"kind": "edge_inset", "edge": 0, "point": ((a + b) * 0.5).lerp(centroid, EDGE_INSET_FRACTION)},
+            {"kind": "edge_inset", "edge": 1, "point": ((b + c) * 0.5).lerp(centroid, EDGE_INSET_FRACTION)},
+            {"kind": "edge_inset", "edge": 2, "point": ((c + a) * 0.5).lerp(centroid, EDGE_INSET_FRACTION)},
+        ]
+        for probe: Dictionary in probe_points:
+            var probe_point: Vector2 = probe["point"]
+            var query := PhysicsRayQueryParameters3D.create(
+                Vector3(probe_point.x, RAY_TOP_Y, probe_point.y),
+                Vector3(probe_point.x, RAY_BOTTOM_Y, probe_point.y),
+                1
+            )
+            var hit: Dictionary = space.intersect_ray(query)
+            if hit.is_empty():
+                _fail("player-foot collision hole at source triangle %d probe=%s edge=%d" % [triangle_index, str(probe["kind"]), int(probe["edge"])])
+                return
+            var collider: Object = hit.get("collider")
+            var collider_name := str((collider as Node).name) if collider is Node else str(collider)
+            if collider_name != EXPECTED_COLLIDER:
+                _fail("triangle %d probe=%s edge=%d hit %s instead of official paving collision" % [triangle_index, str(probe["kind"]), int(probe["edge"]), collider_name])
+                return
+            var hit_pos: Vector3 = hit.get("position", Vector3.INF)
+            if not is_finite(hit_pos.x) or not is_finite(hit_pos.y) or not is_finite(hit_pos.z):
+                _fail("non-finite collision hit at triangle %d probe=%s edge=%d" % [triangle_index, str(probe["kind"]), int(probe["edge"])])
+                return
+            var hit_y_error := absf(hit_pos.y - EXPECTED_SURFACE_Y)
+            if hit_y_error > SURFACE_Y_TOLERANCE:
+                _fail("triangle %d probe=%s edge=%d collision height drift %.4f m" % [triangle_index, str(probe["kind"]), int(probe["edge"]), hit_y_error])
+                return
+            max_hit_y_error = maxf(max_hit_y_error, hit_y_error)
+            if str(probe["kind"]) == "centroid":
+                centroid_sample_count += 1
+            else:
+                edge_inset_sample_count += 1
+            samples.append({
+                "triangle": triangle_index,
+                "probe_kind": probe["kind"],
+                "edge": probe["edge"],
+                "world_xz": [probe_point.x, probe_point.y],
+                "triangle_area_m2": area,
+                "hit_y": hit_pos.y,
+                "collider": collider_name,
+            })
         sampled_area += area
-        samples.append({
-            "triangle": triangle_index,
-            "world_xz": [centroid.x, centroid.y],
-            "triangle_area_m2": area,
-            "hit_y": hit_pos.y,
-            "collider": collider_name,
-        })
         triangle_index += 1
 
     if absf(sampled_area - total_area) > 0.001:
         _fail("triangle sample coverage accounting drift")
         return
+    if centroid_sample_count != triangle_count or edge_inset_sample_count != triangle_count * 3:
+        _fail("probe accounting drift centroids=%d edge_insets=%d triangles=%d" % [centroid_sample_count, edge_inset_sample_count, triangle_count])
+        return
 
     var report := {
-        "schema": "grand-bruxelles-grand-place-ground-continuity-v2",
+        "schema": "grand-bruxelles-grand-place-ground-continuity-v3",
         "source_feature_id": EXPECTED_FEATURE_ID,
         "source_layer": "urbisvector:StreetSurfaces",
         "source_crs": "EPSG:31370",
         "source_polygon_area_m2": runtime_area,
         "triangle_count": triangle_count,
         "sample_count": samples.size(),
-        "sample_policy": "every centroid of the exact Godot triangulation of official StreetSurface 42405",
+        "centroid_sample_count": centroid_sample_count,
+        "edge_inset_sample_count": edge_inset_sample_count,
+        "edge_inset_fraction": EDGE_INSET_FRACTION,
+        "sample_policy": "every centroid plus three 10%-inside edge-midpoint probes for every exact Godot triangle of official StreetSurface 42405",
         "sampled_triangle_area_m2": sampled_area,
         "max_collision_height_error_m": max_hit_y_error,
         "collision_layer": 1,
@@ -199,5 +222,5 @@ func _run() -> void:
         return
     file.store_string(JSON.stringify(report, "  ") + "\n")
     file.close()
-    print("GRAND_PLACE_GROUND_CONTINUITY_OK feature=42405 triangles=%d samples=%d area=%.3f max_hit_y_error=%.4f visual_acceptance=false jouable_authorized=false" % [triangle_count, samples.size(), runtime_area, max_hit_y_error])
+    print("GRAND_PLACE_GROUND_CONTINUITY_OK feature=42405 triangles=%d samples=%d centroids=%d edge_insets=%d area=%.3f max_hit_y_error=%.4f visual_acceptance=false jouable_authorized=false" % [triangle_count, samples.size(), centroid_sample_count, edge_inset_sample_count, runtime_area, max_hit_y_error])
     quit(0)

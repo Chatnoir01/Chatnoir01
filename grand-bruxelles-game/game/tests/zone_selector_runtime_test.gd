@@ -2,7 +2,7 @@ extends SceneTree
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const REPORT_RUNTIME_PATH := "res://game/scripts/player_issue_report_runtime.gd"
-const EXPECTED_IDS := ["midi", "midi_machine_labo", "anneessens", "bourse", "grand_place", "ixelles", "atomium", "jette"]
+const EXPECTED_IDS := ["midi", "midi_machine_labo", "anneessens", "bourse", "grand_place", "central", "ixelles", "atomium", "jette"]
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -33,13 +33,14 @@ func _run() -> void:
     var midi: Dictionary = {}
     var midi_machine_labo: Dictionary = {}
     var anneessens: Dictionary = {}
+    var central: Dictionary = {}
     for raw: Variant in zones:
         if not raw is Dictionary:
             _fail("zone row invalid")
             return
         var zone := raw as Dictionary
         var quality := str(zone.get("quality", ""))
-        if quality not in ["JOUABLE", "LABO"]:
+        if quality not in ["JOUABLE", "LABO", "LABO_BRUT"]:
             _fail("invalid quality %s" % quality)
             return
         for requirement: Variant in zone.get("requires", []):
@@ -47,12 +48,10 @@ func _run() -> void:
                 _fail("missing requirement %s" % str(requirement))
                 return
         match str(zone.get("id", "")):
-            "midi":
-                midi = zone
-            "midi_machine_labo":
-                midi_machine_labo = zone
-            "anneessens":
-                anneessens = zone
+            "midi": midi = zone
+            "midi_machine_labo": midi_machine_labo = zone
+            "anneessens": anneessens = zone
+            "central": central = zone
         ids.append(str(zone.get("id", "")))
     if ids != EXPECTED_IDS:
         _fail("unexpected listed zones %s" % str(ids))
@@ -77,6 +76,12 @@ func _run() -> void:
     if not life_minimum is Dictionary or int((life_minimum as Dictionary).get("civilians", 0)) <= 0 or int((life_minimum as Dictionary).get("moving_vehicles", 0)) <= 0:
         _fail("Anneessens minimum-life gate missing")
         return
+    if central.is_empty() or str(central.get("quality", "")) != "LABO_BRUT":
+        _fail("Central LABO_BRUT contract missing")
+        return
+    if str(central.get("mode", "")) != "script_zone" or str(central.get("script", "")) != "res://game/zones/central/central_station_context_labo.gd":
+        _fail("Central contextual runtime contract drifted")
+        return
 
     var selector := get_root().get_node_or_null("ZoneSelectorRuntime")
     if selector == null or not selector.has_method("available_zones"):
@@ -87,6 +92,17 @@ func _run() -> void:
     if available.size() != EXPECTED_IDS.size():
         _fail("runtime filtered a proven zone")
         return
+    var zone_toggle := selector.get_node_or_null("ZoneSelectorToggle") as Button
+    if zone_toggle == null or zone_toggle.text != "CHANGER DE ZONE" or not zone_toggle.is_visible_in_tree():
+        _fail("persistent CHANGER DE ZONE control missing")
+        return
+    selector.call("set_menu_open", true)
+    await process_frame
+    var zone_panel := selector.get_node_or_null("ZoneSelectorPanel") as Control
+    if zone_panel == null or not zone_panel.visible or not zone_toggle.is_visible_in_tree():
+        _fail("zone menu did not open while persistent toggle stayed visible")
+        return
+    selector.call("set_menu_open", false)
     if not selector.has_method("reporting_runtime") or not selector.has_method("can_promote_zone"):
         _fail("reporting contract missing")
         return
@@ -105,12 +121,7 @@ func _run() -> void:
 
     var sample := Image.create(8, 8, false, Image.FORMAT_RGBA8)
     sample.fill(Color(0.2, 0.3, 0.4, 1.0))
-    var report_context := {
-        "id": "anneessens",
-        "label": "Anneessens",
-        "quality": "LABO",
-        "position": [-272.04, 1.05, -217.07],
-    }
+    var report_context := {"id": "anneessens", "label": "Anneessens", "quality": "LABO", "position": [-272.04, 1.05, -217.07]}
     var report_path := str(reporter.call("create_report_from_context", "sol trou", sample, report_context, false))
     if report_path.is_empty() or not FileAccess.file_exists(report_path):
         _fail("report ticket not written")
@@ -157,11 +168,9 @@ func _run() -> void:
         get_root().add_child(main)
         current_scene = main
         selector.call("set_menu_open", false)
-        for _frame: int in range(8):
-            await process_frame
+        for _frame: int in range(8): await process_frame
         await selector.call("_apply_zone", main, anneessens)
-        for _frame: int in range(6):
-            await process_frame
+        for _frame: int in range(6): await process_frame
         var life := main.get_node_or_null("ZoneLife_anneessens")
         if life == null or not life.has_method("get_counts"):
             _fail("Anneessens life runtime did not mount")
@@ -175,8 +184,7 @@ func _run() -> void:
             _fail("Anneessens player spawn failed")
             return
         reporter.call("begin_report")
-        for _frame: int in range(3):
-            await process_frame
+        for _frame: int in range(3): await process_frame
         if reporter.get_node_or_null("ReportPanel") == null or not (reporter.get_node("ReportPanel") as Control).visible:
             _fail("report panel did not open")
             return
@@ -191,5 +199,5 @@ func _run() -> void:
             return
         print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
         print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720 post_integration=true")
-    print("ZONE_SELECTOR_OK: listed=%d canonical=7 review_aliases=1 playable=1 lab=7 reporting=true visual_reports=soft anneessens_life=true no_invisible_quarantine=true" % available.size())
+    print("ZONE_SELECTOR_OK: listed=%d canonical=8 review_aliases=1 playable=1 lab_family=8 central=LABO_BRUT changer_de_zone=true reporting=true visual_reports=soft anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

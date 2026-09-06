@@ -3,7 +3,10 @@ name: Grand Bruxelles Bourse Automatic Road Player Witness
 on:
   pull_request:
     paths:
+      - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
       - "grand-bruxelles-game/game/tests/bourse_automatic_road_direct_spawn_witness_test.gd"
       - "grand-bruxelles-game/game/tests/bourse_automatic_road_player_witness_contract_test.py"
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"

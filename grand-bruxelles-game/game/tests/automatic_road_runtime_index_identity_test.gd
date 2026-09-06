@@ -116,7 +116,13 @@ func _run() -> void:
     if _write_mutated_first_path("../outside-project.json"):
         _fail("relative runtime index source path escaped project root")
         return
+    if _write_mutated_first_path("data//osm/vertical_slice_01.game.json"):
+        _fail("runtime index source path with duplicate separators was silently canonicalized")
+        return
+    if _write_mutated_first_path("data/osm/vertical_slice_01.game.json/"):
+        _fail("runtime index source path with trailing separator was silently canonicalized")
+        return
 
     _restore_index()
-    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true path_traversal_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
+    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true path_traversal_rejected=true ambiguous_separators_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
     quit(0)

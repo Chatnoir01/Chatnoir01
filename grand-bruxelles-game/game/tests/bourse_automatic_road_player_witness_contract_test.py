@@ -49,4 +49,11 @@ for token in (
 ):
     assert token in w, f"missing workflow contract token: {token}"
 
+for path in (
+    'grand-bruxelles-game/game/main.tscn',
+    'grand-bruxelles-game/game/scripts/osm_city_builder.gd',
+    'grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd',
+):
+    assert f'- "{path}"' in w, f"Bourse player witness must rerun when player-visible dependency changes: {path}"
+
 print("BOURSE_AUTOMATIC_ROAD_PLAYER_WITNESS_CONTRACT_GREEN")

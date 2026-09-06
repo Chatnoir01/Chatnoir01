@@ -1,0 +1,67 @@
+name: DEV Rematerialize PR1917 on live main
+
+on:
+  push:
+    branches:
+      - env/tree-foliage-multimesh-reuse-c392d33
+    paths:
+      - .github/workflows/dev-rematerialize-pr1917.yml
+
+permissions:
+  contents: write
+
+jobs:
+  rematerialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Carry forward only validated PR1917 scope and fix zero-row reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin env/tree-foliage-multimesh-reuse-3eb18be
+          old_head=f07738b33a943c745739eb9b3e78f6499d781b85
+          runtime=grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd
+          test=grand-bruxelles-game/game/tests/test_osm_environment_tree_foliage_multimesh_reuse_contract.py
+          gate=.github/workflows/grand-bruxelles-osm-tree-foliage-multimesh-reuse.yml
+          git show "$old_head:$runtime" > "$runtime"
+          git show "$old_head:$test" > "$test"
+          git show "$old_head:$gate" > "$gate"
+          python - <<'PY'
+          from pathlib import Path
+
+          runtime = Path('grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd')
+          source = runtime.read_text(encoding='utf-8')
+          old = '''func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF, INF), reuse_existing: bool = false) -> void:\n    if rows.is_empty():\n        last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}\n        return\n'''
+          new = '''func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF, INF), reuse_existing: bool = false) -> void:\n    if rows.is_empty() and not reuse_existing:\n        last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}\n        return\n'''
+          if source.count(old) != 1:
+              raise SystemExit('expected exactly one zero-row early-return block')
+          runtime.write_text(source.replace(old, new, 1), encoding='utf-8')
+
+          test = Path('grand-bruxelles-game/game/tests/test_osm_environment_tree_foliage_multimesh_reuse_contract.py')
+          body = test.read_text(encoding='utf-8')
+          needle = '''    assert "reuse_existing: bool = false" in foliage, (\n        "foliage batching must expose a fail-safe reuse flag while preserving full-rebuild behavior"\n    )\n'''
+          addition = needle + '''    assert "if rows.is_empty() and not reuse_existing:" in foliage, (\n        "zero-row LOD refresh must reach the reuse writer so both foliage MultiMesh instance counts are cleared"\n    )\n    assert "if rows.is_empty():" not in foliage, (\n        "unconditional zero-row return would leave stale reused foliage visible"\n    )\n'''
+          if body.count(needle) != 1:
+              raise SystemExit('expected exactly one reuse contract insertion point')
+          test.write_text(body.replace(needle, addition, 1), encoding='utf-8')
+          PY
+          python "$test"
+
+      - name: Commit canonical rebuilt lot and remove dev workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/dev-rematerialize-pr1917.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd \
+            grand-bruxelles-game/game/tests/test_osm_environment_tree_foliage_multimesh_reuse_contract.py \
+            .github/workflows/grand-bruxelles-osm-tree-foliage-multimesh-reuse.yml \
+            .github/workflows/dev-rematerialize-pr1917.yml
+          git commit -m "perf(env): rebuild tree foliage reuse on live main"
+          git push origin HEAD:env/tree-foliage-multimesh-reuse-c392d33

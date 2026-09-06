@@ -105,7 +105,7 @@ jobs:
           cp grand-bruxelles-game/tools/godot_civ1_player_distance_raster_witness.gd "$CANONICAL_PROJECT/gb_player_distance.gd"
           "$GODOT_BIN" --headless --editor --path "$CANONICAL_PROJECT" --quit 2>&1 | tee /tmp/civ1distance/evidence/canonical-import.log
           echo "CANONICAL_PROJECT=$CANONICAL_PROJECT" >> "$GITHUB_ENV"
-      - name: Render twelve real 2m 4m 8m rasters and analyze A/B
+      - name: Render twelve real 2m 4m 8m rasters and analyze calibrated A/B
         run: |
           set -euo pipefail
           command -v xvfb-run
@@ -135,15 +135,20 @@ jobs:
           import json
           from pathlib import Path
           p=json.loads(Path('/tmp/civ1distance/evidence/player-distance-raster-analysis.json').read_text())
-          assert p['schema']=='grand-bruxelles-civ1-player-distance-raster-analysis-v2'
+          assert p['schema']=='grand-bruxelles-civ1-player-distance-raster-analysis-v3'
           assert p['distances_m']==[2,4,8] and p['samples']==[115,116,117,118]
           assert p['multirow_depth']==4
+          assert p['multirow_calibration']['required_near_distances_m']==[2,4]
+          assert p['multirow_calibration']['max_path_relative_difference']==0.25
           assert p['perceptual_2_8m_claimed'] is False and p['planted_contact_claimed'] is False
           assert p['animation_correction_authorized'] is False and p['runtime_authorized'] is False
           assert p['visual_approval_claimed'] is False and p['player_view_claimed'] is False
-          assert p['verdict']=='AMELIORER_MULTIROW_AB_EVIDENCE_RECORDED_NO_PROMOTION'
           assert len(p['distance_measurements'])==3
           assert all(d['ab_agreement_claimed'] is False for d in p['distance_measurements'])
+          assert set(p['qualified_recovered_by_multirow_distances_m']).issubset(set(p['raw_recovered_by_multirow_distances_m']))
+          if p['raw_recovered_by_multirow_distances_m'] and not p['multirow_calibration']['passed']:
+              assert p['qualified_recovered_by_multirow_distances_m']==[]
+              assert p['verdict']=='AMELIORER_MULTIROW_FALLBACK_REJECTED_BY_CALIBRATION_NO_PROMOTION'
           PY
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,0 +1,82 @@
+name: Grand Bruxelles CIV-1 Dense Common Window
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_bottomrow_subpixel.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_dense_bottomrow_subpixel.py'
+      - 'grand-bruxelles-game/tests/test_civ1_dense_bottomrow_subpixel.py'
+      - '.github/workflows/grand-bruxelles-civ1-dense-common-window.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  dense-common-window:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Regression contract
+        run: python grand-bruxelles-game/tests/test_civ1_dense_bottomrow_subpixel.py
+      - name: Download pinned 27-raster real Godot witness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1dense
+          curl -fL --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9984777240/zip" \
+            -o /tmp/civ1dense/evidence.zip
+          unzip -q /tmp/civ1dense/evidence.zip -d /tmp/civ1dense/evidence
+          CAPTURE_DIR="$(dirname "$(find /tmp/civ1dense/evidence -type f -name 'civ1-distance-2m-111.png' -print -quit)")"
+          test -n "$CAPTURE_DIR"
+          for d in 2 4 8; do for s in 111 112 113 114 115 116 117 118 119; do test -f "$CAPTURE_DIR/civ1-distance-${d}m-${s}.png"; done; done
+          echo "CAPTURE_DIR=$CAPTURE_DIR" >> "$GITHUB_ENV"
+      - name: Measure common resolved same-row window
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_dense_bottomrow_subpixel.py "$CAPTURE_DIR" /tmp/civ1dense/common-window.json | tee /tmp/civ1dense/common-window.log
+          grep -F CIV1_DENSE_BOTTOMROW_SUBPIXEL_OK /tmp/civ1dense/common-window.log
+          python - <<'PY'
+          import json, math
+          r=json.load(open('/tmp/civ1dense/common-window.json',encoding='utf-8'))
+          assert r['schema']=='grand-bruxelles-civ1-dense-bottomrow-subpixel-v2'
+          assert r['requested_samples']==list(range(111,120))
+          assert r['selected_common_samples']==list(range(112,119))
+          assert r['selected_common_sample_count']==7 and r['minimum_common_samples']==7
+          rejected={(x['distance_m'],x['sample_index']) for x in r['rejected_observations']}
+          assert (8,111) in rejected and (2,119) in rejected
+          assert r['position_row_semantic']=='same_bottom_most_near_white_row'
+          for d in r['distance_measurements']:
+              assert len(d['records'])==7 and d['step_count']==6
+              assert math.isfinite(d['subpixel_path_px'])
+              for rec in d['records']:
+                  assert rec['primary_pixel_count']>=15
+                  assert rec['position_row_semantic']=='same_bottom_most_near_white_row'
+          for k in ('perceptual_2_8m_claimed','planted_contact_claimed','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
+              assert r[k] is False
+          print('CIV1_DENSE_COMMON_WINDOW_RECEIPT', {d['distance_m']:d['subpixel_path_px'] for d in r['distance_measurements']}, r['distance_scale_calibration'], r['verdict'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-dense-common-window-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/civ1dense/common-window.json
+            /tmp/civ1dense/common-window.log
+          if-no-files-found: warn

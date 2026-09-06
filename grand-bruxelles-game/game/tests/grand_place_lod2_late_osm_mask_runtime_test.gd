@@ -17,7 +17,7 @@ func _fail(message: String) -> void:
     quit(1)
 
 
-func _process() -> bool:
+func _process(_delta: float) -> bool:
     return false
 
 

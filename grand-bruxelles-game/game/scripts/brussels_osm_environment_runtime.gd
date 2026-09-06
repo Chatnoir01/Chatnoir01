@@ -422,16 +422,15 @@ func _clear_owned_batches() -> void:
     _owned_batches.clear()
 
 func _rebuild(anchor: Vector3) -> void:
-    _clear_owned_batches()
     var trees := _nearby("tree", anchor, max_trees)
     var lamps := _nearby("street_lamp", anchor, max_street_lamps)
     var bollards := _nearby("bollard", anchor, max_bollards)
     _rendered_trees = trees
     _last_tree_lod_anchor = anchor
     last_render_counts = {"tree": trees.size(), "street_lamp": lamps.size(), "bollard": bollards.size()}
-    _build_tree_batches(trees)
-    _build_lamp_batches(lamps)
-    _build_bollard_batches(bollards)
+    _build_tree_batches(trees, true)
+    _build_lamp_batches(lamps, true)
+    _build_bollard_batches(bollards, true)
     _update_tree_lod_boundary_margin()
     set_meta("render_counts", last_render_counts.duplicate(true))
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
@@ -525,8 +524,8 @@ func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF
     _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark, reuse_existing)
     _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light, reuse_existing)
 
-func _build_tree_batches(rows: Array) -> void:
-    if rows.is_empty():
+func _build_tree_batches(rows: Array, reuse_existing: bool = false) -> void:
+    if rows.is_empty() and not reuse_existing:
         last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
         return
     _ensure_tree_presentation_meshes()
@@ -534,11 +533,11 @@ func _build_tree_batches(rows: Array) -> void:
     for row_variant in rows:
         var base: Vector3 = (row_variant as Dictionary)["position"]
         trunk.append(BrusselsStreetTreeAsset.trunk_transform(base))
-    _batch("TreeTrunks", _presentation_meshes["tree_trunk"] as Mesh, trunk)
-    _build_tree_foliage_batches(rows)
+    _batch("TreeTrunks", _presentation_meshes["tree_trunk"] as Mesh, trunk, reuse_existing)
+    _build_tree_foliage_batches(rows, Vector3(INF, INF, INF), reuse_existing)
 
-func _build_lamp_batches(rows: Array) -> void:
-    if rows.is_empty():
+func _build_lamp_batches(rows: Array, reuse_existing: bool = false) -> void:
+    if rows.is_empty() and not reuse_existing:
         return
     _ensure_lamp_presentation_meshes()
     var poles: Array = []
@@ -549,12 +548,12 @@ func _build_lamp_batches(rows: Array) -> void:
         poles.append(BrusselsStreetLampAsset.pole_transform(base))
         arms.append(BrusselsStreetLampAsset.arm_transform(base))
         luminaires.append(BrusselsStreetLampAsset.luminaire_transform(base))
-    _batch("LampPoles", _presentation_meshes["lamp_pole"] as Mesh, poles)
-    _batch("LampArms", _presentation_meshes["lamp_arm"] as Mesh, arms)
-    _batch("LampLuminaires", _presentation_meshes["lamp_luminaire"] as Mesh, luminaires)
+    _batch("LampPoles", _presentation_meshes["lamp_pole"] as Mesh, poles, reuse_existing)
+    _batch("LampArms", _presentation_meshes["lamp_arm"] as Mesh, arms, reuse_existing)
+    _batch("LampLuminaires", _presentation_meshes["lamp_luminaire"] as Mesh, luminaires, reuse_existing)
 
-func _build_bollard_batches(rows: Array) -> void:
-    if rows.is_empty():
+func _build_bollard_batches(rows: Array, reuse_existing: bool = false) -> void:
+    if rows.is_empty() and not reuse_existing:
         return
     _ensure_bollard_presentation_meshes()
     var bodies: Array = []
@@ -563,5 +562,5 @@ func _build_bollard_batches(rows: Array) -> void:
         var base: Vector3 = (row_variant as Dictionary)["position"]
         bodies.append(BrusselsBollardAsset.body_transform(base))
         caps.append(BrusselsBollardAsset.cap_transform(base))
-    _batch("BollardBodies", _presentation_meshes["bollard_body"] as Mesh, bodies)
-    _batch("BollardCaps", _presentation_meshes["bollard_cap"] as Mesh, caps)
+    _batch("BollardBodies", _presentation_meshes["bollard_body"] as Mesh, bodies, reuse_existing)
+    _batch("BollardCaps", _presentation_meshes["bollard_cap"] as Mesh, caps, reuse_existing)

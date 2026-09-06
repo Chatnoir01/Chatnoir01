@@ -498,18 +498,17 @@ func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF
             var dx := base.x - anchor.x
             var dz := base.z - anchor.z
             distance_sq = dx * dx + dz * dz
-        var lobe_indices: Array = []
         if distance_sq <= full_detail_radius_sq:
             near_count += 1
             for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):
-                lobe_indices.append(index)
+                var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
+                (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
         else:
             far_count += 1
-            lobe_indices.assign(TREE_FAR_FOLIAGE_LOBE_INDICES)
-        for index_variant in lobe_indices:
-            var index := int(index_variant)
-            var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
-            (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
+            for index_variant in TREE_FAR_FOLIAGE_LOBE_INDICES:
+                var index := int(index_variant)
+                var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
+                (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
     last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}
     _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark)
     _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light)

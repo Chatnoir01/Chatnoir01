@@ -29,8 +29,13 @@ def main() -> None:
     assert "if rows.is_empty() and not reuse_existing:" in foliage, (
         "zero-row LOD refresh must reach the reuse writer so both foliage MultiMesh instance counts are cleared"
     )
-    assert "if rows.is_empty():" not in foliage, (
-        "unconditional zero-row return would leave stale reused foliage visible"
+    assert "if rows.is_empty():\n        _tree_lod_boundary_margin_m = 0.0\n    else:" in foliage, (
+        "zero-row reuse may reset the precomputed margin but must not return before the canonical batch writer"
+    )
+    zero_margin = foliage.index("if rows.is_empty():")
+    first_batch = foliage.index('_batch("TreeFoliageDark"', zero_margin)
+    assert "return" not in foliage[zero_margin:first_batch], (
+        "zero-row reused foliage must flow through to instance_count=0 instead of leaving stale geometry visible"
     )
     assert 'reuse_existing)' in foliage, (
         "both foliage material batches must forward the reuse decision to the canonical batch writer"

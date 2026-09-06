@@ -1,0 +1,121 @@
+name: Grand Bruxelles PR Drift Dashboard
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/pr_drift_planner.py"
+      - "grand-bruxelles-game/tools/citygen/test_pr_drift_planner.py"
+      - "grand-bruxelles-game/docs/PR_DRIFT_DASHBOARD.md"
+      - ".github/workflows/grand-bruxelles-pr-drift-dashboard.yml"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: grand-bruxelles-pr-drift-dashboard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Drift planner regressions
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_pr_drift_planner.py
+
+      - name: Collect exact live-main PR snapshot
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/grand-bruxelles-pr-drift
+          python3 - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          repo=os.environ['GITHUB_REPOSITORY']
+          def api(path):
+              return json.loads(subprocess.check_output(['gh','api',path], text=True))
+
+          main=api(f'repos/{repo}/commits/main')
+          main_sha=main['sha']
+          open_prs=[]
+          page=1
+          while True:
+              rows=api(f'repos/{repo}/pulls?state=open&per_page=100&page={page}')
+              open_prs.extend(rows)
+              if len(rows) < 100:
+                  break
+              page += 1
+
+          now=dt.datetime.now(dt.timezone.utc)
+          snapshot={'main_sha':main_sha,'prs':[]}
+          for pr in open_prs:
+              number=int(pr['number'])
+              detail=api(f'repos/{repo}/pulls/{number}')
+              head_sha=detail['head']['sha']
+              compare=api(f'repos/{repo}/compare/{main_sha}...{head_sha}')
+              files=[]
+              fpage=1
+              while True:
+                  batch=api(f'repos/{repo}/pulls/{number}/files?per_page=100&page={fpage}')
+                  files.extend(row['filename'] for row in batch)
+                  if len(batch) < 100:
+                      break
+                  fpage += 1
+              created=dt.datetime.fromisoformat(detail['created_at'].replace('Z','+00:00'))
+              expected=int(detail.get('changed_files') or 0)
+              snapshot['prs'].append({
+                  'number':number,
+                  'title':detail.get('title'),
+                  'url':detail.get('html_url'),
+                  'head_ref':detail['head'].get('ref'),
+                  'head_sha':head_sha,
+                  'behind_by':int(compare.get('behind_by') or 0),
+                  'commits':int(detail.get('commits') or 0),
+                  'age_hours':round((now-created).total_seconds()/3600.0, 3),
+                  'changed_files':sorted(set(files)),
+                  'files_complete':len(set(files)) == expected,
+              })
+          Path('/tmp/grand-bruxelles-pr-drift/snapshot.json').write_text(json.dumps(snapshot,indent=2,sort_keys=True)+'\n')
+          print(f"PR_DRIFT_SNAPSHOT_OK main={main_sha} open_prs={len(snapshot['prs'])}")
+          PY
+
+      - name: Build fail-closed drift dashboard
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/pr_drift_planner.py \
+            --snapshot /tmp/grand-bruxelles-pr-drift/snapshot.json \
+            --output /tmp/grand-bruxelles-pr-drift/pr_drift_plan.json
+          cat /tmp/grand-bruxelles-pr-drift/pr_drift_plan.json
+
+      - name: Prove no automatic branch mutation
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/grand-bruxelles-pr-drift/pr_drift_plan.json').read_text())
+          assert p['automatic_merge_allowed'] is False
+          assert p['automatic_force_push_allowed'] is False
+          for row in p['prs']:
+              if row['state'] in {'OWNERSHIP_CONFLICT','OWNERSHIP_UNCERTAIN'}:
+                  assert row['auto_rebuild_candidate'] is False
+          print('PR_DRIFT_FAIL_CLOSED_GREEN')
+          PY
+
+      - name: Upload drift dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-pr-drift-${{ github.run_number }}
+          path: /tmp/grand-bruxelles-pr-drift/
+          retention-days: 30

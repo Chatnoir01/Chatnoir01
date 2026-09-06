@@ -18,7 +18,10 @@ def _load_sparse():
     p=Path(__file__).with_name('analyze_civ1_bottomrow_subpixel.py')
     spec=importlib.util.spec_from_file_location('civ1_sparse_subpixel',p)
     if spec is None or spec.loader is None: raise RuntimeError('cannot load sparse estimator')
-    m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+    m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    if not callable(getattr(m,'observation',None)):
+        raise RuntimeError('validated sparse observation API unavailable')
+    return m
 
 
 def _path(records:list[dict])->float:
@@ -60,7 +63,7 @@ def analyze(capture_dir:Path)->dict:
         for sample in SAMPLES:
             path=capture_dir/f'civ1-distance-{distance}m-{sample:03d}.png'
             if not path.is_file(): raise ValueError(f'missing capture d={distance} sample={sample}')
-            rec=sparse.measure(path)
+            rec=sparse.observation(path)
             if rec['position_row_semantic']!='same_bottom_most_near_white_row': raise ValueError('semantic drift')
             records.append({'sample_index':sample,**rec})
         steps=_steps(records)

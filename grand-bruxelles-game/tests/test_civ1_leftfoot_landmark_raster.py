@@ -36,6 +36,10 @@ def main()->int:
     assert '_collect_mesh_integrity(body,skeleton,integrity)' in witness
     assert 'same_skeleton_skin_count' in witness
     assert 'MARKER_RADIUS_M := 0.025' in witness
+    # The bone-centred marker is intentionally diagnostic and may sit inside the shoe.
+    # It must render through the mesh rather than moving away from the actual LeftFoot pose.
+    assert 'marker_mat.no_depth_test=true' in witness
+    assert '"marker_no_depth_test":true' in witness
     print('CIV1_LEFTFOOT_LANDMARK_TEST_OK')
     return 0
 

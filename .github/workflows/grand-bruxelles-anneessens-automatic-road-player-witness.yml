@@ -9,6 +9,8 @@ on:
       - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
       - "grand-bruxelles-game/game/tests/anneessens_automatic_road_direct_spawn_witness_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_automatic_road_player_witness_contract_test.py"
+      - "grand-bruxelles-game/game/tests/anneessens_human_visual_acceptance_contract_test.py"
+      - "grand-bruxelles-game/game/tests/finalize_anneessens_human_review_policy.py"
       - "grand-bruxelles-game/game/tests/validate_anneessens_player_witness_evidence.py"
       - "grand-bruxelles-game/game/tests/test_validate_anneessens_player_witness_evidence.py"
       - "grand-bruxelles-game/game/tests/validate_anneessens_trace_samples.py"
@@ -48,6 +50,7 @@ jobs:
       - name: Prove Anneessens witness contract
         run: |
           python3 grand-bruxelles-game/game/tests/anneessens_automatic_road_player_witness_contract_test.py
+          python3 grand-bruxelles-game/game/tests/anneessens_human_visual_acceptance_contract_test.py
           python3 grand-bruxelles-game/game/tests/test_validate_anneessens_player_witness_evidence.py
           python3 grand-bruxelles-game/game/tests/test_anneessens_trace_sample_contract.py
       - name: Install display dependencies
@@ -172,6 +175,8 @@ jobs:
             /tmp/anneessens-auto-road-player-evidence \
             "$(cat /tmp/anneessens-pr-head-sha)" \
             "$(cat /tmp/anneessens-live-main-sha)"
+          python3 grand-bruxelles-game/game/tests/finalize_anneessens_human_review_policy.py \
+            /tmp/anneessens-auto-road-player-evidence
       - name: Upload exact Anneessens player-view evidence
         if: always()
         uses: actions/upload-artifact@v4

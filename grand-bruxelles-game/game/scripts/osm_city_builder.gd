@@ -6,10 +6,20 @@ extends Node3D
 @export var build_collisions: bool = true
 @export var midi_detail_radius_m: float = 300.0
 @export var bourse_detail_radius_m: float = 180.0
+@export var anneessens_detail_radius_m: float = 140.0
+@export var grand_place_road_detail_radius_m: float = 100.0
 @export_file("*.json") var hero_manifest_path: String = "res://data/urbis/heroes/manifest.json"
 
 const MIDI_ANCHOR := Vector2(-668.5, 627.84)
 const BOURSE_ANCHOR := Vector2(81.54, -664.58)
+# Bounded road-detail anchor measured from the exact source segment selected by
+# road-359177328. This extends the existing shared sidewalk/support generator;
+# it does not create an Anneessens-specific spawn or alter source coordinates.
+const ANNEESSENS_ANCHOR := Vector2(-288.863, -100.711)
+# Canonical corridor anchor from vertical_slice_01.game.json. Grand-Place road
+# coverage is intentionally road-only so this support change cannot claim or
+# expand facade/heritage ownership.
+const GRAND_PLACE_ANCHOR := Vector2(319.01, -535.2)
 const MAJOR_ROADS := ["primary", "secondary", "tertiary"]
 
 var _road_material: StandardMaterial3D
@@ -104,6 +114,18 @@ func _build_from_file() -> void:
     )
 
 
+func _source_point_is_valid(raw: Variant) -> bool:
+    if typeof(raw) != TYPE_ARRAY or raw.size() < 2:
+        return false
+    var x_type := typeof(raw[0])
+    var z_type := typeof(raw[1])
+    if x_type not in [TYPE_INT, TYPE_FLOAT] or z_type not in [TYPE_INT, TYPE_FLOAT]:
+        return false
+    var x := float(raw[0])
+    var z := float(raw[1])
+    return is_finite(x) and is_finite(z)
+
+
 func _point(raw: Variant) -> Vector3:
     return Vector3(float(raw[0]), 0.0, float(raw[1]))
 
@@ -113,7 +135,12 @@ func _is_detail_zone(point: Vector3) -> bool:
     return (
         point_2d.distance_to(MIDI_ANCHOR) <= midi_detail_radius_m
         or point_2d.distance_to(BOURSE_ANCHOR) <= bourse_detail_radius_m
+        or point_2d.distance_to(ANNEESSENS_ANCHOR) <= anneessens_detail_radius_m
     )
+
+
+func _is_grand_place_road_detail_zone(point: Vector3) -> bool:
+    return Vector2(point.x, point.z).distance_to(GRAND_PLACE_ANCHOR) <= grand_place_road_detail_radius_m
 
 
 func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
@@ -125,14 +152,24 @@ func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) ->
     return point.distance_to(start + segment * amount)
 
 
+func _footprint_is_valid(footprint: Array) -> bool:
+    if footprint.size() < 3:
+        return false
+    for raw: Variant in footprint:
+        if not _source_point_is_valid(raw):
+            return false
+    return true
+
+
 func _footprint_intersects_detail_zone(footprint: Array) -> bool:
-    if footprint.is_empty():
+    if not _footprint_is_valid(footprint):
         return false
     for raw: Variant in footprint:
         var vertex := Vector2(float(raw[0]), float(raw[1]))
         if (
             vertex.distance_to(MIDI_ANCHOR) <= midi_detail_radius_m
             or vertex.distance_to(BOURSE_ANCHOR) <= bourse_detail_radius_m
+            or vertex.distance_to(ANNEESSENS_ANCHOR) <= anneessens_detail_radius_m
         ):
             return true
     for edge_index: int in range(footprint.size()):
@@ -143,6 +180,7 @@ func _footprint_intersects_detail_zone(footprint: Array) -> bool:
         if (
             _point_segment_distance(MIDI_ANCHOR, start, finish) <= midi_detail_radius_m
             or _point_segment_distance(BOURSE_ANCHOR, start, finish) <= bourse_detail_radius_m
+            or _point_segment_distance(ANNEESSENS_ANCHOR, start, finish) <= anneessens_detail_radius_m
         ):
             return true
     return false
@@ -195,6 +233,8 @@ func _build_roads(roads: Array, root: Node3D) -> int:
         for index: int in range(points.size() - 1):
             if segment_count >= max_road_segments:
                 break
+            if not _source_point_is_valid(points[index]) or not _source_point_is_valid(points[index + 1]):
+                continue
             var start: Vector3 = _point(points[index])
             var finish: Vector3 = _point(points[index + 1])
             var delta: Vector3 = finish - start
@@ -208,11 +248,13 @@ func _build_roads(roads: Array, root: Node3D) -> int:
             segment.position = (start + finish) * 0.5 + Vector3(0, 0.025, 0)
             segment.rotation.y = atan2(delta.x, delta.z)
             segment.material = material
+            # Collision authority is intentionally not owned by this visual builder.
+            # Canonical runtime support derives from the rendered OSM top surfaces.
             segment.use_collision = false
             root.add_child(segment)
 
             var midpoint := (start + finish) * 0.5
-            if _is_detail_zone(midpoint) and bool(road.get("drivable", false)):
+            if (_is_detail_zone(midpoint) or _is_grand_place_road_detail_zone(midpoint)) and bool(road.get("drivable", false)):
                 _add_sidewalks(root, start, finish, width, road_class)
                 if road_class in MAJOR_ROADS:
                     _add_lane_markings(root, start, finish)
@@ -239,6 +281,7 @@ func _add_sidewalks(root: Node3D, start: Vector3, finish: Vector3, road_width: f
         pavement.position = center + perpendicular * offset * side + Vector3(0, 0.085, 0)
         pavement.rotation.y = angle
         pavement.material = _sidewalk_material
+        # Keep visual CSG non-authoritative; canonical runtime owns collision.
         pavement.use_collision = false
         root.add_child(pavement)
 
@@ -322,7 +365,7 @@ func _build_buildings(buildings: Array, root: Node3D, replacement_ids: Dictionar
         if replacement_ids.has(int(building.get("osm_id", 0))):
             continue
         var footprint: Array = building.get("footprint", [])
-        if footprint.size() < 3:
+        if not _footprint_is_valid(footprint):
             continue
 
         var center := _building_center(footprint)
@@ -447,6 +490,8 @@ func _build_rails(railways: Array, root: Node3D) -> int:
         for index: int in range(points.size() - 1):
             if count >= 400:
                 return count
+            if not _source_point_is_valid(points[index]) or not _source_point_is_valid(points[index + 1]):
+                continue
             var start: Vector3 = _point(points[index])
             var finish: Vector3 = _point(points[index + 1])
             var delta: Vector3 = finish - start

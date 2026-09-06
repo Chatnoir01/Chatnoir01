@@ -1,0 +1,34 @@
+name: Grand Bruxelles Anneessens PNG Zlib Integrity
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/validate_anneessens_player_witness_evidence.py"
+      - "grand-bruxelles-game/game/tests/test_anneessens_png_trailing_zlib_payload.py"
+      - ".github/workflows/grand-bruxelles-anneessens-png-zlib-integrity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  png-zlib-integrity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact live-main merge base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          head="$(git rev-parse HEAD)"
+          merge_base="$(git merge-base "$head" "$live_main")"
+          echo "live_main=$live_main"
+          echo "head=$head"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main"
+      - name: Reject trailing bytes after PNG zlib stream
+        run: python3 grand-bruxelles-game/game/tests/test_anneessens_png_trailing_zlib_payload.py

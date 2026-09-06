@@ -1,0 +1,21 @@
+name: Grand Bruxelles OSM City Builder Collision Authority
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-city-builder-collision-authority.yml"
+      - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
+      - "grand-bruxelles-game/tools/validate_osm_city_builder_collision_authority.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collision-authority:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the visual builder does not duplicate canonical road collision authority
+        run: python3 grand-bruxelles-game/tools/validate_osm_city_builder_collision_authority.py

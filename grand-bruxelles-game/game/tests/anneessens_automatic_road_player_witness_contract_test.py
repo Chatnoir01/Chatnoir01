@@ -3,6 +3,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 witness = ROOT / "game" / "tests" / "anneessens_automatic_road_direct_spawn_witness_test.gd"
+validator = ROOT / "game" / "tests" / "validate_anneessens_player_witness_evidence.py"
+validator_regression = ROOT / "game" / "tests" / "test_validate_anneessens_player_witness_evidence.py"
 workflow = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-anneessens-automatic-road-player-witness.yml"
 
 assert witness.exists(), "missing Anneessens automatic-road player witness"
@@ -57,18 +59,81 @@ for token in (
 ):
     assert token in text, f"missing fail-closed Anneessens witness token: {token}"
 
+assert validator.exists(), "missing staged Anneessens evidence validator"
+v = validator.read_text(encoding="utf-8")
+for token in (
+    'SCHEMA = "grand-bruxelles-anneessens-player-witness-v1"',
+    'ROAD_OSM_ID = 1382734012',
+    'FROZEN_FRAME_SIZE = (1280, 720)',
+    'def png_dimensions(path: Path) -> tuple[int, int]:',
+    'staged PNG dimensions are not frozen at 1280x720',
+    'manifest frame dimensions do not match staged PNG bytes',
+    '"frame_sha256"',
+    '"runtime_log_sha256"',
+    'manifest frame_sha256 does not match staged PNG bytes',
+    'manifest runtime_log_sha256 does not match staged runtime log bytes',
+    'visual_acceptance disagrees with frozen 3-ray/source-SHA rule',
+    'evidence artifact may not self-advertise destination readiness',
+    'evidence artifact may not self-authorize JOUABLE',
+    'human review must remain required',
+    'evidence-sha256.txt does not exactly bind staged evidence',
+):
+    assert token in v, f"missing staged evidence validator token: {token}"
+
+assert validator_regression.exists(), "missing staged evidence tamper regression"
+vr = validator_regression.read_text(encoding="utf-8")
+for token in (
+    'write_stage(stage, width=640, height=720)',
+    'assert result.returncode == 1',
+    'staged PNG dimensions are not frozen at 1280x720',
+    'ANNEESSENS_PLAYER_WITNESS_EVIDENCE_VALIDATOR_REGRESSION_GREEN',
+):
+    assert token in vr, f"missing dimension-tamper regression token: {token}"
+
 assert workflow.exists(), "missing dedicated Anneessens automatic-road player workflow"
 w = workflow.read_text(encoding="utf-8")
 for token in (
     "Godot_v4.7.1-stable_linux.x86_64",
     "anneessens_automatic_road_direct_spawn_witness_test.gd",
     "anneessens_automatic_road_player_witness_contract_test.py",
+    "validate_anneessens_player_witness_evidence.py",
+    "test_validate_anneessens_player_witness_evidence.py",
     "automatic-road-1382734012-player-witness",
     "runtime.log",
     "automatic_road_1382734012_player.png",
     "1280",
     "720",
+    "evidence-manifest.json",
+    '"road_osm_id": 1382734012',
+    '"destination_advertisable": False',
+    '"jouable_authorized": False',
+    '"human_review_required": True',
+    '"visual_acceptance": visual_acceptance',
+    'visual_acceptance = len(traces) == 3 and 1 <= building_hits <= 2 and source_sha_matches',
+    '"trace_count": len(traces)',
+    '"building_hits": building_hits',
+    '"source_sha256": computed_source_sha',
+    '"emitted_source_sha256": emitted_source_sha',
+    '"source_sha_matches": source_sha_matches',
+    '"pr_head_sha": pr_head_sha',
+    '"live_main_sha": live_main_sha',
+    '"frame_sha256": frame_sha',
+    '"runtime_log_sha256": runtime_log_sha',
+    'Validate exact staged Anneessens evidence',
+    'ANNEESSENS_VISUAL_REVIEW_REQUIRED',
+    'if: always()',
+    'if-no-files-found: error',
 ):
     assert token in w, f"missing workflow contract token: {token}"
+
+for forbidden in (
+    '"destination_advertisable": true',
+    '"jouable_authorized": true',
+    '"destination_advertisable": True',
+    '"jouable_authorized": True',
+    'test "$building_hits" -ge 1',
+    'test "$building_hits" -le 2',
+):
+    assert forbidden not in w, f"Anneessens evidence workflow may not self-promote or turn human review into a technical gate: {forbidden}"
 
 print("ANNEESSENS_AUTOMATIC_ROAD_PLAYER_WITNESS_CONTRACT_GREEN")

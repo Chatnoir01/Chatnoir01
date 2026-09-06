@@ -1,0 +1,108 @@
+name: Grand Bruxelles ONE CLICK
+
+on:
+  workflow_dispatch:
+    inputs:
+      advance_citygen:
+        description: "After the safe plan, dispatch bounded Autonomous CityGen passes"
+        required: false
+        type: boolean
+        default: false
+      batch_size:
+        description: "Cells per Autonomous CityGen pass"
+        required: false
+        default: "4"
+      passes:
+        description: "Number of bounded passes to queue (1-12)"
+        required: false
+        default: "1"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/hold_resolver.py"
+      - "grand-bruxelles-game/tools/citygen/universal_zone_profile.py"
+      - "grand-bruxelles-game/tools/citygen/one_click_orchestrator.py"
+      - "grand-bruxelles-game/tools/citygen/test_one_click_orchestrator.py"
+      - "grand-bruxelles-game/docs/CITYGEN_ONE_CLICK.md"
+      - ".github/workflows/grand-bruxelles-one-click.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: grand-bruxelles-one-click-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: One-click fail-closed regressions
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_one_click_orchestrator.py
+
+      - name: Build deterministic orchestration plan
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/grand-bruxelles-one-click
+          python3 grand-bruxelles-game/tools/citygen/one_click_orchestrator.py \
+            --registry grand-bruxelles-game/tools/city_machine/registry.json \
+            --catalog grand-bruxelles-game/data/qa/playable_zone_catalog.json \
+            --output /tmp/grand-bruxelles-one-click/one_click_plan.json
+          cat /tmp/grand-bruxelles-one-click/one_click_plan.json
+
+      - name: Prove no automatic production authorization
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/grand-bruxelles-one-click/one_click_plan.json').read_text())
+          assert p['fail_closed'] is True
+          assert p['automatic_main_mutation'] is False
+          assert p['automatic_jouable_promotion'] is False
+          assert all(z['runtime_authorized'] is False for z in p['zones'])
+          assert all(z['jouable_authorized'] is False for z in p['zones'])
+          print('ONE_CLICK_FAIL_CLOSED_GREEN')
+          PY
+
+      - name: Upload orchestration dashboard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-one-click-plan-${{ github.run_number }}
+          path: /tmp/grand-bruxelles-one-click/
+          retention-days: 30
+
+  advance:
+    if: github.event_name == 'workflow_dispatch' && inputs.advance_citygen
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BATCH_SIZE: ${{ inputs.batch_size }}
+      PASSES: ${{ inputs.passes }}
+    steps:
+      - name: Validate bounded dispatch request
+        run: |
+          set -euo pipefail
+          case "$BATCH_SIZE" in ''|*[!0-9]*) echo "invalid batch_size" >&2; exit 2;; esac
+          case "$PASSES" in ''|*[!0-9]*) echo "invalid passes" >&2; exit 2;; esac
+          [ "$BATCH_SIZE" -ge 1 ] && [ "$BATCH_SIZE" -le 25 ] || { echo "batch_size must be 1..25" >&2; exit 2; }
+          [ "$PASSES" -ge 1 ] && [ "$PASSES" -le 12 ] || { echo "passes must be 1..12" >&2; exit 2; }
+
+      - name: Queue existing Autonomous CityGen executor
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 "$PASSES"); do
+            echo "queue Autonomous CityGen pass $i/$PASSES batch_size=$BATCH_SIZE"
+            gh workflow run grand-bruxelles-autonomous-citygen.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref main \
+              -f batch_size="$BATCH_SIZE"
+          done
+          echo "ONE_CLICK_AUTONOMOUS_PASSES_QUEUED=$PASSES"

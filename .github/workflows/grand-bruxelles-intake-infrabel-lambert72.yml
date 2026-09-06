@@ -1,0 +1,163 @@
+name: Grand Bruxelles Intake Infrabel Lambert72
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/infrabel_track_segments_intake.contract.json"
+      - "grand-bruxelles-game/data/provenance/infrabel_track_segments_lambert72.measurement.json"
+      - ".github/workflows/grand-bruxelles-intake-infrabel-lambert72.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact production base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/infrabel_track_segments_intake.contract.json').read_text())
+          expected = contract['production_base_sha']
+          live = subprocess.check_output(['git','rev-parse','origin/main'], text=True).strip()
+          base = subprocess.check_output(['git','merge-base','HEAD','origin/main'], text=True).strip()
+          assert live == expected, f'live main drift: contract={expected} live={live}'
+          assert base == expected, f'branch base drift: contract={expected} merge_base={base}'
+          print('INFRABEL_EXACT_BASE_OK', live)
+          PY
+
+      - name: Verify locked publisher Lambert72 snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/infrabel"
+          python3 - <<'PY'
+          import datetime as dt
+          import hashlib, json, os, re, urllib.parse, urllib.request
+          from collections import Counter
+          from pathlib import Path
+
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/infrabel_track_segments_intake.contract.json').read_text())
+          measurement = json.loads(Path('grand-bruxelles-game/data/provenance/infrabel_track_segments_lambert72.measurement.json').read_text())
+          out = Path(os.environ['RUNNER_TEMP']) / 'infrabel'
+          headers = {'User-Agent':'GrandBruxellesGame-InfrabelLambert72Intake/3.0','Accept':'*/*'}
+
+          def get(url, timeout=240):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=timeout) as response:
+                  return response.read(), dict(response.headers)
+
+          metadata_bytes, metadata_headers = get(contract['metadata_api'])
+          metadata = json.loads(metadata_bytes)
+          (out/'dataset-metadata.json').write_bytes(metadata_bytes)
+          default = (metadata.get('metas') or {}).get('default') or {}
+          assert int(default.get('records_count')) == int(measurement['publisher_metadata']['records_count'])
+          assert str(default.get('data_processed')) == measurement['publisher_metadata']['data_processed']
+          license_text = ' '.join(str(default.get(k) or '') for k in ('license','license_en','license_fr','license_nl')).casefold()
+          assert 'cc0' in license_text, license_text
+
+          alternatives = metadata.get('alternative_exports') or []
+          candidates = []
+          for item in alternatives:
+              if not isinstance(item, dict):
+                  continue
+              url = item.get('url')
+              title = str(item.get('title') or '')
+              descriptor = f"{title} {item.get('mimetype') or ''} {url or ''}"
+              if isinstance(url, str) and re.search(r'geojson|\\.geojson', descriptor, re.I):
+                  candidates.append({'url':urllib.parse.urljoin('https://opendata.infrabel.be',url),'title':title,'mimetype':str(item.get('mimetype') or '')})
+          assert len(candidates) == 1, f'expected exactly one publisher alternative GeoJSON, got {len(candidates)}'
+          candidate = candidates[0]
+          locked = contract['locked_snapshot']
+          assert candidate['url'] == locked['url']
+          assert candidate['title'] == locked['title']
+
+          payload, source_headers = get(candidate['url'])
+          payload_sha = hashlib.sha256(payload).hexdigest()
+          assert payload_sha == locked['sha256']
+          obj = json.loads(payload)
+          assert obj.get('type') == 'FeatureCollection'
+          features = obj.get('features') or []
+          assert len(features) == int(locked['feature_count'])
+
+          ids = []
+          geom_types = Counter()
+          samples = []
+          def collect(coords):
+              if len(samples) >= 20000:
+                  return
+              if isinstance(coords, (list, tuple)):
+                  if len(coords) >= 2 and isinstance(coords[0], (int,float)) and isinstance(coords[1], (int,float)):
+                      samples.append((float(coords[0]), float(coords[1])))
+                  else:
+                      for value in coords:
+                          collect(value)
+          for feature in features:
+              props = feature.get('properties') or {}
+              value = props.get('ID')
+              assert value is not None and str(value).strip(), 'Lambert72 feature missing ID'
+              ids.append(str(value).strip())
+              geometry = feature.get('geometry') or {}
+              geom_types[str(geometry.get('type') or '')] += 1
+              collect(geometry.get('coordinates'))
+          assert len(ids) == len(set(ids))
+          id_set_sha = hashlib.sha256(('\n'.join(sorted(set(ids)))+'\n').encode()).hexdigest()
+          assert id_set_sha == locked['segment_id_set_sha256']
+          assert len(samples) >= 100
+          lambert_ratio = sum(0 <= x <= 300000 and 0 <= y <= 300000 for x,y in samples) / len(samples)
+          wgs84_ratio = sum(-180 <= x <= 180 and -90 <= y <= 90 for x,y in samples) / len(samples)
+          assert lambert_ratio >= 0.95 and wgs84_ratio <= 0.05
+
+          match = re.search(r'(20\d{6})', candidate['title'])
+          assert match, f'publisher snapshot date absent from title: {candidate["title"]}'
+          snapshot_date = dt.datetime.strptime(match.group(1), '%Y%m%d').date()
+          assert snapshot_date.isoformat() == locked['snapshot_date']
+          data_date = dt.datetime.fromisoformat(str(default['data_processed'])).date()
+          lag_days = (data_date - snapshot_date).days
+          currentness_proven = snapshot_date >= data_date
+          assert lag_days == int(measurement['revision_alignment']['snapshot_precedes_publisher_data_by_days'])
+          assert currentness_proven is False
+
+          for key, value in contract['hard_rules'].items():
+              if key == 'source_registration_only': assert value is True
+              else: assert value is False
+          assert contract['freshness_policy']['require_revision_alignment_before_source_registration'] is True
+          assert contract['freshness_policy']['wgs84_reprojection_as_canonical_source_authorized'] is False
+          assert contract['required_payload']['wgs84_fallback_authorized'] is False
+
+          (out/'track-segments-lambert72.geojson').write_bytes(payload)
+          (out/'lambert72-discovery.json').write_text(json.dumps({'dataset_id':contract['dataset_id'],'metadata_api':contract['metadata_api'],'alternative_export_count':len(alternatives),'geojson_candidate_count':len(candidates),'candidate':candidate}, indent=2, ensure_ascii=False)+'\n')
+          manifest = {
+              'schema':'grand-bruxelles-infrabel-track-segments-source-manifest-v2',
+              'publisher':contract['publisher'],'dataset_id':contract['dataset_id'],'dataset_page':contract['dataset_page'],'license':contract['license'],
+              'source_url':candidate['url'],'source_title':candidate['title'],'source_snapshot_date':snapshot_date.isoformat(),'publisher_data_processed':default['data_processed'],
+              'snapshot_precedes_publisher_data_by_days':lag_days,'source_currentness_proven':currentness_proven,'source_format':'GeoJSON','source_crs':'EPSG:31370',
+              'feature_count':len(features),'geometry_type_counts':dict(sorted(geom_types.items())),'bytes':len(payload),'sha256':payload_sha,'segment_id_set_sha256':id_set_sha,
+              'coordinate_sample_count':len(samples),'lambert72_range_ratio':lambert_ratio,'wgs84_range_ratio':wgs84_ratio,'metadata_sha256':hashlib.sha256(metadata_bytes).hexdigest(),
+              'metadata_last_modified':metadata_headers.get('Last-Modified'),'source_last_modified':source_headers.get('Last-Modified'),'status':'LOCKED_HISTORICAL_SNAPSHOT_CURRENTNESS_UNPROVEN',
+              'source_registration_authorized':False,'runtime_authorized':False,'runtime_mount_authorized':False,'collision_authorized':False,'materialization_authorized':False,
+              'geometry_modified':False,'semantic_names_authorized':False,'game_world_transform_authorized':False,'jouable_promotion_authorized':False,
+          }
+          (out/'manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False)+'\n')
+          print('INFRABEL_LAMBERT72_SNAPSHOT_VERIFIED',f'features={len(features)}',f'sha256={payload_sha}',f'snapshot={snapshot_date}',f'publisher_data={data_date}',f'lag_days={lag_days}','registration=false')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-infrabel-lambert72-source-proof
+          path: ${{ runner.temp }}/infrabel
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6

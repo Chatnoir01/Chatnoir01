@@ -71,6 +71,39 @@ jobs:
         name: Prove late OSM replacement masking is not startup-window bounded
         continue-on-error: true
         run: python grand-bruxelles-game/tests/test_grand_place_lod2_late_osm_mask_contract.py
+      - name: Persist exact-head sub-gate outcomes
+        if: always()
+        shell: bash
+        env:
+          RUNTIME_OUTCOME: "${{ steps.runtime.outcome }}"
+          STATIC_OUTCOME: "${{ steps.static.outcome }}"
+          EXACT_HEAD_SHA: "${{ github.event.pull_request.head.sha || github.sha }}"
+        run: |
+          set -euo pipefail
+          out="grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask"
+          mkdir -p "$out"
+          python3 - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path("grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask")
+          payload = {
+              "schema": "grand-bruxelles-grand-place-late-osm-mask-v1",
+              "exact_head_sha": os.environ["EXACT_HEAD_SHA"],
+              "runtime_outcome": os.environ["RUNTIME_OUTCOME"],
+              "static_outcome": os.environ["STATIC_OUTCOME"],
+              "destination_advertisable": False,
+              "visual_acceptance": False,
+              "jouable_authorized": False,
+          }
+          (out / "contract-outcomes.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print("GRAND_PLACE_LATE_OSM_MASK_OUTCOMES " + json.dumps(payload, sort_keys=True))
+          PY
+          {
+            echo "### Grand-Place late OSM mask"
+            echo "- exact head: \`${EXACT_HEAD_SHA}\`"
+            echo "- Godot runtime contract: **${RUNTIME_OUTCOME}**"
+            echo "- static source-shape contract: **${STATIC_OUTCOME}**"
+            echo "- visual acceptance: **false**"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Require both runtime and static contracts
         if: always()
         shell: bash

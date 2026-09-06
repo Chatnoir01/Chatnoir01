@@ -231,6 +231,9 @@ def build_catalog(registry: dict[str, Any], evidence: dict[str, Any]) -> dict[st
 
     locked_by_nis: dict[str, dict[str, Any]] = {}
     unresolved_by_nis: dict[str, dict[str, Any]] = {}
+    artifact_ids: set[int] = set()
+    artifact_names: set[str] = set()
+    artifact_digests: set[str] = set()
     for row in successful:
         if not isinstance(row, dict) or set(row) != LOCKED_ROW_KEYS:
             raise SystemExit("DESTINATION_FACTORY_CATALOG_FAIL: locked acquisition schema drift")
@@ -240,7 +243,15 @@ def build_catalog(registry: dict[str, Any], evidence: dict[str, Any]) -> dict[st
         if not isinstance(nis, str) or nis in locked_by_nis:
             raise SystemExit("DESTINATION_FACTORY_CATALOG_FAIL: duplicate/invalid locked NIS")
         _closed_authorization(row.get("authorization"), f"locked {nis}")
-        _validate_artifact(row.get("artifact"), nis)
+        artifact = _validate_artifact(row.get("artifact"), nis)
+        artifact_id = artifact["id"]
+        artifact_name = artifact["name"]
+        artifact_digest = artifact["archive_sha256"]
+        if artifact_id in artifact_ids or artifact_name in artifact_names or artifact_digest in artifact_digests:
+            raise SystemExit(f"DESTINATION_FACTORY_CATALOG_FAIL: duplicate locked artifact identity for {nis}")
+        artifact_ids.add(artifact_id)
+        artifact_names.add(artifact_name)
+        artifact_digests.add(artifact_digest)
         _validate_locked_source_evidence(row, nis)
         locked_by_nis[nis] = row
     for row in unresolved:

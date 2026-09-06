@@ -456,14 +456,16 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: b
     multimesh.instance_count = transforms.size()
     for index in range(transforms.size()):
         multimesh.set_instance_transform(index, transforms[index] as Transform3D)
-    if instance == null:
+    var is_new := instance == null
+    if is_new:
         instance = MultiMeshInstance3D.new()
         instance.name = name_value
         instance.set_meta("source_dimensions_measured", false)
-        add_child(instance)
-        _owned_batches.append(instance)
     instance.multimesh = multimesh
     instance.visible = _batches_visible
+    if is_new:
+        add_child(instance)
+        _owned_batches.append(instance)
 
 func _ensure_tree_presentation_meshes() -> void:
     if _presentation_meshes.has("tree_trunk"):

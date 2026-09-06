@@ -16,7 +16,7 @@ def verify_tree_lod_refresh_reuses_selected_rows_without_dictionary_churn() -> N
     rebuild = section(source, "func _rebuild(anchor: Vector3) -> void:", "\nfunc _batch(")
     foliage = section(source, "func _build_tree_foliage_batches(", "\nfunc _build_tree_batches(")
 
-    assert "_build_tree_foliage_batches(_rendered_trees, anchor)" in refresh_lod, (
+    assert "_build_tree_foliage_batches(_rendered_trees, anchor, true)" in refresh_lod, (
         "tree-only LOD refresh must consume the already selected tree rows directly"
     )
     assert "rows.append(" not in refresh_lod, (

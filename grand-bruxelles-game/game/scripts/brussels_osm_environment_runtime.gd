@@ -448,7 +448,7 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: b
     if multimesh == null:
         multimesh = MultiMesh.new()
         multimesh.transform_format = MultiMesh.TRANSFORM_3D
-        multimesh.mesh = mesh
+    multimesh.mesh = mesh
     multimesh.instance_count = transforms.size()
     for index in range(transforms.size()):
         multimesh.set_instance_transform(index, transforms[index] as Transform3D)

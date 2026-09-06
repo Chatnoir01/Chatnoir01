@@ -1,0 +1,30 @@
+name: Grand Bruxelles OSM Reused Batch Mesh Refresh
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/test_osm_environment_reused_batch_mesh_refresh_contract.py"
+      - ".github/workflows/grand-bruxelles-osm-reused-batch-mesh-refresh.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Prove reused batch presentation mesh refresh contract
+        run: python3 grand-bruxelles-game/game/tests/test_osm_environment_reused_batch_mesh_refresh_contract.py

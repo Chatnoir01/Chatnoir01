@@ -13,6 +13,9 @@ assert "_owned_batches.remove_at(index)" in source
 
 prune = source[source.index("func _prune_invalid_owned_batches"):source.index("func _set_batches_visible")]
 assert prune.index("batch.get_parent() != self") < prune.index("_owned_batches.remove_at(index)"), "parent ownership must be checked in the prune path"
+assert (
+    "if not is_instance_valid(batch) or batch.is_queued_for_deletion() or batch.get_parent() != self:" in prune
+), "dead, queued, and detached ownership must be rejected by one fail-closed prune predicate"
 
 set_visible = source[source.index("func _set_batches_visible"):source.index("func _tree_lod_boundary_crossed")]
 assert "_prune_invalid_owned_batches()" in set_visible, "visibility pass must prune dead or detached owned batches"

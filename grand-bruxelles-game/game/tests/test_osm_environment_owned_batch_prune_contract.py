@@ -7,11 +7,12 @@ RUNTIME = ROOT / "game" / "scripts" / "brussels_osm_environment_runtime.gd"
 source = RUNTIME.read_text(encoding="utf-8")
 
 assert "func _prune_invalid_owned_batches() -> void:" in source
-assert "if not is_instance_valid(batch) or batch.is_queued_for_deletion():" in source
-assert "batch.get_parent() != self" in source, "detached/reparented batches must stop being owned by this runtime"
 assert "_owned_batches.remove_at(index)" in source
 
 prune = source[source.index("func _prune_invalid_owned_batches"):source.index("func _set_batches_visible")]
+assert "not is_instance_valid(batch)" in prune, "invalid batches must stop being owned"
+assert "batch.is_queued_for_deletion()" in prune, "queued batches must stop being owned"
+assert "batch.get_parent() != self" in prune, "detached/reparented batches must stop being owned by this runtime"
 assert prune.index("batch.get_parent() != self") < prune.index("_owned_batches.remove_at(index)"), "parent ownership must be checked in the prune path"
 assert (
     "if not is_instance_valid(batch) or batch.is_queued_for_deletion() or batch.get_parent() != self:" in prune

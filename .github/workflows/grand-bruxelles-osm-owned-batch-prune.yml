@@ -1,0 +1,20 @@
+name: Grand Bruxelles OSM Owned Batch Prune
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/test_osm_environment_owned_batch_prune_contract.py"
+      - ".github/workflows/grand-bruxelles-osm-owned-batch-prune.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove owned batch pruning contract
+        run: python3 grand-bruxelles-game/game/tests/test_osm_environment_owned_batch_prune_contract.py

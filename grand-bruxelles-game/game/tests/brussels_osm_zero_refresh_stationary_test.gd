@@ -47,7 +47,7 @@ func _run() -> void:
     for _iteration: int in range(3):
         runtime.call("_refresh", false)
         if _first_batch_id(runtime) != baseline_id:
-            _fail("stationary Player rebuilt OSM batches when refresh_distance_m == 0")
+            _fail("stationary Player replaced OSM batch identity when refresh_distance_m == 0")
             return
         if runtime.get("_last_anchor") != baseline_anchor:
             _fail("stationary Player mutated OSM anchor when refresh_distance_m == 0")
@@ -55,9 +55,13 @@ func _run() -> void:
 
     player.position += Vector3(0.01, 0.0, 0.0)
     runtime.call("_refresh", false)
-    if _first_batch_id(runtime) == baseline_id:
-        _fail("non-zero horizontal movement did not rebuild with refresh_distance_m == 0")
+    if _first_batch_id(runtime) != baseline_id:
+        _fail("non-zero horizontal movement replaced a reusable OSM batch when refresh_distance_m == 0")
+        return
+    var moved_anchor: Vector3 = runtime.get("_last_anchor")
+    if absf(moved_anchor.x - player.global_position.x) > 0.001 or absf(moved_anchor.z - player.global_position.z) > 0.001:
+        _fail("non-zero horizontal movement did not advance the zero-threshold OSM anchor")
         return
 
-    print("BRUSSELS_OSM_ZERO_REFRESH_STATIONARY_OK: stationary_no_rebuild=true zero_threshold_motion_rebuild=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ZERO_REFRESH_STATIONARY_OK: stationary_no_rebuild=true zero_threshold_motion_refresh=true reusable_batch_identity_preserved=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

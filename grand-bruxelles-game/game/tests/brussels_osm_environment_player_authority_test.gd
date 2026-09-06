@@ -53,8 +53,6 @@ func _run() -> void:
     live_player.position = JETTE_SPAWN
     live_world.add_child(live_player)
 
-    # The runtime itself owns the final provenance trust boundary. A structurally
-    # valid artifact with valid points but spoofed source/license must never render.
     var spoofed_path := "user://brussels_osm_spoofed_provenance.json"
     var spoofed_file := FileAccess.open(spoofed_path, FileAccess.WRITE)
     if spoofed_file == null:
@@ -88,8 +86,6 @@ func _run() -> void:
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(spoofed_path))
 
-    # Exported runtime parameters are operational authority. Invalid values must
-    # fail closed before source metadata is accepted or any MultiMesh is built.
     var invalid_runtime := RUNTIME_SCRIPT.new() as Node3D
     invalid_runtime.name = "BrusselsOsmEnvironmentInvalidConfigProbe"
     invalid_runtime.set("data_path", JETTE_DATA)
@@ -136,20 +132,14 @@ func _run() -> void:
         _fail("authored asset dimensions were misrepresented as source measurements")
         return
 
-    # The runtime may host lifecycle/debug/helper children that are not renderer
-    # batches. Rebuilding OSM content must own and replace only MultiMesh batches.
     var sentinel := Node3D.new()
     sentinel.name = "ExternalRuntimeSentinel"
     runtime.add_child(sentinel)
     runtime.call("_refresh", true)
     if sentinel.get_parent() != runtime or sentinel.is_queued_for_deletion():
-        _fail("OSM rebuild deleted a non-renderer runtime child")
+        _fail("OSM refresh deleted a non-renderer runtime child")
         return
 
-    # OSM selection is horizontal (X/Z). A large vertical-only movement must not
-    # purge and recreate every MultiMesh batch when the horizontal neighborhood
-    # is unchanged. Horizontal travel beyond the refresh threshold must still
-    # rebuild normally.
     var refresh_distance := float(runtime.get("refresh_distance_m"))
     var batch_id_before_vertical := _first_batch_instance_id(runtime)
     var anchor_before_vertical: Vector3 = runtime.get("_last_anchor")
@@ -159,7 +149,7 @@ func _run() -> void:
     live_player.position = JETTE_SPAWN + Vector3(0.0, refresh_distance + 5.0, 0.0)
     runtime.call("_refresh", false)
     if _first_batch_instance_id(runtime) != batch_id_before_vertical:
-        _fail("vertical-only Player movement rebuilt horizontal OSM environment batches")
+        _fail("vertical-only Player movement replaced horizontal OSM environment batches")
         return
     if runtime.get("_last_anchor") != anchor_before_vertical:
         _fail("vertical-only Player movement advanced the horizontal OSM refresh anchor")
@@ -167,24 +157,20 @@ func _run() -> void:
 
     live_player.position = JETTE_SPAWN + Vector3(refresh_distance + 5.0, 0.0, 0.0)
     runtime.call("_refresh", false)
-    if _first_batch_instance_id(runtime) == batch_id_before_vertical:
-        _fail("horizontal Player movement beyond refresh threshold did not rebuild OSM environment batches")
+    if _first_batch_instance_id(runtime) != batch_id_before_vertical:
+        _fail("horizontal Player movement replaced reusable OSM environment batch identity")
         return
     if sentinel.get_parent() != runtime or sentinel.is_queued_for_deletion():
-        _fail("horizontal OSM rebuild deleted a non-renderer runtime child")
+        _fail("horizontal OSM refresh deleted a non-renderer runtime child")
         return
     var anchor_after_horizontal: Vector3 = runtime.get("_last_anchor")
     if absf(anchor_after_horizontal.x - live_player.global_position.x) > 0.001 or absf(anchor_after_horizontal.z - live_player.global_position.z) > 0.001:
         _fail("horizontal OSM refresh did not advance the renderer anchor")
         return
 
-    # Restore the canonical spawn before lifecycle corruption tests.
     live_player.position = JETTE_SPAWN
     runtime.call("_refresh", true)
 
-    # A corrupted/non-finite transform must never become renderer authority. Keep
-    # the last known-good batches and anchor intact, but hide them fail-closed
-    # until the canonical Player returns to a finite world position.
     var batch_count_before_invalid_anchor := runtime.get_child_count()
     var last_anchor_before_invalid: Vector3 = runtime.get("_last_anchor")
     live_player.position = Vector3(NAN, JETTE_SPAWN.y, JETTE_SPAWN.z)
@@ -224,5 +210,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: provenance_fail_closed=true config_fail_closed=true current_scene_authoritative=true owned_batch_rebuild=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: provenance_fail_closed=true config_fail_closed=true current_scene_authoritative=true reusable_batch_refresh=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

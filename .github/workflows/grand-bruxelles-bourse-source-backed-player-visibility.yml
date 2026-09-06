@@ -10,6 +10,7 @@ on:
       - "grand-bruxelles-game/game/scripts/urbis_bourse_surface_context.gd"
       - "grand-bruxelles-game/game/scripts/urbis_hero_builder.gd"
       - "grand-bruxelles-game/game/scripts/bourse_portico_articulation.gd"
+      - "grand-bruxelles-game/game/tests/automatic_road_corridor_anchor_heading_contract_test.gd"
       - "grand-bruxelles-game/game/tests/bourse_source_backed_player_visibility_test.gd"
       - ".github/workflows/grand-bruxelles-bourse-source-backed-player-visibility.yml"
   workflow_dispatch:
@@ -52,6 +53,12 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/bourse-source-visibility-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/bourse-source-visibility-import.log; then exit 1; fi
+      - name: Prove fail-closed source-anchor heading contract
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/automatic_road_corridor_anchor_heading_contract_test.gd 2>&1 | tee /tmp/corridor-anchor-heading-contract.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_CORRIDOR_ANCHOR_HEADING_CONTRACT_FAIL" /tmp/corridor-anchor-heading-contract.log; then exit 1; fi
+          grep -q "AUTOMATIC_ROAD_CORRIDOR_ANCHOR_HEADING_CONTRACT_GREEN" /tmp/corridor-anchor-heading-contract.log
       - name: Prove source-backed Bourse geometry enters unchanged production player frame
         run: |
           set -o pipefail
@@ -65,6 +72,7 @@ jobs:
           stage="/tmp/bourse-source-backed-player-visibility-evidence"
           rm -rf "$stage" && mkdir -p "$stage"
           cp /tmp/bourse-source-backed-player-visibility.log "$stage/runtime.log" 2>/dev/null || true
+          cp /tmp/corridor-anchor-heading-contract.log "$stage/corridor-anchor-heading-contract.log" 2>/dev/null || true
           cp /tmp/bourse-source-visibility-import.log "$stage/import.log" 2>/dev/null || true
           cd "$stage"
           find . -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > evidence-sha256.txt

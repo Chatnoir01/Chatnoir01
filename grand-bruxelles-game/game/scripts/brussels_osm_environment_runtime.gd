@@ -250,7 +250,7 @@ func _target() -> Node3D:
 func _prune_invalid_owned_batches() -> void:
     for index in range(_owned_batches.size() - 1, -1, -1):
         var batch := _owned_batches[index]
-        if not is_instance_valid(batch) or batch.is_queued_for_deletion():
+        if not is_instance_valid(batch) or batch.is_queued_for_deletion() or batch.get_parent() != self:
             _owned_batches.remove_at(index)
 
 func _set_batches_visible(enabled: bool) -> void:

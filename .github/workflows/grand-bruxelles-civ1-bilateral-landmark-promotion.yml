@@ -1,0 +1,92 @@
+name: Grand Bruxelles CIV-1 Bilateral Landmark Promotion
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_bilateral_landmark_promotion.py'
+      - 'grand-bruxelles-game/tests/test_civ1_bilateral_landmark_promotion.py'
+      - '.github/workflows/grand-bruxelles-civ1-bilateral-landmark-promotion.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bilateral-landmark-promotion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Causal regression
+        run: python grand-bruxelles-game/tests/test_civ1_bilateral_landmark_promotion.py
+      - name: Download immutable LeftFoot and RightFoot landmark artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1bilateral/{left,right,out}
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9987470105/zip" -o /tmp/civ1bilateral/left.zip
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9996432028/zip" -o /tmp/civ1bilateral/right.zip
+          echo '9987470105  left immutable Skeleton-tied landmark artifact' > /tmp/civ1bilateral/out/artifact-pins.txt
+          echo '9996432028  right immutable Skeleton-tied landmark artifact' >> /tmp/civ1bilateral/out/artifact-pins.txt
+          unzip -q /tmp/civ1bilateral/left.zip -d /tmp/civ1bilateral/left
+          unzip -q /tmp/civ1bilateral/right.zip -d /tmp/civ1bilateral/right
+          test -f /tmp/civ1bilateral/left/out/leftfoot-landmark-analysis.json
+          test -f /tmp/civ1bilateral/right/out/rightfoot-landmark-analysis.json
+      - name: Require exact 15x15 raster evidence matrices
+        run: |
+          set -euo pipefail
+          test "$(find /tmp/civ1bilateral/left/captures -name 'civ1-leftfoot-landmark-*.png' -type f | wc -l)" = 15
+          test "$(find /tmp/civ1bilateral/right/captures -name 'civ1-rightfoot-landmark-*.png' -type f | wc -l)" = 15
+          python - <<'PY'
+          from pathlib import Path
+          for side in ('leftfoot','rightfoot'):
+              root = Path('/tmp/civ1bilateral/left/captures' if side == 'leftfoot' else '/tmp/civ1bilateral/right/captures')
+              expected = {f'civ1-{side}-landmark-{d}m-{s}.png' for d in (2,4,8) for s in (114,115,116,117,118)}
+              actual = {p.name for p in root.glob('*.png')}
+              assert actual == expected, (side, sorted(expected - actual), sorted(actual - expected))
+          print('CIV1_BILATERAL_RASTER_MATRIX_OK')
+          PY
+      - name: Analyze bilateral landmark promotion
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_bilateral_landmark_promotion.py \
+            /tmp/civ1bilateral/left/out/leftfoot-landmark-analysis.json \
+            /tmp/civ1bilateral/right/out/rightfoot-landmark-analysis.json \
+            /tmp/civ1bilateral/out/bilateral-landmark-promotion.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path('/tmp/civ1bilateral/out/bilateral-landmark-promotion.json').read_text())
+          assert r['schema'] == 'grand-bruxelles-civ1-bilateral-landmark-promotion-v2'
+          assert r['centroid_validation_semantic'] == 'recomputed_from_every_record_not_summary_only'
+          assert r['bilateral_identity_ready'] is True
+          assert r['leftfoot']['ready'] is True
+          assert r['rightfoot']['ready'] is True
+          assert r['leftfoot']['max_observed_record_centroid_error_px'] <= 1.5
+          assert r['rightfoot']['max_observed_record_centroid_error_px'] <= 1.5
+          assert r['bilateral_contact_phase_ready'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['planted_contact_claimed'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          print('CIV1_BILATERAL_LANDMARK_PROMOTION_RECEIPT_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-bilateral-landmark-promotion-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1bilateral/out
+          if-no-files-found: error

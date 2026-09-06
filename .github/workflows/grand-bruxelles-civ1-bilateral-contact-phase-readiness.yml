@@ -1,0 +1,78 @@
+name: Grand Bruxelles CIV-1 Bilateral Contact Phase Readiness
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_bilateral_contact_phase_readiness.py'
+      - 'grand-bruxelles-game/tests/test_civ1_bilateral_contact_phase_readiness.py'
+      - '.github/workflows/grand-bruxelles-civ1-bilateral-contact-phase-readiness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bilateral-contact-phase-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Causal regression
+        run: python grand-bruxelles-game/tests/test_civ1_bilateral_contact_phase_readiness.py
+      - name: Download immutable native contact and bilateral identity artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1phase/{contact,bilateral,out}
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9967766262/zip" -o /tmp/civ1phase/contact.zip
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9997357581/zip" -o /tmp/civ1phase/bilateral.zip
+          unzip -q /tmp/civ1phase/contact.zip -d /tmp/civ1phase/contact
+          unzip -q /tmp/civ1phase/bilateral.zip -d /tmp/civ1phase/bilateral
+          test -f /tmp/civ1phase/contact/evidence/contact-windows.json
+          test -f /tmp/civ1phase/bilateral/bilateral-landmark-promotion.json
+          printf '%s\n' \
+            '9967766262 native deterministic contact-windows-v4 artifact' \
+            '9997357581 bilateral independent landmark identity-v2 artifact' > /tmp/civ1phase/out/artifact-pins.txt
+      - name: Measure bilateral contact-phase readiness
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_bilateral_contact_phase_readiness.py \
+            /tmp/civ1phase/contact/evidence/contact-windows.json \
+            /tmp/civ1phase/bilateral/bilateral-landmark-promotion.json \
+            /tmp/civ1phase/out/bilateral-contact-phase-readiness.json
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/civ1phase/out/bilateral-contact-phase-readiness.json'))
+          assert p['schema']=='grand-bruxelles-civ1-bilateral-contact-phase-readiness-v1', p
+          assert p['leftfoot']['phase_ready'] is True, p
+          assert p['leftfoot']['best_low_window_samples']==[115,116,117,118], p
+          assert p['rightfoot']['phase_ready'] is False, p
+          assert p['rightfoot']['best_low_window_samples']==[69,70], p
+          assert p['rightfoot']['next_witness_samples']==[68,69,70,71], p
+          assert p['bilateral_contact_phase_ready'] is False, p
+          assert p['blockers'][0]['side']=='RightFoot', p
+          assert p['quantitative_foot_slide_candidate'] is False, p
+          assert p['planted_contact_claimed'] is False, p
+          assert p['animation_correction_authorized'] is False, p
+          assert p['runtime_authorized'] is False, p
+          assert p['visual_approval_claimed'] is False, p
+          assert p['player_view_claimed'] is False, p
+          print('CIV1_BILATERAL_CONTACT_PHASE_FAIL_CLOSED_OK', p['verdict'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-bilateral-contact-phase-readiness-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1phase/out
+          if-no-files-found: error

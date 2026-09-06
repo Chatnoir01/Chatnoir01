@@ -309,8 +309,7 @@ func _clear_tree_foliage_batches() -> void:
         _owned_batches.remove_at(index)
 
 func _refresh_tree_lod(anchor: Vector3) -> void:
-    _clear_tree_foliage_batches()
-    _build_tree_foliage_batches(_rendered_trees, anchor)
+    _build_tree_foliage_batches(_rendered_trees, anchor, true)
     _last_tree_lod_anchor = anchor
     _update_tree_lod_boundary_margin()
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
@@ -438,22 +437,33 @@ func _rebuild(anchor: Vector3) -> void:
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
     print("BRUSSELS_OSM_ENVIRONMENT_READY: %s radius=%.0fm tree_lod=%s" % [JSON.stringify(last_render_counts), render_radius_m, JSON.stringify(last_tree_lod_counts)])
 
-func _batch(name_value: String, mesh: Mesh, transforms: Array) -> void:
-    if transforms.is_empty():
+func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: bool = false) -> void:
+    var instance: MultiMeshInstance3D = null
+    if reuse_existing:
+        for owned: MultiMeshInstance3D in _owned_batches:
+            if is_instance_valid(owned) and not owned.is_queued_for_deletion() and owned.name == name_value:
+                instance = owned
+                break
+    if transforms.is_empty() and instance == null:
         return
-    var multimesh := MultiMesh.new()
-    multimesh.transform_format = MultiMesh.TRANSFORM_3D
-    multimesh.mesh = mesh
+    var multimesh: MultiMesh = null
+    if instance != null:
+        multimesh = instance.multimesh
+    if multimesh == null:
+        multimesh = MultiMesh.new()
+        multimesh.transform_format = MultiMesh.TRANSFORM_3D
+        multimesh.mesh = mesh
     multimesh.instance_count = transforms.size()
     for index in range(transforms.size()):
         multimesh.set_instance_transform(index, transforms[index] as Transform3D)
-    var instance := MultiMeshInstance3D.new()
-    instance.name = name_value
+    if instance == null:
+        instance = MultiMeshInstance3D.new()
+        instance.name = name_value
+        instance.set_meta("source_dimensions_measured", false)
+        add_child(instance)
+        _owned_batches.append(instance)
     instance.multimesh = multimesh
-    instance.set_meta("source_dimensions_measured", false)
     instance.visible = _batches_visible
-    add_child(instance)
-    _owned_batches.append(instance)
 
 func _ensure_tree_presentation_meshes() -> void:
     if _presentation_meshes.has("tree_trunk"):
@@ -478,7 +488,7 @@ func _ensure_bollard_presentation_meshes() -> void:
     _presentation_meshes["bollard_body"] = BrusselsBollardAsset.create_body_mesh(materials["body"])
     _presentation_meshes["bollard_cap"] = BrusselsBollardAsset.create_cap_mesh(materials["cap"])
 
-func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF, INF)) -> void:
+func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF, INF), reuse_existing: bool = false) -> void:
     if rows.is_empty():
         last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
         return
@@ -510,8 +520,8 @@ func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF
                 var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
                 (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
     last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}
-    _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark)
-    _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light)
+    _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark, reuse_existing)
+    _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light, reuse_existing)
 
 func _build_tree_batches(rows: Array) -> void:
     if rows.is_empty():

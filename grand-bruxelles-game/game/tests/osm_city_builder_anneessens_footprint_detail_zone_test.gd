@@ -36,10 +36,11 @@ func _run() -> void:
         return
 
     # Synthetic regression geometry isolates the helper contract without
-    # modifying or substituting canonical OSM source geometry. The footprint
-    # center stays outside the Anneessens detail radius while its near edge
-    # crosses the radius. Midi/Bourse already honor this edge/vertex rule.
-    var anchor := Vector2(-288.863, -100.711)
+    # modifying or substituting canonical OSM source geometry. The fixture is
+    # intentionally derived from the runtime's canonical Anneessens anchor so
+    # a source-backed anchor correction cannot leave this proof geographically
+    # pinned to a stale coordinate.
+    var anchor: Vector2 = builder.ANNEESSENS_ANCHOR
     var radius: float = float(builder.anneessens_detail_radius_m)
     var footprint: Array = [
         [anchor.x + radius - 0.25, anchor.y - 6.0],
@@ -95,6 +96,6 @@ func _run() -> void:
             _fail("malformed road/rail point must be rejected fail-closed")
             return
 
-    print("ANNEESSENS_FOOTPRINT_DETAIL_ZONE_GREEN: center_distance_m=%.3f radius_m=%.3f malformed_rejected=true road_rail_points_guarded=true source_geometry_unchanged=true camera_unchanged=true destination_advertisable=false jouable=false" % [center.distance_to(anchor), radius])
+    print("ANNEESSENS_FOOTPRINT_DETAIL_ZONE_GREEN: center_distance_m=%.3f radius_m=%.3f anchor=(%.3f,%.3f) malformed_rejected=true road_rail_points_guarded=true source_geometry_unchanged=true camera_unchanged=true destination_advertisable=false jouable=false" % [center.distance_to(anchor), radius, anchor.x, anchor.y])
     builder.free()
     quit(0)

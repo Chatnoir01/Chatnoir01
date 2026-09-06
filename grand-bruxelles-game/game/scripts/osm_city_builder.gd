@@ -12,10 +12,10 @@ extends Node3D
 
 const MIDI_ANCHOR := Vector2(-668.5, 627.84)
 const BOURSE_ANCHOR := Vector2(81.54, -664.58)
-# Bounded road-detail anchor measured from the exact source segment selected by
-# road-359177328. This extends the existing shared sidewalk/support generator;
-# it does not create an Anneessens-specific spawn or alter source coordinates.
-const ANNEESSENS_ANCHOR := Vector2(-288.863, -100.711)
+# Canonical corridor anchor from vertical_slice_01.game.json. The representative
+# automatic destination road-1382734012 crosses Place Anneessens at this source-backed
+# location; this only scopes shared facade/sidewalk detail and does not move geometry.
+const ANNEESSENS_ANCHOR := Vector2(-272.04, -217.07)
 # Canonical corridor anchor from vertical_slice_01.game.json. Grand-Place road
 # coverage is intentionally road-only so this support change cannot claim or
 # expand facade/heritage ownership.

@@ -1,7 +1,9 @@
 name: DEV Apply Tree Foliage MultiMesh Reuse
 
 on:
-  pull_request:
+  push:
+    branches:
+      - env/tree-foliage-multimesh-reuse-3eb18be
     paths:
       - 'grand-bruxelles-game/tools/dev/apply_tree_foliage_multimesh_reuse.py'
       - '.github/workflows/dev-tree-foliage-multimesh-reuse-apply.yml'
@@ -11,10 +13,9 @@ permissions:
 
 jobs:
   apply:
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'env/tree-foliage-multimesh-reuse-3eb18be'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact PR head
+      - name: Checkout exact branch head
         uses: actions/checkout@v4
         with:
           ref: env/tree-foliage-multimesh-reuse-3eb18be

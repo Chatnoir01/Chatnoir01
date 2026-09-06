@@ -4,6 +4,8 @@
 Diagnostic-only. The validated single-bottom-row primitive remains the primary
 measurement. A bounded four-row estimator is recorded independently as an A/B
 fallback for distant rasters where the primary row is below its sampling floor.
+The fallback must calibrate against primary-resolved nearer distances before any
+recovered distant value is considered qualified diagnostic evidence.
 Neither estimator may promote perceptual, planted-contact, runtime, player-view,
 or animation-correction claims.
 """
@@ -20,6 +22,8 @@ SAMPLES = (115, 116, 117, 118)
 MULTIROW_DEPTH = 4
 MIN_PRIMARY_PIXELS = 20
 MIN_MULTIROW_PIXELS = 40
+MAX_AB_PATH_RELATIVE_DIFFERENCE = 0.25
+MIN_DIRECTION_SIGNAL_PX = 0.25
 
 
 def _load_sole_module():
@@ -68,6 +72,19 @@ def _path(records: list[dict], key: str) -> float:
     return value
 
 
+def _signed_displacement(records: list[dict], key: str) -> float:
+    value = records[-1][key] - records[0][key]
+    if not math.isfinite(value):
+        raise ValueError("non-finite raster displacement")
+    return value
+
+
+def _direction_match(a: float, b: float) -> bool:
+    if abs(a) < MIN_DIRECTION_SIGNAL_PX or abs(b) < MIN_DIRECTION_SIGNAL_PX:
+        return False
+    return (a > 0) == (b > 0)
+
+
 def analyze(capture_dir: Path) -> dict:
     sole = _load_sole_module()
     distances = []
@@ -95,10 +112,16 @@ def analyze(capture_dir: Path) -> dict:
         multirow_resolved = multirow_error is None and len(multirow_records) == len(SAMPLES)
         primary_path = _path(primary_records, "bottom_centroid_x_px") if primary_resolved else None
         multirow_path = _path(multirow_records, "centroid_x_px") if multirow_resolved else None
+        primary_signed = _signed_displacement(primary_records, "bottom_centroid_x_px") if primary_resolved else None
+        multirow_signed = _signed_displacement(multirow_records, "centroid_x_px") if multirow_resolved else None
         agreement_ratio = None
+        direction_match = None
+        path_within_tolerance = None
         if primary_resolved and multirow_resolved:
             denom = max(primary_path, multirow_path, 1e-9)
             agreement_ratio = abs(primary_path - multirow_path) / denom
+            direction_match = _direction_match(primary_signed, multirow_signed)
+            path_within_tolerance = agreement_ratio <= MAX_AB_PATH_RELATIVE_DIFFERENCE
 
         distances.append({
             "distance_m": distance,
@@ -107,6 +130,7 @@ def analyze(capture_dir: Path) -> dict:
                 "measurement_resolved": primary_resolved,
                 "measurement_error": primary_error,
                 "bottom_centroid_path_px": primary_path,
+                "signed_displacement_px": primary_signed,
                 "min_bottom_pixel_count": min((r["bottom_pixel_count"] for r in primary_records), default=None),
                 "records": primary_records,
             },
@@ -115,37 +139,75 @@ def analyze(capture_dir: Path) -> dict:
                 "measurement_resolved": multirow_resolved,
                 "measurement_error": multirow_error,
                 "centroid_path_px": multirow_path,
+                "signed_displacement_px": multirow_signed,
                 "min_region_pixel_count": min((r["pixel_count"] for r in multirow_records), default=None),
                 "records": multirow_records,
             },
             "ab_path_relative_difference": agreement_ratio,
+            "ab_direction_match": direction_match,
+            "ab_path_within_tolerance": path_within_tolerance,
             "ab_agreement_claimed": False,
         })
 
     primary_unresolved = [d["distance_m"] for d in distances if not d["primary"]["measurement_resolved"]]
     multirow_unresolved = [d["distance_m"] for d in distances if not d["multirow"]["measurement_resolved"]]
-    recovered_by_multirow = [
+    raw_recovered = [
         d["distance_m"] for d in distances
         if not d["primary"]["measurement_resolved"] and d["multirow"]["measurement_resolved"]
     ]
+
+    calibration_distances = [
+        d for d in distances
+        if d["distance_m"] < max(DISTANCES)
+        and d["primary"]["measurement_resolved"]
+        and d["multirow"]["measurement_resolved"]
+    ]
+    calibration_failures: list[dict] = []
+    for d in calibration_distances:
+        reasons = []
+        if d["ab_direction_match"] is not True:
+            reasons.append("signed_direction_mismatch_or_under_signal")
+        if d["ab_path_within_tolerance"] is not True:
+            reasons.append("path_relative_difference_exceeds_tolerance")
+        if reasons:
+            calibration_failures.append({"distance_m": d["distance_m"], "reasons": reasons})
+
+    calibration_passed = len(calibration_distances) >= 2 and not calibration_failures
+    qualified_recovered = raw_recovered if calibration_passed else []
+    verdict = (
+        "AMELIORER_MULTIROW_CALIBRATED_RECOVERY_AVAILABLE_NO_PROMOTION"
+        if qualified_recovered
+        else "AMELIORER_MULTIROW_FALLBACK_REJECTED_BY_CALIBRATION_NO_PROMOTION"
+        if raw_recovered and not calibration_passed
+        else "AMELIORER_MULTIROW_AB_EVIDENCE_RECORDED_NO_PROMOTION"
+    )
+
     return {
-        "schema": "grand-bruxelles-civ1-player-distance-raster-analysis-v2",
+        "schema": "grand-bruxelles-civ1-player-distance-raster-analysis-v3",
         "diagnostic_only": True,
         "source_semantic": "actual_godot_1280x720_player_distance_rasters",
         "distances_m": list(DISTANCES),
         "samples": list(SAMPLES),
         "multirow_depth": MULTIROW_DEPTH,
+        "multirow_calibration": {
+            "required_near_distances_m": [2, 4],
+            "max_path_relative_difference": MAX_AB_PATH_RELATIVE_DIFFERENCE,
+            "min_direction_signal_px": MIN_DIRECTION_SIGNAL_PX,
+            "passed": calibration_passed,
+            "failures": calibration_failures,
+        },
         "distance_measurements": distances,
         "primary_unresolved_distances_m": primary_unresolved,
         "multirow_unresolved_distances_m": multirow_unresolved,
-        "recovered_by_multirow_distances_m": recovered_by_multirow,
+        "raw_recovered_by_multirow_distances_m": raw_recovered,
+        "qualified_recovered_by_multirow_distances_m": qualified_recovered,
         "perceptual_2_8m_claimed": False,
         "planted_contact_claimed": False,
         "animation_correction_authorized": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "verdict": "AMELIORER_MULTIROW_AB_EVIDENCE_RECORDED_NO_PROMOTION",
+        "verdict": verdict,
     }
 
 
@@ -161,7 +223,13 @@ def main(argv: list[str]) -> int:
         return 3
     primary = {d["distance_m"]: d["primary"]["bottom_centroid_path_px"] for d in report["distance_measurements"]}
     multirow = {d["distance_m"]: d["multirow"]["centroid_path_px"] for d in report["distance_measurements"]}
-    print(f"CIV1_PLAYER_DISTANCE_ANALYSIS_OK primary={primary} multirow={multirow} recovered={report['recovered_by_multirow_distances_m']}")
+    print(
+        "CIV1_PLAYER_DISTANCE_ANALYSIS_OK "
+        f"primary={primary} multirow={multirow} "
+        f"raw_recovered={report['raw_recovered_by_multirow_distances_m']} "
+        f"qualified_recovered={report['qualified_recovered_by_multirow_distances_m']} "
+        f"calibrated={report['multirow_calibration']['passed']}"
+    )
     return 0
 
 

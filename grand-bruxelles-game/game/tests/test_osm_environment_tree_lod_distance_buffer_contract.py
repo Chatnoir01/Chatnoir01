@@ -15,8 +15,8 @@ def verify_tree_lod_refresh_avoids_transient_distance_buffer() -> None:
     refresh_lod = section(source, "func _refresh_tree_lod(anchor: Vector3) -> void:", "\nfunc _refresh(force: bool)")
     foliage = section(source, "func _build_tree_foliage_batches(", "\nfunc _build_tree_batches(")
 
-    assert "_build_tree_foliage_batches(_rendered_trees, anchor)" in refresh_lod, (
-        "tree-only LOD refresh must classify directly from selected rows and the current anchor"
+    assert "_build_tree_foliage_batches(_rendered_trees, anchor, true)" in refresh_lod, (
+        "tree-only LOD refresh must classify directly from selected rows and the current anchor while reusing foliage batches"
     )
     assert "var distances" not in foliage
     assert "distances.append" not in foliage

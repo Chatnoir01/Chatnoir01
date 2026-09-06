@@ -17,7 +17,7 @@ func _fail(message: String) -> void:
     quit(1)
 
 func _finite_number(value: Variant) -> bool:
-    return type_of(value) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(value))
+    return typeof(value) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(value))
 
 func _triangle_area(a: Vector2, b: Vector2, c: Vector2) -> float:
     return absf((b - a).cross(c - a)) * 0.5
@@ -116,7 +116,7 @@ func _run() -> void:
         _fail("collision is not derived from the rendered official mesh")
         return
 
-    var space := scene.get_world_3d().direct_space_state
+    var space: PhysicsDirectSpaceState3D = scene.get_world_3d().direct_space_state
     var samples: Array = []
     var max_hit_y_error := 0.0
     var total_area := 0.0
@@ -137,7 +137,7 @@ func _run() -> void:
             Vector3(centroid.x, RAY_BOTTOM_Y, centroid.y),
             1
         )
-        var hit := space.intersect_ray(query)
+        var hit: Dictionary = space.intersect_ray(query)
         if hit.is_empty():
             _fail("player-foot collision hole at source triangle centroid %d" % triangle_index)
             return

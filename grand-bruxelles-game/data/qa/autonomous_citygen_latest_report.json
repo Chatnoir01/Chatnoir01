@@ -7157,7 +7157,7 @@
       "state": "DATA_READY"
     },
     {
-      "attempts": 341,
+      "attempts": 342,
       "autonomous_actionable": true,
       "bbox": [
         147500,
@@ -23986,7 +23986,7 @@
   },
   "format": "grand-bruxelles-autonomous-citygen-v1",
   "policy": {
-    "batch_size": 4,
+    "batch_size": 1,
     "crs": "EPSG:31370",
     "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_lower_priority_fill_slots",
     "incomplete_source_priority": "repair_declared_source_payloads_before_ordinary_evidence_or_fill_slots",
@@ -23998,18 +23998,11 @@
     "runtime_promotion": "forbidden_without_full_regional_maturity_contract",
     "uncertain_evidence": "quarantine_or_keep_pending_never_guess"
   },
-  "refresh_only": false,
+  "refresh_only": true,
   "run_number": 240,
-  "selected_batch": [
-    "bxl-e151000-n161500-s500",
-    "bxl-e151000-n161000-s500",
-    "bxl-e150500-n161000-s500",
-    "bxl-e150500-n161500-s500"
-  ],
-  "selected_municipalities": [
-    "uccle"
-  ],
-  "selected_municipality_count": 1,
+  "selected_batch": [],
+  "selected_municipalities": [],
+  "selected_municipality_count": 0,
   "source_cell_count": 739,
   "target_cell_count": 740
 }

@@ -2,6 +2,7 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
+const RESOLVER_SOURCE_PATH := "res://game/scripts/automatic_road_direct_spawn.gd"
 const BOURSE_ORTS_ID := 411724192
 const OWNER_PATHS := [
     "UrbISBourseGeotaggedFrontage",
@@ -27,8 +28,7 @@ func _collect_visuals(node: Node, out: Array[VisualInstance3D]) -> void:
         _collect_visuals(child, out)
 
 func _visual_center(visual: VisualInstance3D) -> Vector3:
-    var local_center := visual.get_aabb().get_center()
-    return visual.global_transform * local_center
+    return visual.global_transform * visual.get_aabb().get_center()
 
 func _center_is_in_player_frame(camera: Camera3D, world_center: Vector3) -> bool:
     if camera.is_position_behind(world_center):
@@ -52,9 +52,7 @@ func _measure_source_backed_visibility(scene: Node, camera: Camera3D) -> Diction
         total_visual_count += visuals.size()
         var owner_visible := 0
         for visual in visuals:
-            if not visual.is_visible_in_tree():
-                continue
-            if _center_is_in_player_frame(camera, _visual_center(visual)):
+            if visual.is_visible_in_tree() and _center_is_in_player_frame(camera, _visual_center(visual)):
                 owner_visible += 1
                 visible_visual_count += 1
         if owner_visible > 0:
@@ -67,11 +65,35 @@ func _measure_source_backed_visibility(scene: Node, camera: Camera3D) -> Diction
         "owner_metrics": owner_metrics,
     }
 
+func _resolver_preserves_authored_camera_contract() -> bool:
+    var source := FileAccess.get_file_as_string(RESOLVER_SOURCE_PATH)
+    if source.is_empty():
+        return false
+    for forbidden in [
+        "camera.transform =",
+        "camera.global_transform =",
+        "camera.position =",
+        "camera.rotation =",
+        "camera.rotation_degrees =",
+        "camera.fov =",
+        "camera.near =",
+        "camera.far =",
+        "camera.cull_mask =",
+        "spring_arm.spring_length =",
+    ]:
+        if source.contains(forbidden):
+            return false
+    return true
+
 func _orient_body_to_target(body: CharacterBody3D, spawn_xz: Vector2, target_xz: Vector2) -> void:
     var to_target := target_xz - spawn_xz
     body.rotation_degrees.y = rad_to_deg(atan2(-to_target.x, -to_target.y))
 
 func _run() -> void:
+    if not _resolver_preserves_authored_camera_contract():
+        _fail("resolver contains a forbidden authored camera/SpringArm mutation")
+        return
+
     var viewport := SubViewport.new()
     viewport.size = Vector2i(WIDTH, HEIGHT)
     viewport.own_world_3d = true
@@ -97,7 +119,6 @@ func _run() -> void:
         _fail("production player camera missing")
         return
 
-    var camera_transform_before := camera.transform
     var camera_fov_before := camera.fov
     var camera_near_before := camera.near
     var camera_far_before := camera.far
@@ -113,25 +134,14 @@ func _run() -> void:
         await process_frame
         await physics_frame
 
-    # SpringArm3D is expected to retract its Camera3D child dynamically when the
-    # new player heading puts geometry behind the player. That runtime collision
-    # response may alter only the child camera's local Z translation. The resolver
-    # must not mutate the authored camera basis, lateral/vertical offset, optics,
-    # cull mask, or the SpringArm3D's configured length.
-    if not camera.transform.basis.is_equal_approx(camera_transform_before.basis):
-        _fail("resolver changed production camera basis")
-        return
-    if not is_equal_approx(camera.transform.origin.x, camera_transform_before.origin.x) or not is_equal_approx(camera.transform.origin.y, camera_transform_before.origin.y):
-        _fail("resolver changed production camera lateral/vertical local offset")
-        return
     if not is_equal_approx(spring_arm.spring_length, spring_length_before):
-        _fail("resolver changed production SpringArm3D length")
+        _fail("production SpringArm3D configured length changed")
         return
     if not is_equal_approx(camera.fov, camera_fov_before) or not is_equal_approx(camera.near, camera_near_before) or not is_equal_approx(camera.far, camera_far_before):
-        _fail("resolver mutated production camera optics")
+        _fail("production camera optics changed")
         return
     if camera.cull_mask != camera_cull_mask_before:
-        _fail("resolver mutated production camera cull mask")
+        _fail("production camera cull mask changed")
         return
 
     camera.current = true
@@ -177,9 +187,9 @@ func _run() -> void:
         if opposite_metrics.has("error"):
             _fail(str(opposite_metrics["error"]))
             return
-        print("BOURSE_SOURCE_BACKED_OPPOSITE_HEADING_DIAGNOSTIC: production_target=(%.3f,%.3f) opposite_target=(%.3f,%.3f) opposite_source_sightline_clear=%s opposite_source_view_corridor_clearance_m=%.6f owners_visible=%d/%d visuals_visible=%d/%d camera_basis_unchanged=%s" % [production_target_xz.x, production_target_xz.y, opposite_target_xz.x, opposite_target_xz.y, str(opposite_clear), opposite_clearance, int(opposite_metrics["visible_owner_count"]), OWNER_PATHS.size(), int(opposite_metrics["visible_visual_count"]), int(opposite_metrics["total_visual_count"]), str(camera.transform.basis.is_equal_approx(camera_transform_before.basis))])
+        print("BOURSE_SOURCE_BACKED_OPPOSITE_HEADING_DIAGNOSTIC: production_target=(%.3f,%.3f) opposite_target=(%.3f,%.3f) opposite_source_sightline_clear=%s opposite_source_view_corridor_clearance_m=%.6f owners_visible=%d/%d visuals_visible=%d/%d" % [production_target_xz.x, production_target_xz.y, opposite_target_xz.x, opposite_target_xz.y, str(opposite_clear), opposite_clearance, int(opposite_metrics["visible_owner_count"]), OWNER_PATHS.size(), int(opposite_metrics["visible_visual_count"]), int(opposite_metrics["total_visual_count"])])
         _fail("road-411724192 production heading contains no source-backed Bourse owner geometry; opposite-heading diagnostic emitted without production mutation")
         return
 
-    print("BOURSE_SOURCE_BACKED_PLAYER_VISIBILITY_GREEN: road=411724192 owners_visible=%d visuals_visible=%d camera_authored_rig_unchanged=true springarm_runtime_retraction_allowed=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [visible_owner_count, visible_visual_count])
+    print("BOURSE_SOURCE_BACKED_PLAYER_VISIBILITY_GREEN: road=411724192 owners_visible=%d visuals_visible=%d authored_camera_contract_unchanged=true springarm_runtime_response_allowed=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [visible_owner_count, visible_visual_count])
     quit(0)

@@ -1,6 +1,7 @@
 extends Node
 
 const HUMANOID_VISUAL_SCRIPT := preload("res://game/scripts/humanoid_visual.gd")
+const GATE8_VISUAL_LOADER := preload("res://game/scripts/gate8_visual_loader.gd")
 const EXPECTED_AMBIENT := 24
 const TARGET_AMBIENT_DENSITY := 24
 const MAX_DISCOVERY_FRAMES := 120
@@ -76,7 +77,7 @@ func bridge_scene(scene: Node) -> Dictionary:
     if bridged + already > 0:
         _bridged_scene_ids[scene_id] = true
     var lod := _lod_counts_for_scene(scene)
-    print("Midi ambient NPC visual bridge: bridged=%d already=%d legacy_hidden=%d materials_reused=%d cache_entries=%d lod_detailed=%d lod_legacy=%d lod_switch_m=%.1f" % [bridged, already, legacy_hidden, materials_reused, _shared_materials.size(), int(lod.get("detailed_meshes", 0)), int(lod.get("legacy_visuals", 0)), LOD_SWITCH_DISTANCE_M])
+    print("Midi ambient NPC visual bridge: bridged=%d already=%d legacy_hidden=%d materials_reused=%d cache_entries=%d lod_detailed=%d lod_legacy=%d lod_switch_m=%.1f gate8_enabled=%s gate8_available=%d" % [bridged, already, legacy_hidden, materials_reused, _shared_materials.size(), int(lod.get("detailed_meshes", 0)), int(lod.get("legacy_visuals", 0)), LOD_SWITCH_DISTANCE_M, str(GATE8_VISUAL_LOADER.enabled()), GATE8_VISUAL_LOADER.available_count()])
     return {
         "bridged": bridged,
         "already": already,
@@ -85,6 +86,8 @@ func bridge_scene(scene: Node) -> Dictionary:
         "material_cache_entries": _shared_materials.size(),
         "lod_detailed_meshes": int(lod.get("detailed_meshes", 0)),
         "lod_legacy_visuals": int(lod.get("legacy_visuals", 0)),
+        "gate8_enabled": GATE8_VISUAL_LOADER.enabled(),
+        "gate8_available": GATE8_VISUAL_LOADER.available_count(),
     }
 
 func set_profiled_visuals_enabled(scene: Node, enabled: bool) -> int:
@@ -117,11 +120,18 @@ func _attach_profiled_proxy(person: Node3D, seed_value: int) -> void:
     proxy.collision_mask = 0
     proxy.position = Vector3(0.0, PROXY_Y_OFFSET, 0.0)
 
-    var visual := Node3D.new()
-    visual.name = "VisualUpgrade"
-    visual.set_script(HUMANOID_VISUAL_SCRIPT)
-    proxy.add_child(visual)
+    var visual: Node3D = GATE8_VISUAL_LOADER.instantiate_for_seed(seed_value)
+    if visual == null:
+        visual = Node3D.new()
+        visual.name = "VisualUpgrade"
+        visual.set_script(HUMANOID_VISUAL_SCRIPT)
+        visual.set_meta("gate8_external_visual", false)
+
     person.add_child(proxy)
+    proxy.add_child(visual)
+    if bool(visual.get_meta("gate8_external_visual", false)):
+        GATE8_VISUAL_LOADER.ground_external_visual(visual)
+
     _deduplicate_proxy_materials(visual)
     _configure_distance_lod(person, true)
 
@@ -189,14 +199,7 @@ func _deduplicate_proxy_materials(root: Node) -> int:
     return replaced
 
 func _material_key(material: StandardMaterial3D) -> String:
-    return "%d|%.6f|%.6f|%s|%d|%.6f" % [
-        material.albedo_color.to_rgba32(),
-        material.roughness,
-        material.metallic,
-        str(material.emission_enabled),
-        material.emission.to_rgba32(),
-        material.emission_energy_multiplier,
-    ]
+    return "%d|%.6f|%.6f|%s|%d|%.6f" % [material.albedo_color.to_rgba32(), material.roughness, material.metallic, str(material.emission_enabled), material.emission.to_rgba32(), material.emission_energy_multiplier]
 
 func _set_legacy_visuals(person: Node3D, visible_value: bool) -> int:
     var changed := 0
@@ -242,10 +245,7 @@ func _lod_counts_for_scene(scene: Node) -> Dictionary:
     return {"detailed_meshes": detailed_meshes, "legacy_visuals": legacy_visuals}
 
 func material_cache_stats() -> Dictionary:
-    return {
-        "entries": _shared_materials.size(),
-        "surfaces_reused": _deduplicated_surfaces,
-    }
+    return {"entries": _shared_materials.size(), "surfaces_reused": _deduplicated_surfaces}
 
 func lod_stats() -> Dictionary:
     var counts := _lod_counts_for_scene(_find_scene_with_ambient_crowd())
@@ -254,14 +254,25 @@ func lod_stats() -> Dictionary:
     counts["detailed_near_legacy_far"] = true
     return counts
 
+func gate8_variant_path_for_seed(seed_value: int) -> String:
+    return GATE8_VISUAL_LOADER.path_for_seed(seed_value)
+
+func gate8_status() -> Dictionary:
+    return GATE8_VISUAL_LOADER.status()
+
 func truth_contract() -> Dictionary:
+    var gate8 := GATE8_VISUAL_LOADER.status()
     return {
         "movement_owner": "midi_urban_life.gd legacy ambient path remains authoritative",
         "navigation_added": false,
         "simulation_proxy_disabled": true,
-        "visual_pipeline": "NpcAgent + humanoid_visual.gd profiled NPC path",
+        "visual_pipeline": "NpcAgent + optional Gate-8 GLB visual with humanoid_visual.gd fallback",
         "material_sharing": "exact-equivalent StandardMaterial3D reuse",
         "distance_lod": "profiled meshes near / existing legacy primitives beyond 90m with 10m self-fade margin",
         "ambient_density_target": TARGET_AMBIENT_DENSITY,
-        "external_assets": 0,
+        "external_assets": int(gate8.get("available", 0)) if bool(gate8.get("enabled", false)) else 0,
+        "external_assets_available": int(gate8.get("available", 0)),
+        "external_assets_enabled": bool(gate8.get("enabled", false)),
+        "external_animation_retargeted": false,
+        "external_dynamic_grounding": bool(gate8.get("dynamic_grounding", false)),
     }

@@ -140,6 +140,8 @@ func _run() -> void:
         _fail("no longitudinal candidate survives exact-source safety rails")
         return
 
+    # Keep the frozen hypothetical spawn ranking untouched: maximum exact-source
+    # view clearance, then network continuation, then spawn clearance.
     var max_view_clearance := -1.0
     for candidate: Dictionary in candidates:
         max_view_clearance = maxf(max_view_clearance, float(candidate["view_clearance"]))
@@ -165,13 +167,29 @@ func _run() -> void:
             selected = candidate
 
     if selected.is_empty():
-        _fail("frozen ranking produced no candidate")
-        return
-    var hits := _sample_hits(resolver, document, selected["spawn"] as Vector2, selected["target"] as Vector2)
-    var diagnostic := "segment=%d fraction=%.2f offset=%.3f side=%+.0f along=%+.0f lookahead=%.1f view_clearance=%.3f continuation=%d spawn_clearance=%.3f hits=%d candidates=%d safe_stratum=%d continuation_stratum=%d" % [int(selected["segment"]), float(selected["fraction"]), float(selected["offset"]), float(selected["side"]), float(selected["along"]), float(selected["lookahead"]), float(selected["view_clearance"]), int(selected["continuation"]), float(selected["spawn_clearance"]), hits, candidates.size(), safe_stratum.size(), continuation_stratum.size()]
-    if hits < 1 or hits > 2:
-        _fail("expanded longitudinal set still resolves to unbalanced player context under frozen ranking: %s camera_unchanged=true source_only=true" % diagnostic)
+        _fail("frozen longitudinal spawn ranking produced no candidate")
         return
 
-    print("AUTOMATIC_ROAD_SOURCE_LONGITUDINAL_RANKING_FEASIBILITY_GREEN: road_id=%d %s camera_unchanged=true source_only=true geometry_unchanged=true resolver_unchanged=true destination_advertisable=false jouable=false" % [ANNEESSENS_ROAD_ID, diagnostic])
+    var selected_spawn := selected["spawn"] as Vector2
+    var raw_target := selected["target"] as Vector2
+    var effective: Dictionary = resolver._corridor_oriented_target(document, selected_spawn, raw_target)
+    var effective_target := effective.get("target", Vector2.ZERO) as Vector2
+    if effective_target == Vector2.ZERO or effective_target == selected_spawn:
+        _fail("effective longitudinal arrival heading invalid")
+        return
+    if not resolver._segment_clear_of_source_buildings(document, selected_spawn, effective_target):
+        _fail("effective longitudinal arrival heading lost exact-source safety")
+        return
+    var effective_clearance := resolver._source_view_corridor_clearance(document, selected_spawn, effective_target)
+    if not is_finite(effective_clearance) or effective_clearance + resolver.SOURCE_VIEW_CLEARANCE_EPSILON_M < resolver.PLAYER_BODY_CLEARANCE_M:
+        _fail("effective longitudinal heading violates physical clearance")
+        return
+
+    var hits := _sample_hits(resolver, document, selected_spawn, effective_target)
+    var diagnostic := "segment=%d fraction=%.2f offset=%.3f side=%+.0f along=%+.0f lookahead=%.1f view_clearance=%.3f effective_clearance=%.3f continuation=%d spawn_clearance=%.3f hits=%d candidates=%d safe_stratum=%d continuation_stratum=%d anchor_oriented=%s" % [int(selected["segment"]), float(selected["fraction"]), float(selected["offset"]), float(selected["side"]), float(selected["along"]), float(selected["lookahead"]), float(selected["view_clearance"]), effective_clearance, int(selected["continuation"]), float(selected["spawn_clearance"]), hits, candidates.size(), safe_stratum.size(), continuation_stratum.size(), str(bool(effective.get("anchor_oriented", false)))]
+    if hits < 1 or hits > 2:
+        _fail("expanded longitudinal spawn set still resolves to unbalanced player context after safe source-anchor heading: %s camera_unchanged=true source_only=true" % diagnostic)
+        return
+
+    print("AUTOMATIC_ROAD_SOURCE_LONGITUDINAL_RANKING_FEASIBILITY_GREEN: road_id=%d %s camera_unchanged=true source_only=true geometry_unchanged=true spawn_ranking_unchanged=true effective_heading_source_anchor_aware=true destination_advertisable=false jouable=false" % [ANNEESSENS_ROAD_ID, diagnostic])
     quit(0)

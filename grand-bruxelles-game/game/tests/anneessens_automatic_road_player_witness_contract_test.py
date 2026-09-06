@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 witness = ROOT / "game" / "tests" / "anneessens_automatic_road_direct_spawn_witness_test.gd"
+main_scene = ROOT / "game" / "main.tscn"
 validator = ROOT / "game" / "tests" / "validate_anneessens_player_witness_evidence.py"
 validator_regression = ROOT / "game" / "tests" / "test_validate_anneessens_player_witness_evidence.py"
 workflow = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-anneessens-automatic-road-player-witness.yml"
@@ -10,6 +11,7 @@ workflow = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-anneessens-a
 assert witness.exists(), "missing Anneessens automatic-road player witness"
 text = witness.read_text(encoding="utf-8")
 for token in (
+    'const MAIN_SCENE := preload("res://game/main.tscn")',
     "const ANNEESSENS_PLACE_ID := 1382734012",
     'const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"',
     'const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"',
@@ -59,6 +61,11 @@ for token in (
 ):
     assert token in text, f"missing fail-closed Anneessens witness token: {token}"
 
+assert main_scene.exists(), "missing production main scene used by Anneessens witness"
+main_scene_text = main_scene.read_text(encoding="utf-8")
+assert 'path="res://game/scripts/osm_city_builder.gd"' in main_scene_text, "production main scene no longer wires the OSM city builder expected by the witness"
+assert 'script = ExtResource("2_city")' in main_scene_text, "production BrusselsOSM node no longer uses the expected OSM city builder resource"
+
 assert validator.exists(), "missing staged Anneessens evidence validator"
 v = validator.read_text(encoding="utf-8")
 for token in (
@@ -94,6 +101,9 @@ assert workflow.exists(), "missing dedicated Anneessens automatic-road player wo
 w = workflow.read_text(encoding="utf-8")
 for token in (
     "Godot_v4.7.1-stable_linux.x86_64",
+    "grand-bruxelles-game/game/main.tscn",
+    "grand-bruxelles-game/game/scripts/osm_city_builder.gd",
+    "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd",
     "anneessens_automatic_road_direct_spawn_witness_test.gd",
     "anneessens_automatic_road_player_witness_contract_test.py",
     "validate_anneessens_player_witness_evidence.py",

@@ -140,6 +140,21 @@ func _canonical_runtime_source_path(raw_path: Variant) -> String:
     return "res://" + "/".join(segments)
 
 
+func _canonical_sha256(raw_sha: Variant) -> String:
+    if typeof(raw_sha) != TYPE_STRING:
+        return ""
+    var digest := str(raw_sha)
+    if digest.length() != 64:
+        return ""
+    for index: int in range(digest.length()):
+        var code := digest.unicode_at(index)
+        var decimal := code >= 48 and code <= 57
+        var lowercase_hex := code >= 97 and code <= 102
+        if not decimal and not lowercase_hex:
+            return ""
+    return digest
+
+
 func _load_runtime_index() -> bool:
     if _runtime_index_attempted:
         return _runtime_index_valid
@@ -171,9 +186,9 @@ func _load_runtime_index() -> bool:
             return false
         var descriptor := raw_document as Dictionary
         var source_path := _canonical_runtime_source_path(descriptor.get("path", ""))
-        var expected_sha := str(descriptor.get("sha256", "")).strip_edges().to_lower()
+        var expected_sha := _canonical_sha256(descriptor.get("sha256", ""))
         var road_ids: Variant = descriptor.get("road_ids", [])
-        if source_path.is_empty() or expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
+        if source_path.is_empty() or expected_sha.is_empty() or not road_ids is Array or road_ids.is_empty():
             return false
         if _source_sha_by_path.has(source_path) and str(_source_sha_by_path[source_path]) != expected_sha:
             return false

@@ -79,6 +79,19 @@ func _write_mutated_first_path(value: String) -> bool:
     return _write_index(index)
 
 
+func _write_mutated_first_sha(value: Variant) -> bool:
+    var index := _mutated_index()
+    var documents: Variant = index.get("documents", [])
+    if not documents is Array or documents.is_empty() or not documents[0] is Dictionary:
+        _fail("runtime index has no first document")
+        return false
+    var first_document := documents[0] as Dictionary
+    first_document["sha256"] = value
+    (documents as Array)[0] = first_document
+    index["documents"] = documents
+    return _write_index(index)
+
+
 func _run() -> void:
     if not FileAccess.file_exists(INDEX_PATH):
         _fail("runtime index missing")
@@ -99,6 +112,10 @@ func _run() -> void:
     var first_id := float((ids as Array)[0])
     if not is_finite(first_id) or first_id <= 0.0 or floor(first_id) != first_id:
         _fail("baseline road identity is not a positive exact JSON integer")
+        return
+    var baseline_sha := str((documents[0] as Dictionary).get("sha256", ""))
+    if baseline_sha.length() != 64:
+        _fail("baseline source sha256 is not 64 characters")
         return
 
     if _write_mutated_first_id(str(int(first_id))):
@@ -122,7 +139,16 @@ func _run() -> void:
     if _write_mutated_first_path("data/osm/vertical_slice_01.game.json/"):
         _fail("runtime index source path with trailing separator was silently canonicalized")
         return
+    if _write_mutated_first_sha("g".repeat(64)):
+        _fail("non-hex source sha256 was accepted by runtime index")
+        return
+    if _write_mutated_first_sha(baseline_sha.to_upper()):
+        _fail("uppercase source sha256 alias was silently canonicalized")
+        return
+    if _write_mutated_first_sha(" " + baseline_sha.substr(1)):
+        _fail("source sha256 with leading whitespace was silently canonicalized")
+        return
 
     _restore_index()
-    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true path_traversal_rejected=true ambiguous_separators_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
+    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true path_traversal_rejected=true ambiguous_separators_rejected=true nonhex_sha_rejected=true sha_aliases_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
     quit(0)

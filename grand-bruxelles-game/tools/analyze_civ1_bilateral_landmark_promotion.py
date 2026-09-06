@@ -68,30 +68,39 @@ def _validate_side(data: dict, side: str) -> dict:
         problems.append("measurement_matrix")
         measurements = []
 
-    max_centroid = 0.0
+    max_record_centroid = 0.0
     max_path = 0.0
     for measurement in measurements:
+        distance = measurement.get("distance_m")
         if measurement.get("passed") is not True:
-            problems.append(f"distance_{measurement.get('distance_m')}_passed")
+            problems.append(f"distance_{distance}_passed")
         if measurement.get("direction_match") is not True:
-            problems.append(f"distance_{measurement.get('distance_m')}_direction")
-        centroid = float(measurement.get("max_centroid_error_px", 999.0))
+            problems.append(f"distance_{distance}_direction")
         path_error = float(measurement.get("path_relative_error", 999.0))
-        max_centroid = max(max_centroid, centroid)
         max_path = max(max_path, path_error)
-        if centroid > MAX_CENTROID_ERROR_PX:
-            problems.append(f"distance_{measurement.get('distance_m')}_centroid")
         if path_error > MAX_PATH_RELATIVE_ERROR:
-            problems.append(f"distance_{measurement.get('distance_m')}_path")
+            problems.append(f"distance_{distance}_path")
+
         records = measurement.get("records")
         if not isinstance(records, list) or [r.get("sample_index") for r in records] != SAMPLES:
-            problems.append(f"distance_{measurement.get('distance_m')}_samples")
+            problems.append(f"distance_{distance}_samples")
+            records = []
+        record_errors = [float(r.get("centroid_error_px", 999.0)) for r in records]
+        if record_errors:
+            distance_record_max = max(record_errors)
+            max_record_centroid = max(max_record_centroid, distance_record_max)
+            if distance_record_max > MAX_CENTROID_ERROR_PX:
+                problems.append(f"distance_{distance}_centroid_record")
+
+        summary_centroid = float(measurement.get("max_centroid_error_px", 999.0))
+        if summary_centroid > MAX_CENTROID_ERROR_PX:
+            problems.append(f"distance_{distance}_centroid_summary")
 
     return {
         "side": side,
         "ready": not problems,
         "problems": problems,
-        "max_observed_centroid_error_px": max_centroid,
+        "max_observed_record_centroid_error_px": max_record_centroid,
         "max_observed_path_relative_error": max_path,
     }
 
@@ -107,13 +116,14 @@ def analyze(left_path: Path, right_path: Path) -> dict:
         blockers.append({"side": "RightFoot", "problems": right["problems"]})
 
     return {
-        "schema": "grand-bruxelles-civ1-bilateral-landmark-promotion-v1",
+        "schema": "grand-bruxelles-civ1-bilateral-landmark-promotion-v2",
         "diagnostic_only": True,
         "source_semantic": "independent_skeleton_skin_tied_left_and_right_foot_raster_receipts",
         "samples": SAMPLES,
         "distances_m": DISTANCES,
         "max_centroid_error_px": MAX_CENTROID_ERROR_PX,
         "max_path_relative_error": MAX_PATH_RELATIVE_ERROR,
+        "centroid_validation_semantic": "recomputed_from_every_record_not_summary_only",
         "leftfoot": left,
         "rightfoot": right,
         "bilateral_identity_ready": bilateral_ready,

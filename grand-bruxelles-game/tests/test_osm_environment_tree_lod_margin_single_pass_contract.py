@@ -17,8 +17,8 @@ def test_tree_lod_margin_is_maintained_in_foliage_pass() -> None:
     refresh = _function_body(source, "_refresh_tree_lod")
     rebuild = _function_body(source, "_rebuild")
 
-    # The old helper performs a second full scan of _rendered_trees after the
-    # foliage pass has already computed every tree's distance to the same anchor.
+    # The margin is maintained in the foliage pass that already evaluates each
+    # rendered tree. A second full scan helper must not be restored.
     assert "func _update_tree_lod_boundary_margin(" not in source
     assert "_update_tree_lod_boundary_margin()" not in refresh
     assert "_update_tree_lod_boundary_margin()" not in rebuild
@@ -37,3 +37,8 @@ def test_tree_lod_margin_is_maintained_in_foliage_pass() -> None:
     # radius comparison and no threshold/camera/source rescue is introduced.
     assert "var full_detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m" in foliage
     assert "if distance_sq <= full_detail_radius_sq:" in foliage
+
+
+if __name__ == "__main__":
+    test_tree_lod_margin_is_maintained_in_foliage_pass()
+    print("OSM_TREE_LOD_MARGIN_SINGLE_PASS_OK")

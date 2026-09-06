@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/test_osm_environment_tree_lod_boundary_margin_contract.py"
+      - "grand-bruxelles-game/game/tests/test_osm_environment_tree_foliage_multimesh_reuse_contract.py"
       - "grand-bruxelles-game/tests/test_osm_environment_tree_lod_margin_single_pass_contract.py"
       - ".github/workflows/grand-bruxelles-osm-tree-lod-margin-single-pass.yml"
   workflow_dispatch:
@@ -20,4 +22,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: Tree LOD margin single-pass contract
-        run: python -m pytest -q grand-bruxelles-game/tests/test_osm_environment_tree_lod_margin_single_pass_contract.py
+        run: python grand-bruxelles-game/tests/test_osm_environment_tree_lod_margin_single_pass_contract.py

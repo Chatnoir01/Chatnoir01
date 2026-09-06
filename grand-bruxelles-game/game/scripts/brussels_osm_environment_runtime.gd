@@ -247,13 +247,19 @@ func _target() -> Node3D:
             return fallback
     return null
 
+func _prune_invalid_owned_batches() -> void:
+    for index in range(_owned_batches.size() - 1, -1, -1):
+        var batch := _owned_batches[index]
+        if not is_instance_valid(batch) or batch.is_queued_for_deletion():
+            _owned_batches.remove_at(index)
+
 func _set_batches_visible(enabled: bool) -> void:
+    _prune_invalid_owned_batches()
     if _batches_visible == enabled:
         return
     _batches_visible = enabled
     for batch: MultiMeshInstance3D in _owned_batches:
-        if is_instance_valid(batch) and not batch.is_queued_for_deletion():
-            batch.visible = enabled
+        batch.visible = enabled
 
 func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
     if _rendered_trees.is_empty() or _last_tree_lod_anchor == Vector3(INF, INF, INF):
@@ -427,10 +433,11 @@ func _rebuild(anchor: Vector3) -> void:
     print("BRUSSELS_OSM_ENVIRONMENT_READY: %s radius=%.0fm tree_lod=%s" % [JSON.stringify(last_render_counts), render_radius_m, JSON.stringify(last_tree_lod_counts)])
 
 func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: bool = false) -> void:
+    _prune_invalid_owned_batches()
     var instance: MultiMeshInstance3D = null
     if reuse_existing:
         for owned: MultiMeshInstance3D in _owned_batches:
-            if is_instance_valid(owned) and not owned.is_queued_for_deletion() and owned.name == name_value:
+            if owned.name == name_value:
                 instance = owned
                 break
     if transforms.is_empty() and instance == null:

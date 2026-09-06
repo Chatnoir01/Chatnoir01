@@ -85,123 +85,47 @@ func _run() -> void:
         return
     var document: Dictionary = bundle.get("document", {}) as Dictionary
     var road: Dictionary = bundle.get("road", {}) as Dictionary
-    var points: PackedVector2Array = resolver._road_points(road)
-    if points.size() < 2:
-        _fail("Anneessens source road invalid")
+
+    var viewpoint: Dictionary = resolver._safe_viewpoint(document, road)
+    if viewpoint.is_empty():
+        _fail("current safe-viewpoint ranking produced no candidate")
+        return
+    var spawn := viewpoint.get("spawn", Vector2.ZERO) as Vector2
+    var raw_target := viewpoint.get("target", Vector2.ZERO) as Vector2
+    if spawn == Vector2.ZERO or raw_target == Vector2.ZERO or spawn == raw_target:
+        _fail("safe viewpoint metadata invalid")
         return
 
-    var best_index := -1
-    var best_length := -1.0
-    for index: int in range(points.size() - 1):
-        var length := points[index].distance_to(points[index + 1])
-        if length > best_length:
-            best_length = length
-            best_index = index
-    if best_index < 0 or best_length < 1.0:
-        _fail("no eligible exact-source segment")
+    var raw_clearance := resolver._source_view_corridor_clearance(document, spawn, raw_target)
+    if not is_finite(raw_clearance) or raw_clearance <= 0.0:
+        _fail("raw safe viewpoint lost exact-source corridor clearance")
         return
 
-    var start_connections := resolver._source_endpoint_continuation_count(document, road, points[0])
-    var end_connections := resolver._source_endpoint_continuation_count(document, road, points[points.size() - 1])
-    if start_connections < 0 or end_connections < 0:
-        _fail("exact-source network continuation unavailable")
+    var effective: Dictionary = resolver._corridor_oriented_target(document, spawn, raw_target)
+    var effective_target := effective.get("target", Vector2.ZERO) as Vector2
+    if effective_target == Vector2.ZERO or effective_target == spawn:
+        _fail("effective heading unavailable")
+        return
+    if not resolver._segment_clear_of_source_buildings(document, spawn, effective_target):
+        _fail("effective heading is not exact-source clear")
+        return
+    var effective_clearance := resolver._source_view_corridor_clearance(document, spawn, effective_target)
+    if not is_finite(effective_clearance) or effective_clearance + CLEARANCE_EPSILON_M < resolver.PLAYER_BODY_CLEARANCE_M:
+        _fail("effective heading violates frozen player physical clearance")
         return
 
-    var start := points[best_index]
-    var finish := points[best_index + 1]
-    var midpoint := start.lerp(finish, 0.5)
-    var direction := (finish - start).normalized()
-    if direction == Vector2.ZERO:
-        _fail("source segment direction is zero")
+    var context := _sampled_context(resolver, document, spawn, effective_target)
+    if context.is_empty():
+        _fail("effective source-building context unavailable")
         return
-    var perpendicular := Vector2(-direction.y, direction.x)
-    var half_road := resolver._display_road_width(road) * 0.5
-    var offsets: Array[float] = [half_road + 1.10, half_road + 2.00, half_road + 3.50, half_road + 5.00, half_road + 7.50]
-    var eligible_count := 0
-    var acceptable_count := 0
-    var acceptable_offsets: Array[String] = []
-    var diagnostics: Array[String] = []
+    var hits := int(context.get("hits", -1))
 
-    for offset: float in offsets:
-        var required_lookahead := offset * 2.10
-        var lookahead := minf(22.0, best_length * 0.5)
-        if lookahead < required_lookahead:
-            diagnostics.append("offset=%.3f skipped=lookahead" % offset)
-            continue
-
-        var offset_candidates: Array[Dictionary] = []
-        var safest_corridor_clearance := -INF
-        for side: float in [1.0, -1.0]:
-            var spawn := midpoint + perpendicular * offset * side
-            if absf(spawn.x) > resolver.MAX_WORLD_ABS_M or absf(spawn.y) > resolver.MAX_WORLD_ABS_M:
-                continue
-            if resolver._point_inside_any_source_building(document, spawn):
-                continue
-            for along_sign: float in [1.0, -1.0]:
-                var target := midpoint + direction * lookahead * along_sign
-                if absf(target.x) > resolver.MAX_WORLD_ABS_M or absf(target.y) > resolver.MAX_WORLD_ABS_M:
-                    continue
-                if resolver._point_inside_any_source_building(document, target):
-                    continue
-                var axis := target - spawn
-                if axis == Vector2.ZERO or absf(axis.normalized().dot(direction)) < resolver.MIN_SOURCE_AXIS_ALIGNMENT:
-                    continue
-                if not resolver._segment_clear_of_source_buildings(document, spawn, target):
-                    continue
-                var corridor_clearance := resolver._source_view_corridor_clearance(document, spawn, target)
-                if not is_finite(corridor_clearance) or corridor_clearance < 0.0:
-                    continue
-                var continuation_count := end_connections if along_sign > 0.0 else start_connections
-                var context := _sampled_context(resolver, document, spawn, target)
-                if context.is_empty():
-                    _fail("source building context unavailable")
-                    return
-                safest_corridor_clearance = maxf(safest_corridor_clearance, corridor_clearance)
-                offset_candidates.append({
-                    "side": side,
-                    "along_sign": along_sign,
-                    "corridor_clearance": corridor_clearance,
-                    "continuation_count": continuation_count,
-                    "context": context,
-                })
-
-        if offset_candidates.is_empty() or not is_finite(safest_corridor_clearance):
-            diagnostics.append("offset=%.3f eligible=0" % offset)
-            continue
-
-        var max_continuation := -1
-        for candidate: Dictionary in offset_candidates:
-            var clearance := float(candidate.get("corridor_clearance", -INF))
-            if clearance + CLEARANCE_EPSILON_M < safest_corridor_clearance:
-                continue
-            max_continuation = maxi(max_continuation, int(candidate.get("continuation_count", -1)))
-
-        var offset_eligible := 0
-        var offset_acceptable := 0
-        for candidate: Dictionary in offset_candidates:
-            var clearance := float(candidate.get("corridor_clearance", -INF))
-            var continuation_count := int(candidate.get("continuation_count", -1))
-            if clearance + CLEARANCE_EPSILON_M < safest_corridor_clearance or continuation_count != max_continuation:
-                continue
-            var context: Dictionary = candidate.get("context", {}) as Dictionary
-            var hits := int(context.get("hits", -1))
-            offset_eligible += 1
-            eligible_count += 1
-            if hits >= 1 and hits <= 2:
-                offset_acceptable += 1
-                acceptable_count += 1
-            diagnostics.append("offset=%.3f side=%+.0f along=%+.0f eligible=true hits=%d nearest=%s clearance=%.3f continuation=%d distances=%s" % [offset, float(candidate.get("side", 0.0)), float(candidate.get("along_sign", 0.0)), hits, ("%.3f" % float(context.get("nearest_hit_m", INF))) if is_finite(float(context.get("nearest_hit_m", INF))) else "none", clearance, continuation_count, str(context.get("distances", ""))])
-        if offset_acceptable > 0:
-            acceptable_offsets.append("%.3f" % offset)
-        if offset_eligible == 0:
-            diagnostics.append("offset=%.3f eligible=0 after_clearance_and_continuation" % offset)
-
-    if eligible_count < 1:
-        _fail("no candidate survives current per-offset clearance + continuation rails")
-        return
-    if acceptable_count < 1:
-        _fail("configured offsets provide no 1-2-hit player context within current per-offset clearance + continuation rails: %s" % " | ".join(diagnostics))
+    # Keep the frozen player-context witness unchanged: exactly 1-2 sampled
+    # source-building rays. This gate validates the effective arrival heading;
+    # it does not weaken the raw spawn safety ranking or camera contract.
+    if hits < 1 or hits > 2:
+        _fail("effective heading provides no frozen 1-2-hit player context: hits=%d nearest=%s raw_target=%s effective_target=%s anchor_oriented=%s distances=%s" % [hits, ("%.3f" % float(context.get("nearest_hit_m", INF))) if is_finite(float(context.get("nearest_hit_m", INF))) else "none", str(raw_target), str(effective_target), str(bool(effective.get("anchor_oriented", false))), str(context.get("distances", ""))])
         return
 
-    print("AUTOMATIC_ROAD_SOURCE_URBAN_CONTEXT_FEASIBILITY_GREEN: road_id=%d eligible_candidates=%d acceptable_candidates=%d acceptable_offsets=%s diagnostics=%s source_only=true camera_unchanged=true geometry_unchanged=true resolver_ranking_unchanged=true destination_advertisable=false jouable=false" % [ANNEESSENS_ROAD_ID, eligible_count, acceptable_count, ",".join(acceptable_offsets), " | ".join(diagnostics)])
+    print("AUTOMATIC_ROAD_SOURCE_URBAN_CONTEXT_FEASIBILITY_GREEN: road_id=%d hits=%d raw_clearance_m=%.3f effective_clearance_m=%.3f anchor_oriented=%s nearest_hit_m=%s distances=%s source_only=true camera_unchanged=true geometry_unchanged=true spawn_ranking_unchanged=true destination_advertisable=false jouable=false" % [ANNEESSENS_ROAD_ID, hits, raw_clearance, effective_clearance, str(bool(effective.get("anchor_oriented", false))), ("%.3f" % float(context.get("nearest_hit_m", INF))) if is_finite(float(context.get("nearest_hit_m", INF))) else "none", str(context.get("distances", ""))])
     quit(0)

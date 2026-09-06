@@ -1,0 +1,92 @@
+name: Grand Bruxelles CIV-1 Bilateral Foot Promotion
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_bilateral_foot_promotion.py'
+      - 'grand-bruxelles-game/tests/test_civ1_bilateral_foot_promotion.py'
+      - '.github/workflows/grand-bruxelles-civ1-bilateral-foot-promotion.yml'
+  workflow_dispatch:
+permissions: {contents: read, actions: read}
+concurrency:
+  group: civ1-bilateral-foot-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  bilateral-foot-promotion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Causal regression
+        run: python grand-bruxelles-game/tests/test_civ1_bilateral_foot_promotion.py
+      - name: Verify immutable proven LeftFoot artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9987470105 > /tmp/left-artifact.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/left-artifact.json'))
+          assert d['id']==9987470105
+          assert d['expired'] is False
+          assert d['digest']=='sha256:5e6045251f3e274849ec364087ffee9f4a752b26ed59dde9687d6a0a9056b7b8'
+          assert d['workflow_run']['head_sha']=='3968f61548b6f3201f0ae23e6f36525310e2d433'
+          print('CIV1_LEFTFOOT_ARTIFACT_METADATA_OK')
+          PY
+      - name: Prove locomotion promotion remains blocked without independent RightFoot evidence
+        run: |
+          set -euo pipefail
+          cat > /tmp/bilateral-input.json <<'JSON'
+          {
+            "schema": "grand-bruxelles-civ1-bilateral-foot-input-v1",
+            "leftfoot": {
+              "side": "LeftFoot",
+              "skeleton_skin_tied": true,
+              "resolution": [1280, 720],
+              "distances_m": [2, 4, 8],
+              "single_identity_preserved_2_4_8m": true,
+              "max_centroid_error_px": 1.5,
+              "max_path_relative_error": 0.09048,
+              "planted_contact_claimed": false,
+              "animation_correction_authorized": false,
+              "runtime_authorized": false,
+              "visual_approval_claimed": false,
+              "player_view_claimed": false
+            }
+          }
+          JSON
+          python grand-bruxelles-game/tools/analyze_civ1_bilateral_foot_promotion.py /tmp/bilateral-input.json /tmp/bilateral-output.json | tee /tmp/bilateral.log
+          grep -F CIV1_BILATERAL_FOOT_PROMOTION_OK /tmp/bilateral.log
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/bilateral-output.json'))
+          assert d['leftfoot_identity_ready'] is True
+          assert d['rightfoot_identity_ready'] is False
+          assert d['bilateral_identity_ready'] is False
+          assert d['quantitative_foot_slide_candidate'] is False
+          assert d['animation_correction_authorized'] is False
+          assert 'RightFoot:missing' in d['blockers']
+          print('CIV1_BILATERAL_FAIL_CLOSED_RECEIPT_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-bilateral-foot-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/left-artifact.json
+            /tmp/bilateral-input.json
+            /tmp/bilateral-output.json
+            /tmp/bilateral.log
+          if-no-files-found: error
+          retention-days: 14

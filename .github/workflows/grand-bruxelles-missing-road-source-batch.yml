@@ -1,0 +1,146 @@
+name: Grand Bruxelles Missing Road Source Batch
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/source_plans/brussels_missing_road_source_registry.json'
+      - 'grand-bruxelles-game/data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/brussels_road_destination_factory_catalog.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/auderghem_road_destination_index_expected.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/auderghem_road_destination_index.lock.json'
+      - 'grand-bruxelles-game/tools/city_machine/acquire_municipality_road_source.py'
+      - 'grand-bruxelles-game/tools/city_machine/build_road_destination_index.py'
+      - 'grand-bruxelles-game/tools/city_machine/build_road_destination_factory_catalog.py'
+      - 'grand-bruxelles-game/tools/city_machine/validate_road_destination_factory_registry.py'
+      - 'grand-bruxelles-game/tests/test_auderghem_road_destination_index_expected_schema.py'
+      - 'grand-bruxelles-game/tests/test_brussels_missing_road_source_registry.py'
+      - 'grand-bruxelles-game/tests/test_brussels_missing_road_source_acquisition_evidence_lock.py'
+      - 'grand-bruxelles-game/tests/test_brussels_missing_road_source_transport_evidence.py'
+      - 'grand-bruxelles-game/tests/test_brussels_road_destination_factory_catalog.py'
+      - 'grand-bruxelles-game/tests/test_build_road_destination_factory_catalog.py'
+      - 'grand-bruxelles-game/tests/test_build_road_destination_index.py'
+      - 'grand-bruxelles-game/tests/test_build_road_destination_index_authorization_schema.py'
+      - 'grand-bruxelles-game/tests/test_municipality_road_source_acquisition.py'
+      - 'grand-bruxelles-game/tests/test_municipality_road_source_wgs84_validation.py'
+      - 'grand-bruxelles-game/tests/test_municipality_road_source_element_identity.py'
+      - 'grand-bruxelles-game/tests/test_municipality_road_source_root_schema.py'
+      - 'grand-bruxelles-game/tests/test_missing_road_source_dispatch_lock.py'
+      - 'grand-bruxelles-game/tests/test_missing_road_source_workflow_test_coverage.py'
+      - 'grand-bruxelles-game/tests/test_road_destination_factory_registry_scope.py'
+      - 'grand-bruxelles-game/tests/test_road_destination_index_bounds_contract.py'
+      - '.github/workflows/grand-bruxelles-missing-road-source-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-registry:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Validate exact missing-source registry and immutable acquisition evidence
+        run: |
+          python -m pytest -q \
+            tests/test_auderghem_road_destination_index_expected_schema.py \
+            tests/test_brussels_missing_road_source_registry.py \
+            tests/test_brussels_missing_road_source_acquisition_evidence_lock.py \
+            tests/test_brussels_missing_road_source_transport_evidence.py \
+            tests/test_brussels_road_destination_factory_catalog.py \
+            tests/test_build_road_destination_factory_catalog.py \
+            tests/test_build_road_destination_index.py \
+            tests/test_build_road_destination_index_authorization_schema.py \
+            tests/test_municipality_road_source_acquisition.py \
+            tests/test_municipality_road_source_wgs84_validation.py \
+            tests/test_municipality_road_source_element_identity.py \
+            tests/test_municipality_road_source_root_schema.py \
+            tests/test_missing_road_source_dispatch_lock.py \
+            tests/test_missing_road_source_workflow_test_coverage.py \
+            tests/test_road_destination_factory_registry_scope.py \
+            tests/test_road_destination_index_bounds_contract.py
+
+  acquire-unresolved-road-sources:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate-registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - {nis: '21003', id: berchem_sainte_agathe}
+          - {nis: '21006', id: evere}
+          - {nis: '21008', id: ganshoren}
+          - {nis: '21009', id: ixelles}
+          - {nis: '21010', id: jette}
+          - {nis: '21012', id: molenbeek_saint_jean}
+          - {nis: '21014', id: saint_josse_ten_noode}
+          - {nis: '21015', id: schaerbeek}
+          - {nis: '21018', id: woluwe_saint_lambert}
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fail closed unless selection is unresolved in immutable evidence lock
+        env:
+          SELECTED_NIS: '${{ matrix.nis }}'
+          SELECTED_ID: '${{ matrix.id }}'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          lock_path = Path('data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json')
+          lock = json.loads(lock_path.read_text(encoding='utf-8'))
+          selected_nis = os.environ['SELECTED_NIS']
+          selected_id = os.environ['SELECTED_ID']
+          successful = lock.get('successful_acquisitions')
+          unresolved = lock.get('unresolved_acquisitions')
+          if not isinstance(successful, list) or not isinstance(unresolved, list):
+              raise SystemExit('DISPATCH_LOCK_FAIL: invalid immutable acquisition partitions')
+          locked_nis = {row.get('niscode') for row in successful if isinstance(row, dict)}
+          if selected_nis in locked_nis:
+              raise SystemExit(f'DISPATCH_LOCK_FAIL: municipality {selected_nis} is already locked')
+          matches = [row for row in unresolved if isinstance(row, dict) and row.get('niscode') == selected_nis and row.get('id') == selected_id and row.get('status') == 'REMOTE_ACQUISITION_UNRESOLVED']
+          if len(matches) != 1:
+              raise SystemExit(f'DISPATCH_LOCK_FAIL: {selected_nis}/{selected_id} is not exactly one unresolved locked selection')
+          PY
+      - name: Build locked municipality manifest
+        run: |
+          python tools/city_machine/acquire_municipality_road_source.py \
+            --registry data/source_plans/brussels_missing_road_source_registry.json \
+            --municipality-nis '${{ matrix.nis }}' \
+            --municipality-id '${{ matrix.id }}' \
+            --manifest-output artifacts/${{ matrix.id }}.manifest.json
+      - name: Acquire unresolved source-backed roads
+        run: |
+          python tools/city_machine/acquire_municipality_road_source.py \
+            --manifest artifacts/${{ matrix.id }}.manifest.json \
+            --raw-output artifacts/${{ matrix.id }}_road_source.raw.json \
+            --game-output artifacts/${{ matrix.id }}_road_source.game.json \
+            --receipt-output artifacts/${{ matrix.id }}_road_source.receipt.json
+      - name: Upload immutable municipality candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-source-${{ matrix.nis }}-${{ matrix.id }}
+          path: |
+            grand-bruxelles-game/artifacts/${{ matrix.id }}.manifest.json
+            grand-bruxelles-game/artifacts/${{ matrix.id }}_road_source.raw.json
+            grand-bruxelles-game/artifacts/${{ matrix.id }}_road_source.game.json
+            grand-bruxelles-game/artifacts/${{ matrix.id }}_road_source.receipt.json
+          if-no-files-found: error
+          retention-days: 30

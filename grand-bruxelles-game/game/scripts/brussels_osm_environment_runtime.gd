@@ -255,21 +255,6 @@ func _set_batches_visible(enabled: bool) -> void:
         if is_instance_valid(batch) and not batch.is_queued_for_deletion():
             batch.visible = enabled
 
-func _update_tree_lod_boundary_margin() -> void:
-    _tree_lod_boundary_margin_radius_m = tree_full_detail_radius_m
-    if _rendered_trees.is_empty() or _last_tree_lod_anchor == Vector3(INF, INF, INF):
-        _tree_lod_boundary_margin_m = 0.0
-        return
-    var minimum_margin := INF
-    for row_variant in _rendered_trees:
-        var row := row_variant as Dictionary
-        var p: Vector3 = row["position"]
-        var dx := p.x - _last_tree_lod_anchor.x
-        var dz := p.z - _last_tree_lod_anchor.z
-        var radial_distance := sqrt(dx * dx + dz * dz)
-        minimum_margin = min(minimum_margin, abs(radial_distance - tree_full_detail_radius_m))
-    _tree_lod_boundary_margin_m = max(0.0, minimum_margin - BOUNDS_NUMERIC_EPSILON_M)
-
 func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
     if _rendered_trees.is_empty() or _last_tree_lod_anchor == Vector3(INF, INF, INF):
         return false
@@ -311,7 +296,6 @@ func _clear_tree_foliage_batches() -> void:
 func _refresh_tree_lod(anchor: Vector3) -> void:
     _build_tree_foliage_batches(_rendered_trees, anchor, true)
     _last_tree_lod_anchor = anchor
-    _update_tree_lod_boundary_margin()
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
 
 func _refresh(force: bool) -> void:
@@ -431,7 +415,6 @@ func _rebuild(anchor: Vector3) -> void:
     _build_tree_batches(trees, true)
     _build_lamp_batches(lamps, true)
     _build_bollard_batches(bollards, true)
-    _update_tree_lod_boundary_margin()
     set_meta("render_counts", last_render_counts.duplicate(true))
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
     print("BRUSSELS_OSM_ENVIRONMENT_READY: %s radius=%.0fm tree_lod=%s" % [JSON.stringify(last_render_counts), render_radius_m, JSON.stringify(last_tree_lod_counts)])
@@ -490,7 +473,9 @@ func _ensure_bollard_presentation_meshes() -> void:
     _presentation_meshes["bollard_cap"] = BrusselsBollardAsset.create_cap_mesh(materials["cap"])
 
 func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF, INF), reuse_existing: bool = false) -> void:
+    _tree_lod_boundary_margin_radius_m = tree_full_detail_radius_m
     if rows.is_empty() and not reuse_existing:
+        _tree_lod_boundary_margin_m = 0.0
         last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
         return
     _ensure_tree_presentation_meshes()
@@ -498,6 +483,7 @@ func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF
     var light: Array = []
     var near_count := 0
     var far_count := 0
+    var minimum_boundary_margin := INF
     var full_detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m
     var use_current_anchor := anchor != Vector3(INF, INF, INF)
     for row_variant in rows:
@@ -509,6 +495,8 @@ func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF
             var dx := base.x - anchor.x
             var dz := base.z - anchor.z
             distance_sq = dx * dx + dz * dz
+        var radial_distance := sqrt(distance_sq)
+        minimum_boundary_margin = min(minimum_boundary_margin, abs(radial_distance - tree_full_detail_radius_m))
         if distance_sq <= full_detail_radius_sq:
             near_count += 1
             for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):
@@ -520,6 +508,10 @@ func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF
                 var index := int(index_variant)
                 var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
                 (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
+    if rows.is_empty():
+        _tree_lod_boundary_margin_m = 0.0
+    else:
+        _tree_lod_boundary_margin_m = max(0.0, minimum_boundary_margin - BOUNDS_NUMERIC_EPSILON_M)
     last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}
     _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark, reuse_existing)
     _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light, reuse_existing)

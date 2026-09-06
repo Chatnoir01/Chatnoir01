@@ -1,0 +1,122 @@
+name: Grand Bruxelles Grand-Place Ground Continuity
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/grand_place_ground_continuity_test.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_granite_paving.gd"
+      - "grand-bruxelles-game/data/visual/grand_place_granite_paving.json"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/project.godot"
+      - ".github/workflows/grand-bruxelles-grand-place-ground-continuity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-ground-continuity-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  source-ground-collision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, pathlib
+          p = pathlib.Path('grand-bruxelles-game/data/visual/grand_place_granite_paving.json')
+          d = json.loads(p.read_text())
+          s = d['source']
+          assert s['feature_id'] == 'https://databrussels.be/id/streetsurface/42405'
+          assert s['layer'] == 'urbisvector:StreetSurfaces'
+          assert s['crs'] == 'EPSG:31370'
+          assert s['reported_area_m2'] == 5337
+          assert d['presentation_contract']['geometry_from_official_street_surface_only'] is True
+          assert d['presentation_contract']['geometry_authored'] is False
+          poly = d['polygon_lambert72']
+          assert len(poly) >= 80
+          assert all(len(p) == 2 and all(type(v) in (int, float) and math.isfinite(v) for v in p) for p in poly)
+          print('GRAND_PLACE_GROUND_SOURCE_CONTRACT_OK feature=42405 crs=EPSG:31370')
+          PY
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-ground-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-ground-import.log; then exit 1; fi
+      - name: Prove source-derived player-foot collision continuity
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/grand_place_ground_continuity_test.gd \
+            2>&1 | tee /tmp/grand-place-ground-continuity.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_GROUND_CONTINUITY_FAIL" /tmp/grand-place-ground-continuity.log; then exit 1; fi
+          grep -F "GRAND_PLACE_GROUND_CONTINUITY_OK feature=42405" /tmp/grand-place-ground-continuity.log
+          grep -F "visual_acceptance=false jouable_authorized=false" /tmp/grand-place-ground-continuity.log
+      - name: Validate evidence rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          p = pathlib.Path('grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity.json')
+          d = json.loads(p.read_text())
+          assert d['schema'] == 'grand-bruxelles-grand-place-ground-continuity-v3'
+          assert d['source_feature_id'].endswith('/42405')
+          assert d['source_crs'] == 'EPSG:31370'
+          assert d['triangle_count'] >= 80
+          assert d['centroid_sample_count'] == d['triangle_count']
+          assert d['edge_inset_sample_count'] == d['triangle_count'] * 3
+          assert d['sample_count'] == d['triangle_count'] * 4
+          assert len(d['samples']) == d['sample_count']
+          assert abs(d['edge_inset_fraction'] - 0.10) < 1e-12
+          assert d['collision_owner'] == 'OfficialGraniteStreetSurfaceCollision'
+          assert d['collision_geometry_source'] == 'same_official_granite_mesh'
+          assert d['collision_layer'] == 1
+          assert d['max_collision_height_error_m'] <= 0.02
+          centroid_samples = [s for s in d['samples'] if s['probe_kind'] == 'centroid']
+          edge_samples = [s for s in d['samples'] if s['probe_kind'] == 'edge_inset']
+          assert len(centroid_samples) == d['triangle_count']
+          assert len(edge_samples) == d['triangle_count'] * 3
+          assert {s['edge'] for s in edge_samples} == {0, 1, 2}
+          for key in ('street_join_geometry_invented','curb_height_claimed','sidewalk_profile_claimed','destination_advertisable','visual_acceptance','jouable_authorized'):
+              assert d[key] is False, (key, d[key])
+          print(f"GRAND_PLACE_GROUND_EVIDENCE_OK triangles={d['triangle_count']} samples={d['sample_count']} edge_insets={d['edge_inset_sample_count']} visual_acceptance=false jouable_authorized=false")
+          PY
+      - name: Stage exact-head evidence
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity
+          cp grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity.json grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity/ 2>/dev/null || true
+          cp /tmp/grand-place-ground-continuity.log grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity/ 2>/dev/null || true
+          cp /tmp/grand-place-ground-import.log grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity/ 2>/dev/null || true
+          sha256sum grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity/* > grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity/evidence-sha256.txt 2>/dev/null || true
+      - name: Upload ground-continuity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-ground-continuity
+          path: grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity
+          if-no-files-found: error

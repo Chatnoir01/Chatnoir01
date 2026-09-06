@@ -52,7 +52,7 @@ jobs:
             done
           done
           echo "CAPTURE_DIR=$CAPTURE_DIR" >> "$GITHUB_ENV"
-      - name: Analyze same bottom-row semantic
+      - name: Analyze same bottom-row semantic and distance scaling
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/analyze_civ1_same_row_gap_bridge.py \
@@ -61,25 +61,40 @@ jobs:
           import json
           p='/tmp/civ1-same-row/same-row-gap.json'
           r=json.load(open(p, encoding='utf-8'))
-          assert r['schema']=='grand-bruxelles-civ1-same-row-gap-bridge-v1'
+          assert r['schema']=='grand-bruxelles-civ1-same-row-gap-bridge-v2'
           assert r['distances_m']==[2,4,8]
           assert r['samples']==[115,116,117,118]
-          assert r['qualified_bridge_distances_m']==[8]
+          assert r['raw_same_row_bridge_distances_m']==[8]
+          assert r['scale_consistent_bridge_distances_m']==[]
+          assert r['motion_magnitude_credible'] is False
           by={d['distance_m']:d for d in r['distance_measurements']}
           assert by[2]['bridged_samples']==[]
           assert by[4]['bridged_samples']==[]
           assert by[8]['bridged_samples']==[116]
+          assert abs(by[2]['effective_bottom_row_path_px']-3.0) < 1e-9
+          assert abs(by[4]['effective_bottom_row_path_px']-1.5) < 1e-9
+          assert abs(by[8]['effective_bottom_row_path_px']-2.0) < 1e-9
           f116=next(x for x in by[8]['records'] if x['sample_index']==116)
           assert f116['bottom_pixel_count']==19
           assert abs(f116['bottom_centroid_x_px']-593.0) < 1e-9
           assert f116['bridge_used'] is True
+          scale=r['distance_scale_consistency']
+          assert scale['passed'] is False
+          assert scale['failures']==[{
+              'near_distance_m':4,
+              'far_distance_m':8,
+              'near_path_px':1.5,
+              'far_path_px':2.0,
+              'reason':'projected_motion_increased_with_distance',
+          }]
           assert r['perceptual_2_8m_claimed'] is False
           assert r['planted_contact_claimed'] is False
           assert r['animation_correction_authorized'] is False
           assert r['runtime_authorized'] is False
           assert r['visual_approval_claimed'] is False
           assert r['player_view_claimed'] is False
-          print('CIV1_SAME_ROW_GAP_RECEIPT_OK', by[8]['effective_bottom_row_path_px'])
+          assert r['verdict']=='AMELIORER_SAME_ROW_BRIDGE_REJECTED_BY_DISTANCE_SCALE_NO_PROMOTION'
+          print('CIV1_SAME_ROW_GAP_RECEIPT_OK', scale['failures'])
           PY
       - uses: actions/upload-artifact@v4
         if: always()

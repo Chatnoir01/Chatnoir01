@@ -118,6 +118,28 @@ func _exact_json_osm_id(raw_id: Variant) -> int:
     return int(numeric)
 
 
+func _canonical_runtime_source_path(raw_path: Variant) -> String:
+    if typeof(raw_path) != TYPE_STRING:
+        return ""
+    var raw_source_path := str(raw_path)
+    var source_path := raw_source_path.strip_edges()
+    if source_path.is_empty() or source_path != raw_source_path or source_path.contains("\\"):
+        return ""
+    if source_path.begins_with("res://"):
+        source_path = source_path.trim_prefix("res://")
+    elif source_path.begins_with("/") or source_path.contains("://"):
+        return ""
+    if source_path.is_empty() or source_path.begins_with("/") or source_path.ends_with("/") or source_path.contains("//"):
+        return ""
+    var segments := source_path.split("/", true)
+    if segments.is_empty():
+        return ""
+    for segment: String in segments:
+        if segment.is_empty() or segment == "." or segment == ".." or segment.contains(":"):
+            return ""
+    return "res://" + "/".join(segments)
+
+
 func _load_runtime_index() -> bool:
     if _runtime_index_attempted:
         return _runtime_index_valid
@@ -148,13 +170,11 @@ func _load_runtime_index() -> bool:
         if not raw_document is Dictionary:
             return false
         var descriptor := raw_document as Dictionary
-        var source_path := str(descriptor.get("path", "")).strip_edges()
+        var source_path := _canonical_runtime_source_path(descriptor.get("path", ""))
         var expected_sha := str(descriptor.get("sha256", "")).strip_edges().to_lower()
         var road_ids: Variant = descriptor.get("road_ids", [])
         if source_path.is_empty() or expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
             return false
-        if not source_path.begins_with("res://"):
-            source_path = "res://" + source_path.trim_prefix("/")
         if _source_sha_by_path.has(source_path) and str(_source_sha_by_path[source_path]) != expected_sha:
             return false
         _source_sha_by_path[source_path] = expected_sha

@@ -25,12 +25,31 @@ func _fail(message: String) -> void:
     quit(1)
 
 
-func _write_mutated_first_id(value: Variant) -> bool:
+func _mutated_index() -> Dictionary:
     var parsed: Variant = JSON.parse_string(_original_index_text)
     if not parsed is Dictionary:
         _fail("runtime index is not a dictionary")
+        return {}
+    return parsed as Dictionary
+
+
+func _write_index(index: Dictionary) -> bool:
+    var file := FileAccess.open(INDEX_PATH, FileAccess.WRITE)
+    if file == null:
+        _fail("cannot open runtime index for mutation")
         return false
-    var index := parsed as Dictionary
+    file.store_string(JSON.stringify(index, "  "))
+    file.close()
+    var resolver := RESOLVER_SCRIPT.new()
+    root.add_child(resolver)
+    var accepted := resolver._load_runtime_index()
+    resolver.free()
+    _restore_index()
+    return accepted
+
+
+func _write_mutated_first_id(value: Variant) -> bool:
+    var index := _mutated_index()
     var documents: Variant = index.get("documents", [])
     if not documents is Array or documents.is_empty() or not documents[0] is Dictionary:
         _fail("runtime index has no first document")
@@ -44,18 +63,20 @@ func _write_mutated_first_id(value: Variant) -> bool:
     first_document["road_ids"] = road_ids
     (documents as Array)[0] = first_document
     index["documents"] = documents
-    var file := FileAccess.open(INDEX_PATH, FileAccess.WRITE)
-    if file == null:
-        _fail("cannot open runtime index for mutation")
+    return _write_index(index)
+
+
+func _write_mutated_first_path(value: String) -> bool:
+    var index := _mutated_index()
+    var documents: Variant = index.get("documents", [])
+    if not documents is Array or documents.is_empty() or not documents[0] is Dictionary:
+        _fail("runtime index has no first document")
         return false
-    file.store_string(JSON.stringify(index, "  "))
-    file.close()
-    var resolver := RESOLVER_SCRIPT.new()
-    root.add_child(resolver)
-    var accepted := resolver._load_runtime_index()
-    resolver.free()
-    _restore_index()
-    return accepted
+    var first_document := documents[0] as Dictionary
+    first_document["path"] = value
+    (documents as Array)[0] = first_document
+    index["documents"] = documents
+    return _write_index(index)
 
 
 func _run() -> void:
@@ -89,7 +110,19 @@ func _run() -> void:
     if _write_mutated_first_id(true):
         _fail("boolean road identity was coerced and accepted")
         return
+    if _write_mutated_first_path("res://../outside-project.json"):
+        _fail("runtime index source path escaped project root")
+        return
+    if _write_mutated_first_path("../outside-project.json"):
+        _fail("relative runtime index source path escaped project root")
+        return
+    if _write_mutated_first_path("data//osm/vertical_slice_01.game.json"):
+        _fail("runtime index source path with duplicate separators was silently canonicalized")
+        return
+    if _write_mutated_first_path("data/osm/vertical_slice_01.game.json/"):
+        _fail("runtime index source path with trailing separator was silently canonicalized")
+        return
 
     _restore_index()
-    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
+    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true path_traversal_rejected=true ambiguous_separators_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
     quit(0)

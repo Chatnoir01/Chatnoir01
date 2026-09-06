@@ -1,0 +1,75 @@
+{
+  "bbox": [
+    143000.0,
+    166500.0,
+    143500.0,
+    167000.0
+  ],
+  "cell_id": "bxl-e143000-n166500-s500",
+  "crs": "EPSG:31370",
+  "dsm": {
+    "max_m": 61.59700012207031,
+    "mean_m": 32.308839396065345,
+    "min_m": 24.246599197387695,
+    "p01_m": 26.19179738998413,
+    "p05_m": 27.317043018341064,
+    "p25_m": 29.526460647583008,
+    "p50_m": 31.19570541381836,
+    "p75_m": 33.67783069610596,
+    "p95_m": 42.32280330657958,
+    "p99_m": 49.47131381988528,
+    "span_m": 37.35040092468262,
+    "total_samples": 1000000,
+    "valid_ratio": 0.832648,
+    "valid_samples": 832648
+  },
+  "dsm_minus_dtm": {
+    "max_m": 35.36288070678711,
+    "mean_m": 1.8896246656642757,
+    "min_m": -0.22274398803710938,
+    "p01_m": 0.0,
+    "p05_m": 0.0,
+    "p25_m": 0.0,
+    "p50_m": 0.01044464111328125,
+    "p75_m": 2.0465087890625,
+    "p95_m": 10.901268005371094,
+    "p99_m": 17.714372596740727,
+    "severe_negative_ratio": 0.0,
+    "severe_negative_threshold_m": -2.0,
+    "span_m": 35.58562469482422,
+    "total_samples": 1000000,
+    "valid_ratio": 0.832648,
+    "valid_samples": 832648
+  },
+  "dtm": {
+    "max_m": 38.12059783935547,
+    "mean_m": 30.41921473040107,
+    "min_m": 24.199867248535156,
+    "p01_m": 25.800718955993652,
+    "p05_m": 26.590810680389403,
+    "p25_m": 28.685847759246826,
+    "p50_m": 30.198564529418945,
+    "p75_m": 31.966360092163086,
+    "p95_m": 34.7645923614502,
+    "p99_m": 36.22434463500977,
+    "span_m": 13.920730590820312,
+    "total_samples": 1000000,
+    "valid_ratio": 0.832648,
+    "valid_samples": 832648
+  },
+  "evidence_digest": "d743d6b7ce1a44f973598e18ddeb5f68f513b3d613bc8ea521d43938b2cf4e43",
+  "format": "grand-bruxelles-cell-elevation-value-evidence-v1",
+  "height_source_pair_ready": false,
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "source_values_only_runtime_terrain_and_secondary_height_validation_still_required",
+    "terrain_gate": false
+  },
+  "quality_failures": [
+    "dtm_valid_ratio_below_0.95",
+    "dsm_valid_ratio_below_0.95",
+    "delta_valid_ratio_below_0.95"
+  ],
+  "status": "source_value_quality_rejected_or_pending",
+  "terrain_source_evidence_ready": false
+}

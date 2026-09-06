@@ -1,0 +1,4446 @@
+{
+  "cells": {
+    "bxl-e141000-n167000-s500": {
+      "attempts": 20,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e141000-n167500-s500": {
+      "attempts": 20,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e141500-n167000-s500": {
+      "attempts": 3,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e141500-n167500-s500": {
+      "attempts": 5,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e141500-n168000-s500": {
+      "attempts": 5,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e141500-n168500-s500": {
+      "attempts": 4,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e141500-n169000-s500": {
+      "attempts": 3,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e142000-n166500-s500": {
+      "attempts": 31,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e142000-n167000-s500": {
+      "attempts": 5,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142000-n167500-s500": {
+      "attempts": 5,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142000-n168000-s500": {
+      "attempts": 5,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142000-n168500-s500": {
+      "attempts": 5,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142000-n169000-s500": {
+      "attempts": 5,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e142500-n166500-s500": {
+      "attempts": 3,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e142500-n167000-s500": {
+      "attempts": 3,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e142500-n167500-s500": {
+      "attempts": 4,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142500-n168000-s500": {
+      "attempts": 4,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e142500-n169500-s500": {
+      "attempts": 3,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e143000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143000-n167000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143000-n167500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143000-n168000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143000-n168500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143000-n169000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143000-n169500-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n166000-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n166500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n167000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n167500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n168000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n168500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n169000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n169500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n170000-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n170500-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n171000-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n171500-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n172000-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n172500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e143500-n173000-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n166000-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n166500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n167000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n167500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n168000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n168500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n169000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n169500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e144500-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145000-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e145500-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146000-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n167000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n167500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n168000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n168500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n169000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n169500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n170000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n170500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n171000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n171500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n172000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n172500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n173000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n173500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n174000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n174500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n175000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n175500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n176000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e146500-n176500-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n162500-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n163000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n163500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n164000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n164500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n165000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n165500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n166000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n166500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n167000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n167500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n168000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n168500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n169000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n169500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n170000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n170500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n171000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n171500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n172000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n172500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n173000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n173500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n174000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n174500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n175000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n175500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n176000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147000-n176500-s500": {
+      "attempts": 1,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n162500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n163000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n163500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n164000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n164500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n165000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n165500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n166000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n166500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n167000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n167500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n168000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n168500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n169000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n169500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n170500-s500": {
+      "attempts": 341,
+      "evidence_progress": 0,
+      "next_action": "materialize_authoritative_source",
+      "state": "MISSING_SOURCE"
+    },
+    "bxl-e147500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n174000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n174500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n175000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n175500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n176000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e147500-n176500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n162500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n163000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n163500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n164000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n164500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n165000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n165500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n166000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n166500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n167000-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n167500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n168000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n168500-s500": {
+      "attempts": 1,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148000-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e148500-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n162000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n165000-s500": {
+      "attempts": 4,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n165500-s500": {
+      "attempts": 4,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n166000-s500": {
+      "attempts": 4,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n166500-s500": {
+      "attempts": 4,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n167000-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n167500-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n168000-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n168500-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n169000-s500": {
+      "attempts": 20,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n169500-s500": {
+      "attempts": 11,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n170000-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n170500-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n171000-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n172000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n172500-s500": {
+      "attempts": 14,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n173000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n173500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n174000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n174500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n175000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n175500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n176000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149000-n176500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n162000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n162500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n163000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n165500-s500": {
+      "attempts": 10,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n166000-s500": {
+      "attempts": 10,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n166500-s500": {
+      "attempts": 10,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n167000-s500": {
+      "attempts": 10,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n167500-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n168000-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n168500-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n169000-s500": {
+      "attempts": 10,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n169500-s500": {
+      "attempts": 10,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n170000-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n170500-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n172000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n172500-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n173000-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n173500-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n174000-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n174500-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n175000-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n175500-s500": {
+      "attempts": 17,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e149500-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n162000-s500": {
+      "attempts": 2,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n163000-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n163500-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n164000-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n164500-s500": {
+      "attempts": 9,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n165000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n165500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n166000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n166500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n167000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n167500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n168000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n168500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n169000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n169500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n170000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n170500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n171000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n171500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n172000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n172500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n173000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n173500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n174000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n174500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n175000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n175500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n176000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150000-n176500-s500": {
+      "attempts": 3,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n161000-s500": {
+      "attempts": 100,
+      "evidence_progress": 5,
+      "next_action": "validate_dsm_dtm_georasters",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n161500-s500": {
+      "attempts": 100,
+      "evidence_progress": 5,
+      "next_action": "validate_dsm_dtm_georasters",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n162000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n162500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n163000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n163500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n164000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n164500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n165000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n165500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n166000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n166500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n167000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n167500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n168000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n169000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n170000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n170500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n171000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n171500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n172000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n172500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n173000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n173500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n174000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n174500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n175000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n175500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n176000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e150500-n176500-s500": {
+      "attempts": 3,
+      "evidence_progress": 8,
+      "next_action": "resolve_elevation_quality_blockers",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n161000-s500": {
+      "attempts": 87,
+      "evidence_progress": 5,
+      "next_action": "validate_dsm_dtm_georasters",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n161500-s500": {
+      "attempts": 86,
+      "evidence_progress": 5,
+      "next_action": "validate_dsm_dtm_georasters",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n162000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n168500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n174500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n177000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151000-n177500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n161500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n162000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n165500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n166000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n168000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n173500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n177000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e151500-n177500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n161500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n162000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n167500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n170000-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n177000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n177500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152000-n178000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n162000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n168500-s500": {
+      "attempts": 3,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 10,
+      "next_action": "secondary_height_validation_and_terrain_runtime_checks",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n170000-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n177000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n177500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e152500-n178000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n162000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n167500-s500": {
+      "attempts": 30,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n177000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153000-n177500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e153500-n177000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n172500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n173000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n173500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n175000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n175500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154000-n176500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n162500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n174000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n174500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e154500-n176000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155000-n172000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n163000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e155500-n171500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n163500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n166000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n166500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n167000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156000-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n165500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n170000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n170500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e156500-n171000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n164000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n168500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n169000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157000-n169500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157500-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157500-n165000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157500-n167500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e157500-n168000-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    },
+    "bxl-e158000-n164500-s500": {
+      "attempts": 2,
+      "evidence_progress": 0,
+      "next_action": "derive_elevation_requirements",
+      "state": "DATA_READY"
+    }
+  },
+  "format": "grand-bruxelles-autonomous-citygen-v1",
+  "run_number": 240
+}

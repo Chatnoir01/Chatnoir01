@@ -23,8 +23,23 @@ def verify_tree_lod_boundary_margin_short_circuits_exact_scan_safely() -> None:
     assert "if anchor_distance_sq < _tree_lod_boundary_margin_m * _tree_lod_boundary_margin_m:" in boundary
     assert "return false" in boundary
     assert "var detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m" in boundary
+    assert "var minimum_boundary_margin := INF" in boundary, (
+        "an exact negative boundary scan must derive the next conservative margin in the same pass"
+    )
+    assert "var new_distance_sq := new_dx * new_dx + new_dz * new_dz" in boundary
     assert "var was_near := old_dx * old_dx + old_dz * old_dz <= detail_radius_sq" in boundary
-    assert "var is_near := new_dx * new_dx + new_dz * new_dz <= detail_radius_sq" in boundary
+    assert "var is_near := new_distance_sq <= detail_radius_sq" in boundary
+    assert "var radial_distance := sqrt(new_distance_sq)" in boundary
+    assert "minimum_boundary_margin = min(minimum_boundary_margin, abs(radial_distance - tree_full_detail_radius_m))" in boundary
+    assert "_tree_lod_boundary_margin_m = max(0.0, minimum_boundary_margin - BOUNDS_NUMERIC_EPSILON_M)" in boundary
+    assert "_tree_lod_boundary_margin_radius_m = tree_full_detail_radius_m" in boundary
+    assert "_last_tree_lod_anchor = anchor" in boundary, (
+        "after proving no tree crossed, the exact-scan anchor must rebase so subsequent frames can short-circuit"
+    )
+
+    crossing_index = boundary.index("if was_near != is_near:")
+    rebase_index = boundary.rindex("_last_tree_lod_anchor = anchor")
+    assert crossing_index < rebase_index, "never rebase before a possible crossing has been rejected"
 
     foliage_start = source.index("func _build_tree_foliage_batches(")
     foliage_end = source.index("\nfunc _build_tree_batches", foliage_start)

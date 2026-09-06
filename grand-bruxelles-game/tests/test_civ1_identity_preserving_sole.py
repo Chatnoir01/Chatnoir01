@@ -17,15 +17,12 @@ def comp(lo, hi, center, pixels=20):
 
 
 def main() -> int:
-    # Primary anchor wins over a larger unrelated component.
     chosen = m.choose_component([comp(90, 110, 100, 12), comp(200, 260, 230, 100)], 101.0)
     assert chosen["centroid_x_px"] == 100
 
-    # Continuity can bridge a frame where primary is under-resolved.
     chosen = m.choose_component([comp(103, 111, 107, 10), comp(150, 190, 170, 80)], 105.0)
     assert chosen["centroid_x_px"] == 107
 
-    # Fail closed on an identity teleport rather than silently switching feet/body region.
     try:
         m.choose_component([comp(140, 150, 145, 20)], 100.0)
     except ValueError as exc:
@@ -33,13 +30,11 @@ def main() -> int:
     else:
         raise AssertionError("large identity jump must fail closed")
 
-    # Direction calibration requires meaningful, matching signed motion.
     assert m._direction_match(-3.0, -2.5)
     assert m._direction_match(2.0, 1.0)
     assert not m._direction_match(-3.0, 2.5)
     assert not m._direction_match(0.1, 0.1)
 
-    # Production claims are structurally hard-coded false in the emitted source.
     text = TOOL.read_text(encoding="utf-8")
     for key in (
         '"perceptual_2_8m_claimed": False',
@@ -50,8 +45,10 @@ def main() -> int:
         '"player_view_claimed": False',
     ):
         assert key in text
-    assert "MAX_TRACK_JUMP_PX = 12.0" in text
-    assert "required_distances_m\": [2,4]" in text.replace(" ", "")
+    compact = text.replace(" ", "")
+    assert "MAX_TRACK_JUMP_PX=12.0" in compact
+    assert '"required_distances_m":[2,4]' in compact
+    assert '"qualified_8m_recovery":qualified_8m' in compact
     print("CIV1_IDENTITY_PRESERVING_SOLE_TEST_OK")
     return 0
 

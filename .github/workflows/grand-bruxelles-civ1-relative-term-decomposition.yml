@@ -1,0 +1,225 @@
+name: Grand Bruxelles CIV-1 Relative Term Decomposition
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd"
+      - "grand-bruxelles-game/tests/test_civ1_relative_term_decomposition_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-relative-term-decomposition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  relative-term-decomposition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_relative_term_decomposition_contract.py
+
+      - name: Fetch exact CIV-1 and Quaternius sources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1relative/source /tmp/civ1relative/evidence /tmp/civ1relative/quaternius
+          curl --fail --location --retry 3 'https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb' --output /tmp/civ1relative/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1relative/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1relative/source/vitruvian_body.glb /tmp/civ1relative/source/civ1_body.glb --require-animations | tee /tmp/civ1relative/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1relative/source/civ1_body.glb' | sha256sum -c -
+          curl --fail --location --retry 3 'https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip' --output /tmp/civ1relative/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1relative/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1relative/quaternius.zip -d /tmp/civ1relative/quaternius
+          LICENSE_FILE="$(find /tmp/civ1relative/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1relative/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1relative/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1relative/engine
+          GODOT_BIN=/tmp/civ1relative/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1relative/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1relative/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Capture exact 121-sample model-space evidence
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1relative/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1relative/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1RelativeTerm"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1relative/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd "$PROJECT_ROOT/gb_civ1_global_chain_diagnostic.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1relative/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_diagnostic.gd -- /tmp/civ1relative/evidence/global-chain.json 2>&1 | tee /tmp/civ1relative/evidence/probe.log
+          grep -Fq 'CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK' /tmp/civ1relative/evidence/probe.log
+
+      - name: Decompose RightLowerLeg to RightFoot relative term
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1relative/evidence/relative-term.log
+          import json, math
+          from pathlib import Path
+
+          p=json.loads(Path('/tmp/civ1relative/evidence/global-chain.json').read_text())
+          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v3'
+          assert p['sample_count']==121
+          assert p['diagnostic_only'] is True and p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False
+          cycle=p['model_space_samples'][:120]
+          source_phase_window = list(range(58, 75))
+          target_residual_window = list(range(84, 89))
+          EPS=1e-5
+
+          def vsub(a,b): return [float(a[i])-float(b[i]) for i in range(3)]
+          def vadd(a,b): return [float(a[i])+float(b[i]) for i in range(3)]
+          def vscale(a,s): return [float(x)*float(s) for x in a]
+          def norm(a): return math.sqrt(sum(float(x)*float(x) for x in a))
+          def qconj(q): return [-float(q[0]),-float(q[1]),-float(q[2]),float(q[3])]
+          def qmul(a,b):
+              ax,ay,az,aw=map(float,a); bx,by,bz,bw=map(float,b)
+              return [aw*bx+ax*bw+ay*bz-az*by,
+                      aw*by-ax*bz+ay*bw+az*bx,
+                      aw*bz+ax*by-ay*bx+az*bw,
+                      aw*bw-ax*bx-ay*by-az*bz]
+          def rotate(q,v):
+              qq=list(map(float,q)); l=math.sqrt(sum(x*x for x in qq)); assert l>0
+              qq=[x/l for x in qq]
+              r=qmul(qmul(qq,[float(v[0]),float(v[1]),float(v[2]),0.0]),qconj(qq))
+              return r[:3]
+          def inverse_rotate(q,v): return rotate(qconj(q),v)
+          def circular_delta(target,source):
+              d=int(target)-int(source)
+              while d>60: d-=120
+              while d<-60: d+=120
+              return d
+          def min_index(values): return min(range(120),key=lambda i:float(values[i]))
+
+          def side_series(leg, side):
+              parent=f'{leg}LowerLeg'; foot=f'{leg}Foot'
+              local_offset_samples=[]; observed=[]; parent_origins=[]; parent_quats=[]; final_y=[]
+              hips_key=f'{side}_hips_relative_origin'
+              for s in cycle:
+                  pr=s['bones'][parent][side]; fr=s['bones'][foot][side]
+                  rel=vsub(fr['model_origin'],pr['model_origin'])
+                  q=pr['model_rotation_xyzw']
+                  local=inverse_rotate(q,rel)
+                  local_offset_samples.append(local); observed.append(rel)
+                  parent_origins.append(list(map(float,pr['model_origin'])))
+                  parent_quats.append(list(map(float,q)))
+                  final_y.append(float(fr[hips_key][1]))
+              canonical=[sum(v[i] for v in local_offset_samples)/120.0 for i in range(3)]
+              spans=[norm(vsub(v,canonical)) for v in local_offset_samples]
+              rotated=[rotate(parent_quats[i],canonical) for i in range(120)]
+              residual=[vsub(observed[i],rotated[i]) for i in range(120)]
+              return {
+                  'parent':parent,'foot':foot,
+                  'local_offset_samples':local_offset_samples,
+                  'canonical_local_offset':canonical,
+                  'local_offset_span_m':max(spans),
+                  'rotated_static_offset_vertical':[v[1] for v in rotated],
+                  'translation_residual_vertical':[v[1] for v in residual],
+                  'translation_residual_max_abs_m':max(norm(v) for v in residual),
+                  'static_offset_invariant':max(spans) < EPS,
+                  'final_y':final_y,
+                  'parent_origins':parent_origins,
+                  'parent_quats':parent_quats,
+              }
+
+          source=side_series('Right','source')
+          target=side_series('Right','target')
+          left_source=side_series('Left','source')
+          left_target=side_series('Left','target')
+          classification='rotated_static_offset' if target['static_offset_invariant'] and target['translation_residual_max_abs_m'] < EPS else 'local_translation_present'
+
+          ref=p['right_foot_reference_ab']
+          normalized_offset=list(map(float,ref['normalized_target_local_rest_origin']))
+          target_hips=[list(map(float,s['bones']['Hips']['target']['model_origin'])) for s in cycle]
+          counterfactual_final=[]
+          for i in range(120):
+              foot_model=vadd(target['parent_origins'][i],rotate(target['parent_quats'][i],normalized_offset))
+              counterfactual_final.append(foot_model[1]-target_hips[i][1])
+          source_min=min_index(source['final_y']); baseline_min=min_index(target['final_y']); cf_min=min_index(counterfactual_final)
+          baseline_delta=circular_delta(baseline_min,source_min); cf_delta=circular_delta(cf_min,source_min)
+          cf={
+              'method':'source_direction_target_length_counterfactual',
+              'counterfactual_final_min_sample_index':cf_min,
+              'baseline_final_min_sample_index':baseline_min,
+              'source_final_min_sample_index':source_min,
+              'baseline_phase_delta_samples':baseline_delta,
+              'counterfactual_phase_delta_samples':cf_delta,
+              'counterfactual_improves_phase':abs(cf_delta) < abs(baseline_delta),
+              'diagnostic_only':True,
+              'runtime_authorized':False,
+          }
+
+          def window_stats(series, indices):
+              return {
+                  'indices':indices,
+                  'rotated_static_offset_vertical':[series['rotated_static_offset_vertical'][i] for i in indices],
+                  'translation_residual_vertical':[series['translation_residual_vertical'][i] for i in indices],
+              }
+
+          evidence={
+              'format':'grand-bruxelles-civ1-relative-term-decomposition-v1',
+              'sample_count':121,
+              'RightLowerLeg_to_RightFoot':{
+                  'source':{k:v for k,v in source.items() if k!='final_y' and k!='parent_origins' and k!='parent_quats'},
+                  'target':{k:v for k,v in target.items() if k!='final_y' and k!='parent_origins' and k!='parent_quats'},
+                  'source_phase_window':window_stats(source,source_phase_window),
+                  'target_residual_window':window_stats(target,target_residual_window),
+                  'relative_term_classification':classification,
+                  'source_direction_target_length_counterfactual':cf,
+              },
+              'left_control':{
+                  'source_static_offset_invariant':left_source['static_offset_invariant'],
+                  'target_static_offset_invariant':left_target['static_offset_invariant'],
+                  'source_translation_residual_max_abs_m':left_source['translation_residual_max_abs_m'],
+                  'target_translation_residual_max_abs_m':left_target['translation_residual_max_abs_m'],
+              },
+              'diagnostic_only':True,
+              'runtime_authorized':False,
+              'visual_approval_claimed':False,
+          }
+          Path('/tmp/civ1relative/evidence/relative-term.json').write_text(json.dumps(evidence,indent=2)+'\n')
+
+          assert source['static_offset_invariant'] is True, source['local_offset_span_m']
+          assert target['static_offset_invariant'] is True, target['local_offset_span_m']
+          assert left_source['static_offset_invariant'] is True and left_target['static_offset_invariant'] is True
+          assert classification=='rotated_static_offset', evidence
+          assert source_min==59 and baseline_min==86, (source_min,baseline_min)
+          assert baseline_delta==27, baseline_delta
+          assert all(math.isfinite(v) for v in counterfactual_final)
+          print('relative_term_classification',classification)
+          print('source_local_offset_span_m',source['local_offset_span_m'])
+          print('target_local_offset_span_m',target['local_offset_span_m'])
+          print('source_translation_residual_max_abs_m',source['translation_residual_max_abs_m'])
+          print('target_translation_residual_max_abs_m',target['translation_residual_max_abs_m'])
+          print('source_phase_window',window_stats(source,source_phase_window))
+          print('target_residual_window',window_stats(target,target_residual_window))
+          print('source_direction_target_length_counterfactual',cf)
+          print('left_control',evidence['left_control'])
+          PY
+
+      - name: Upload relative-term evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-relative-term-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1relative/evidence/
+          if-no-files-found: error
+          retention-days: 14

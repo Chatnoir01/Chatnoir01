@@ -5,6 +5,10 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
       - "grand-bruxelles-game/game/tests/automatic_road_runtime_index_identity_test.gd"
+      - "grand-bruxelles-game/game/tests/validate_automatic_road_runtime_index_source_identity.py"
+      - "grand-bruxelles-game/game/tests/test_automatic_road_runtime_index_source_identity.py"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
       - ".github/workflows/grand-bruxelles-automatic-road-runtime-index-identity.yml"
   workflow_dispatch:
 
@@ -29,6 +33,14 @@ jobs:
           git fetch origin main --no-tags
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "${{ github.event.pull_request.base.sha }}"
+
+      - name: Prove indexed OSM identity is unique in hash-pinned source
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 game/tests/test_automatic_road_runtime_index_source_identity.py
+          python3 game/tests/validate_automatic_road_runtime_index_source_identity.py
 
       - name: Install exact official Godot 4.7.1
         shell: bash

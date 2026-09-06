@@ -4,8 +4,10 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/game/tests/brussels_road_material_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/tests/osm_city_builder_anneessens_footprint_detail_zone_test.gd'
       - 'grand-bruxelles-game/game/scripts/brussels_osm_road_surface_material.gd'
       - 'grand-bruxelles-game/game/scripts/brussels_osm_road_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/osm_city_builder.gd'
       - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
@@ -47,6 +49,15 @@ jobs:
             --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/road-material-import.log
           if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/road-material-import.log; then
             exit 1
+          fi
+
+      - name: Preserve import diagnostics
+        if: always()
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/road_material_player_witness
+          if [ -f /tmp/road-material-import.log ]; then
+            cp /tmp/road-material-import.log \
+              grand-bruxelles-game/artifacts/road_material_player_witness/import.log
           fi
 
       - name: Capture rendered corridor witnesses and prove Fonsny fail-closed

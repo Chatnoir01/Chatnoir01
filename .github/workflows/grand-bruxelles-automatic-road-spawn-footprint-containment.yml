@@ -1,0 +1,22 @@
+name: Grand Bruxelles Automatic Road Spawn Footprint Containment
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/scripts/osm_city_builder.gd'
+      - 'grand-bruxelles-game/tools/validate_automatic_road_spawn_footprint_containment.py'
+      - '.github/workflows/grand-bruxelles-automatic-road-spawn-footprint-containment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  footprint-containment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate lateral spawn has exact visible sidewalk support
+        run: python3 grand-bruxelles-game/tools/validate_automatic_road_spawn_footprint_containment.py

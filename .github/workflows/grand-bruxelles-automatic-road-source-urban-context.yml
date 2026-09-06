@@ -1,0 +1,51 @@
+name: Grand Bruxelles Automatic Road Source Urban Context
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/tests/automatic_road_source_urban_context_selection_test.gd"
+      - ".github/workflows/grand-bruxelles-automatic-road-source-urban-context.yml"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/osm/**"
+
+permissions:
+  contents: read
+
+jobs:
+  source-urban-context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 32
+      - name: Require branch built from live main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv Godot_v4.7.1-stable_linux.x86_64 godot
+          chmod +x godot
+          ./godot --version
+      - name: Import project scripts and resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          ../godot --headless --editor --path . --quit-after 1
+      - name: Prove safest connected viewpoint also maximizes exact-source urban context
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          ../godot --headless --path . --script res://game/tests/automatic_road_source_urban_context_selection_test.gd

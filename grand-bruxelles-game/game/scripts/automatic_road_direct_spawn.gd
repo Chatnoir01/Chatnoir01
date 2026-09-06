@@ -11,6 +11,8 @@ const REQUEST_PREFIX := "road-"
 const PLAYER_BODY_CLEARANCE_M := 1.05
 const MAX_WORLD_ABS_M := 890.0
 const MIN_SOURCE_AXIS_ALIGNMENT := 0.90
+const SOURCE_NETWORK_POINT_EPSILON_M := 0.001
+const SOURCE_VIEW_CLEARANCE_EPSILON_M := 0.001
 const CAMERA_PATH := "CameraPivot/SpringArm3D/Camera3D"
 const ROAD_SUPPORT_COLLISION_MASK := 1 << 19
 const CANONICAL_GROUND_COLLISION_MASK := 1
@@ -293,6 +295,66 @@ func _segment_clear_of_source_buildings(document: Dictionary, start: Vector2, fi
     return true
 
 
+func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
+    var segment := finish - start
+    var length_sq := segment.length_squared()
+    if length_sq <= 0.0000001:
+        return point.distance_to(start)
+    var t := clampf((point - start).dot(segment) / length_sq, 0.0, 1.0)
+    return point.distance_to(start + segment * t)
+
+
+func _segment_segment_distance(a0: Vector2, a1: Vector2, b0: Vector2, b1: Vector2) -> float:
+    if Geometry2D.segment_intersects_segment(a0, a1, b0, b1) != null:
+        return 0.0
+    return minf(
+        minf(_point_segment_distance(a0, b0, b1), _point_segment_distance(a1, b0, b1)),
+        minf(_point_segment_distance(b0, a0, a1), _point_segment_distance(b1, a0, a1))
+    )
+
+
+func _source_view_corridor_clearance(document: Dictionary, start: Vector2, finish: Vector2) -> float:
+    if not _segment_clear_of_source_buildings(document, start, finish):
+        return 0.0
+    var best := INF
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        for index: int in range(polygon.size()):
+            best = minf(best, _segment_segment_distance(start, finish, polygon[index], polygon[(index + 1) % polygon.size()]))
+    return best
+
+
+func _source_building_clearance(document: Dictionary, point: Vector2) -> float:
+    if _point_inside_any_source_building(document, point):
+        return 0.0
+    var best := INF
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        for index: int in range(polygon.size()):
+            best = minf(best, _point_segment_distance(point, polygon[index], polygon[(index + 1) % polygon.size()]))
+    return best
+
+
+func _source_endpoint_continuation_count(document: Dictionary, selected_road: Dictionary, endpoint: Vector2) -> int:
+    var roads: Variant = document.get("roads", [])
+    if not roads is Array:
+        return -1
+    var selected_id := _exact_json_osm_id(selected_road.get("osm_id", 0))
+    if selected_id <= 0:
+        return -1
+    var count := 0
+    for raw: Variant in roads:
+        if not raw is Dictionary:
+            return -1
+        var other := raw as Dictionary
+        if _exact_json_osm_id(other.get("osm_id", 0)) == selected_id:
+            continue
+        var other_points := _road_points(other)
+        for point: Vector2 in other_points:
+            if point.distance_to(endpoint) <= SOURCE_NETWORK_POINT_EPSILON_M:
+                count += 1
+                break
+    return count
+
+
 func _display_road_width(road: Dictionary) -> float:
     var width := maxf(float(road.get("width", 4.5)), 2.5)
     match str(road.get("class", "")):
@@ -318,6 +380,10 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
             best_index = index
     if best_index < 0 or best_length < 1.0:
         return {}
+    var start_connections := _source_endpoint_continuation_count(document, road, points[0])
+    var end_connections := _source_endpoint_continuation_count(document, road, points[points.size() - 1])
+    if start_connections < 0 or end_connections < 0:
+        return {}
     var start := points[best_index]
     var finish := points[best_index + 1]
     var midpoint := start.lerp(finish, 0.5)
@@ -330,22 +396,24 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
     var half_road := _display_road_width(road) * 0.5
     var offsets: Array[float] = [half_road + 1.10, half_road + 2.00, half_road + 3.50, half_road + 5.00, half_road + 7.50]
     for offset: float in offsets:
-        # Keep the target on the exact source segment and enforce the actual
-        # player-view invariant directly. The old 45% proxy could reject a
-        # valid segment by centimeters even when its true source-axis alignment
-        # was >= 0.90. Half the segment length is the exact geometric boundary
-        # from the midpoint; the explicit alignment gate remains fail-closed.
+        # Keep offset priority unchanged. At a given offset, source-building
+        # corridor safety is a hard constraint. Exact-source network continuation
+        # may only break ties inside the 1 mm safest-clearance stratum, then spawn
+        # clearance provides the final deterministic tie-break.
         var required_lookahead := offset * 2.10
         var max_segment_lookahead := best_length * 0.5
         var lookahead := minf(22.0, max_segment_lookahead)
         if lookahead < required_lookahead:
             continue
+        var candidates: Array[Dictionary] = []
+        var safest_corridor_clearance := -INF
         for side: float in [1.0, -1.0]:
             var candidate := midpoint + perpendicular * offset * side
             if absf(candidate.x) > MAX_WORLD_ABS_M or absf(candidate.y) > MAX_WORLD_ABS_M:
                 continue
             if _point_inside_any_source_building(document, candidate):
                 continue
+            var candidate_clearance := _source_building_clearance(document, candidate)
             for along_sign: float in [1.0, -1.0]:
                 var target := midpoint + direction * lookahead * along_sign
                 if absf(target.x) > MAX_WORLD_ABS_M or absf(target.y) > MAX_WORLD_ABS_M:
@@ -360,7 +428,12 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
                     continue
                 if not _segment_clear_of_source_buildings(document, candidate, target):
                     continue
-                return {
+                var continuation_count := end_connections if along_sign > 0.0 else start_connections
+                var corridor_clearance := _source_view_corridor_clearance(document, candidate, target)
+                if not is_finite(corridor_clearance) or corridor_clearance < 0.0:
+                    continue
+                safest_corridor_clearance = maxf(safest_corridor_clearance, corridor_clearance)
+                candidates.append({
                     "spawn": candidate,
                     "target": target,
                     "offset_m": offset,
@@ -369,7 +442,30 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
                     "source_sightline_clear": true,
                     "axis_lookahead_m": lookahead,
                     "axis_alignment": axis_alignment,
-                }
+                    "source_building_clearance_m": candidate_clearance,
+                    "source_view_corridor_clearance_m": corridor_clearance,
+                    "source_network_continuation_count": continuation_count,
+                })
+        if candidates.is_empty() or not is_finite(safest_corridor_clearance):
+            continue
+        var best_candidate: Dictionary = {}
+        var best_continuation_count := -1
+        var best_spawn_clearance := -INF
+        for candidate_data: Dictionary in candidates:
+            var corridor_clearance := float(candidate_data.get("source_view_corridor_clearance_m", -INF))
+            if corridor_clearance + SOURCE_VIEW_CLEARANCE_EPSILON_M < safest_corridor_clearance:
+                continue
+            var continuation_count := int(candidate_data.get("source_network_continuation_count", -1))
+            var candidate_clearance := float(candidate_data.get("source_building_clearance_m", -INF))
+            var continuation_better := best_candidate.is_empty() or continuation_count > best_continuation_count
+            var continuation_tie := continuation_count == best_continuation_count
+            var spawn_tie_break := continuation_tie and candidate_clearance > best_spawn_clearance
+            if continuation_better or spawn_tie_break:
+                best_continuation_count = continuation_count
+                best_spawn_clearance = candidate_clearance
+                best_candidate = candidate_data
+        if not best_candidate.is_empty():
+            return best_candidate
     return {}
 
 
@@ -475,8 +571,10 @@ func _road_support_contains_osm_id(collider: Node, osm_id: int) -> bool:
 
 
 func _ground_hit_is_authorized(collider: Object, canonical_ground: Node, osm_id: int = 0) -> bool:
+    # Generic Ground is only a legacy/no-road fallback. A road-<OSM id>
+    # destination must prove collision ownership for that exact source road.
     if canonical_ground != null and collider == canonical_ground:
-        return true
+        return osm_id <= 0
     if collider is Node:
         var node := collider as Node
         if str(node.get_meta(ROAD_SUPPORT_OWNER_META, "")) != ROAD_SUPPORT_OWNER_ID:

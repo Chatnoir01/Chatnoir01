@@ -1,0 +1,32 @@
+name: Grand Bruxelles Automatic Road Ground Owner Boundary
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/scripts/osm_city_builder.gd'
+      - 'grand-bruxelles-game/game/tests/automatic_road_ground_owner_boundary_contract_test.py'
+      - '.github/workflows/grand-bruxelles-automatic-road-ground-owner-boundary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-road-ground-owner-boundary:
+    name: Exact road ground owner boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Require exact rendered-road collision ownership
+        run: python grand-bruxelles-game/game/tests/automatic_road_ground_owner_boundary_contract_test.py

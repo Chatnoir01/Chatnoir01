@@ -1,0 +1,35 @@
+name: Grand Bruxelles Automatic Road Source Tradeoff Validator
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'grand-bruxelles-game/game/tests/validate_automatic_road_source_tradeoff_receipt.py'
+      - 'grand-bruxelles-game/game/tests/test_automatic_road_source_tradeoff_receipt_validator.py'
+      - '.github/workflows/grand-bruxelles-automatic-road-source-tradeoff-validator.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-validator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main merge base
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "${{ github.event.pull_request.base.sha }}"
+
+      - name: Execute blocker-receipt validator boundary tests
+        run: python3 grand-bruxelles-game/game/tests/test_automatic_road_source_tradeoff_receipt_validator.py

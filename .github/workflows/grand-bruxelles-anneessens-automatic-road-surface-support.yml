@@ -1,0 +1,28 @@
+name: Grand Bruxelles Anneessens Automatic Road Surface Support
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/tools/validate_anneessens_automatic_road_surface_support.py"
+      - ".github/workflows/grand-bruxelles-anneessens-automatic-road-surface-support.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visible-road-support:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Prove source-backed Anneessens visible surface support
+        run: python3 grand-bruxelles-game/tools/validate_anneessens_automatic_road_surface_support.py

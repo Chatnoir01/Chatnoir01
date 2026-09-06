@@ -1,22 +1,21 @@
-name: Grand Bruxelles Automatic Road Runtime-Index Identity
+name: Grand Bruxelles Automatic Road Source Urban Context Feasibility
 
 on:
   pull_request:
     paths:
-      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
-      - "grand-bruxelles-game/game/tests/automatic_road_runtime_index_identity_test.gd"
-      - "grand-bruxelles-game/game/tests/validate_automatic_road_runtime_index_source_identity.py"
-      - "grand-bruxelles-game/game/tests/test_automatic_road_runtime_index_source_identity.py"
-      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
-      - ".github/workflows/grand-bruxelles-automatic-road-runtime-index-identity.yml"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/tests/automatic_road_source_urban_context_feasibility_test.gd"
+      - ".github/workflows/grand-bruxelles-automatic-road-source-urban-context-feasibility.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  runtime-index-identity:
+  source-urban-context-feasibility:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -34,14 +33,6 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "${{ github.event.pull_request.base.sha }}"
 
-      - name: Prove indexed OSM identity is unique in hash-pinned source
-        working-directory: grand-bruxelles-game
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 game/tests/test_automatic_road_runtime_index_source_identity.py
-          python3 game/tests/validate_automatic_road_runtime_index_source_identity.py
-
       - name: Install exact official Godot 4.7.1
         shell: bash
         run: |
@@ -53,10 +44,15 @@ jobs:
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version
 
-      - name: Prove runtime-index OSM identity is fail-closed
+      - name: Import project for deterministic class/resource state
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --quit --path .
+
+      - name: Prove source-safe urban context feasibility before ranking changes
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_runtime_index_identity_test.gd 2>&1 | tee /tmp/automatic-road-runtime-index-identity.log
-          grep -F 'AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN:' /tmp/automatic-road-runtime-index-identity.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_source_urban_context_feasibility_test.gd 2>&1 | tee /tmp/automatic-road-source-urban-context-feasibility.log
+          grep -F 'AUTOMATIC_ROAD_SOURCE_URBAN_CONTEXT_FEASIBILITY_GREEN:' /tmp/automatic-road-source-urban-context-feasibility.log

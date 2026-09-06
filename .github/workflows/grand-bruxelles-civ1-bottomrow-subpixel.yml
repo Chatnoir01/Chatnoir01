@@ -1,0 +1,81 @@
+name: Grand Bruxelles CIV-1 Bottom Row Subpixel
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_bottomrow_subpixel.py'
+      - 'grand-bruxelles-game/tests/test_civ1_bottomrow_subpixel.py'
+      - '.github/workflows/grand-bruxelles-civ1-bottomrow-subpixel.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  bottomrow-subpixel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Regression contract
+        run: python grand-bruxelles-game/tests/test_civ1_bottomrow_subpixel.py
+      - name: Download pinned real Godot 2-4-8m rasters
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-subpixel/evidence
+          curl -fL --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9978712035/zip" \
+            -o /tmp/civ1-subpixel/evidence.zip
+          unzip -q /tmp/civ1-subpixel/evidence.zip -d /tmp/civ1-subpixel/evidence
+          CAPTURE="$(find /tmp/civ1-subpixel/evidence -type f -name 'civ1-distance-2m-115.png' -print -quit)"
+          test -n "$CAPTURE"
+          CAPTURE_DIR="$(dirname "$CAPTURE")"
+          for d in 2 4 8; do for s in 115 116 117 118; do test -f "$CAPTURE_DIR/civ1-distance-${d}m-${s}.png"; done; done
+          echo "CAPTURE_DIR=$CAPTURE_DIR" >> "$GITHUB_ENV"
+      - name: Measure same-row subpixel motion
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_bottomrow_subpixel.py "$CAPTURE_DIR" /tmp/civ1-subpixel/subpixel.json
+          python - <<'PY'
+          import json, math
+          p='/tmp/civ1-subpixel/subpixel.json'; r=json.load(open(p,encoding='utf-8'))
+          assert r['schema']=='grand-bruxelles-civ1-bottomrow-subpixel-v1'
+          assert r['distances_m']==[2,4,8] and r['samples']==[115,116,117,118]
+          assert r['support_pad_px']==1 and r['white_threshold']==220 and r['weight_floor']==180
+          by={d['distance_m']:d for d in r['distance_measurements']}
+          for d in (2,4,8):
+              assert len(by[d]['records'])==4
+              assert math.isfinite(by[d]['subpixel_path_px'])
+              for rec in by[d]['records']:
+                  assert rec['weighted_support_min_x_px'] >= rec['primary_min_x_px']-1
+                  assert rec['weighted_support_max_x_px'] <= rec['primary_max_x_px']+1
+                  assert rec['bottom_y_px'] >= 0
+          scale=r['distance_scale_calibration']
+          assert isinstance(scale['near_calibration_passed'],bool)
+          assert isinstance(scale['far_non_increasing'],bool)
+          assert isinstance(scale['quantitative_8m_candidate'],bool)
+          for k in ('perceptual_2_8m_claimed','planted_contact_claimed','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
+              assert r[k] is False
+          print('CIV1_BOTTOMROW_SUBPIXEL_RECEIPT', {d:by[d]['subpixel_path_px'] for d in (2,4,8)}, scale, r['verdict'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-bottomrow-subpixel-evidence
+          path: /tmp/civ1-subpixel/subpixel.json
+          if-no-files-found: warn

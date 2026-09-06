@@ -1,0 +1,148 @@
+name: Grand Bruxelles CIV-1 LeftFoot Landmark
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_leftfoot_landmark_witness.gd'
+      - 'grand-bruxelles-game/tools/analyze_civ1_leftfoot_landmark_raster.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_leftfoot_local_sole.py'
+      - 'grand-bruxelles-game/tests/test_civ1_leftfoot_landmark_raster.py'
+      - 'grand-bruxelles-game/tests/test_civ1_leftfoot_local_sole.py'
+      - '.github/workflows/grand-bruxelles-civ1-leftfoot-landmark.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+
+jobs:
+  leftfoot-landmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Causal regressions
+        run: |
+          python grand-bruxelles-game/tests/test_civ1_leftfoot_landmark_raster.py
+          python grand-bruxelles-game/tests/test_civ1_leftfoot_local_sole.py
+      - name: Prepare pinned CIV-1 sources and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1landmark/{tools,source,evidence,engine,captures,out}
+          PROBE_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c
+          SHADOW_REF=d1f9ba6faa5c54bcf2bb5c522c5b49325a28f814
+          SELECT_REF=a9ac6276c5ff69927e4d4212efc4f1aff2bb21ac
+          FIXED_REF=cdbe1814886aefa81a95acbb43e3e2cb9289284f
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd" -o /tmp/civ1landmark/tools/base.gd
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$PROBE_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1landmark/tools/strip.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SHADOW_REF/grand-bruxelles-game/tools/patch_civ1_global_chain_shadow.py" -o /tmp/civ1landmark/tools/shadow.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$SELECT_REF/grand-bruxelles-game/tools/select_quaternius_project.py" -o /tmp/civ1landmark/tools/select.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$FIXED_REF/grand-bruxelles-game/tools/analyze_civ1_fixed_length_reconstruction.py" -o /tmp/civ1landmark/tools/analyze.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/$FIXED_REF/grand-bruxelles-game/tools/build_civ1_skeleton_witness_bundle.py" -o /tmp/civ1landmark/tools/bundle.py
+          sed -i 's#HERE / "analyze_civ1_fixed_length_reconstruction.py"#HERE / "analyze.py"#' /tmp/civ1landmark/tools/bundle.py
+          python /tmp/civ1landmark/tools/shadow.py /tmp/civ1landmark/tools/base.gd /tmp/civ1landmark/tools/probe.gd
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1landmark/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1landmark/source/body.glb)" = 6879364
+          python /tmp/civ1landmark/tools/strip.py /tmp/civ1landmark/source/body.glb /tmp/civ1landmark/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1landmark/source/civ1_body.glb' | sha256sum -c -
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_head.glb -o /tmp/civ1landmark/source/vitruvian_head.glb
+          test "$(stat -c '%s' /tmp/civ1landmark/source/vitruvian_head.glb)" = 10189832
+          echo '54efb42e9f3dd7e7cf3c3e86ed5298f3ba26e341d5743245cbe2621c547c5f1f  /tmp/civ1landmark/source/vitruvian_head.glb' | sha256sum -c -
+          curl -fL --retry 3 https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip -o /tmp/civ1landmark/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1landmark/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1landmark/quaternius.zip -d /tmp/civ1landmark/quaternius
+          L="$(find /tmp/civ1landmark/quaternius -iname 'LICENSE*' -type f -print -quit)"; test -n "$L"; grep -Eqi 'cc0|creative commons zero' "$L"
+          python /tmp/civ1landmark/tools/select.py /tmp/civ1landmark/quaternius | tee /tmp/civ1landmark/evidence/project-root.txt
+          PROJECT_ROOT="$(cat /tmp/civ1landmark/evidence/project-root.txt)"
+          if [ ! -f "$PROJECT_ROOT/project.godot" ]; then printf '[application]\nconfig/name="CIV1LandmarkBundle"\n[display]\nwindow/size/viewport_width=1280\nwindow/size/viewport_height=720\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"; fi
+          cp /tmp/civ1landmark/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp /tmp/civ1landmark/source/vitruvian_head.glb "$PROJECT_ROOT/vitruvian_head.glb"
+          cp /tmp/civ1landmark/tools/probe.gd "$PROJECT_ROOT/gb_probe.gd"
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1landmark/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1landmark/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1landmark/godot.zip -d /tmp/civ1landmark/engine
+          chmod +x /tmp/civ1landmark/engine/Godot_v4.7.1-stable_linux.x86_64
+          echo 'GODOT_BIN=/tmp/civ1landmark/engine/Godot_v4.7.1-stable_linux.x86_64' >> "$GITHUB_ENV"
+          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+      - name: Rebuild proven 120-frame Skeleton witness bundle
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1landmark/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_probe.gd -- /tmp/civ1landmark/evidence/native.json 2>&1 | tee /tmp/civ1landmark/evidence/native.log
+          grep -F CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK /tmp/civ1landmark/evidence/native.log
+          python /tmp/civ1landmark/tools/analyze.py /tmp/civ1landmark/evidence/native.json /tmp/civ1landmark/evidence/fixed-length.json | tee /tmp/civ1landmark/evidence/fixed-length.log
+          grep -F 'verdict=AMELIORER_FIXED_LENGTH_CONTINUOUS_CYCLE' /tmp/civ1landmark/evidence/fixed-length.log
+          python /tmp/civ1landmark/tools/bundle.py /tmp/civ1landmark/evidence/native.json /tmp/civ1landmark/evidence/fixed-length.json /tmp/civ1landmark/evidence/skeleton-bundle.json | tee /tmp/civ1landmark/evidence/bundle.log
+          grep -F CIV1_SKELETON_WITNESS_BUNDLE_OK /tmp/civ1landmark/evidence/bundle.log
+      - name: Prepare current-main canonical sandbox
+        run: |
+          set -euo pipefail
+          CANONICAL_PROJECT=/tmp/civ1landmark/canonical-project
+          cp -a grand-bruxelles-game "$CANONICAL_PROJECT"
+          cat > "$CANONICAL_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="CIV1LeftFootLandmark"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          [physics]
+          3d/default_gravity=9.8
+          common/physics_ticks_per_second=60
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/civ1landmark/source/civ1_body.glb "$CANONICAL_PROJECT/civ1_body.glb"
+          cp /tmp/civ1landmark/source/vitruvian_head.glb "$CANONICAL_PROJECT/vitruvian_head.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_leftfoot_landmark_witness.gd "$CANONICAL_PROJECT/gb_leftfoot_landmark.gd"
+          "$GODOT_BIN" --headless --editor --path "$CANONICAL_PROJECT" --quit 2>&1 | tee /tmp/civ1landmark/evidence/canonical-import.log
+          echo "CANONICAL_PROJECT=$CANONICAL_PROJECT" >> "$GITHUB_ENV"
+      - name: Render and measure 15 current-main Skeleton-tied landmark rasters
+        run: |
+          set -euo pipefail
+          command -v xvfb-run
+          xvfb-run -a "$GODOT_BIN" --path "$CANONICAL_PROJECT" --resolution 1280x720 --script res://gb_leftfoot_landmark.gd -- /tmp/civ1landmark/evidence/skeleton-bundle.json /tmp/civ1landmark/evidence/leftfoot-landmark-witness.json /tmp/civ1landmark/captures 2>&1 | tee /tmp/civ1landmark/evidence/leftfoot-landmark.log
+          grep -F CIV1_LEFTFOOT_LANDMARK_OK /tmp/civ1landmark/evidence/leftfoot-landmark.log
+          python grand-bruxelles-game/tools/analyze_civ1_leftfoot_landmark_raster.py /tmp/civ1landmark/evidence/leftfoot-landmark-witness.json /tmp/civ1landmark/captures /tmp/civ1landmark/out/leftfoot-landmark-analysis.json | tee /tmp/civ1landmark/out/leftfoot-landmark-analysis.log
+          grep -F CIV1_LEFTFOOT_LANDMARK_ANALYSIS_OK /tmp/civ1landmark/out/leftfoot-landmark-analysis.log
+          python grand-bruxelles-game/tools/analyze_civ1_leftfoot_local_sole.py /tmp/civ1landmark/evidence/leftfoot-landmark-witness.json /tmp/civ1landmark/captures /tmp/civ1landmark/out/leftfoot-local-sole.json | tee /tmp/civ1landmark/out/leftfoot-local-sole.log
+          grep -F CIV1_LEFTFOOT_LOCAL_SOLE_OK /tmp/civ1landmark/out/leftfoot-local-sole.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          w=json.loads(Path('/tmp/civ1landmark/evidence/leftfoot-landmark-witness.json').read_text())
+          a=json.loads(Path('/tmp/civ1landmark/out/leftfoot-landmark-analysis.json').read_text())
+          s=json.loads(Path('/tmp/civ1landmark/out/leftfoot-local-sole.json').read_text())
+          assert w['schema']=='grand-bruxelles-civ1-leftfoot-landmark-witness-v1'
+          assert w['resolution']==[1280,720] and w['vertical_fov_deg']==45.0 and w['capture_count']==15
+          assert w['max_pose_origin_error_m']<=1e-4
+          assert w['skin_integrity']['same_skeleton_skin_count']>=1 and w['skin_integrity']['skin_bind_count']>=1
+          assert a['single_leftfoot_identity_preserved_2_4_8m'] is True and a['quantitative_landmark_candidate'] is True
+          assert s['schema']=='grand-bruxelles-civ1-leftfoot-local-sole-v1'
+          assert s['identity_anchor']=='verified_leftfoot_bone_magenta_landmark'
+          assert s['bone_local_sole_identity_preserved_2_4_8m'] is True
+          assert s['distance_mean_relative_spread']<=0.15
+          assert all(v<=0.15 for v in s['max_within_distance_relative_deviation'].values())
+          assert s['quantitative_foot_slide_candidate'] is False
+          for src in (w,a,s):
+              for k in ('perceptual_2_8m_claimed','planted_contact_claimed','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
+                  assert src[k] is False
+          print('CIV1_REAL_BONE_LOCAL_SOLE_RECEIPT_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-leftfoot-bone-local-sole-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/civ1landmark/evidence
+            /tmp/civ1landmark/captures
+            /tmp/civ1landmark/out
+          if-no-files-found: error
+          retention-days: 14

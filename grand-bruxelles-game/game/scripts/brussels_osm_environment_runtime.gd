@@ -266,6 +266,7 @@ func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
     if anchor_distance_sq < _tree_lod_boundary_margin_m * _tree_lod_boundary_margin_m:
         return false
     var detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m
+    var minimum_boundary_margin := INF
     for row_variant in _rendered_trees:
         var row := row_variant as Dictionary
         var p: Vector3 = row["position"]
@@ -273,10 +274,16 @@ func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
         var old_dz := p.z - _last_tree_lod_anchor.z
         var new_dx := p.x - anchor.x
         var new_dz := p.z - anchor.z
+        var new_distance_sq := new_dx * new_dx + new_dz * new_dz
         var was_near := old_dx * old_dx + old_dz * old_dz <= detail_radius_sq
-        var is_near := new_dx * new_dx + new_dz * new_dz <= detail_radius_sq
+        var is_near := new_distance_sq <= detail_radius_sq
         if was_near != is_near:
             return true
+        var radial_distance := sqrt(new_distance_sq)
+        minimum_boundary_margin = min(minimum_boundary_margin, abs(radial_distance - tree_full_detail_radius_m))
+    _tree_lod_boundary_margin_m = max(0.0, minimum_boundary_margin - BOUNDS_NUMERIC_EPSILON_M)
+    _tree_lod_boundary_margin_radius_m = tree_full_detail_radius_m
+    _last_tree_lod_anchor = anchor
     return false
 
 func _clear_tree_foliage_batches() -> void:

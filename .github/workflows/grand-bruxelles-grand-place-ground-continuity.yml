@@ -82,19 +82,27 @@ jobs:
           import json, pathlib
           p = pathlib.Path('grand-bruxelles-game/artifacts/qa/grand_place_ground_continuity.json')
           d = json.loads(p.read_text())
-          assert d['schema'] == 'grand-bruxelles-grand-place-ground-continuity-v2'
+          assert d['schema'] == 'grand-bruxelles-grand-place-ground-continuity-v3'
           assert d['source_feature_id'].endswith('/42405')
           assert d['source_crs'] == 'EPSG:31370'
           assert d['triangle_count'] >= 80
-          assert d['sample_count'] == d['triangle_count']
+          assert d['centroid_sample_count'] == d['triangle_count']
+          assert d['edge_inset_sample_count'] == d['triangle_count'] * 3
+          assert d['sample_count'] == d['triangle_count'] * 4
           assert len(d['samples']) == d['sample_count']
+          assert abs(d['edge_inset_fraction'] - 0.10) < 1e-12
           assert d['collision_owner'] == 'OfficialGraniteStreetSurfaceCollision'
           assert d['collision_geometry_source'] == 'same_official_granite_mesh'
           assert d['collision_layer'] == 1
           assert d['max_collision_height_error_m'] <= 0.02
+          centroid_samples = [s for s in d['samples'] if s['probe_kind'] == 'centroid']
+          edge_samples = [s for s in d['samples'] if s['probe_kind'] == 'edge_inset']
+          assert len(centroid_samples) == d['triangle_count']
+          assert len(edge_samples) == d['triangle_count'] * 3
+          assert {s['edge'] for s in edge_samples} == {0, 1, 2}
           for key in ('street_join_geometry_invented','curb_height_claimed','sidewalk_profile_claimed','destination_advertisable','visual_acceptance','jouable_authorized'):
               assert d[key] is False, (key, d[key])
-          print(f"GRAND_PLACE_GROUND_EVIDENCE_OK samples={d['sample_count']} visual_acceptance=false jouable_authorized=false")
+          print(f"GRAND_PLACE_GROUND_EVIDENCE_OK triangles={d['triangle_count']} samples={d['sample_count']} edge_insets={d['edge_inset_sample_count']} visual_acceptance=false jouable_authorized=false")
           PY
       - name: Stage exact-head evidence
         if: always()

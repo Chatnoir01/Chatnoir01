@@ -121,14 +121,17 @@ func _exact_json_osm_id(raw_id: Variant) -> int:
 func _canonical_runtime_source_path(raw_path: Variant) -> String:
     if typeof(raw_path) != TYPE_STRING:
         return ""
-    var source_path := str(raw_path).strip_edges().replace("\\", "/")
-    if source_path.is_empty():
+    var raw_source_path := str(raw_path)
+    var source_path := raw_source_path.strip_edges()
+    if source_path.is_empty() or source_path != raw_source_path or source_path.contains("\\"):
         return ""
     if source_path.begins_with("res://"):
         source_path = source_path.trim_prefix("res://")
     elif source_path.begins_with("/") or source_path.contains("://"):
         return ""
-    var segments := source_path.split("/", false)
+    if source_path.is_empty() or source_path.begins_with("/") or source_path.ends_with("/") or source_path.contains("//"):
+        return ""
+    var segments := source_path.split("/", true)
     if segments.is_empty():
         return ""
     for segment: String in segments:

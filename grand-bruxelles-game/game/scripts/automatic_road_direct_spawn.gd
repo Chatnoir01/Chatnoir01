@@ -504,6 +504,75 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
     return {}
 
 
+func _nearby_corridor_anchor(document: Dictionary, point: Vector2) -> Variant:
+    var corridor_raw: Variant = document.get("corridor", {})
+    if not corridor_raw is Dictionary:
+        return null
+    var corridor := corridor_raw as Dictionary
+    var selection_raw: Variant = corridor.get("selection_radius_m", {})
+    if not selection_raw is Dictionary:
+        return null
+    var radius_raw: Variant = (selection_raw as Dictionary).get("roads", 0.0)
+    if typeof(radius_raw) != TYPE_INT and typeof(radius_raw) != TYPE_FLOAT:
+        return null
+    var radius := float(radius_raw)
+    if not is_finite(radius) or radius <= 0.0:
+        return null
+    var anchors_raw: Variant = corridor.get("anchors", [])
+    if not anchors_raw is Array or anchors_raw.is_empty():
+        return null
+    var best := Vector2.ZERO
+    var best_distance := INF
+    var found := false
+    for raw_anchor: Variant in anchors_raw:
+        if not raw_anchor is Dictionary:
+            continue
+        var anchor := raw_anchor as Dictionary
+        var raw_x: Variant = anchor.get("x")
+        var raw_z: Variant = anchor.get("z")
+        if (typeof(raw_x) != TYPE_INT and typeof(raw_x) != TYPE_FLOAT) or (typeof(raw_z) != TYPE_INT and typeof(raw_z) != TYPE_FLOAT):
+            continue
+        var candidate := Vector2(float(raw_x), float(raw_z))
+        if not candidate.is_finite():
+            continue
+        var distance := point.distance_to(candidate)
+        if distance < best_distance:
+            best = candidate
+            best_distance = distance
+            found = true
+    return best if found and best_distance <= radius else null
+
+
+func _corridor_oriented_target(document: Dictionary, spawn_xz: Vector2, target_xz: Vector2) -> Dictionary:
+    var anchor_raw: Variant = _nearby_corridor_anchor(document, spawn_xz)
+    if not anchor_raw is Vector2:
+        return {"target": target_xz, "anchor_oriented": false}
+    var anchor := anchor_raw as Vector2
+    var current_axis := target_xz - spawn_xz
+    var anchor_axis := anchor - spawn_xz
+    if current_axis == Vector2.ZERO or anchor_axis == Vector2.ZERO:
+        return {"target": target_xz, "anchor_oriented": false}
+    var opposite_target := spawn_xz - current_axis
+    if absf(opposite_target.x) > MAX_WORLD_ABS_M or absf(opposite_target.y) > MAX_WORLD_ABS_M:
+        return {"target": target_xz, "anchor_oriented": false}
+    if not _segment_clear_of_source_buildings(document, spawn_xz, opposite_target):
+        return {"target": target_xz, "anchor_oriented": false}
+    var opposite_clearance := _source_view_corridor_clearance(document, spawn_xz, opposite_target)
+    if not is_finite(opposite_clearance) or opposite_clearance + SOURCE_VIEW_CLEARANCE_EPSILON_M < PLAYER_BODY_CLEARANCE_M:
+        return {"target": target_xz, "anchor_oriented": false}
+    var current_alignment := current_axis.normalized().dot(anchor_axis.normalized())
+    var opposite_alignment := (opposite_target - spawn_xz).normalized().dot(anchor_axis.normalized())
+    if opposite_alignment <= current_alignment:
+        return {"target": target_xz, "anchor_oriented": false}
+    return {
+        "target": opposite_target,
+        "anchor_oriented": true,
+        "anchor_xz": anchor,
+        "source_view_corridor_clearance_m": opposite_clearance,
+        "source_anchor_alignment": opposite_alignment,
+    }
+
+
 func _mesh_has_renderable_surfaces(mesh: Mesh) -> bool:
     return mesh != null and mesh.get_surface_count() > 0
 
@@ -690,6 +759,8 @@ func apply_to_player(player: Node, osm_id: int) -> bool:
         return false
     var spawn_xz: Vector2 = viewpoint["spawn"]
     var target_xz: Vector2 = viewpoint["target"]
+    var orientation := _corridor_oriented_target(document, spawn_xz, target_xz)
+    target_xz = orientation["target"] as Vector2
     var ground_y := _ground_y(body, spawn_xz, osm_id)
     if not is_finite(ground_y):
         return false
@@ -708,5 +779,10 @@ func apply_to_player(player: Node, osm_id: int) -> bool:
     body.set_meta("automatic_road_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
     body.set_meta("automatic_road_direct_axis_lookahead_m", float(viewpoint.get("axis_lookahead_m", 0.0)))
     body.set_meta("automatic_road_direct_axis_alignment", float(viewpoint.get("axis_alignment", 0.0)))
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_READY: osm_id=%d lookup=deterministic_runtime_index source=%s name=%s spawn=(%.3f, %.3f, %.3f) target=(%.3f, %.3f) axis_lookahead_m=%.3f axis_alignment=%.6f" % [osm_id, source_path, source_name, body.global_position.x, body.global_position.y, body.global_position.z, target_xz.x, target_xz.y, float(viewpoint.get("axis_lookahead_m", 0.0)), float(viewpoint.get("axis_alignment", 0.0))])
+    body.set_meta("automatic_road_direct_corridor_anchor_oriented", bool(orientation.get("anchor_oriented", false)))
+    if bool(orientation.get("anchor_oriented", false)):
+        body.set_meta("automatic_road_direct_corridor_anchor_xz", orientation.get("anchor_xz"))
+        body.set_meta("automatic_road_direct_oriented_source_view_clearance_m", float(orientation.get("source_view_corridor_clearance_m", 0.0)))
+        body.set_meta("automatic_road_direct_source_anchor_alignment", float(orientation.get("source_anchor_alignment", 0.0)))
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_READY: osm_id=%d lookup=deterministic_runtime_index source=%s name=%s spawn=(%.3f, %.3f, %.3f) target=(%.3f, %.3f) axis_lookahead_m=%.3f axis_alignment=%.6f corridor_anchor_oriented=%s" % [osm_id, source_path, source_name, body.global_position.x, body.global_position.y, body.global_position.z, target_xz.x, target_xz.y, float(viewpoint.get("axis_lookahead_m", 0.0)), float(viewpoint.get("axis_alignment", 0.0)), str(bool(orientation.get("anchor_oriented", false)))])
     return true

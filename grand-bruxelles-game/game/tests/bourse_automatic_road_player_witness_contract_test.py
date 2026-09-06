@@ -49,10 +49,16 @@ for token in (
 ):
     assert token in w, f"missing workflow contract token: {token}"
 
+# Any source-backed or authored Shared Environment dependency capable of changing
+# the deterministic Bourse player frame must retrigger this full-frame witness.
 for path in (
     'grand-bruxelles-game/game/main.tscn',
     'grand-bruxelles-game/game/scripts/osm_city_builder.gd',
     'grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd',
+    'grand-bruxelles-game/game/scripts/brussels_street_tree_asset.gd',
+    'grand-bruxelles-game/game/scripts/brussels_street_tree_material.gd',
+    'grand-bruxelles-game/game/scripts/brussels_street_lamp_asset.gd',
+    'grand-bruxelles-game/game/scripts/brussels_bollard_asset.gd',
 ):
     assert f'- "{path}"' in w, f"Bourse player witness must rerun when player-visible dependency changes: {path}"
 

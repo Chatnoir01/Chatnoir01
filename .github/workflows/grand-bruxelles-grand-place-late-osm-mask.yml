@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1655673.gd"
       - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1786758.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_lod2_late_osm_mask_runtime_test.gd"
       - "grand-bruxelles-game/tests/test_grand_place_lod2_late_osm_mask_contract.py"
       - ".github/workflows/grand-bruxelles-grand-place-late-osm-mask.yml"
   workflow_dispatch:
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   late-osm-mask-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,5 +36,64 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Prove late OSM replacement masking is not startup-window bounded
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-late-osm-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-late-osm-import.log; then exit 1; fi
+      - id: runtime
+        name: Reproduce late container and late descendant masking in Godot 4.7.1
+        continue-on-error: true
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/grand_place_lod2_late_osm_mask_runtime_test.gd \
+            2>&1 | tee /tmp/grand-place-late-osm-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_LOD2_LATE_OSM_MASK_RUNTIME_FAIL" /tmp/grand-place-late-osm-runtime.log; then exit 1; fi
+          grep -F "GRAND_PLACE_LOD2_LATE_OSM_MASK_RUNTIME_OK scripts=2" /tmp/grand-place-late-osm-runtime.log
+      - id: static
+        name: Prove late OSM replacement masking is not startup-window bounded
+        continue-on-error: true
         run: python grand-bruxelles-game/tests/test_grand_place_lod2_late_osm_mask_contract.py
+      - name: Require both runtime and static contracts
+        if: always()
+        shell: bash
+        env:
+          RUNTIME_OUTCOME: "${{ steps.runtime.outcome }}"
+          STATIC_OUTCOME: "${{ steps.static.outcome }}"
+        run: |
+          set -euo pipefail
+          echo "runtime=${RUNTIME_OUTCOME} static=${STATIC_OUTCOME}"
+          test "${RUNTIME_OUTCOME}" = success
+          test "${STATIC_OUTCOME}" = success
+      - name: Stage diagnostic logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask
+          cp /tmp/grand-place-late-osm-import.log grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask/ 2>/dev/null || true
+          cp /tmp/grand-place-late-osm-runtime.log grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask/ 2>/dev/null || true
+          sha256sum grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask/* > grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask/evidence-sha256.txt 2>/dev/null || true
+      - name: Upload late-mask diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-late-osm-mask-${{ github.sha }}
+          path: grand-bruxelles-game/artifacts/qa/grand_place_late_osm_mask
+          if-no-files-found: error

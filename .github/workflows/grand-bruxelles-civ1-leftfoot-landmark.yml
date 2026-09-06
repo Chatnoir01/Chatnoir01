@@ -84,13 +84,15 @@ jobs:
           python - <<'PY'
           import json
           p=json.load(open('/tmp/civ1contact/out/leftfoot-contact-phase.json'))
-          assert p['leftfoot_min_sample']==119
+          assert p['contact_target_contains_contact_min'] is True
+          assert p['two_sided_low_contact'] is True
           assert p['identity_window_contains_contact_min'] is False
           assert p['contact_render_complete'] is False
+          assert p['planted_contact_verified'] is False
           assert p['quantitative_foot_slide_candidate'] is False
           assert p['animation_correction_authorized'] is False
           assert p['runtime_authorized'] is False
-          print('CIV1_CONTACT_PHASE_DETERMINISTIC_FAIL_CLOSED_OK', p['prev_low'], p['next_low'], p['two_sided_low_contact'], p['verdict'])
+          print('CIV1_CONTACT_PHASE_DETERMINISTIC_FAIL_CLOSED_OK', p['leftfoot_min_sample'], p['prev_sample'], p['next_sample'], p['prev_low'], p['next_low'], p['verdict'])
           PY
       - uses: actions/upload-artifact@v4
         if: always()

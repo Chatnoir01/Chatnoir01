@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: grand-bruxelles-grand-place-ground-continuity-${{ github.ref }}
+  group: grand-bruxelles-grand-place-ground-continuity-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:

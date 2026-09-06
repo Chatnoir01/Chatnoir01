@@ -1,0 +1,62 @@
+name: Grand Bruxelles CIV-1 Contact Sole Stability
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_contact_sole_stability.py'
+      - 'grand-bruxelles-game/tests/test_civ1_contact_sole_stability.py'
+      - '.github/workflows/grand-bruxelles-civ1-contact-sole-stability.yml'
+  workflow_dispatch:
+permissions: {contents: read, actions: read}
+
+jobs:
+  contact-sole-stability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Causal regression
+        run: python grand-bruxelles-game/tests/test_civ1_contact_sole_stability.py
+      - name: Fetch immutable real Godot contact artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1contact
+          gh api /repos/${{ github.repository }}/actions/artifacts/9992012656/zip > /tmp/civ1contact/contact.zip
+          echo '9c4fc196a26a5700c878d4e74fb45aac3cc0d4ea478624757319cc27d1ec7544  /tmp/civ1contact/contact.zip' | sha256sum -c -
+          unzip -q /tmp/civ1contact/contact.zip -d /tmp/civ1contact/artifact
+          test "$(find /tmp/civ1contact/artifact/captures -name '*.png' | wc -l)" = 15
+      - name: Measure bone-local sole stability on contact frames
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_contact_sole_stability.py \
+            /tmp/civ1contact/artifact/evidence/contact-witness.json \
+            /tmp/civ1contact/artifact/captures \
+            /tmp/civ1contact/contact-sole-stability.json
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/civ1contact/contact-sole-stability.json'))
+          assert p['common_same_side_samples']==[118,119,1,2], p
+          assert p['longest_common_stable_window']==[118,119], p
+          assert p['minimum_stable_common_samples']==3, p
+          assert p['contact_sole_identity_stable'] is False, p
+          assert p['quantitative_foot_slide_candidate'] is False, p
+          assert p['planted_contact_claimed'] is False, p
+          assert p['animation_correction_authorized'] is False, p
+          assert p['runtime_authorized'] is False, p
+          print('CONTACT_SOLE_FAIL_CLOSED_OK',p['verdict'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-contact-sole-stability-${{ github.sha }}
+          path: /tmp/civ1contact/contact-sole-stability.json

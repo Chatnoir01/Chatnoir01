@@ -158,7 +158,12 @@ func _run()->void:
     marker.name="DiagnosticLeftFootLandmark"
     var marker_mesh:=SphereMesh.new(); marker_mesh.radius=MARKER_RADIUS_M; marker_mesh.height=MARKER_RADIUS_M*2.0
     marker.mesh=marker_mesh
-    var marker_mat:=StandardMaterial3D.new(); marker_mat.albedo_color=MARKER_COLOR; marker_mat.emission_enabled=true; marker_mat.emission=MARKER_COLOR; marker_mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED
+    var marker_mat:=StandardMaterial3D.new()
+    marker_mat.albedo_color=MARKER_COLOR
+    marker_mat.emission_enabled=true
+    marker_mat.emission=MARKER_COLOR
+    marker_mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED
+    marker_mat.no_depth_test=true
     marker.material_override=marker_mat
     world.add_child(marker)
     var camera:=Camera3D.new(); camera.fov=VERTICAL_FOV_DEG; world.add_child(camera); camera.current=true
@@ -188,6 +193,7 @@ func _run()->void:
         "landmark_semantic":"leftfoot_bone_pose_with_verified_same_skeleton_skin",
         "marker_color_rgb":[255,0,255],
         "marker_radius_m":MARKER_RADIUS_M,
+        "marker_no_depth_test":true,
         "source_scene":MAIN_SCENE_PATH,
         "source_ground_node":String(MAIN_GROUND_PATH),
         "resolution":[WIDTH,HEIGHT],

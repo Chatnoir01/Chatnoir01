@@ -1,0 +1,159 @@
+name: Grand Bruxelles Grand-Place Maison Winding A-B
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/grand_place_owner_identity_presentation.gd'
+      - 'grand-bruxelles-game/game/tests/grand_place_maison_du_roi_winding_ab.gd'
+      - 'grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json'
+      - 'grand-bruxelles-game/tools/qa/grand_place_source_winding_diagnostic.py'
+      - '.github/workflows/grand-bruxelles-grand-place-maison-winding-ab.yml'
+      - 'grand-bruxelles-game/tests/test_grand_place_maison_du_roi_winding_ab_contract.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maison-winding-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Run winding contract regressions
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-cache-dir pytest
+          python3 -m pytest -q tests/test_grand_place_maison_du_roi_winding_ab_contract.py
+      - name: Install runtime packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb unzip libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2
+      - name: Install official Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          install -m 0755 /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version | tee /tmp/maison-winding-godot-version.txt
+          grep -q '^4\.7\.1' /tmp/maison-winding-godot-version.txt
+      - name: Import exact project
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a godot --headless --rendering-method gl_compatibility --editor --path . --quit-after 1 2>&1 | tee /tmp/maison-winding-import.log
+      - name: Capture reversible same-camera cull-mode diagnostic
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/grand-place-maison-winding-ab
+          xvfb-run -a godot --rendering-method gl_compatibility --path . --script res://game/tests/grand_place_maison_du_roi_winding_ab.gd 2>&1 | tee /tmp/maison-winding-capture.log
+          grep -q 'GRAND_PLACE_MAISON_WINDING_AB_OK' /tmp/maison-winding-capture.log
+      - name: Capture exact UrbIS source winding diagnostic
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/qa/grand_place_source_winding_diagnostic.py \
+            --source data/urbis/grand_place_lod2/1654360.game.json \
+            --camera 319.01 1.72 -535.20 \
+            > artifacts/grand-place-maison-winding-ab/maison_du_roi_source_winding.json
+          test -s artifacts/grand-place-maison-winding-ab/maison_du_roi_source_winding.json
+      - name: Validate winding evidence fail-closed
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          root = Path('artifacts/grand-place-maison-winding-ab')
+          report_path = root / 'maison_du_roi_winding_ab.json'
+          source_winding_path = root / 'maison_du_roi_source_winding.json'
+          back = root / 'maison_du_roi_cull_back.png'
+          front = root / 'maison_du_roi_cull_front.png'
+          disabled = root / 'maison_du_roi_cull_disabled.png'
+          for path in (report_path, source_winding_path, back, front, disabled):
+              if not path.is_file(): raise SystemExit(f'missing winding diagnostic evidence: {path}')
+          def dims(path: Path):
+              blob = path.read_bytes()
+              if len(blob) < 24 or blob[:8] != b'\x89PNG\r\n\x1a\n' or blob[12:16] != b'IHDR': raise SystemExit(f'invalid PNG: {path}')
+              return struct.unpack('>II', blob[16:24])
+          for path in (back, front, disabled):
+              if dims(path) != (1280, 720): raise SystemExit(f'winding diagnostic must stay exact 1280x720: {path}')
+          if back.read_bytes() == front.read_bytes(): raise SystemExit('CULL_FRONT is byte-identical to production CULL_BACK; diagnostic is not informative')
+          if back.read_bytes() == disabled.read_bytes(): raise SystemExit('CULL_DISABLED is byte-identical to production CULL_BACK; diagnostic is not informative')
+          report = json.loads(report_path.read_text())
+          expected = {'schema':'grand-bruxelles-grand-place-maison-winding-ab-v2','owner_id':'1654360','resolution':[1280,720],'target_method':'source_bbox_cluster_center','production_default_cull_mode':'CULL_BACK','production_mitigation_authorized':False,'source_geometry_changed':False,'source_collision_changed':False,'human_review_required':True,'human_review_status':'pending'}
+          for key, value in expected.items():
+              if report.get(key) != value: raise SystemExit(f'winding diagnostic contract drifted for {key}: {report.get(key)!r}')
+          if report.get('state_a') != {'cull_mode':'CULL_BACK','png':'maison_du_roi_cull_back.png'}: raise SystemExit('state A drifted')
+          if report.get('state_b') != {'cull_mode':'CULL_FRONT','png':'maison_du_roi_cull_front.png'}: raise SystemExit('state B drifted')
+          if report.get('state_c') != {'cull_mode':'CULL_DISABLED','png':'maison_du_roi_cull_disabled.png'}: raise SystemExit('state C drifted')
+          for delta_key in ('delta_cull_front_vs_back','delta_cull_disabled_vs_back'):
+              delta = report.get(delta_key)
+              if not isinstance(delta, dict): raise SystemExit(f'missing pixel delta diagnostics: {delta_key}')
+              for key in ('changed_pixels_gt_0_001','changed_fraction_gt_0_001','mean_rgb_abs_delta','max_rgb_abs_delta'):
+                  if key not in delta: raise SystemExit(f'missing {delta_key} field: {key}')
+              if not (0.0 < float(delta['changed_fraction_gt_0_001']) <= 1.0): raise SystemExit(f'{delta_key} must prove a real non-zero visual effect')
+          source_winding = json.loads(source_winding_path.read_text())
+          source_expected = {
+              'schema':'grand-bruxelles-grand-place-source-winding-diagnostic-v1',
+              'owner_id':'1654360',
+              'camera_position':[319.01,1.72,-535.2],
+              'source_geometry_changed':False,
+              'source_collision_changed':False,
+          }
+          for key, value in source_expected.items():
+              if source_winding.get(key) != value: raise SystemExit(f'source winding contract drifted for {key}: {source_winding.get(key)!r}')
+          for key in ('wall_triangles','roof_triangles','wall_triangles_flipped_by_center_heuristic','roof_triangles_flipped_upward'):
+              if int(source_winding.get(key, 0)) <= 0: raise SystemExit(f'source winding diagnostic requires positive {key}')
+          for raw_key, runtime_key in (
+              ('raw_front_wall_area_ratio','runtime_oriented_front_wall_area_ratio'),
+              ('raw_front_roof_area_ratio','runtime_oriented_front_roof_area_ratio'),
+          ):
+              raw = float(source_winding.get(raw_key, -1.0))
+              runtime = float(source_winding.get(runtime_key, -1.0))
+              if not (0.0 <= raw <= 1.0 and 0.0 <= runtime <= 1.0): raise SystemExit(f'invalid source winding ratios: {raw_key}={raw} {runtime_key}={runtime}')
+              if not raw > runtime: raise SystemExit(f'known source/runtime winding discrepancy disappeared: {raw_key}={raw} {runtime_key}={runtime}')
+          print('GRAND_PLACE_MAISON_SOURCE_WINDING_OK owner=1654360 source_raw_front_gt_runtime_oriented=true geometry_changed=false collisions_changed=false')
+          print('GRAND_PLACE_MAISON_WINDING_AB_EVIDENCE_OK states=3 production_default=cull_back human_review=pending')
+          PY
+      - name: Bind A-B evidence hashes
+        working-directory: grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum maison_du_roi_cull_back.png maison_du_roi_cull_front.png maison_du_roi_cull_disabled.png maison_du_roi_winding_ab.json maison_du_roi_source_winding.json > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 5
+          sha256sum --check evidence-sha256.txt
+      - name: Stage logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
+          test ! -f /tmp/maison-winding-import.log || cp /tmp/maison-winding-import.log grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
+          test ! -f /tmp/maison-winding-capture.log || cp /tmp/maison-winding-capture.log grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
+      - name: Re-verify A-B evidence hashes before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
+          test -f evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 5
+          sha256sum --check evidence-sha256.txt
+      - name: Upload Maison du Roi winding A-B
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-maison-winding-ab
+          path: grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
+          if-no-files-found: error

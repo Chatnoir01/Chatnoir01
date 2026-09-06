@@ -1,0 +1,89 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-source-campaign-contract-v1",
+  "campaign_id": "region-lod2-C02-30000",
+  "production_base_sha": "aa7593d1b03dbc452db59194f6a94e4d984af454",
+  "target_owner_count": 30000,
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "dataset_id": "e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
+    "revision": "20260808",
+    "license": "CC0-1.0",
+    "crs": "EPSG:31370"
+  },
+  "planning_evidence": {
+    "planner_pr": 898,
+    "planner_run_id": 32269055058,
+    "planner_artifact_id": 9371456570,
+    "planner_artifact_sha256": "5c45f328f06bf951631c1f71fe4360b7f503c04a2da3bcbd2093d7a7fd5c4535"
+  },
+  "predecessor_campaign": {
+    "campaign_id": "region-lod2-C01-30000",
+    "owner_count": 30000,
+    "owner_sequence_sha256": "19acf5707d4daba092a41c20ca780e337d06ee4648813fb2f259cc7f77c004f6",
+    "municipality_counts": {
+      "Anderlecht": 22143,
+      "Bruxelles": 7857
+    }
+  },
+  "selection_policy": {
+    "source": "locked planner source_batches.csv + missing_owner_assignments.csv",
+    "predecessor_reconstruction": "rebuild C01 exactly from its locked planner policy and require its owner digest before excluding it",
+    "order": [
+      "all remaining single-distribution planner-assigned Bruxelles owners in planner batch order after excluding C01 and already-persisted Grand-Place IDs",
+      "then planner-assigned Uccle owners in planner batch order until campaign count reaches 30000"
+    ],
+    "c01_already_registered_anderlecht_batches": [
+      "anderlecht-E145500_N169000-B01",
+      "anderlecht-E145500_N169000-B02",
+      "anderlecht-E145500_N169000-B03"
+    ],
+    "bruxelles_already_persisted_grand_place_ids": [
+      "1601883",
+      "1601884",
+      "1608847",
+      "1608851",
+      "1611166",
+      "1613517",
+      "1635455",
+      "1635485",
+      "1637695",
+      "1637729",
+      "1639985",
+      "1643344",
+      "1645578",
+      "1645580",
+      "1646728",
+      "1647834",
+      "1647943",
+      "1649069",
+      "1653185",
+      "1661439",
+      "1781508"
+    ],
+    "skip_multi_distribution_owner": true,
+    "final_selection_is_immutable_in_manifest": true
+  },
+  "expected": {
+    "owner_count": 30000,
+    "municipality_counts": {
+      "Bruxelles": 17060,
+      "Uccle": 12940
+    },
+    "distribution_count": 62,
+    "cell_count": 168,
+    "planner_group_count": 240,
+    "owner_sequence_sha256": "c1e3cd3451943f0b597030d582ca4f2677d1733fe51869edcc68dc77bf66060e"
+  },
+  "hard_rules": {
+    "source_registration_only": true,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "materialization_authorized": false,
+    "geometry_modified": false,
+    "semantic_names_authorized": false,
+    "game_world_transform_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

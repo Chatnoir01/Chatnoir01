@@ -57,7 +57,17 @@ for mutation in (
         raise AssertionError(f"fail-open mutation escaped: {mutation}")
 
 source = TOOL.read_text()
-for forbidden in ("bottom_percent", "near_white", "camera", "viewport", "WEIGHT_THRESHOLD"):
+# Guard actual rescue mechanisms, not harmless provenance/receipt field names.
+for forbidden in (
+    "bottom_percent",
+    "near_white",
+    "camera_position",
+    "camera_fov",
+    "viewport_size",
+    "viewport_width",
+    "viewport_height",
+    "WEIGHT_THRESHOLD",
+):
     assert forbidden not in source, forbidden
 assert '"weight_cutoff_used": False' in source
 assert '"raster_or_camera_heuristic_used": False' in source

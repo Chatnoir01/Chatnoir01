@@ -1,0 +1,58 @@
+name: Grand Bruxelles Grand-Place Official LoD2 Contour
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/**"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_contour_runtime.gd"
+      - "grand-bruxelles-game/tests/test_grand_place_official_lod2_contour_contract.py"
+      - ".github/workflows/grand-bruxelles-grand-place-official-contour.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-official-contour-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  official-contour-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prove complete official Grand-Place contour contract
+        id: contour_contract
+        shell: bash
+        run: |
+          set +e
+          python grand-bruxelles-game/tests/test_grand_place_official_lod2_contour_contract.py 2>&1 | tee grand-place-official-contour-contract.log
+          status=${PIPESTATUS[0]}
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload exact-head contour contract diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-official-contour-contract-${{ github.event.pull_request.head.sha || github.sha }}
+          path: grand-place-official-contour-contract.log
+          if-no-files-found: error
+          retention-days: 14
+      - name: Enforce contour contract fail-closed
+        shell: bash
+        run: test "${{ steps.contour_contract.outputs.status }}" = "0"

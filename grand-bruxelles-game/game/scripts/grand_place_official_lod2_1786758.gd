@@ -15,6 +15,7 @@ var _masked_visibility: Array[bool] = []
 var _official_collision_bodies: Array[CollisionObject3D] = []
 var _official_visible := true
 var _built := false
+var _osm_watch_connected := false
 var _wall_instance: MeshInstance3D
 var _neutral_wall_material: StandardMaterial3D
 var _white_stone_wall_material: StandardMaterial3D
@@ -22,6 +23,14 @@ var _white_stone_enabled := true
 
 func _ready() -> void:
     call_deferred("_build_when_scene_ready")
+
+func _exit_tree() -> void:
+    if not _osm_watch_connected:
+        return
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_tree_node_added):
+        tree.node_added.disconnect(_on_tree_node_added)
+    _osm_watch_connected = false
 
 func _build_when_scene_ready() -> void:
     for _frame: int in range(8):
@@ -37,6 +46,7 @@ func _build_when_scene_ready() -> void:
     var faces: Array = data.get("faces", [])
     source_bounds = _horizontal_bounds(faces)
     source_height_m = float((data.get("evidence", {}) as Dictionary).get("height_m", 0.0))
+    _ensure_late_osm_watch()
     _mask_replaced_osm(source_bounds)
     _build_geometry(faces)
     if _wall_instance == null or _neutral_wall_material == null or _white_stone_wall_material == null:
@@ -53,6 +63,7 @@ func _build_when_scene_ready() -> void:
     set_meta("white_stone_coarse_lod2_identity", true)
     set_meta("blue_stone_details_authored", false)
     set_meta("official_collision_completed", not _official_collision_bodies.is_empty())
+    set_meta("late_osm_mask_watch", true)
     print("GRAND_PLACE_LOD2_1786758_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true collision_bodies=%d" % [render_triangle_count, masked_osm_count, source_height_m, _official_collision_bodies.size()])
 
 func _read_geometry() -> Dictionary:
@@ -117,25 +128,65 @@ func _horizontal_bounds(faces: Array) -> Rect2:
                     hi.x = maxf(hi.x, xz.x); hi.y = maxf(hi.y, xz.y)
     return Rect2(lo, hi - lo) if initialized else Rect2()
 
+func _ensure_late_osm_watch() -> void:
+    if _osm_watch_connected:
+        return
+    var tree := get_tree()
+    if tree == null:
+        return
+    tree.node_added.connect(_on_tree_node_added)
+    _osm_watch_connected = true
+
+func _on_tree_node_added(node: Node) -> void:
+    if source_bounds.size.length_squared() <= 0.001:
+        return
+    call_deferred("_mask_late_osm_node", node)
+
+func _mask_late_osm_node(node: Node) -> void:
+    if not is_instance_valid(node) or not node.is_inside_tree():
+        return
+    var main := get_tree().current_scene
+    var buildings := main.get_node_or_null("BrusselsOSM/GeneratedBuildings") if main != null else null
+    if buildings == null:
+        return
+    if node == buildings:
+        _mask_replaced_osm(source_bounds)
+        return
+    if not buildings.is_ancestor_of(node):
+        return
+    if node is Node3D:
+        _mask_osm_node(node as Node3D, source_bounds.grow(3.0))
+
 func _mask_replaced_osm(bounds: Rect2) -> void:
     var main := get_tree().current_scene
     var buildings := main.get_node_or_null("BrusselsOSM/GeneratedBuildings") if main != null else null
     if buildings == null or bounds.size.length_squared() <= 0.001:
         return
-    var expanded := bounds.grow(3.0)
-    for child: Node in buildings.get_children():
-        if not child is Node3D:
-            continue
-        var node := child as Node3D
-        if not expanded.has_point(Vector2(node.global_position.x, node.global_position.z)):
-            continue
-        _masked_nodes.append(node)
-        _masked_visibility.append(node.visible)
+    _mask_osm_subtree(buildings, bounds.grow(3.0))
+
+func _mask_osm_subtree(root: Node, expanded: Rect2) -> void:
+    for child: Node in root.get_children():
+        if child is Node3D:
+            _mask_osm_node(child as Node3D, expanded)
+        _mask_osm_subtree(child, expanded)
+
+func _mask_osm_node(node: Node3D, expanded: Rect2) -> void:
+    if not expanded.has_point(Vector2(node.global_position.x, node.global_position.z)):
+        return
+    if _masked_nodes.has(node):
+        if _official_visible:
+            node.visible = false
+            if node is CSGShape3D:
+                (node as CSGShape3D).use_collision = false
+        return
+    _masked_nodes.append(node)
+    _masked_visibility.append(node.visible)
+    node.set_meta("replaced_by_urbis_building", "1786758")
+    if _official_visible:
         node.visible = false
-        node.set_meta("replaced_by_urbis_building", "1786758")
         if node is CSGShape3D:
             (node as CSGShape3D).use_collision = false
-        masked_osm_count += 1
+    masked_osm_count += 1
 
 func _materials() -> Dictionary:
     # Neutral baseline retained only for deterministic A/B. Runtime defaults to

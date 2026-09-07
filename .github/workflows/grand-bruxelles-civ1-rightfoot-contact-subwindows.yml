@@ -1,0 +1,79 @@
+name: Grand Bruxelles CIV-1 RightFoot Contact Subwindows
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/analyze_civ1_rightfoot_contact_subwindows.py'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_contact_subwindows.py'
+      - '.github/workflows/grand-bruxelles-civ1-rightfoot-contact-subwindows.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  rightfoot-contact-subwindows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Causal regression
+        run: python grand-bruxelles-game/tests/test_civ1_rightfoot_contact_subwindows.py
+      - name: Consume immutable GREEN local-sole receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1sub/{source,out}
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/10001144196/zip" \
+            -o /tmp/civ1sub/source.zip
+          echo '9cf43ff46c3eb18c0dfd2788884b93741b778f157e8360faa9a7f98b9c0bfeae  /tmp/civ1sub/source.zip' | sha256sum -c -
+          unzip -q /tmp/civ1sub/source.zip -d /tmp/civ1sub/source
+          test -f /tmp/civ1sub/source/out/rightfoot-contact-local-sole.json
+          printf '%s\n' \
+            '10001144196 immutable exact-head RightFoot 12-raster + local-sole classification' \
+            'sha256:9cf43ff46c3eb18c0dfd2788884b93741b778f157e8360faa9a7f98b9c0bfeae' \
+            > /tmp/civ1sub/out/artifact-pin.txt
+      - name: Prove no eligible contiguous three-sample window
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_rightfoot_contact_subwindows.py \
+            /tmp/civ1sub/source/out/rightfoot-contact-local-sole.json \
+            /tmp/civ1sub/out/rightfoot-contact-subwindows.json \
+            | tee /tmp/civ1sub/out/rightfoot-contact-subwindows.log
+          grep -F CIV1_RIGHTFOOT_CONTACT_SUBWINDOW_CLASSIFIED /tmp/civ1sub/out/rightfoot-contact-subwindows.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1sub/out/rightfoot-contact-subwindows.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-rightfoot-contact-subwindows-v1'
+          assert r['source_samples']==[68,69,70,71]
+          assert r['minimum_eligible_samples']==3
+          assert [w['samples'] for w in r['windows']]==[[68,69,70],[69,70,71]]
+          assert all(w['passed'] is False for w in r['windows'])
+          assert r['eligible_windows']==[]
+          assert r['rightfoot_contact_phase_ready'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          assert r['verdict']=='JETER_RIGHTFOOT_NO_STABLE_THREE_SAMPLE_CONTACT_SUBWINDOW'
+          print('CIV1_RIGHTFOOT_NO_THREE_SAMPLE_CONTACT_WINDOW_RECEIPT_OK', [(w['samples'],w['distance_mean_relative_spread'],w['max_within_distance_relative_deviation']) for w in r['windows']])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-rightfoot-contact-subwindows-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1sub/out
+          if-no-files-found: error
+          retention-days: 90

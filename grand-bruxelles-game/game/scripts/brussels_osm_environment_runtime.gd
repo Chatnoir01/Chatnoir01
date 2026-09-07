@@ -265,11 +265,10 @@ func _prune_invalid_owned_batches() -> void:
 
 func _set_batches_visible(enabled: bool) -> void:
     _prune_invalid_owned_batches()
-    if _batches_visible == enabled:
-        return
     _batches_visible = enabled
     for batch: MultiMeshInstance3D in _owned_batches:
-        batch.visible = enabled
+        if batch.visible != enabled:
+            batch.visible = enabled
 
 func _tree_lod_boundary_crossed(anchor: Vector3) -> bool:
     if _rendered_trees.is_empty() or _last_tree_lod_anchor == Vector3(INF, INF, INF):

@@ -19,8 +19,9 @@ func _initialize() -> void:
         push_error("CIV1_SKINNED_REPLAY_FAIL:toe-pose"); quit(5); return
     if int(bind_basis.get("selection_vertex_count", -1)) != REQUIRED_VERTEX_COUNT or not bool(bind_basis.get("bind_space_complete", false)):
         push_error("CIV1_SKINNED_REPLAY_FAIL:bind-completeness"); quit(6); return
-    if toe_pose.get("sample_indices", []) != TARGET_SAMPLES or not bool(toe_pose.get("pose_coverage_ready", false)):
-        push_error("CIV1_SKINNED_REPLAY_FAIL:pose-coverage"); quit(7); return
+    var toe_sample_indices: Variant = toe_pose.get("sample_indices", [])
+    if not _sample_indices_match(toe_sample_indices) or not bool(toe_pose.get("pose_coverage_ready", false)):
+        push_error("CIV1_SKINNED_REPLAY_FAIL:pose-coverage samples=%s ready=%s" % [str(toe_sample_indices), str(toe_pose.get("pose_coverage_ready", null))]); quit(7); return
 
     var frames: Array = skeleton_bundle.get("frames", [])
     if frames.size() != 120:
@@ -110,6 +111,14 @@ func _initialize() -> void:
         push_error("CIV1_SKINNED_REPLAY_FAIL:insufficient-stable-samples"); quit(13); return
     print("CIV1_SKINNED_REPLAY_OK vertices=", REQUIRED_VERTEX_COUNT, " stable_samples=", stable_replay_sample_count)
     quit(0)
+
+func _sample_indices_match(value: Variant) -> bool:
+    if not value is Array or value.size() != TARGET_SAMPLES.size():
+        return false
+    for i in TARGET_SAMPLES.size():
+        if int(value[i]) != int(TARGET_SAMPLES[i]):
+            return false
+    return true
 
 func _posed_bone_transform(bone_name: String, poses: Dictionary, toe_row: Dictionary) -> Transform3D:
     if bone_name == "mixamorig_RightToeBase":

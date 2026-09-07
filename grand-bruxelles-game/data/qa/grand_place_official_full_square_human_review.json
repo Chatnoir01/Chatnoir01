@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "reviewed_head_sha": "a8cb4c88222b5c3cc393afff56e37382b27251fa",
+  "workflow_run_id": 34149546866,
+  "artifact_id": 10028898028,
+  "artifact_digest": "sha256:e6c6999b3e000888a0d1b269e6ff3a402d3c31c6cbf6c8c855a0b89a8c440632",
+  "artifact_name": "grand-place-official-full-square-multiview-a8cb4c88222b5c3cc393afff56e37382b27251fa",
+  "manifest_sha256": "0458ee478d6ff9d129000f76b69d9f74118eb9ec4065c8cfa8c536cc4009e655",
+  "resolution": [1280, 720],
+  "full_frame_inspected": true,
+  "view_sha256": {
+    "canonical": "48378427ef734be7c93619cf6a4e553d3911b031bcf55388090a34d748091167",
+    "north_east": "b0f490d104ee05a042b4881507f59f0457626fbdb6ca8fa61c10bfa2f0c45251",
+    "north_west": "e3de27f79c9f5692ce0268c84d486a966a16778fbac2c7f6f65bdacf5d54b3df",
+    "south_east": "4a85def9cecc03413597f69b1994e64742f490e111715ae4061553a4a392e579",
+    "south_west": "c7ab9543e915e279c59c916b71592c1b0ba50a30c4aca05b49c44042051e52ea"
+  },
+  "view_verdicts": {
+    "canonical": "KEEP",
+    "north_east": "REJECT",
+    "north_west": "KEEP",
+    "south_east": "KEEP",
+    "south_west": "KEEP"
+  },
+  "overall_verdict": "REJECT",
+  "visual_acceptance": false,
+  "jouable_authorized": false,
+  "review_note": "North-east exposes a large close-range rear/internal open structure that materially occludes the player-eye view; preserve the reject until source-backed facade/culling ownership changes the rendered evidence."
+}

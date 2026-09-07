@@ -1,0 +1,50 @@
+name: Grand Bruxelles Grand-Place Full-Square Human Review Provenance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-full-square-human-review.yml"
+      - "grand-bruxelles-game/tools/qa/validate_grand_place_full_square_human_review.py"
+      - "grand-bruxelles-game/data/qa/grand_place_official_full_square_human_review.json"
+      - "grand-bruxelles-game/game/tests/grand_place_official_full_square_multiview_witness_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-full-square-human-review-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  human-review-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$MAIN_SHA")" = "$MAIN_SHA"
+      - name: Validate persisted fail-closed human rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPT=grand-bruxelles-game/data/qa/grand_place_official_full_square_human_review.json
+          python grand-bruxelles-game/tools/qa/validate_grand_place_full_square_human_review.py "$RECEIPT"
+          REVIEWED_HEAD="$(python -c 'import json; print(json.load(open("grand-bruxelles-game/data/qa/grand_place_official_full_square_human_review.json", encoding="utf-8"))["reviewed_head_sha"])')"
+          CURRENT_HEAD="$(git rev-parse HEAD)"
+          OVERALL="$(python -c 'import json; print(json.load(open("grand-bruxelles-game/data/qa/grand_place_official_full_square_human_review.json", encoding="utf-8"))["overall_verdict"])')"
+          VISUAL="$(python -c 'import json; print(str(json.load(open("grand-bruxelles-game/data/qa/grand_place_official_full_square_human_review.json", encoding="utf-8"))["visual_acceptance"]).lower())')"
+          JOUABLE="$(python -c 'import json; print(str(json.load(open("grand-bruxelles-game/data/qa/grand_place_official_full_square_human_review.json", encoding="utf-8"))["jouable_authorized"]).lower())')"
+          test "$OVERALL" = "REJECT"
+          test "$VISUAL" = "false"
+          test "$JOUABLE" = "false"
+          echo "GRAND_PLACE_FULL_SQUARE_HUMAN_REVIEW_REJECT_CARRY_FORWARD_OK reviewed_head=$REVIEWED_HEAD current_head=$CURRENT_HEAD historical_reject_only=true visual_acceptance=false jouable_authorized=false"

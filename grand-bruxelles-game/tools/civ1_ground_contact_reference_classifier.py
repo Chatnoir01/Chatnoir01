@@ -89,7 +89,7 @@ def main() -> int:
             "fixed_length_receipt_grounding_verified_is_false",
             "landmark_receipt_planted_contact_claimed_is_false",
         ],
-        "next_required_evidence": "capture exact replay samples [68,69,70,71] against the real Ground support collider/plane in the loaded scene, preserving 1280x720 player-view provenance, then derive contact-relative displacement without percentile/camera/viewport rescue",
+        "next_required_evidence": "capture exact replay samples [68,69,70,71] against the real Ground support collider/plane in the loaded scene, preserving 1280x720 player-view provenance, then derive contact-relative displacement without heuristic rescue",
     }
     output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
 

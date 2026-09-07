@@ -311,6 +311,7 @@ def build_catalog(registry: dict[str, Any], evidence: dict[str, Any]) -> dict[st
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
+    seen_relations: set[int] = set()
     for registry_row in municipalities:
         if not isinstance(registry_row, dict) or set(registry_row) != REGISTRY_ROW_KEYS:
             raise SystemExit("DESTINATION_FACTORY_CATALOG_FAIL: registry municipality schema drift")
@@ -319,6 +320,10 @@ def build_catalog(registry: dict[str, Any], evidence: dict[str, Any]) -> dict[st
         if not isinstance(nis, str) or nis in seen:
             raise SystemExit("DESTINATION_FACTORY_CATALOG_FAIL: duplicate/invalid registry NIS")
         seen.add(nis)
+        relation_id = registry_row["osm_relation_id"]
+        if relation_id in seen_relations:
+            raise SystemExit(f"DESTINATION_FACTORY_CATALOG_FAIL: duplicate OSM relation {relation_id}")
+        seen_relations.add(relation_id)
         source_row = locked_by_nis.get(nis) or unresolved_by_nis.get(nis)
         if source_row is None:
             raise SystemExit(f"DESTINATION_FACTORY_CATALOG_FAIL: missing evidence for {nis}")

@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 p = Path(__file__).parents[1] / "tools" / "godot_civ1_righttoebase_pose_probe.gd"
 s = p.read_text()
@@ -33,7 +34,10 @@ for forbidden in (
     assert forbidden not in s, forbidden
 
 # Never synthesize a rigid toe by copying the validated RightFoot transform unchanged.
-assert 'corrected_toe := corrected_foot' not in s
+# Match a complete assignment line only; do not reject the required composition
+# `corrected_foot * source_relative` merely because it shares the same prefix.
+assert re.search(r'^\s*var\s+corrected_toe\s*:=\s*corrected_foot\s*$', s, re.MULTILINE) is None
+assert 'var corrected_toe := corrected_foot * source_relative' in s
 assert 'source_relative := source_foot.affine_inverse() * source_toe' in s
 # The input bundle must remain the validated 120-frame reconstruction and must not
 # already contain RightToeBase; this gate is specifically adding that missing coverage.

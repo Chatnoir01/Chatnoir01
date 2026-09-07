@@ -26,17 +26,18 @@ assert "if not is_instance_valid(batch):" in foliage_clear, "tree foliage teardo
 assert "if batch.get_parent() != self:" in foliage_clear, "tree foliage teardown must reject foreign/reparented batches"
 foliage_invalid_guard = foliage_clear.index("if not is_instance_valid(batch):")
 foliage_guard = foliage_clear.index("if batch.get_parent() != self:")
-foliage_name_gate = foliage_clear.index('if not batch.name.begins_with("TreeFoliage"):')
 foliage_queue_free = foliage_clear.index("batch.queue_free()")
-assert foliage_invalid_guard < foliage_name_gate, "invalid ownership must be rejected before TreeFoliage name classification"
-assert foliage_guard < foliage_name_gate, "parent ownership must be rejected before name classification so a foreign renamed batch cannot remain locally owned"
+assert foliage_invalid_guard < foliage_queue_free, "invalid ownership must be rejected before destructive foliage teardown"
 assert foliage_guard < foliage_queue_free, "tree foliage ownership guard must run before queue_free"
 assert "_owned_batches.remove_at(index)" in foliage_clear[foliage_guard:foliage_queue_free], "foreign foliage refs must be dropped from local ownership before destructive work"
 assert "continue" in foliage_clear[foliage_guard:foliage_queue_free], "foreign foliage batches must be skipped rather than freed"
+assert 'batch.get_meta("osm_environment_batch_role", "")' in foliage_clear, "foliage teardown must classify owned batches by immutable runtime role metadata rather than mutable node names"
+assert 'batch.name.begins_with("TreeFoliage")' not in foliage_clear, "mutable node names must not decide whether an owned foliage batch is cleared"
 
 batch = source[source.index("func _batch("):source.index("func _ensure_tree_presentation_meshes")]
 assert "_prune_invalid_owned_batches()" in batch, "reuse lookup must prune dead or detached owned batches before matching by name"
 assert batch.index("_prune_invalid_owned_batches()") < batch.index("if reuse_existing:"), "prune must happen before reuse lookup"
+assert 'instance.set_meta("osm_environment_batch_role", name_value)' in batch, "every created/reused batch must retain a stable runtime role independent of mutable node name"
 
 clear = source[source.index("func _clear_owned_batches() -> void:"):source.index("func _rebuild(")]
 assert "if batch.get_parent() != self:" in clear, "teardown must reject foreign/reparented batches before destructive operations"

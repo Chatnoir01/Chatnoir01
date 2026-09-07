@@ -9,89 +9,97 @@ func _initialize() -> void:
         out_path = args[0]
     var packed := load("res://civ1_body.glb") as PackedScene
     if packed == null:
-        push_error("CIV1_RIGHTFOOT_SKIN_INFLUENCE_FAIL: load")
+        push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: load")
         quit(2); return
     var root := packed.instantiate()
     get_root().add_child(root)
     await process_frame
     var skeleton := _find_skeleton(root)
     if skeleton == null:
-        push_error("CIV1_RIGHTFOOT_SKIN_INFLUENCE_FAIL: skeleton")
+        push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: skeleton")
         quit(3); return
     var target_bone := skeleton.find_bone(TARGET_BONE)
     if target_bone < 0:
-        push_error("CIV1_RIGHTFOOT_SKIN_INFLUENCE_FAIL: rightfoot-bone")
+        push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: rightfoot-bone")
         quit(4); return
 
-    var influenced: Array = []
-    var dominant: Array = []
+    var census := {}
+    var target_vertices: Array = []
     var mesh_keys := {}
     var surface_keys := {}
-    _collect_meshes(root, skeleton, target_bone, influenced, dominant, mesh_keys, surface_keys)
+    var invalid_bind_slots := 0
+    var positive_slots := 0
+    _collect_meshes(root, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, invalid_bind_slots, positive_slots)
 
-    var weights: Array[float] = []
-    var competitor_counts := {}
-    var min_y := INF
-    var max_y := -INF
-    for item in influenced:
-        var w := float(item["rightfoot_weight"])
-        weights.append(w)
-        var competitor := str(item["dominant_bone"])
-        competitor_counts[competitor] = int(competitor_counts.get(competitor, 0)) + 1
-        var y := float(item["vertex_position"][1])
-        min_y = min(min_y, y)
-        max_y = max(max_y, y)
-    weights.sort()
+    var bones: Array = []
+    var right_side_bones: Array = []
+    for bone_index in range(skeleton.get_bone_count()):
+        var name := str(skeleton.get_bone_name(bone_index))
+        var entry: Dictionary = census.get(name, {})
+        var record := {
+            "bone_index": bone_index,
+            "bone_name": name,
+            "positive_vertex_count": int(entry.get("positive_vertex_count", 0)),
+            "positive_slot_count": int(entry.get("positive_slot_count", 0)),
+            "total_stored_weight": float(entry.get("total_stored_weight", 0.0)),
+            "dominant_vertex_count": int(entry.get("dominant_vertex_count", 0)),
+            "local_y_min": entry.get("local_y_min", null),
+            "local_y_max": entry.get("local_y_max", null)
+        }
+        bones.append(record)
+        if "Right" in name and record["positive_vertex_count"] > 0:
+            right_side_bones.append(record)
 
+    right_side_bones.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+        if a["positive_vertex_count"] == b["positive_vertex_count"]:
+            return str(a["bone_name"]) < str(b["bone_name"])
+        return int(a["positive_vertex_count"]) > int(b["positive_vertex_count"])
+    )
+
+    var target_record: Dictionary = bones[target_bone]
     var report := {
-        "schema": "grand-bruxelles-civ1-rightfoot-skin-influence-characterization-v2",
+        "schema": "grand-bruxelles-civ1-skin-influence-census-v3",
         "diagnostic_only": true,
-        "selection_semantic": "all_vertices_with_stored_nonzero_mixamorig_RightFoot_skin_influence",
+        "selection_semantic": "all_stored_positive_skin_influences_resolved_through_skin_bind_to_skeleton_bone",
         "threshold_tuned": false,
-        "presence_rule": "stored_rightfoot_weight_greater_than_zero_only",
+        "presence_rule": "stored_weight_greater_than_zero_only",
+        "bind_mapping_rule": "mesh_ARRAY_BONES_is_skin_bind_index_then_skin_get_bind_bone_maps_to_skeleton_index",
         "target_bone": TARGET_BONE,
         "target_bone_index": target_bone,
         "skeleton_bone_count": skeleton.get_bone_count(),
         "skinned_mesh_count": mesh_keys.size(),
         "surface_count": surface_keys.size(),
-        "rightfoot_influenced_vertex_count": influenced.size(),
-        "dominant_rightfoot_vertex_count": dominant.size(),
-        "dominant_rightfoot_semantic_valid": not dominant.is_empty(),
-        "influenced_local_y_min": min_y if not influenced.is_empty() else null,
-        "influenced_local_y_max": max_y if not influenced.is_empty() else null,
-        "rightfoot_weight_min": weights[0] if not weights.is_empty() else null,
-        "rightfoot_weight_max": weights[weights.size() - 1] if not weights.is_empty() else null,
-        "rightfoot_weight_median": _median(weights),
-        "dominant_bone_counts_within_rightfoot_influenced_set": competitor_counts,
-        "vertices": influenced,
+        "positive_weight_slot_count": positive_slots,
+        "invalid_positive_bind_slot_count": invalid_bind_slots,
+        "target_rightfoot_positive_vertex_count": int(target_record["positive_vertex_count"]),
+        "target_rightfoot_dominant_vertex_count": int(target_record["dominant_vertex_count"]),
+        "target_rightfoot_semantic_valid": int(target_record["positive_vertex_count"]) > 0,
+        "right_side_positive_bones": right_side_bones,
+        "bone_influence_census": bones,
+        "target_vertices": target_vertices,
         "contact_phase_ready": false,
         "quantitative_foot_slide_candidate": false,
         "animation_correction_authorized": false,
         "runtime_authorized": false,
         "visual_approval_claimed": false,
         "player_view_claimed": false,
-        "next_selection_authorized": not influenced.is_empty()
+        "next_selection_authorized": false
     }
     var f := FileAccess.open(out_path, FileAccess.WRITE)
     if f == null:
-        push_error("CIV1_RIGHTFOOT_SKIN_INFLUENCE_FAIL: output")
+        push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: output")
         quit(6); return
     f.store_string(JSON.stringify(report, "  "))
     f.close()
 
-    if influenced.is_empty():
-        push_error("CIV1_RIGHTFOOT_SKIN_INFLUENCE_FAIL: no-nonzero-rightfoot-influence")
+    if positive_slots <= 0:
+        push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: no-positive-skin-weights")
         quit(7); return
-    print("CIV1_RIGHTFOOT_SKIN_INFLUENCE_OK influenced=", influenced.size(), " dominant=", dominant.size(), " meshes=", mesh_keys.size(), " surfaces=", surface_keys.size())
+    if right_side_bones.is_empty():
+        push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: no-positive-right-side-bones")
+        quit(8); return
+    print("CIV1_SKIN_INFLUENCE_CENSUS_OK rightfoot=", target_record["positive_vertex_count"], " right_side_bones=", right_side_bones.size(), " positive_slots=", positive_slots)
     quit(0)
-
-func _median(values: Array[float]):
-    if values.is_empty():
-        return null
-    var n := values.size()
-    if n % 2 == 1:
-        return values[n / 2]
-    return (values[n / 2 - 1] + values[n / 2]) * 0.5
 
 func _find_skeleton(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
@@ -102,65 +110,82 @@ func _find_skeleton(node: Node) -> Skeleton3D:
             return found
     return null
 
-func _collect_meshes(node: Node, skeleton: Skeleton3D, target_bone: int, influenced: Array, dominant: Array, mesh_keys: Dictionary, surface_keys: Dictionary) -> void:
+func _collect_meshes(node: Node, skeleton: Skeleton3D, target_bone: int, census: Dictionary, target_vertices: Array, mesh_keys: Dictionary, surface_keys: Dictionary, invalid_bind_slots: int, positive_slots: int) -> void:
     if node is MeshInstance3D:
         var mi := node as MeshInstance3D
         if mi.mesh != null and mi.skin != null:
-            _collect_mesh(mi, skeleton, target_bone, influenced, dominant, mesh_keys, surface_keys)
+            var counters := {"invalid": invalid_bind_slots, "positive": positive_slots}
+            _collect_mesh(mi, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, counters)
+            invalid_bind_slots = int(counters["invalid"])
+            positive_slots = int(counters["positive"])
     for child in node.get_children():
-        _collect_meshes(child, skeleton, target_bone, influenced, dominant, mesh_keys, surface_keys)
+        _collect_meshes(child, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, invalid_bind_slots, positive_slots)
 
-func _collect_mesh(mi: MeshInstance3D, skeleton: Skeleton3D, target_bone: int, influenced: Array, dominant: Array, mesh_keys: Dictionary, surface_keys: Dictionary) -> void:
+func _collect_mesh(mi: MeshInstance3D, skeleton: Skeleton3D, target_bone: int, census: Dictionary, target_vertices: Array, mesh_keys: Dictionary, surface_keys: Dictionary, counters: Dictionary) -> void:
     var skin := mi.skin
     for surface in range(mi.mesh.get_surface_count()):
         var arrays := mi.mesh.surface_get_arrays(surface)
         var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-        var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
-        var raw_weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
-        if vertices.is_empty() or bones.is_empty() or raw_weights.is_empty():
+        var binds: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+        var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+        if vertices.is_empty() or binds.is_empty() or weights.is_empty():
             continue
-        if bones.size() % vertices.size() != 0 or raw_weights.size() != bones.size():
+        if binds.size() % vertices.size() != 0 or weights.size() != binds.size():
             continue
         mesh_keys[str(mi.get_path())] = true
         surface_keys[str(mi.get_path(), ":", surface)] = true
-        var influence_slots := int(bones.size() / vertices.size())
+        var slots := int(binds.size() / vertices.size())
         for vi in range(vertices.size()):
             var strongest_weight := -1.0
-            var strongest_bind := -1
-            var rightfoot_weight := 0.0
-            var rightfoot_bind := -1
-            for slot in range(influence_slots):
-                var idx := vi * influence_slots + slot
-                var w := float(raw_weights[idx])
-                var bind := int(bones[idx])
+            var strongest_bone := -1
+            var per_vertex := {}
+            for slot in range(slots):
+                var idx := vi * slots + slot
+                var w := float(weights[idx])
+                if w <= 0.0:
+                    continue
+                counters["positive"] = int(counters["positive"]) + 1
+                var bind := int(binds[idx])
+                if bind < 0 or bind >= skin.get_bind_count():
+                    counters["invalid"] = int(counters["invalid"]) + 1
+                    continue
+                var bone_index := skin.get_bind_bone(bind)
+                if bone_index < 0 or bone_index >= skeleton.get_bone_count():
+                    counters["invalid"] = int(counters["invalid"]) + 1
+                    continue
+                per_vertex[bone_index] = float(per_vertex.get(bone_index, 0.0)) + w
                 if w > strongest_weight:
                     strongest_weight = w
-                    strongest_bind = bind
-                if bind >= 0 and bind < skin.get_bind_count() and skin.get_bind_bone(bind) == target_bone and w > 0.0:
-                    rightfoot_weight += w
-                    if rightfoot_bind < 0:
-                        rightfoot_bind = bind
-            if rightfoot_weight <= 0.0:
-                continue
-            var dominant_bone_index := -1
-            var dominant_bone_name := "<invalid-bind>"
-            if strongest_bind >= 0 and strongest_bind < skin.get_bind_count():
-                dominant_bone_index = skin.get_bind_bone(strongest_bind)
-                if dominant_bone_index >= 0 and dominant_bone_index < skeleton.get_bone_count():
-                    dominant_bone_name = skeleton.get_bone_name(dominant_bone_index)
+                    strongest_bone = bone_index
             var p := vertices[vi]
-            var item := {
-                "mesh_path": str(mi.get_path()),
-                "surface": surface,
-                "vertex": vi,
-                "rightfoot_bind": rightfoot_bind,
-                "rightfoot_weight": rightfoot_weight,
-                "dominant_bind": strongest_bind,
-                "dominant_bone_index": dominant_bone_index,
-                "dominant_bone": dominant_bone_name,
-                "dominant_weight": strongest_weight,
-                "vertex_position": [p.x, p.y, p.z]
-            }
-            influenced.append(item)
-            if dominant_bone_index == target_bone:
-                dominant.append(item)
+            for bone_index in per_vertex.keys():
+                var bone_name := str(skeleton.get_bone_name(int(bone_index)))
+                var entry: Dictionary = census.get(bone_name, {
+                    "positive_vertex_count": 0,
+                    "positive_slot_count": 0,
+                    "total_stored_weight": 0.0,
+                    "dominant_vertex_count": 0,
+                    "local_y_min": null,
+                    "local_y_max": null
+                })
+                entry["positive_vertex_count"] = int(entry["positive_vertex_count"]) + 1
+                entry["positive_slot_count"] = int(entry["positive_slot_count"]) + 1
+                entry["total_stored_weight"] = float(entry["total_stored_weight"]) + float(per_vertex[bone_index])
+                if strongest_bone == int(bone_index):
+                    entry["dominant_vertex_count"] = int(entry["dominant_vertex_count"]) + 1
+                if entry["local_y_min"] == null or p.y < float(entry["local_y_min"]):
+                    entry["local_y_min"] = p.y
+                if entry["local_y_max"] == null or p.y > float(entry["local_y_max"]):
+                    entry["local_y_max"] = p.y
+                census[bone_name] = entry
+            if per_vertex.has(target_bone):
+                target_vertices.append({
+                    "mesh_path": str(mi.get_path()),
+                    "surface": surface,
+                    "vertex": vi,
+                    "rightfoot_weight": float(per_vertex[target_bone]),
+                    "dominant_bone_index": strongest_bone,
+                    "dominant_bone": str(skeleton.get_bone_name(strongest_bone)) if strongest_bone >= 0 else "<none>",
+                    "dominant_weight": strongest_weight,
+                    "vertex_position": [p.x, p.y, p.z]
+                })

@@ -20,26 +20,28 @@ func _new_batch(name: String, role: String) -> MultiMeshInstance3D:
 func _run() -> void:
     var runtime := RUNTIME_SCRIPT.new() as Node3D
     runtime.name = "BrusselsOsmDuplicateBatchRoleProbe"
+    var owned := runtime.get("_owned_batches") as Array
 
     var canonical := _new_batch("TreeTrunksCanonical", ROLE)
     runtime.add_child(canonical)
-    runtime.call("_track_owned_batch", canonical)
+    owned.append(canonical)
 
     var duplicate := _new_batch("TreeTrunksDuplicate", ROLE)
     runtime.add_child(duplicate)
-    runtime.call("_track_owned_batch", duplicate)
+    owned.append(duplicate)
 
     var foreign_parent := Node3D.new()
     var foreign := _new_batch("TreeTrunksForeign", ROLE)
     foreign_parent.add_child(foreign)
-    runtime.call("_track_owned_batch", foreign)
+    owned.append(foreign)
 
-    var returned := runtime.call("_batch", "TreeTrunks", ROLE) as MultiMeshInstance3D
-    if returned != canonical:
+    runtime.call("_batch", ROLE, BoxMesh.new(), [], true)
+
+    if canonical.is_queued_for_deletion():
         _fail("first same-role locally-owned batch did not retain canonical identity")
         return
-    if canonical.is_queued_for_deletion():
-        _fail("canonical same-role batch was scheduled for deletion")
+    if canonical.multimesh == null:
+        _fail("canonical same-role batch was not reused by the live _batch API")
         return
     if not duplicate.is_queued_for_deletion():
         _fail("additional same-role locally-owned batch survived canonicalization")
@@ -48,7 +50,7 @@ func _run() -> void:
         _fail("reparented same-role batch owned elsewhere was scheduled for deletion")
         return
 
-    var owned := runtime.get("_owned_batches") as Array
+    owned = runtime.get("_owned_batches") as Array
     if canonical not in owned:
         _fail("canonical batch was removed from runtime ownership")
         return

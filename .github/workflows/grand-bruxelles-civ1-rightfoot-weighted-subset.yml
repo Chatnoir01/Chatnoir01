@@ -1,0 +1,96 @@
+name: Grand Bruxelles CIV-1 Skin Influence Census
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_rightfoot_weighted_subset_probe.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_weighted_subset_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-rightfoot-weighted-subset.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  rightfoot-weighted-subset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Prepare attributable evidence directory
+        run: mkdir -p /tmp/civ1subset/out
+      - name: Causal contract
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tests/test_civ1_rightfoot_weighted_subset_contract.py \
+            2>&1 | tee /tmp/civ1subset/out/causal-contract.log
+      - name: Acquire pinned CIV-1 body and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1subset/{project,engine,out}
+          curl -fL --retry 3 https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/48c277eaf57b7ceafc98fbee67eea155c991f00c/grand-bruxelles-game/tools/strip_glb_animations.py -o /tmp/civ1subset/strip.py
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1subset/body.glb
+          python /tmp/civ1subset/strip.py /tmp/civ1subset/body.glb /tmp/civ1subset/project/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1subset/project/civ1_body.glb' | sha256sum -c -
+          cp grand-bruxelles-game/tools/godot_civ1_rightfoot_weighted_subset_probe.gd /tmp/civ1subset/project/probe.gd
+          printf '[application]\nconfig/name="CIV1SkinInfluenceCensus"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1subset/project/project.godot
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1subset/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1subset/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1subset/godot.zip -d /tmp/civ1subset/engine
+          chmod +x /tmp/civ1subset/engine/Godot_v4.7.1-stable_linux.x86_64
+      - name: Census real Skin-bind geometry
+        run: |
+          set -euo pipefail
+          G=/tmp/civ1subset/engine/Godot_v4.7.1-stable_linux.x86_64
+          "$G" --headless --editor --path /tmp/civ1subset/project --quit 2>&1 | tee /tmp/civ1subset/out/import.log
+          set +e
+          "$G" --headless --path /tmp/civ1subset/project --script res://probe.gd -- /tmp/civ1subset/out/skin-influence-census.json 2>&1 | tee /tmp/civ1subset/out/probe.log
+          probe_rc=${PIPESTATUS[0]}
+          set -e
+          test -f /tmp/civ1subset/out/skin-influence-census.json || { echo "missing census receipt"; exit "$probe_rc"; }
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1subset/out/skin-influence-census.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-skin-influence-census-v4'
+          assert r['target_bone']=='mixamorig_RightFoot'
+          assert r['threshold_tuned'] is False
+          assert r['presence_rule']=='stored_weight_greater_than_zero_only'
+          assert r['bind_mapping_rule']=='ARRAY_BONES_is_skin_bind_index_then_resolve_get_bind_bone_or_get_bind_name_to_skeleton'
+          assert r['skinned_mesh_count'] == 3
+          assert r['surface_count'] == 4
+          assert r['skeleton_bone_count'] == 52
+          assert r['positive_weight_slot_count'] > 0
+          assert r['resolved_positive_bind_slot_count'] == r['positive_weight_slot_count']
+          assert r['indexed_bind_resolution_slot_count'] + r['named_bind_resolution_slot_count'] == r['positive_weight_slot_count']
+          assert r['unresolved_positive_bind_slot_count'] == 0
+          assert r['named_bind_resolution_slot_count'] > 0
+          assert len(r['right_side_positive_bones']) > 0
+          assert any(b['positive_vertex_count'] > 0 for b in r['right_side_positive_bones'])
+          assert r['contact_phase_ready'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['next_selection_authorized'] is False
+          print('CIV1_SKIN_INFLUENCE_CENSUS_V4_RECEIPT_OK')
+          print('slots', r['positive_weight_slot_count'], 'indexed', r['indexed_bind_resolution_slot_count'], 'named', r['named_bind_resolution_slot_count'])
+          print('target', r['target_rightfoot_positive_vertex_count'], r['target_rightfoot_dominant_vertex_count'])
+          for b in r['right_side_positive_bones']:
+              print(b['bone_name'], b['positive_vertex_count'], b['dominant_vertex_count'], b['total_stored_weight'])
+          PY
+          test "$probe_rc" = 0
+          grep -F CIV1_SKIN_INFLUENCE_CENSUS_OK /tmp/civ1subset/out/probe.log
+      - name: Upload immutable characterization evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-skin-influence-census-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1subset/out
+          if-no-files-found: error
+          retention-days: 90

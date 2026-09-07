@@ -1,0 +1,60 @@
+name: Grand Bruxelles Grand-Place Contour OSM Mask Rollback
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-contour-osm-mask-rollback.yml"
+      - "grand-bruxelles-game/game/tests/grand_place_contour_osm_mask_rollback_test.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_contour_runtime.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-contour-osm-mask-rollback-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  osm-mask-rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-contour-osm-mask-rollback-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-contour-osm-mask-rollback-import.log; then exit 1; fi
+      - name: Prove transactional OSM mask rollback
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_contour_osm_mask_rollback_test.gd 2>&1 | tee /tmp/grand-place-contour-osm-mask-rollback.log
+          grep -F "GRAND_PLACE_CONTOUR_OSM_MASK_ROLLBACK_OK" /tmp/grand-place-contour-osm-mask-rollback.log
+      - name: Upload exact-head rollback evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-contour-osm-mask-rollback-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/grand-place-contour-osm-mask-rollback-import.log
+            /tmp/grand-place-contour-osm-mask-rollback.log
+          if-no-files-found: error
+          retention-days: 14

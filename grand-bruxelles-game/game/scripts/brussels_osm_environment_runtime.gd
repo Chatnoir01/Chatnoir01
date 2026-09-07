@@ -453,13 +453,12 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: b
             var role_matches := owned_role == name_value or (owned_role.is_empty() and owned.name == name_value)
             if not role_matches:
                 continue
-            if instance == null:
-                instance = owned
-                continue
-            remove_child(owned)
-            if not owned.is_queued_for_deletion():
-                owned.queue_free()
-            _owned_batches.remove_at(index)
+            if instance != null:
+                remove_child(instance)
+                if not instance.is_queued_for_deletion():
+                    instance.queue_free()
+                _owned_batches.erase(instance)
+            instance = owned
     if transforms.is_empty() and instance == null:
         return
     var multimesh: MultiMesh = null

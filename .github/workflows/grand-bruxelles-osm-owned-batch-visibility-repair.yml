@@ -1,0 +1,47 @@
+name: Grand Bruxelles OSM Owned Batch Visibility Repair
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-owned-batch-visibility-repair.yml"
+      - "grand-bruxelles-game/data/osm/zones/jette/environment.game.json"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_owned_batch_visibility_repair_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owned-batch-visibility-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact PR head
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          echo "c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4.7.1.stable'
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-owned-batch-visibility-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-owned-batch-visibility-import.log; then exit 1; fi
+      - name: Prove owned batch visibility repair
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_owned_batch_visibility_repair_test.gd 2>&1 | tee /tmp/osm-owned-batch-visibility-repair.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_OWNED_BATCH_VISIBILITY_REPAIR_FAIL" /tmp/osm-owned-batch-visibility-repair.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_OWNED_BATCH_VISIBILITY_REPAIR_OK" /tmp/osm-owned-batch-visibility-repair.log

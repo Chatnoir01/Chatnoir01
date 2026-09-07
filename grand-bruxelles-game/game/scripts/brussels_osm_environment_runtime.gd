@@ -447,11 +447,18 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: b
     _prune_invalid_owned_batches()
     var instance: MultiMeshInstance3D = null
     if reuse_existing:
-        for owned: MultiMeshInstance3D in _owned_batches:
+        for index in range(_owned_batches.size() - 1, -1, -1):
+            var owned := _owned_batches[index]
             var owned_role := str(owned.get_meta("osm_environment_batch_role", ""))
-            if owned_role == name_value or (owned_role.is_empty() and owned.name == name_value):
-                instance = owned
-                break
+            var role_matches := owned_role == name_value or (owned_role.is_empty() and owned.name == name_value)
+            if not role_matches:
+                continue
+            if instance != null:
+                remove_child(instance)
+                if not instance.is_queued_for_deletion():
+                    instance.queue_free()
+                _owned_batches.erase(instance)
+            instance = owned
     if transforms.is_empty() and instance == null:
         return
     var multimesh: MultiMesh = null

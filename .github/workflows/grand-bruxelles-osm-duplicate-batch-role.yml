@@ -1,0 +1,35 @@
+name: Grand Bruxelles OSM Duplicate Batch Role
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-duplicate-batch-role.yml"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_duplicate_batch_role_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  duplicate-batch-role:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-duplicate-batch-role-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-duplicate-batch-role-import.log; then exit 1; fi
+      - name: Prove duplicate batch role canonicalization
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_duplicate_batch_role_test.gd 2>&1 | tee /tmp/osm-duplicate-batch-role.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_DUPLICATE_BATCH_ROLE_FAIL" /tmp/osm-duplicate-batch-role.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_DUPLICATE_BATCH_ROLE_OK" /tmp/osm-duplicate-batch-role.log

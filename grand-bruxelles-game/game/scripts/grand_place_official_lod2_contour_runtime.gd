@@ -40,6 +40,7 @@ func _ready() -> void:
     call_deferred("_build_when_scene_ready")
 
 func _exit_tree() -> void:
+    _restore_masked_osm_nodes()
     if _tree_watcher_connected and get_tree() != null and get_tree().node_added.is_connected(_on_tree_node_added):
         get_tree().node_added.disconnect(_on_tree_node_added)
     _tree_watcher_connected = false
@@ -51,7 +52,39 @@ func _connect_late_osm_watcher() -> void:
         get_tree().node_added.connect(_on_tree_node_added)
     _tree_watcher_connected = true
 
+func _restore_masked_osm_nodes() -> void:
+    for snapshot_variant: Variant in _masked_nodes.values():
+        if typeof(snapshot_variant) != TYPE_DICTIONARY:
+            continue
+        var snapshot: Dictionary = snapshot_variant
+        var weak_node: WeakRef = snapshot.get("node") as WeakRef
+        if weak_node == null:
+            continue
+        var restored_variant: Variant = weak_node.get_ref()
+        if restored_variant == null or not is_instance_valid(restored_variant):
+            continue
+        var node := restored_variant as Node3D
+        if node == null:
+            continue
+        var owner_id := str(snapshot.get("owner_id", ""))
+        if str(node.get_meta("replaced_by_urbis_building", "")) != owner_id:
+            continue
+        node.visible = bool(snapshot.get("visible", true))
+        if node is CSGShape3D and snapshot.has("use_collision"):
+            (node as CSGShape3D).use_collision = bool(snapshot["use_collision"])
+        if node is CollisionObject3D:
+            var collision := node as CollisionObject3D
+            collision.collision_layer = int(snapshot.get("collision_layer", collision.collision_layer))
+            collision.collision_mask = int(snapshot.get("collision_mask", collision.collision_mask))
+        if bool(snapshot.get("had_replacement_meta", false)):
+            node.set_meta("replaced_by_urbis_building", snapshot.get("replacement_meta"))
+        else:
+            node.remove_meta("replaced_by_urbis_building")
+    _masked_nodes.clear()
+    masked_osm_count = 0
+
 func _reset_partial_build_state() -> void:
+    _restore_masked_osm_nodes()
     for child: Node in get_children():
         if child is Node3D and child.name.begins_with("GrandPlaceOfficial_"):
             remove_child(child)
@@ -435,6 +468,20 @@ func _mask_osm_node_if_replaced(node: Node3D) -> void:
         var bounds: Rect2 = _owner_bounds[owner_id]
         if bounds.size.length_squared() <= 0.001 or not bounds.grow(OSM_MASK_MARGIN_M).has_point(xz):
             continue
+        var snapshot := {
+            "node": weakref(node),
+            "owner_id": owner_id,
+            "visible": node.visible,
+            "had_replacement_meta": node.has_meta("replaced_by_urbis_building"),
+            "replacement_meta": node.get_meta("replaced_by_urbis_building") if node.has_meta("replaced_by_urbis_building") else null,
+        }
+        if node is CSGShape3D:
+            snapshot["use_collision"] = (node as CSGShape3D).use_collision
+        if node is CollisionObject3D:
+            var collision := node as CollisionObject3D
+            snapshot["collision_layer"] = collision.collision_layer
+            snapshot["collision_mask"] = collision.collision_mask
+        _masked_nodes[instance_id] = snapshot
         node.visible = false
         node.set_meta("replaced_by_urbis_building", owner_id)
         if node is CSGShape3D:
@@ -443,6 +490,5 @@ func _mask_osm_node_if_replaced(node: Node3D) -> void:
             var collision := node as CollisionObject3D
             collision.collision_layer = 0
             collision.collision_mask = 0
-        _masked_nodes[instance_id] = owner_id
         masked_osm_count += 1
         return

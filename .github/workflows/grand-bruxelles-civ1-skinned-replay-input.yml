@@ -34,8 +34,8 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/civ1replay/{basis,skeleton,toe,out}
           curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/10016180097/zip" -o /tmp/civ1replay/basis.zip
-          echo '9e995a3275c64266a1f51aa1430871fa8287048431f6d58aa727ee6502cced9a  /tmp/civ1replay/basis.zip' | sha256sum -c -
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/10018435896/zip" -o /tmp/civ1replay/basis.zip
+          echo '3f73d2fedfb97522749ab0a525ff29230c43aeb7f5e05758e2ff97ad843f2586  /tmp/civ1replay/basis.zip' | sha256sum -c -
           curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9996432028/zip" -o /tmp/civ1replay/skeleton.zip
           echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1replay/skeleton.zip' | sha256sum -c -
@@ -50,7 +50,7 @@ jobs:
           set -euo pipefail
           python grand-bruxelles-game/tools/classify_civ1_skinned_replay_inputs.py \
             /tmp/civ1replay/basis /tmp/civ1replay/skeleton /tmp/civ1replay/toe \
-            /tmp/civ1replay/out/replay-input-coverage.json | tee /tmp/civ1replay/out/classifier.log
+            /tmp/civ1replay/out/replay-input-coverage.json 2>&1 | tee /tmp/civ1replay/out/classifier.log
           cat /tmp/civ1replay/out/replay-input-coverage.json
           python - <<'PY'
           import json

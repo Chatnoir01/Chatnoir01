@@ -25,14 +25,18 @@ jobs:
           git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - name: Prepare durable evidence directory
+        run: mkdir -p /tmp/civ1-selection/source /tmp/civ1-selection/out
       - name: Causal contract
-        run: python grand-bruxelles-game/tests/test_civ1_rightfoot_chain_selection_contract.py
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tests/test_civ1_rightfoot_chain_selection_contract.py \
+            2>&1 | tee /tmp/civ1-selection/out/causal-contract.log
       - name: Acquire immutable GREEN v5 geometry witness
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p /tmp/civ1-selection/source /tmp/civ1-selection/out
           gh api repos/${{ github.repository }}/actions/artifacts/10008279797 > /tmp/civ1-selection/out/source-artifact-metadata.json
           python - <<'PY'
           import json

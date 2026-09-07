@@ -1,0 +1,99 @@
+name: Grand Bruxelles CIV-1 RightFoot Skinned Replay
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_rightfoot_skinned_replay.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_skinned_replay_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-rightfoot-skinned-replay.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Prepare evidence directories and causal contract
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1replay/{bind,skeleton,toe,project,engine,out}
+          python grand-bruxelles-game/tests/test_civ1_rightfoot_skinned_replay_contract.py 2>&1 | tee /tmp/civ1replay/out/causal-contract.log
+      - name: Acquire immutable GREEN evidence inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" "$api/10031928117/zip" -o /tmp/civ1replay/bind.zip
+          echo 'd607637c6dd7231d11f3e37d72680936e313e5f139b82b31083c926054eb509c  /tmp/civ1replay/bind.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" "$api/9996432028/zip" -o /tmp/civ1replay/skeleton.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1replay/skeleton.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" "$api/10024557192/zip" -o /tmp/civ1replay/toe.zip
+          echo '3ec94d7b8ed10663d0ee17bf44ffec77104600a7c3006343f0dfbae13877023c  /tmp/civ1replay/toe.zip' | sha256sum -c -
+          unzip -q /tmp/civ1replay/bind.zip -d /tmp/civ1replay/bind
+          unzip -q /tmp/civ1replay/skeleton.zip -d /tmp/civ1replay/skeleton
+          unzip -q /tmp/civ1replay/toe.zip -d /tmp/civ1replay/toe
+          BIND=$(find /tmp/civ1replay/bind -name rightfoot-bind-pose.json -print -quit)
+          SKEL=$(find /tmp/civ1replay/skeleton -name skeleton-bundle.json -print -quit)
+          TOE=$(find /tmp/civ1replay/toe -name righttoebase-pose.json -print -quit)
+          test -n "$BIND" -a -n "$SKEL" -a -n "$TOE"
+          cp "$BIND" /tmp/civ1replay/project/bind.json
+          cp "$SKEL" /tmp/civ1replay/project/skeleton.json
+          cp "$TOE" /tmp/civ1replay/project/toe.json
+      - name: Acquire pinned Godot 4.7.1
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/tools/godot_civ1_rightfoot_skinned_replay.gd /tmp/civ1replay/project/replay.gd
+          printf '[application]\nconfig/name="CIV1SkinnedReplay"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1replay/project/project.godot
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1replay/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1replay/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1replay/godot.zip -d /tmp/civ1replay/engine
+          chmod +x /tmp/civ1replay/engine/Godot_v4.7.1-stable_linux.x86_64
+      - name: Replay exact 3306 fixed vertices over four deterministic samples
+        run: |
+          set -euo pipefail
+          G=/tmp/civ1replay/engine/Godot_v4.7.1-stable_linux.x86_64
+          "$G" --headless --path /tmp/civ1replay/project --script res://replay.gd -- \
+            /tmp/civ1replay/project/bind.json /tmp/civ1replay/project/skeleton.json /tmp/civ1replay/project/toe.json /tmp/civ1replay/out/skinned-replay.json \
+            2>&1 | tee /tmp/civ1replay/out/replay.log
+          grep -F CIV1_SKINNED_REPLAY_OK /tmp/civ1replay/out/replay.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1replay/out/skinned-replay.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-rightfoot-skinned-replay-v1'
+          assert r['sample_indices']==[68,69,70,71]
+          assert r['fixed_vertex_count']==3306
+          assert len(r['samples'])==4
+          assert r['stable_replay_sample_count']>=3
+          assert r['skinned_replay_ready'] is True
+          for s in r['samples']:
+              assert s['replayed_vertex_count']==3306
+              assert s['nonfinite_count']==0 and s['bad_weight_sum_count']==0
+              assert s['replay_sample_valid'] is True
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False and r['player_view_claimed'] is False
+          print('CIV1_SKINNED_REPLAY_RECEIPT_OK', r['stable_replay_sample_count'])
+          PY
+      - name: Upload immutable replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-rightfoot-skinned-replay-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1replay/out
+          if-no-files-found: error
+          retention-days: 90

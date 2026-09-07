@@ -301,7 +301,8 @@ func _clear_tree_foliage_batches() -> void:
         if batch.get_parent() != self:
             _owned_batches.remove_at(index)
             continue
-        if not batch.name.begins_with("TreeFoliage"):
+        var batch_role := str(batch.get_meta("osm_environment_batch_role", ""))
+        if not batch_role.begins_with("TreeFoliage"):
             continue
         remove_child(batch)
         if not batch.is_queued_for_deletion():
@@ -440,7 +441,8 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: b
     var instance: MultiMeshInstance3D = null
     if reuse_existing:
         for owned: MultiMeshInstance3D in _owned_batches:
-            if owned.name == name_value:
+            var owned_role := str(owned.get_meta("osm_environment_batch_role", ""))
+            if owned_role == name_value or (owned_role.is_empty() and owned.name == name_value):
                 instance = owned
                 break
     if transforms.is_empty() and instance == null:
@@ -460,6 +462,7 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: b
         instance = MultiMeshInstance3D.new()
         instance.name = name_value
         instance.set_meta("source_dimensions_measured", false)
+    instance.set_meta("osm_environment_batch_role", name_value)
     instance.multimesh = multimesh
     instance.visible = _batches_visible
     if is_new:

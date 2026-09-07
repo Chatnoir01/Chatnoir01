@@ -49,7 +49,7 @@ func _initialize() -> void:
         if complete:
             vertices_with_complete_bind_space += 1
 
-    var bind_space_complete := selected.size() == 3306 and vertices_with_complete_bind_space == 3306 and counters["unresolved"] == 0 and counters["nonfinite_bind_pose"] == 0
+    var bind_space_complete: bool = selected.size() == 3306 and vertices_with_complete_bind_space == 3306 and counters["unresolved"] == 0 and counters["nonfinite_bind_pose"] == 0
     var report := {
         "schema":"grand-bruxelles-civ1-rightfoot-bind-pose-basis-v1",
         "diagnostic_only":true,

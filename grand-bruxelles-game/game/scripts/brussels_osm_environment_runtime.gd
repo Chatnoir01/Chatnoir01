@@ -298,10 +298,10 @@ func _clear_tree_foliage_batches() -> void:
         if not is_instance_valid(batch):
             _owned_batches.remove_at(index)
             continue
-        if not batch.name.begins_with("TreeFoliage"):
-            continue
         if batch.get_parent() != self:
             _owned_batches.remove_at(index)
+            continue
+        if not batch.name.begins_with("TreeFoliage"):
             continue
         remove_child(batch)
         if not batch.is_queued_for_deletion():

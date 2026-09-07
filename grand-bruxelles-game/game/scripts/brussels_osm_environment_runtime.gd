@@ -37,6 +37,8 @@ var _tree_lod_boundary_margin_m := 0.0
 var _tree_lod_boundary_margin_radius_m := INF
 var _last_selection_limits := Vector3i(-1, -1, -1)
 var _last_render_radius_m := INF
+var _loaded_data_path := ""
+var _last_source_attempt_path := ""
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
 var _presentation_meshes: Dictionary = {}
@@ -84,6 +86,7 @@ func _reset_loaded_source_state() -> void:
     _tree_lod_boundary_margin_radius_m = INF
     _last_selection_limits = Vector3i(-1, -1, -1)
     _last_render_radius_m = INF
+    _loaded_data_path = ""
     _rendered_trees.clear()
     last_render_counts = {"tree": 0, "street_lamp": 0, "bollard": 0}
     last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
@@ -95,6 +98,7 @@ func _load_points() -> bool:
     # A replacement source is authoritative as soon as loading is attempted.
     # If validation fails, retaining any previously trusted points/provenance or
     # materialized batches would present stale data under the rejected data_path.
+    _last_source_attempt_path = data_path
     _reset_loaded_source_state()
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
         push_error("OSM environment artifact missing: %s" % data_path)
@@ -126,6 +130,7 @@ func _load_points() -> bool:
     if validated_points == null:
         return false
     _points = validated_points
+    _loaded_data_path = data_path
     set_meta("source", source)
     set_meta("license", license)
     set_meta("source_dimensions_measured", false)
@@ -320,6 +325,13 @@ func _refresh_tree_lod(anchor: Vector3) -> void:
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
 
 func _refresh(force: bool) -> void:
+    if data_path != _last_source_attempt_path:
+        if not _load_points():
+            _set_batches_visible(false)
+            return
+    if _loaded_data_path != data_path:
+        _set_batches_visible(false)
+        return
     if not _configuration_error().is_empty():
         _set_batches_visible(false)
         return

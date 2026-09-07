@@ -36,6 +36,7 @@ var _batches_visible := true
 var _tree_lod_boundary_margin_m := 0.0
 var _tree_lod_boundary_margin_radius_m := INF
 var _last_selection_limits := Vector3i(-1, -1, -1)
+var _last_render_radius_m := INF
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
 var _presentation_meshes: Dictionary = {}
@@ -81,6 +82,7 @@ func _reset_loaded_source_state() -> void:
     _tree_lod_boundary_margin_m = 0.0
     _tree_lod_boundary_margin_radius_m = INF
     _last_selection_limits = Vector3i(-1, -1, -1)
+    _last_render_radius_m = INF
     _rendered_trees.clear()
     last_render_counts = {"tree": 0, "street_lamp": 0, "bollard": 0}
     last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
@@ -327,7 +329,7 @@ func _refresh(force: bool) -> void:
         return
     _set_batches_visible(true)
     var selection_limits := Vector3i(max_trees, max_street_lamps, max_bollards)
-    if not force and selection_limits == _last_selection_limits and _last_anchor != Vector3(INF, INF, INF):
+    if not force and selection_limits == _last_selection_limits and render_radius_m == _last_render_radius_m and _last_anchor != Vector3(INF, INF, INF):
         var horizontal_dx := anchor.x - _last_anchor.x
         var horizontal_dz := anchor.z - _last_anchor.z
         var horizontal_distance_sq := horizontal_dx * horizontal_dx + horizontal_dz * horizontal_dz
@@ -340,6 +342,7 @@ func _refresh(force: bool) -> void:
     _last_anchor = anchor
     _rebuild(anchor)
     _last_selection_limits = selection_limits
+    _last_render_radius_m = render_radius_m
 
 func _nearby_candidate_is_better(a: Dictionary, b: Dictionary) -> bool:
     var a_distance := float(a["distance_sq"])

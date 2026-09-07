@@ -1,0 +1,137 @@
+name: Grand Bruxelles CIV-1 RightFoot Contact Witness
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/build_civ1_rightfoot_contact_witness.py'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_contact_witness.py'
+      - '.github/workflows/grand-bruxelles-civ1-rightfoot-contact-witness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  rightfoot-contact-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Causal regression
+        run: python grand-bruxelles-game/tests/test_civ1_rightfoot_contact_witness.py
+      - name: Acquire immutable RightFoot identity harness and derive contact samples
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1contact/{source,engine,identity,evidence,captures,out}
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9996432028/zip" -o /tmp/civ1contact/rightfoot.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1contact/rightfoot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1contact/rightfoot.zip -d /tmp/civ1contact/identity
+          test -f /tmp/civ1contact/identity/evidence/right-witness.gd
+          test -f /tmp/civ1contact/identity/evidence/right-analyzer.py
+          test -f /tmp/civ1contact/identity/evidence/skeleton-bundle.json
+          python grand-bruxelles-game/tools/build_civ1_rightfoot_contact_witness.py \
+            /tmp/civ1contact/identity/evidence/right-witness.gd /tmp/civ1contact/identity/evidence/right-analyzer.py \
+            /tmp/civ1contact/evidence/right-contact-witness.gd /tmp/civ1contact/evidence/right-contact-analyzer.py
+          python grand-bruxelles-game/tools/build_civ1_rightfoot_contact_witness.py --verify \
+            /tmp/civ1contact/evidence/right-contact-witness.gd /tmp/civ1contact/evidence/right-contact-analyzer.py
+      - name: Prepare pinned CIV-1 body, Godot 4.7.1, and canonical current-main sandbox
+        run: |
+          set -euo pipefail
+          STRIP_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c
+          curl -fL --retry 3 "https://raw.githubusercontent.com/${{ github.repository }}/$STRIP_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1contact/strip.py
+          curl -fL --retry 3 https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb -o /tmp/civ1contact/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1contact/source/body.glb)" = 6879364
+          python /tmp/civ1contact/strip.py /tmp/civ1contact/source/body.glb /tmp/civ1contact/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1contact/source/civ1_body.glb' | sha256sum -c -
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1contact/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1contact/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1contact/godot.zip -d /tmp/civ1contact/engine
+          chmod +x /tmp/civ1contact/engine/Godot_v4.7.1-stable_linux.x86_64
+
+          CANONICAL_PROJECT=/tmp/civ1contact/canonical-project
+          cp -a grand-bruxelles-game "$CANONICAL_PROJECT"
+          test -f "$CANONICAL_PROJECT/game/main.tscn"
+          cat > "$CANONICAL_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="CIV1RightFootContactWitness"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          [physics]
+          3d/default_gravity=9.8
+          common/physics_ticks_per_second=60
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/civ1contact/source/civ1_body.glb "$CANONICAL_PROJECT/civ1_body.glb"
+          cp /tmp/civ1contact/evidence/right-contact-witness.gd "$CANONICAL_PROJECT/gb_rightfoot_contact.gd"
+          /tmp/civ1contact/engine/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path "$CANONICAL_PROJECT" --quit 2>&1 | tee /tmp/civ1contact/evidence/import.log
+          echo "CANONICAL_PROJECT=$CANONICAL_PROJECT" >> "$GITHUB_ENV"
+      - name: Render and measure 12 real RightFoot contact-context rasters
+        run: |
+          set -euo pipefail
+          GODOT=/tmp/civ1contact/engine/Godot_v4.7.1-stable_linux.x86_64
+          test -f "$CANONICAL_PROJECT/game/main.tscn"
+          xvfb-run -a "$GODOT" --path "$CANONICAL_PROJECT" --resolution 1280x720 --script res://gb_rightfoot_contact.gd -- \
+            /tmp/civ1contact/identity/evidence/skeleton-bundle.json /tmp/civ1contact/evidence/rightfoot-contact-witness.json /tmp/civ1contact/captures \
+            2>&1 | tee /tmp/civ1contact/evidence/rightfoot-contact.log
+          grep -F CIV1_RIGHTFOOT_LANDMARK_OK /tmp/civ1contact/evidence/rightfoot-contact.log
+          python /tmp/civ1contact/evidence/right-contact-analyzer.py \
+            /tmp/civ1contact/evidence/rightfoot-contact-witness.json /tmp/civ1contact/captures /tmp/civ1contact/out/rightfoot-contact-analysis.json \
+            | tee /tmp/civ1contact/out/rightfoot-contact-analysis.log
+          grep -F CIV1_RIGHTFOOT_LANDMARK_ANALYSIS_OK /tmp/civ1contact/out/rightfoot-contact-analysis.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          w=json.loads(Path('/tmp/civ1contact/evidence/rightfoot-contact-witness.json').read_text())
+          a=json.loads(Path('/tmp/civ1contact/out/rightfoot-contact-analysis.json').read_text())
+          assert w['resolution']==[1280,720] and w['vertical_fov_deg']==45.0
+          assert w['player_distances_m']==[2.0,4.0,8.0]
+          assert w['sample_indices']==[68,69,70,71] and w['capture_count']==12
+          assert w['landmark_semantic']=='rightfoot_bone_pose_with_verified_same_skeleton_skin'
+          assert w['max_pose_origin_error_m']<=1e-4
+          assert a['samples']==[68,69,70,71] and a['distances_m']==[2,4,8]
+          assert a['single_rightfoot_identity_preserved_2_4_8m'] is True
+          assert all(m['passed'] and m['direction_match'] for m in a['measurements'])
+          assert all(m['max_centroid_error_px']<=1.5 and m['path_relative_error']<=0.25 for m in a['measurements'])
+          for key in ('planted_contact_claimed','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
+              assert w[key] is False and a[key] is False
+          pngs=list(Path('/tmp/civ1contact/captures').glob('*.png'))
+          assert len(pngs)==12 and all(p.stat().st_size>0 for p in pngs)
+          out={
+            'schema':'grand-bruxelles-civ1-rightfoot-contact-context-v1',
+            'samples':[68,69,70,71], 'distances_m':[2,4,8], 'capture_count':12,
+            'source_low_window':[69,70], 'identity_ready':True,
+            'contact_phase_ready':False, 'quantitative_foot_slide_candidate':False,
+            'planted_contact_claimed':False, 'animation_correction_authorized':False,
+            'runtime_authorized':False, 'visual_approval_claimed':False, 'player_view_claimed':False,
+            'measurements':a['measurements'],
+            'verdict':'AMELIORER_RIGHTFOOT_CONTACT_CONTEXT_RENDERED_PHASE_STILL_REQUIRES_SOLE_STABILITY'
+          }
+          Path('/tmp/civ1contact/out/rightfoot-contact-context.json').write_text(json.dumps(out,indent=2)+'\n')
+          print('CIV1_RIGHTFOOT_CONTACT_CONTEXT_12_RASTER_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: civ1-rightfoot-contact-context-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/civ1contact/evidence
+            /tmp/civ1contact/out
+            /tmp/civ1contact/captures
+          if-no-files-found: error
+          retention-days: 14

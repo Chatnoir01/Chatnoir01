@@ -53,26 +53,27 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
     _refresh(false)
 
-func _validate_configuration() -> bool:
+func _configuration_error() -> String:
     if not is_finite(render_radius_m) or render_radius_m < 0.0:
-        push_error("OSM environment render_radius_m must be finite and non-negative")
-        return false
+        return "OSM environment render_radius_m must be finite and non-negative"
     if not is_finite(refresh_distance_m) or refresh_distance_m < 0.0:
-        push_error("OSM environment refresh_distance_m must be finite and non-negative")
-        return false
+        return "OSM environment refresh_distance_m must be finite and non-negative"
     if refresh_distance_m > render_radius_m:
-        push_error("OSM environment refresh_distance_m must not exceed render_radius_m")
-        return false
+        return "OSM environment refresh_distance_m must not exceed render_radius_m"
     if not is_finite(tree_full_detail_radius_m) or tree_full_detail_radius_m < 0.0:
-        push_error("OSM environment tree_full_detail_radius_m must be finite and non-negative")
-        return false
+        return "OSM environment tree_full_detail_radius_m must be finite and non-negative"
     if tree_full_detail_radius_m > render_radius_m:
-        push_error("OSM environment tree_full_detail_radius_m must not exceed render_radius_m")
-        return false
+        return "OSM environment tree_full_detail_radius_m must not exceed render_radius_m"
     if max_trees < 0 or max_street_lamps < 0 or max_bollards < 0:
-        push_error("OSM environment instance limits must be non-negative")
-        return false
-    return true
+        return "OSM environment instance limits must be non-negative"
+    return ""
+
+func _validate_configuration() -> bool:
+    var configuration_error := _configuration_error()
+    if configuration_error.is_empty():
+        return true
+    push_error(configuration_error)
+    return false
 
 func _reset_loaded_source_state() -> void:
     _clear_owned_batches()
@@ -319,6 +320,9 @@ func _refresh_tree_lod(anchor: Vector3) -> void:
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
 
 func _refresh(force: bool) -> void:
+    if not _configuration_error().is_empty():
+        _set_batches_visible(false)
+        return
     var target := _target()
     if target == null:
         _set_batches_visible(false)

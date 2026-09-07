@@ -16,6 +16,13 @@ func _batch_ids(runtime: Node3D) -> Array[int]:
     ids.sort()
     return ids
 
+func _visible_batch_count(runtime: Node3D) -> int:
+    var count := 0
+    for child: Node in runtime.get_children():
+        if child is MultiMeshInstance3D and (child as MultiMeshInstance3D).visible:
+            count += 1
+    return count
+
 func _total_render_count(runtime: Node3D) -> int:
     var counts := runtime.get("last_render_counts") as Dictionary
     return int(counts.get("tree", 0)) + int(counts.get("street_lamp", 0)) + int(counts.get("bollard", 0))
@@ -110,5 +117,17 @@ func _run() -> void:
         _fail("stationary limit refresh replaced reusable MultiMesh batch identity")
         return
 
-    print("BRUSSELS_OSM_STATIONARY_LIMIT_REFRESH_OK: baseline_total=%d zero_radius_total=%d final_total=0 anchor_unchanged=true batch_identity_preserved=true source=%s license=%s" % [baseline_total, zero_radius_expected, str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    # Runtime export values can be mutated after _ready(). Invalid configuration
+    # must fail closed instead of squaring a negative radius and rendering source
+    # points as though the invalid value were positive.
+    runtime.set("max_trees", 450)
+    runtime.set("max_street_lamps", 220)
+    runtime.set("max_bollards", 160)
+    runtime.set("render_radius_m", -100.0)
+    runtime.call("_refresh", false)
+    if _visible_batch_count(runtime) != 0:
+        _fail("invalid runtime render_radius_m remained player-visible instead of failing closed")
+        return
+
+    print("BRUSSELS_OSM_STATIONARY_LIMIT_REFRESH_OK: baseline_total=%d zero_radius_total=%d final_total=0 invalid_runtime_config_hidden=true anchor_unchanged=true batch_identity_preserved=true source=%s license=%s" % [baseline_total, zero_radius_expected, str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

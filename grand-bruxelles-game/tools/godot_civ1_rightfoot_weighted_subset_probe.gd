@@ -27,9 +27,8 @@ func _initialize() -> void:
     var target_vertices: Array = []
     var mesh_keys := {}
     var surface_keys := {}
-    var invalid_bind_slots := 0
-    var positive_slots := 0
-    _collect_meshes(root, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, invalid_bind_slots, positive_slots)
+    var counters := {"invalid_positive_bind_slots": 0, "positive_weight_slots": 0}
+    _collect_meshes(root, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, counters)
 
     var bones: Array = []
     var right_side_bones: Array = []
@@ -69,8 +68,8 @@ func _initialize() -> void:
         "skeleton_bone_count": skeleton.get_bone_count(),
         "skinned_mesh_count": mesh_keys.size(),
         "surface_count": surface_keys.size(),
-        "positive_weight_slot_count": positive_slots,
-        "invalid_positive_bind_slot_count": invalid_bind_slots,
+        "positive_weight_slot_count": int(counters["positive_weight_slots"]),
+        "invalid_positive_bind_slot_count": int(counters["invalid_positive_bind_slots"]),
         "target_rightfoot_positive_vertex_count": int(target_record["positive_vertex_count"]),
         "target_rightfoot_dominant_vertex_count": int(target_record["dominant_vertex_count"]),
         "target_rightfoot_semantic_valid": int(target_record["positive_vertex_count"]) > 0,
@@ -92,13 +91,13 @@ func _initialize() -> void:
     f.store_string(JSON.stringify(report, "  "))
     f.close()
 
-    if positive_slots <= 0:
+    if int(counters["positive_weight_slots"]) <= 0:
         push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: no-positive-skin-weights")
         quit(7); return
     if right_side_bones.is_empty():
         push_error("CIV1_SKIN_INFLUENCE_CENSUS_FAIL: no-positive-right-side-bones")
         quit(8); return
-    print("CIV1_SKIN_INFLUENCE_CENSUS_OK rightfoot=", target_record["positive_vertex_count"], " right_side_bones=", right_side_bones.size(), " positive_slots=", positive_slots)
+    print("CIV1_SKIN_INFLUENCE_CENSUS_OK rightfoot=", target_record["positive_vertex_count"], " right_side_bones=", right_side_bones.size(), " positive_slots=", counters["positive_weight_slots"])
     quit(0)
 
 func _find_skeleton(node: Node) -> Skeleton3D:
@@ -110,16 +109,13 @@ func _find_skeleton(node: Node) -> Skeleton3D:
             return found
     return null
 
-func _collect_meshes(node: Node, skeleton: Skeleton3D, target_bone: int, census: Dictionary, target_vertices: Array, mesh_keys: Dictionary, surface_keys: Dictionary, invalid_bind_slots: int, positive_slots: int) -> void:
+func _collect_meshes(node: Node, skeleton: Skeleton3D, target_bone: int, census: Dictionary, target_vertices: Array, mesh_keys: Dictionary, surface_keys: Dictionary, counters: Dictionary) -> void:
     if node is MeshInstance3D:
         var mi := node as MeshInstance3D
         if mi.mesh != null and mi.skin != null:
-            var counters := {"invalid": invalid_bind_slots, "positive": positive_slots}
             _collect_mesh(mi, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, counters)
-            invalid_bind_slots = int(counters["invalid"])
-            positive_slots = int(counters["positive"])
     for child in node.get_children():
-        _collect_meshes(child, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, invalid_bind_slots, positive_slots)
+        _collect_meshes(child, skeleton, target_bone, census, target_vertices, mesh_keys, surface_keys, counters)
 
 func _collect_mesh(mi: MeshInstance3D, skeleton: Skeleton3D, target_bone: int, census: Dictionary, target_vertices: Array, mesh_keys: Dictionary, surface_keys: Dictionary, counters: Dictionary) -> void:
     var skin := mi.skin
@@ -144,14 +140,14 @@ func _collect_mesh(mi: MeshInstance3D, skeleton: Skeleton3D, target_bone: int, c
                 var w := float(weights[idx])
                 if w <= 0.0:
                     continue
-                counters["positive"] = int(counters["positive"]) + 1
+                counters["positive_weight_slots"] = int(counters["positive_weight_slots"]) + 1
                 var bind := int(binds[idx])
                 if bind < 0 or bind >= skin.get_bind_count():
-                    counters["invalid"] = int(counters["invalid"]) + 1
+                    counters["invalid_positive_bind_slots"] = int(counters["invalid_positive_bind_slots"]) + 1
                     continue
                 var bone_index := skin.get_bind_bone(bind)
                 if bone_index < 0 or bone_index >= skeleton.get_bone_count():
-                    counters["invalid"] = int(counters["invalid"]) + 1
+                    counters["invalid_positive_bind_slots"] = int(counters["invalid_positive_bind_slots"]) + 1
                     continue
                 per_vertex[bone_index] = float(per_vertex.get(bone_index, 0.0)) + w
                 if w > strongest_weight:

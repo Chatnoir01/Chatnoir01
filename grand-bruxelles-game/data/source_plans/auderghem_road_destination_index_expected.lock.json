@@ -1,0 +1,20 @@
+{
+  "schema": "grand-bruxelles-road-destination-index-expected-output-v1",
+  "municipality": {"niscode":"21002","id":"auderghem","name":"Auderghem / Oudergem","osm_relation_id":58263},
+  "source": {
+    "provider": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "artifact_id": 9741187457,
+    "artifact_name": "road-source-21002-auderghem",
+    "archive_sha256": "f360fdf727914518c626f01509cebb1d0e4fca765d7bc08142b10a967c56ff5c",
+    "osm_base_timestamp": "2026-08-30T23:58:06Z",
+    "raw_snapshot_semantic_sha256": "efd7724ae9198e1716d689ed94cbb39e917827d6912f60465b69ad8c547bcd8a",
+    "normalized_game_source_semantic_sha256": "ec69972237059dc3ba492d6ebd1242b2c770d27c1ca1d8b2937ec8cb67fab2fe",
+    "members": ["auderghem.manifest.json","auderghem_road_source.raw.json","auderghem_road_source.game.json","auderghem_road_source.receipt.json"]
+  },
+  "geometry": {"game_frame":{"origin_lat":50.8419,"origin_lon":4.348,"axes":"X=east, Y=up, Z=south","units":"metres"},"bounds_m":[3332.77,1373.9,9821.48,6507.9]},
+  "accounting": {"road_count":1077,"point_count":6715,"road_identity_materialized_in_expected_output":1077,"cell_assignment_materialized":0,"registered":0,"rendered":0,"collision_ready":0,"runtime_ready":0,"jouable":0},
+  "expected_output": {"builder":"tools/city_machine/build_road_destination_index.py","bytes":505306,"sha256":"4c9b8fc0bc6c1951335da22d42ef84a5180a3f8bc853179536d9556cb8fb6ba2"},
+  "repository_materialization": {"full_index_lock_present":false,"catalog_road_identity_materialized":0},
+  "authorization": {"source_registration_authorized":false,"road_cell_mapping_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_mount_authorized":false,"safe_spawn_authorized":false,"jouable_authorized":false}
+}

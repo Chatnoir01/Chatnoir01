@@ -1,0 +1,97 @@
+name: Grand Bruxelles CIV-1 RightFoot Bind Pose Basis
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_rightfoot_bind_pose_probe.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_bind_pose_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-rightfoot-bind-pose.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  bind-pose-basis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Prepare durable evidence directory
+        run: mkdir -p /tmp/civ1bindpose/{project,engine,out}
+      - name: Causal contract
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tests/test_civ1_rightfoot_bind_pose_contract.py 2>&1 | tee /tmp/civ1bindpose/out/causal-contract.log
+      - name: Acquire pinned CIV-1 source, provenance and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          UP=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          curl -fL --retry 3 "https://raw.githubusercontent.com/ibrews/VitruvianGodot/$UP/godot_project/vitruvian_body.glb" -o /tmp/civ1bindpose/body.glb
+          test "$(stat -c%s /tmp/civ1bindpose/body.glb)" = 6879364
+          test "$(git hash-object /tmp/civ1bindpose/body.glb)" = 09bcade1092e5a89b474e91e6013209d4c68c127
+          curl -fL --retry 3 "https://raw.githubusercontent.com/ibrews/VitruvianGodot/$UP/LICENSE" -o /tmp/civ1bindpose/out/upstream-LICENSE
+          curl -fL --retry 3 "https://raw.githubusercontent.com/ibrews/VitruvianGodot/$UP/NOTICE.md" -o /tmp/civ1bindpose/out/upstream-NOTICE.md
+          grep -Eiq 'CC0|Creative Commons Zero|public domain' /tmp/civ1bindpose/out/upstream-LICENSE /tmp/civ1bindpose/out/upstream-NOTICE.md
+          curl -fL --retry 3 https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/48c277eaf57b7ceafc98fbee67eea155c991f00c/grand-bruxelles-game/tools/strip_glb_animations.py -o /tmp/civ1bindpose/strip.py
+          python /tmp/civ1bindpose/strip.py /tmp/civ1bindpose/body.glb /tmp/civ1bindpose/project/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1bindpose/project/civ1_body.glb' | sha256sum -c -
+          cp grand-bruxelles-game/tools/godot_civ1_rightfoot_bind_pose_probe.gd /tmp/civ1bindpose/project/probe.gd
+          printf '[application]\nconfig/name="CIV1BindPose"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1bindpose/project/project.godot
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1bindpose/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1bindpose/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1bindpose/godot.zip -d /tmp/civ1bindpose/engine
+          chmod +x /tmp/civ1bindpose/engine/Godot_v4.7.1-stable_linux.x86_64
+      - name: Emit exact per-slot Skin inverse-bind evidence for fixed 3306 vertices
+        run: |
+          set -euo pipefail
+          G=/tmp/civ1bindpose/engine/Godot_v4.7.1-stable_linux.x86_64
+          "$G" --headless --editor --path /tmp/civ1bindpose/project --quit 2>&1 | tee /tmp/civ1bindpose/out/import.log
+          "$G" --headless --path /tmp/civ1bindpose/project --script res://probe.gd -- /tmp/civ1bindpose/out/rightfoot-bind-pose.json 2>&1 | tee /tmp/civ1bindpose/out/probe.log
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          p=Path('/tmp/civ1bindpose/out/rightfoot-bind-pose.json')
+          r=json.loads(p.read_text())
+          assert r['schema']=='grand-bruxelles-civ1-rightfoot-bind-pose-basis-v1'
+          assert r['selection_vertex_count']==3306
+          assert r['skinned_mesh_count']==3 and r['surface_count']==4 and r['skeleton_bone_count']==52
+          assert r['unresolved_positive_bind_slot_count']==0
+          assert r['nonfinite_bind_pose_count']==0
+          assert r['normalization_violation_count']==0
+          assert r['vertices_with_complete_bind_space']==3306
+          assert r['positive_influence_slots_with_bind_space']>0
+          assert r['bind_space_complete'] is True
+          ids=[]
+          for v in r['vertices']:
+              assert v['righttoebase_weight']>0.0
+              assert len(v['mesh_to_skeleton_rest'])==12
+              assert v['influences']
+              ids.append(f"{v['mesh_path']}|{v['surface']}|{v['vertex']}")
+              for i in v['influences']:
+                  assert i['weight']>0.0 and i['bone_index']>=0 and i['bind_index']>=0
+                  assert len(i['inverse_bind_transform'])==12 and i['bind_pose_finite'] is True
+          assert len(ids)==len(set(ids))==3306
+          identity=hashlib.sha256(('\n'.join(ids)+'\n').encode()).hexdigest()
+          Path('/tmp/civ1bindpose/out/fixed-vertex-identity.sha256').write_text(identity+'\n')
+          assert r['skinned_replay_authorized'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False and r['player_view_claimed'] is False
+          print('CIV1_BIND_POSE_RECEIPT_OK', identity, r['positive_influence_slots_with_bind_space'])
+          PY
+          grep -F CIV1_BIND_POSE_OK /tmp/civ1bindpose/out/probe.log
+      - name: Upload immutable bind-pose evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-rightfoot-bind-pose-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1bindpose/out
+          if-no-files-found: error
+          retention-days: 90

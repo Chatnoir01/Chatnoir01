@@ -1,0 +1,41 @@
+name: Grand Bruxelles OSM Nearby Reference
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-nearby-reference.yml"
+      - "grand-bruxelles-game/data/osm/zones/**/environment.game.json"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_nearby_reference_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nearby-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_URL="https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          rm -rf /tmp/godot /tmp/godot.zip
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip "$GODOT_URL"
+          unzip -tq /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/osm-nearby-reference-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-nearby-reference-import.log; then exit 1; fi
+      - name: Prove optimized nearby selection matches exhaustive source reference
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_nearby_reference_test.gd 2>&1 | tee /tmp/osm-nearby-reference.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_NEARBY_REFERENCE_FAIL" /tmp/osm-nearby-reference.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_NEARBY_REFERENCE_OK" /tmp/osm-nearby-reference.log

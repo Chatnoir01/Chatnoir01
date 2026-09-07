@@ -30,6 +30,7 @@ on:
       - 'grand-bruxelles-game/tests/test_road_destination_factory_acquisition_run_provenance.py'
       - 'grand-bruxelles-game/tests/test_road_destination_factory_artifact_uniqueness.py'
       - 'grand-bruxelles-game/tests/test_road_destination_factory_municipality_identity_domain.py'
+      - 'grand-bruxelles-game/tests/test_road_destination_factory_osm_relation_uniqueness.py'
       - 'grand-bruxelles-game/tests/test_road_destination_factory_registry_scope.py'
       - 'grand-bruxelles-game/tests/test_road_destination_index_bounds_contract.py'
       - '.github/workflows/grand-bruxelles-missing-road-source-batch.yml'
@@ -72,6 +73,7 @@ jobs:
             tests/test_road_destination_factory_acquisition_run_provenance.py \
             tests/test_road_destination_factory_artifact_uniqueness.py \
             tests/test_road_destination_factory_municipality_identity_domain.py \
+            tests/test_road_destination_factory_osm_relation_uniqueness.py \
             tests/test_road_destination_factory_registry_scope.py \
             tests/test_road_destination_index_bounds_contract.py
 

@@ -10,32 +10,30 @@ func _initialize() -> void:
     var packed := load("res://civ1_body.glb") as PackedScene
     if packed == null:
         push_error("CIV1_RIGHTFOOT_SKIN_SUBSET_FAIL: load")
-        quit(2)
-        return
+        quit(2); return
     var root := packed.instantiate()
     get_root().add_child(root)
     await process_frame
     var skeleton := _find_skeleton(root)
     if skeleton == null:
         push_error("CIV1_RIGHTFOOT_SKIN_SUBSET_FAIL: skeleton")
-        quit(3)
-        return
+        quit(3); return
     var bone_idx := skeleton.find_bone(TARGET_BONE)
     if bone_idx < 0:
         push_error("CIV1_RIGHTFOOT_SKIN_SUBSET_FAIL: rightfoot-bone")
-        quit(4)
-        return
+        quit(4); return
     var selected: Array = []
-    var mesh_count := 0
-    var surface_count := 0
-    _collect_meshes(root, skeleton, bone_idx, selected, mesh_count, surface_count)
+    _collect_meshes(root, bone_idx, selected)
     if selected.is_empty():
         push_error("CIV1_RIGHTFOOT_SKIN_SUBSET_FAIL: no-dominant-rightfoot-vertices")
-        quit(5)
-        return
+        quit(5); return
+    var mesh_keys := {}
+    var surface_keys := {}
     var min_y := INF
     var max_y := -INF
     for item in selected:
+        mesh_keys[item["mesh_path"]] = true
+        surface_keys[str(item["mesh_path"], ":", item["surface"])] = true
         var y := float(item["vertex_position"][1])
         min_y = min(min_y, y)
         max_y = max(max_y, y)
@@ -47,8 +45,8 @@ func _initialize() -> void:
         "target_bone": TARGET_BONE,
         "target_bone_index": bone_idx,
         "skeleton_bone_count": skeleton.get_bone_count(),
-        "skinned_mesh_count": mesh_count,
-        "surface_count": surface_count,
+        "skinned_mesh_count": mesh_keys.size(),
+        "surface_count": surface_keys.size(),
         "selected_vertex_count": selected.size(),
         "selected_local_y_min": min_y,
         "selected_local_y_max": max_y,
@@ -63,11 +61,10 @@ func _initialize() -> void:
     var f := FileAccess.open(out_path, FileAccess.WRITE)
     if f == null:
         push_error("CIV1_RIGHTFOOT_SKIN_SUBSET_FAIL: output")
-        quit(6)
-        return
+        quit(6); return
     f.store_string(JSON.stringify(report, "  "))
     f.close()
-    print("CIV1_RIGHTFOOT_SKIN_SUBSET_OK selected=", selected.size(), " meshes=", mesh_count, " surfaces=", surface_count)
+    print("CIV1_RIGHTFOOT_SKIN_SUBSET_OK selected=", selected.size(), " meshes=", mesh_keys.size(), " surfaces=", surface_keys.size())
     quit(0)
 
 func _find_skeleton(node: Node) -> Skeleton3D:
@@ -79,16 +76,15 @@ func _find_skeleton(node: Node) -> Skeleton3D:
             return found
     return null
 
-func _collect_meshes(node: Node, skeleton: Skeleton3D, target_bone: int, selected: Array, mesh_count: int, surface_count: int) -> void:
-    # Mutating integer counters through recursion is not reliable in GDScript; counts are recomputed from selected metadata later.
+func _collect_meshes(node: Node, target_bone: int, selected: Array) -> void:
     if node is MeshInstance3D:
         var mi := node as MeshInstance3D
         if mi.mesh != null and mi.skin != null:
-            _collect_mesh(mi, skeleton, target_bone, selected)
+            _collect_mesh(mi, target_bone, selected)
     for child in node.get_children():
-        _collect_meshes(child, skeleton, target_bone, selected, mesh_count, surface_count)
+        _collect_meshes(child, target_bone, selected)
 
-func _collect_mesh(mi: MeshInstance3D, skeleton: Skeleton3D, target_bone: int, selected: Array) -> void:
+func _collect_mesh(mi: MeshInstance3D, target_bone: int, selected: Array) -> void:
     var skin := mi.skin
     for surface in range(mi.mesh.get_surface_count()):
         var arrays := mi.mesh.surface_get_arrays(surface)
@@ -99,7 +95,7 @@ func _collect_mesh(mi: MeshInstance3D, skeleton: Skeleton3D, target_bone: int, s
             continue
         if bones.size() % vertices.size() != 0 or weights.size() != bones.size():
             continue
-        var influences := bones.size() / vertices.size()
+        var influences := int(bones.size() / vertices.size())
         for vi in range(vertices.size()):
             var strongest_weight := -1.0
             var strongest_bind := -1
@@ -114,11 +110,4 @@ func _collect_mesh(mi: MeshInstance3D, skeleton: Skeleton3D, target_bone: int, s
             if skin.get_bind_bone(strongest_bind) != target_bone:
                 continue
             var p := vertices[vi]
-            selected.append({
-                "mesh_path": str(mi.get_path()),
-                "surface": surface,
-                "vertex": vi,
-                "dominant_bind": strongest_bind,
-                "dominant_weight": strongest_weight,
-                "vertex_position": [p.x, p.y, p.z]
-            })
+            selected.append({"mesh_path": str(mi.get_path()), "surface": surface, "vertex": vi, "dominant_bind": strongest_bind, "dominant_weight": strongest_weight, "vertex_position": [p.x, p.y, p.z]})

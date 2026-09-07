@@ -1,0 +1,162 @@
+name: Grand Bruxelles Grand-Place Official Full-Square Multiview
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-official-full-square-multiview.yml"
+      - "grand-bruxelles-game/game/tests/grand_place_official_full_square_multiview_witness_test.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_contour_runtime.gd"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/**"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-grand-place-official-full-square-multiview-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  full-square-multiview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          VALIDATED_BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$VALIDATED_BASE_SHA")" = "$VALIDATED_BASE_SHA"
+          printf 'GP_VALIDATED_BASE_SHA=%s\n' "$VALIDATED_BASE_SHA" >> "$GITHUB_ENV"
+      - name: Install verified Godot 4.7.1 and virtual display
+        shell: bash
+        env:
+          GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          GODOT_VERSION="$(/tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version)"
+          printf '%s\n' "$GODOT_VERSION" | grep -E '^4\.7\.1\.stable\.'
+          printf 'GODOT_VERSION=%s\n' "$GODOT_VERSION" >> "$GITHUB_ENV"
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-official-full-square-multiview-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-official-full-square-multiview-import.log; then exit 1; fi
+      - name: Capture deterministic official full-square multiview
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/grand-place-official-full-square-multiview
+          xvfb-run -a -s "-screen 0 1280x720x24" /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --rendering-method gl_compatibility --audio-driver Dummy --resolution 1280x720 --script res://game/tests/grand_place_official_full_square_multiview_witness_test.gd -- /tmp/grand-place-official-full-square-multiview 2>&1 | tee /tmp/grand-place-official-full-square-multiview.log
+          grep -F "GRAND_PLACE_OFFICIAL_FULL_SQUARE_MULTIVIEW_OK" /tmp/grand-place-official-full-square-multiview.log
+          test "$(find /tmp/grand-place-official-full-square-multiview -maxdepth 1 -name '*.png' | wc -l)" = "5"
+      - name: Validate and seal exact-head evidence manifest
+        shell: bash
+        env:
+          GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+        run: |
+          set -euo pipefail
+          export GP_HEAD_SHA="$(git rev-parse HEAD)"
+          git fetch origin main --no-tags
+          CURRENT_MAIN_SHA="$(git rev-parse origin/main)"
+          test -n "${GP_VALIDATED_BASE_SHA:-}"
+          test "$CURRENT_MAIN_SHA" = "$GP_VALIDATED_BASE_SHA"
+          test "$(git merge-base HEAD "$CURRENT_MAIN_SHA")" = "$CURRENT_MAIN_SHA"
+          export GP_BASE_SHA="$GP_VALIDATED_BASE_SHA"
+          python - <<'PY'
+          import hashlib, json, os, re, struct
+          from pathlib import Path
+
+          evidence = Path('/tmp/grand-place-official-full-square-multiview')
+          log_path = Path('/tmp/grand-place-official-full-square-multiview.log')
+          repo_root = Path.cwd()
+          source_dir = repo_root / 'grand-bruxelles-game/data/urbis/grand_place_lod2'
+          required = ['canonical', 'north_west', 'north_east', 'south_west', 'south_east']
+          log = log_path.read_text(encoding='utf-8', errors='strict')
+          target_re = re.compile(r'GRAND_PLACE_OFFICIAL_MULTIVIEW_VIEW id=(\S+) target=\[(-?\d+\.\d+),(-?\d+\.\d+),(-?\d+\.\d+)\]')
+          targets = {m.group(1): [float(m.group(2)), float(m.group(3)), float(m.group(4))] for m in target_re.finditer(log)}
+          if set(targets) != set(required):
+              raise SystemExit(f'target set drift: {sorted(targets)}')
+
+          source_paths = sorted(source_dir.glob('*.game.json'))
+          if len(source_paths) != 25:
+              raise SystemExit(f'expected 25 official source files, got {len(source_paths)}')
+          source_files = {}
+          aggregate = hashlib.sha256()
+          for path in source_paths:
+              data = path.read_bytes()
+              digest = hashlib.sha256(data).hexdigest()
+              source_files[path.name] = digest
+              aggregate.update(path.name.encode('utf-8'))
+              aggregate.update(b'\0')
+              aggregate.update(digest.encode('ascii'))
+              aggregate.update(b'\n')
+
+          frames = {}
+          digests = set()
+          for view in required:
+              path = evidence / f'{view}.png'
+              data = path.read_bytes()
+              if len(data) < 24 or data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR':
+                  raise SystemExit(f'{view}: invalid PNG signature/IHDR')
+              width, height = struct.unpack('>II', data[16:24])
+              if (width, height) != (1280, 720):
+                  raise SystemExit(f'{view}: dimensions drifted to {width}x{height}')
+              digest = hashlib.sha256(data).hexdigest()
+              if digest in digests:
+                  raise SystemExit(f'{view}: duplicate rendered frame digest')
+              digests.add(digest)
+              frames[view] = {'sha256': digest, 'bytes': len(data), 'width': width, 'height': height, 'target': targets[view]}
+
+          witness_path = repo_root / 'grand-bruxelles-game/game/tests/grand_place_official_full_square_multiview_witness_test.gd'
+          runtime_path = repo_root / 'grand-bruxelles-game/game/scripts/grand_place_official_lod2_contour_runtime.gd'
+          manifest = {
+              'schema_version': 2,
+              'base_sha': os.environ['GP_BASE_SHA'],
+              'head_sha': os.environ['GP_HEAD_SHA'],
+              'godot_version': os.environ['GODOT_VERSION'],
+              'godot_linux_x86_64_zip_sha256': os.environ['GODOT_ZIP_SHA256'],
+              'camera_position': [319.01, 1.72, -535.20],
+              'fov': 62.0,
+              'source_owner_count': 25,
+              'contour_owner_count': 23,
+              'source_files_sha256': source_files,
+              'source_set_sha256': aggregate.hexdigest(),
+              'witness_script_sha256': hashlib.sha256(witness_path.read_bytes()).hexdigest(),
+              'contour_runtime_sha256': hashlib.sha256(runtime_path.read_bytes()).hexdigest(),
+              'dynamic_state_frozen': True,
+              'human_full_frame_review_required': True,
+              'visual_acceptance': False,
+              'jouable_authorized': False,
+              'frames': frames,
+          }
+          (evidence / 'manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print('GRAND_PLACE_OFFICIAL_FULL_SQUARE_MULTIVIEW_MANIFEST_OK views=5 unique_png_sha256=5 dimensions=1280x720 source_files=25 source_set_hashed=true runtime_hashed=true witness_hashed=true godot_archive_verified=true exact_main_stable=true')
+          PY
+      - name: Upload exact-head player-eye evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-official-full-square-multiview-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/grand-place-official-full-square-multiview-import.log
+            /tmp/grand-place-official-full-square-multiview.log
+            /tmp/grand-place-official-full-square-multiview/*.png
+            /tmp/grand-place-official-full-square-multiview/manifest.json
+          if-no-files-found: error
+          retention-days: 14

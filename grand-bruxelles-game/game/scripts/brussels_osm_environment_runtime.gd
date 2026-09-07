@@ -300,8 +300,10 @@ func _clear_tree_foliage_batches() -> void:
             continue
         if not batch.name.begins_with("TreeFoliage"):
             continue
-        if batch.get_parent() == self:
-            remove_child(batch)
+        if batch.get_parent() != self:
+            _owned_batches.remove_at(index)
+            continue
+        remove_child(batch)
         if not batch.is_queued_for_deletion():
             batch.queue_free()
         _owned_batches.remove_at(index)

@@ -13,6 +13,7 @@ required = [
     '"bind_index":bind',
     '"inverse_bind_transform":_transform_array(bind_pose)',
     '"mesh_to_skeleton_rest":_transform_array(mesh_to_skeleton_rest)',
+    'var bind_space_complete: bool = selected.size() == 3306',
     'vertices_with_complete_bind_space == 3306',
     'selected.size() == 3306',
     'if w <= 0.0: continue',
@@ -31,6 +32,7 @@ for token in required:
 for forbidden in (
     'WEIGHT_THRESHOLD', 'bottom_percent', 'lowest_row', 'near_white',
     'camera_position', 'camera_fov', 'viewport_size', 'percentile',
+    'var bind_space_complete := selected.size() == 3306',
 ):
     assert forbidden not in s, forbidden
 

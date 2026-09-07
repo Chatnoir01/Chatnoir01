@@ -1,0 +1,40 @@
+name: TEMP Shared Environment owned-batch teardown patch
+
+on:
+  push:
+    branches:
+      - env/shared-owned-batch-teardown-3255bf6
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: env/shared-owned-batch-teardown-3255bf6
+      - name: Apply exact ownership-safe teardown patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd')
+          source = path.read_text(encoding='utf-8')
+          old = '''func _clear_owned_batches() -> void:\n    for batch: MultiMeshInstance3D in _owned_batches:\n        if not is_instance_valid(batch):\n            continue\n        if batch.get_parent() == self:\n            remove_child(batch)\n        if not batch.is_queued_for_deletion():\n            batch.queue_free()\n    _owned_batches.clear()\n'''
+          new = '''func _clear_owned_batches() -> void:\n    for batch: MultiMeshInstance3D in _owned_batches:\n        if not is_instance_valid(batch):\n            continue\n        if batch.get_parent() != self:\n            continue\n        remove_child(batch)\n        if not batch.is_queued_for_deletion():\n            batch.queue_free()\n    _owned_batches.clear()\n'''
+          assert source.count(old) == 1, 'expected exactly one canonical teardown block'
+          path.write_text(source.replace(old, new), encoding='utf-8')
+          PY
+      - name: Commit runtime fix
+        run: |
+          if git diff --quiet -- grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd; then
+            echo 'No runtime diff produced' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd
+          git commit -m 'fix(env): preserve foreign batches during teardown'
+          git push origin HEAD:env/shared-owned-batch-teardown-3255bf6

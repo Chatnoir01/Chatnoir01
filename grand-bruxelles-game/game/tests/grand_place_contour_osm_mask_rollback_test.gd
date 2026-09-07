@@ -1,6 +1,6 @@
 extends SceneTree
 
-const RUNTIME_SCRIPT := preload("res://scripts/grand_place_official_lod2_contour_runtime.gd")
+const RUNTIME_SCRIPT := preload("res://game/scripts/grand_place_official_lod2_contour_runtime.gd")
 
 var failures: Array[String] = []
 

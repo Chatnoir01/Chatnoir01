@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed if shared OSM environment batch ownership can retain dead or detached MultiMesh refs."""
+"""Fail closed if shared OSM environment batch ownership can retain or destroy foreign MultiMesh refs."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,5 +24,12 @@ assert "_prune_invalid_owned_batches()" in set_visible, "visibility pass must pr
 batch = source[source.index("func _batch("):source.index("func _ensure_tree_presentation_meshes")]
 assert "_prune_invalid_owned_batches()" in batch, "reuse lookup must prune dead or detached owned batches before matching by name"
 assert batch.index("_prune_invalid_owned_batches()") < batch.index("if reuse_existing:"), "prune must happen before reuse lookup"
+
+clear = source[source.index("func _clear_owned_batches() -> void:"):source.index("func _rebuild(")]
+assert "if batch.get_parent() != self:" in clear, "teardown must reject foreign/reparented batches before destructive operations"
+assert "continue" in clear[clear.index("if batch.get_parent() != self:"):], "foreign batches must be skipped rather than freed"
+foreign_guard = clear.index("if batch.get_parent() != self:")
+queue_free = clear.index("batch.queue_free()")
+assert foreign_guard < queue_free, "foreign ownership guard must run before queue_free"
 
 print("OSM_ENVIRONMENT_OWNED_BATCH_PRUNE_CONTRACT_GREEN")

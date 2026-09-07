@@ -412,8 +412,9 @@ func _clear_owned_batches() -> void:
     for batch: MultiMeshInstance3D in _owned_batches:
         if not is_instance_valid(batch):
             continue
-        if batch.get_parent() == self:
-            remove_child(batch)
+        if batch.get_parent() != self:
+            continue
+        remove_child(batch)
         if not batch.is_queued_for_deletion():
             batch.queue_free()
     _owned_batches.clear()

@@ -21,6 +21,14 @@ assert (
 set_visible = source[source.index("func _set_batches_visible"):source.index("func _tree_lod_boundary_crossed")]
 assert "_prune_invalid_owned_batches()" in set_visible, "visibility pass must prune dead or detached owned batches"
 
+foliage_clear = source[source.index("func _clear_tree_foliage_batches() -> void:"):source.index("func _refresh_tree_lod")]
+assert "if batch.get_parent() != self:" in foliage_clear, "tree foliage teardown must reject foreign/reparented batches"
+foliage_guard = foliage_clear.index("if batch.get_parent() != self:")
+foliage_queue_free = foliage_clear.index("batch.queue_free()")
+assert foliage_guard < foliage_queue_free, "tree foliage ownership guard must run before queue_free"
+assert "_owned_batches.remove_at(index)" in foliage_clear[foliage_guard:foliage_queue_free], "foreign foliage refs must be dropped from local ownership before destructive work"
+assert "continue" in foliage_clear[foliage_guard:foliage_queue_free], "foreign foliage batches must be skipped rather than freed"
+
 batch = source[source.index("func _batch("):source.index("func _ensure_tree_presentation_meshes")]
 assert "_prune_invalid_owned_batches()" in batch, "reuse lookup must prune dead or detached owned batches before matching by name"
 assert batch.index("_prune_invalid_owned_batches()") < batch.index("if reuse_existing:"), "prune must happen before reuse lookup"

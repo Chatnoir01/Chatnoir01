@@ -3,7 +3,9 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/build_civ1_rightfoot_contact_witness.py'
+      - 'grand-bruxelles-game/tools/analyze_civ1_rightfoot_contact_local_sole.py'
       - 'grand-bruxelles-game/tests/test_civ1_rightfoot_contact_witness.py'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_contact_local_sole.py'
       - '.github/workflows/grand-bruxelles-civ1-rightfoot-contact-witness.yml'
   workflow_dispatch:
 permissions:
@@ -26,8 +28,11 @@ jobs:
           git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - name: Causal regression
-        run: python grand-bruxelles-game/tests/test_civ1_rightfoot_contact_witness.py
+      - name: Causal regressions
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tests/test_civ1_rightfoot_contact_witness.py
+          python grand-bruxelles-game/tests/test_civ1_rightfoot_contact_local_sole.py
       - name: Acquire immutable RightFoot identity harness and derive contact samples
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,7 +86,7 @@ jobs:
           cp /tmp/civ1contact/evidence/right-contact-witness.gd "$CANONICAL_PROJECT/gb_rightfoot_contact.gd"
           /tmp/civ1contact/engine/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path "$CANONICAL_PROJECT" --quit 2>&1 | tee /tmp/civ1contact/evidence/import.log
           echo "CANONICAL_PROJECT=$CANONICAL_PROJECT" >> "$GITHUB_ENV"
-      - name: Render and measure 12 real RightFoot contact-context rasters
+      - name: Render and classify 12 real RightFoot contact-context rasters
         run: |
           set -euo pipefail
           GODOT=/tmp/civ1contact/engine/Godot_v4.7.1-stable_linux.x86_64
@@ -104,26 +109,67 @@ jobs:
           assert w['sample_indices']==[68,69,70,71] and w['capture_count']==12
           assert w['landmark_semantic']=='rightfoot_bone_pose_with_verified_same_skeleton_skin'
           assert w['max_pose_origin_error_m']<=1e-4
+          assert w['skin_integrity']['same_skeleton_skin_count']>=1 and w['skin_integrity']['skin_bind_count']>=1 and w['skin_integrity']['surface_count']>=1
           assert a['samples']==[68,69,70,71] and a['distances_m']==[2,4,8]
-          assert a['single_rightfoot_identity_preserved_2_4_8m'] is True
-          assert all(m['passed'] and m['direction_match'] for m in a['measurements'])
-          assert all(m['max_centroid_error_px']<=1.5 and m['path_relative_error']<=0.25 for m in a['measurements'])
+          ms={int(m['distance_m']):m for m in a['measurements']}
+          assert set(ms)=={2,4,8}
+          assert all(m['direction_match'] for m in ms.values())
+          assert all(float(r['centroid_error_px'])<=1.5 for m in ms.values() for r in m['records'])
+          assert ms[2]['passed'] is True and ms[2]['path_relative_error']<=0.25
+          assert ms[4]['passed'] is True and ms[4]['path_relative_error']<=0.25
+          assert ms[8]['passed'] is False and ms[8]['path_relative_error']>0.25
+          assert a['single_rightfoot_identity_preserved_2_4_8m'] is False
+          assert a['quantitative_landmark_candidate'] is False
           for key in ('planted_contact_claimed','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
               assert w[key] is False and a[key] is False
           pngs=list(Path('/tmp/civ1contact/captures').glob('*.png'))
           assert len(pngs)==12 and all(p.stat().st_size>0 for p in pngs)
           out={
-            'schema':'grand-bruxelles-civ1-rightfoot-contact-context-v1',
+            'schema':'grand-bruxelles-civ1-rightfoot-contact-context-v2',
             'samples':[68,69,70,71], 'distances_m':[2,4,8], 'capture_count':12,
-            'source_low_window':[69,70], 'identity_ready':True,
+            'source_low_window':[69,70],
+            'bone_landmark_roi_anchor_usable':True,
+            'landmark_path_quantitative_candidate':False,
+            'far_distance_path_relative_error':ms[8]['path_relative_error'],
             'contact_phase_ready':False, 'quantitative_foot_slide_candidate':False,
             'planted_contact_claimed':False, 'animation_correction_authorized':False,
             'runtime_authorized':False, 'visual_approval_claimed':False, 'player_view_claimed':False,
             'measurements':a['measurements'],
-            'verdict':'AMELIORER_RIGHTFOOT_CONTACT_CONTEXT_RENDERED_PHASE_STILL_REQUIRES_SOLE_STABILITY'
+            'verdict':'AMELIORER_RIGHTFOOT_CONTACT_CONTEXT_RENDERED_8M_PATH_DRIFT_LOCAL_SOLE_CLASSIFICATION_REQUIRED'
           }
           Path('/tmp/civ1contact/out/rightfoot-contact-context.json').write_text(json.dumps(out,indent=2)+'\n')
-          print('CIV1_RIGHTFOOT_CONTACT_CONTEXT_12_RASTER_OK')
+          print('CIV1_RIGHTFOOT_CONTACT_CONTEXT_12_RASTER_CLASSIFIED', ms[8]['path_relative_error'])
+          PY
+      - name: Classify bone-local rendered sole stability
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/analyze_civ1_rightfoot_contact_local_sole.py \
+            /tmp/civ1contact/evidence/right-contact-analyzer.py \
+            /tmp/civ1contact/evidence/rightfoot-contact-witness.json \
+            /tmp/civ1contact/out/rightfoot-contact-analysis.json \
+            /tmp/civ1contact/captures \
+            /tmp/civ1contact/out/rightfoot-contact-local-sole.json \
+            | tee /tmp/civ1contact/out/rightfoot-contact-local-sole.log
+          grep -F CIV1_RIGHTFOOT_CONTACT_LOCAL_SOLE_CLASSIFIED /tmp/civ1contact/out/rightfoot-contact-local-sole.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1contact/out/rightfoot-contact-local-sole.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-rightfoot-contact-local-sole-v1'
+          assert r['roi_anchor_usable'] is True
+          assert r['landmark_path_quantitative_candidate'] is False
+          assert r['single_side_consistent'] is True
+          assert r['bone_local_sole_identity_preserved_2_4_8m'] is False
+          assert any(float(v)>0.15 for v in r['max_within_distance_relative_deviation'].values())
+          assert r['contact_phase_ready'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['planted_contact_claimed'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          assert r['verdict']=='JETER_RIGHTFOOT_CONTACT_CONTEXT_LOCAL_SOLE_UNSTABLE'
+          print('CIV1_RIGHTFOOT_CONTACT_LOCAL_SOLE_JETER_RECEIPT_OK', r['distance_mean_relative_spread'], r['max_within_distance_relative_deviation'])
           PY
       - uses: actions/upload-artifact@v4
         if: always()

@@ -44,28 +44,39 @@ jobs:
           set -euo pipefail
           G=/tmp/civ1subset/engine/Godot_v4.7.1-stable_linux.x86_64
           "$G" --headless --editor --path /tmp/civ1subset/project --quit 2>&1 | tee /tmp/civ1subset/out/import.log
+          set +e
           "$G" --headless --path /tmp/civ1subset/project --script res://probe.gd -- /tmp/civ1subset/out/rightfoot-weighted-subset.json 2>&1 | tee /tmp/civ1subset/out/probe.log
-          grep -F CIV1_RIGHTFOOT_SKIN_SUBSET_OK /tmp/civ1subset/out/probe.log
+          probe_rc=${PIPESTATUS[0]}
+          set -e
+          test -f /tmp/civ1subset/out/rightfoot-weighted-subset.json || { echo "missing characterization receipt"; exit "$probe_rc"; }
           python - <<'PY'
           import json
           from pathlib import Path
           r=json.loads(Path('/tmp/civ1subset/out/rightfoot-weighted-subset.json').read_text())
-          assert r['schema']=='grand-bruxelles-civ1-rightfoot-dominant-skin-subset-v1'
+          assert r['schema']=='grand-bruxelles-civ1-rightfoot-skin-influence-characterization-v2'
           assert r['target_bone']=='mixamorig_RightFoot'
           assert r['threshold_tuned'] is False
-          assert r['selected_vertex_count'] > 0
+          assert r['presence_rule']=='stored_rightfoot_weight_greater_than_zero_only'
           assert r['skinned_mesh_count'] > 0
           assert r['surface_count'] > 0
-          assert all(v['dominant_weight'] > 0 for v in r['vertices'])
+          assert r['rightfoot_influenced_vertex_count'] > 0
+          assert len(r['vertices']) == r['rightfoot_influenced_vertex_count']
+          assert all(v['rightfoot_weight'] > 0 for v in r['vertices'])
+          assert r['dominant_rightfoot_vertex_count'] == 0
+          assert r['dominant_rightfoot_semantic_valid'] is False
           assert r['contact_phase_ready'] is False
           assert r['quantitative_foot_slide_candidate'] is False
           assert r['animation_correction_authorized'] is False
           assert r['runtime_authorized'] is False
-          print('CIV1_RIGHTFOOT_WEIGHTED_SUBSET_RECEIPT_OK', r['selected_vertex_count'])
+          print('CIV1_RIGHTFOOT_SKIN_INFLUENCE_RECEIPT_OK', r['rightfoot_influenced_vertex_count'], r['dominant_rightfoot_vertex_count'])
           PY
-      - uses: actions/upload-artifact@v4
+          test "$probe_rc" = 0
+          grep -F CIV1_RIGHTFOOT_SKIN_INFLUENCE_OK /tmp/civ1subset/out/probe.log
+      - name: Upload immutable characterization evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: civ1-rightfoot-weighted-subset-${{ github.event.pull_request.head.sha || github.sha }}
+          name: civ1-rightfoot-skin-influence-${{ github.event.pull_request.head.sha || github.sha }}
           path: /tmp/civ1subset/out
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90

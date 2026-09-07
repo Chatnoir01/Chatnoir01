@@ -23,13 +23,26 @@ func _mesh_triangle_count(instance: MeshInstance3D) -> int:
         return -1
     return faces.size() / 3
 
-func _has_collision_shape(node: Node) -> bool:
+func _collision_triangle_count(node: Node) -> int:
+    var total := 0
+    var found := false
     for child: Node in node.get_children():
-        if child is CollisionShape3D and (child as CollisionShape3D).shape != null:
-            return true
-        if _has_collision_shape(child):
-            return true
-    return false
+        if child is CollisionShape3D:
+            var collision_shape := child as CollisionShape3D
+            if collision_shape.shape == null or not collision_shape.shape is ConcavePolygonShape3D:
+                return -1
+            var faces := (collision_shape.shape as ConcavePolygonShape3D).get_faces()
+            if faces.size() % 3 != 0:
+                return -1
+            total += faces.size() / 3
+            found = true
+        var nested := _collision_triangle_count(child)
+        if nested < 0:
+            return -1
+        if nested > 0:
+            total += nested
+            found = true
+    return total if found else 0
 
 func _run() -> void:
     var main := MAIN_SCENE.instantiate()
@@ -73,6 +86,8 @@ func _run() -> void:
 
     var owner_roots := 0
     var materialized_triangles := 0
+    var materialized_wall_triangles := 0
+    var materialized_collision_triangles := 0
     var materialized_collision_owners := 0
     for child: Node in contour.get_children():
         if child is Node3D and child.name.begins_with("GrandPlaceOfficial_"):
@@ -90,9 +105,15 @@ func _run() -> void:
                 _fail("owner wall mesh has invalid/empty triangle payload: %s count=%d" % [owner_id, wall_triangles])
                 return
             materialized_triangles += wall_triangles
-            if not _has_collision_shape(wall):
-                _fail("owner wall mesh missing materialized collision shape: %s" % owner_id)
+            materialized_wall_triangles += wall_triangles
+            var collision_triangles := _collision_triangle_count(wall)
+            if collision_triangles <= 0:
+                _fail("owner wall mesh missing/invalid trimesh collision payload: %s count=%d" % [owner_id, collision_triangles])
                 return
+            if collision_triangles != wall_triangles:
+                _fail("owner wall collision payload disagrees with rendered wall mesh: %s wall=%d collision=%d" % [owner_id, wall_triangles, collision_triangles])
+                return
+            materialized_collision_triangles += collision_triangles
             materialized_collision_owners += 1
 
             var roof := child.get_node_or_null("%s_ROOFSURFACE" % owner_id)
@@ -111,6 +132,9 @@ func _run() -> void:
     if materialized_collision_owners != EXPECTED_OWNER_COUNT:
         _fail("materialized collision-owner count drifted: expected=%d actual=%d" % [EXPECTED_OWNER_COUNT, materialized_collision_owners])
         return
+    if materialized_collision_triangles != materialized_wall_triangles:
+        _fail("aggregate wall collision payload disagrees with rendered wall payload: wall=%d collision=%d" % [materialized_wall_triangles, materialized_collision_triangles])
+        return
     if materialized_triangles != EXPECTED_RENDER_TRIANGLE_COUNT:
         _fail("materialized mesh payload disagrees with runtime accounting: expected=%d actual=%d" % [EXPECTED_RENDER_TRIANGLE_COUNT, materialized_triangles])
         return
@@ -118,5 +142,5 @@ func _run() -> void:
         _fail("runtime render counter disagrees with materialized mesh payload: counter=%s mesh=%d" % [str(contour.get("render_triangle_count")), materialized_triangles])
         return
 
-    print("GRAND_PLACE_OFFICIAL_CONTOUR_RUNTIME_ACCOUNTING_OK owners=23 collision_owners=23 materialized_collision_owners=23 contour_wall_roof_source_triangles=1490 excluded_zero_surface=9 mounted_wall_roof_triangles=1481 materialized_mesh_triangles=1481 source_triangles=2170 ground_surface_policy=validated_source_not_mounted runtime_approved=false visual_acceptance=false jouable_authorized=false")
+    print("GRAND_PLACE_OFFICIAL_CONTOUR_RUNTIME_ACCOUNTING_OK owners=23 collision_owners=23 materialized_collision_owners=23 contour_wall_roof_source_triangles=1490 excluded_zero_surface=9 mounted_wall_roof_triangles=1481 materialized_mesh_triangles=1481 collision_payload_matches_wall_mesh=true source_triangles=2170 ground_surface_policy=validated_source_not_mounted runtime_approved=false visual_acceptance=false jouable_authorized=false")
     quit(0)

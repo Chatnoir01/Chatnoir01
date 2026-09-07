@@ -33,6 +33,14 @@ for forbidden in (
 ):
     assert forbidden not in s, forbidden
 
+# Godot 4.7.1 promotes inferred-Variant warnings to errors in this project. Keep
+# the two values proven by run 34128178050 explicitly typed so the diagnostic
+# reaches the real Skeleton/animation probe instead of failing at script reload.
+assert 'var bundle: Variant = _read_json(args[0])' in s
+assert 'var q: Quaternion = t.basis.get_rotation_quaternion().normalized()' in s
+assert 'var bundle := _read_json(args[0])' not in s
+assert 'var q := t.basis.get_rotation_quaternion().normalized()' not in s
+
 # Never synthesize a rigid toe by copying the validated RightFoot transform unchanged.
 # Match a complete assignment line only; do not reject the required composition
 # `corrected_foot * source_relative` merely because it shares the same prefix.

@@ -14,8 +14,12 @@ required = [
     "basis['full_vertex_influence_basis_integrity_ready'] is True",
     "basis['normalization_violation_count'] == 0",
     "float(inf['weight']) > 0.0",
-    "available = set(poses.keys()) | {'RightToeBase'}",
+    "'RightLeg': 'RightLowerLeg'",
+    "required.add(canonical_pose_semantic(raw))",
+    "available = {canonical_pose_semantic(k) for k in poses.keys()} | {'RightToeBase'}",
     "missing = sorted(required - available)",
+    "'required_raw_influence_bones': sorted(required_raw)",
+    "'pose_semantic_aliases': POSE_SEMANTIC_ALIASES",
     "'skinning_input_complete': not missing_union",
     "'bone_local_witness_authorized': not missing_union",
     "'contact_phase_ready': False",
@@ -33,9 +37,15 @@ for forbidden in (
 ):
     assert forbidden not in s, forbidden
 
-assert "required.add(short_bone(str(inf['bone_name'])))" in s
 assert "len(set(ids)) == 3306" in s
 assert "set(SAMPLES).issubset(toe_samples)" in s
+
+# The skeleton witness explicitly canonicalizes source Mixamo `rightleg` to the
+# project semantic `RightLowerLeg`; the Skin basis stores the source name
+# `mixamorig_RightLeg`. The coverage gate must use that same validated semantic
+# identity rather than report a false missing pose.
+assert "'RightLeg': 'RightLowerLeg'" in s
+assert "required.add(short_bone(str(inf['bone_name'])))" not in s
 
 # The replay-input classifier requires the v2 normalization-integrity schema. Pin the
 # workflow to the actual GREEN v2 artifact so a stale v1 artifact cannot silently

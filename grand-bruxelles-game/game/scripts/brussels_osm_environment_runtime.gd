@@ -300,10 +300,8 @@ func _clear_tree_foliage_batches() -> void:
             continue
         if not batch.name.begins_with("TreeFoliage"):
             continue
-        if batch.get_parent() != self:
-            _owned_batches.remove_at(index)
-            continue
-        remove_child(batch)
+        if batch.get_parent() == self:
+            remove_child(batch)
         if not batch.is_queued_for_deletion():
             batch.queue_free()
         _owned_batches.remove_at(index)
@@ -336,218 +334,79 @@ func _refresh(force: bool) -> void:
     _last_anchor = anchor
     _rebuild(anchor)
 
-func _select_rows(kind: String, anchor: Vector3, limit: int) -> Array:
-    var selected: Array = []
+func _nearby_candidate_is_better(a: Dictionary, b: Dictionary) -> bool:
+    var a_distance := float(a["distance_sq"])
+    var b_distance := float(b["distance_sq"])
+    if a_distance == b_distance:
+        return int(a["osm_id"]) < int(b["osm_id"])
+    return a_distance < b_distance
+
+func _nearby_candidate_is_worse(a: Dictionary, b: Dictionary) -> bool:
+    return _nearby_candidate_is_better(b, a)
+
+func _nearby_heap_sift_up(rows: Array, index: int) -> void:
+    while index > 0:
+        var parent := int((index - 1) / 2)
+        if not _nearby_candidate_is_worse(rows[index] as Dictionary, rows[parent] as Dictionary):
+            return
+        var temporary: Variant = rows[parent]
+        rows[parent] = rows[index]
+        rows[index] = temporary
+        index = parent
+
+func _nearby_heap_sift_down(rows: Array, index: int) -> void:
+    while true:
+        var left := index * 2 + 1
+        if left >= rows.size():
+            return
+        var worst := left
+        var right := left + 1
+        if right < rows.size() and _nearby_candidate_is_worse(rows[right] as Dictionary, rows[left] as Dictionary):
+            worst = right
+        if not _nearby_candidate_is_worse(rows[worst] as Dictionary, rows[index] as Dictionary):
+            return
+        var temporary: Variant = rows[index]
+        rows[index] = rows[worst]
+        rows[worst] = temporary
+        index = worst
+
+func _push_nearby_candidate(rows: Array, candidate: Dictionary, limit: int) -> void:
+    if rows.size() < limit:
+        rows.append(candidate)
+        _nearby_heap_sift_up(rows, rows.size() - 1)
+        return
+    if not _nearby_candidate_is_better(candidate, rows[0] as Dictionary):
+        return
+    rows[0] = candidate
+    _nearby_heap_sift_down(rows, 0)
+
+func _nearby(kind: String, anchor: Vector3, limit: int) -> Array:
+    if limit <= 0:
+        return []
+    var rows: Array = []
     var radius_sq := render_radius_m * render_radius_m
-    for row_variant in _points[kind]:
-        var row := row_variant as Dictionary
-        var p: Vector3 = row["position"]
+    for item_variant in _points[kind]:
+        var item := item_variant as Dictionary
+        var p: Vector3 = item["position"]
         var dx := p.x - anchor.x
         var dz := p.z - anchor.z
         var distance_sq := dx * dx + dz * dz
-        if distance_sq > radius_sq:
-            continue
-        selected.append({
-            "osm_id": row["osm_id"],
-            "position": p,
-            "distance_sq": distance_sq,
-        })
-    selected.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-        if a["distance_sq"] == b["distance_sq"]:
+        if distance_sq <= radius_sq:
+            var osm_id := int(item["osm_id"])
+            if rows.size() >= limit:
+                var worst := rows[0] as Dictionary
+                var worst_distance_sq := float(worst["distance_sq"])
+                var worst_osm_id := int(worst["osm_id"])
+                if distance_sq > worst_distance_sq or (distance_sq == worst_distance_sq and osm_id >= worst_osm_id):
+                    continue
+            var candidate := {"osm_id": item["osm_id"], "position": p, "distance_sq": distance_sq}
+            _push_nearby_candidate(rows, candidate, limit)
+    rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+        if float(a["distance_sq"]) == float(b["distance_sq"]):
             return int(a["osm_id"]) < int(b["osm_id"])
-        return a["distance_sq"] < b["distance_sq"]
+        return float(a["distance_sq"]) < float(b["distance_sq"])
     )
-    if selected.size() > limit:
-        selected.resize(limit)
-    return selected
-
-func _batch(name: String, mesh: Mesh, transforms: Array[Transform3D], reuse_existing := false) -> MultiMeshInstance3D:
-    _prune_invalid_owned_batches()
-    var instance: MultiMeshInstance3D = null
-    if reuse_existing:
-        for candidate: MultiMeshInstance3D in _owned_batches:
-            if candidate.name == name:
-                instance = candidate
-                break
-    var multimesh: MultiMesh = null
-    if instance == null:
-        instance = MultiMeshInstance3D.new()
-        instance.name = name
-        multimesh = MultiMesh.new()
-        multimesh.transform_format = MultiMesh.TRANSFORM_3D
-        instance.multimesh = multimesh
-        add_child(instance)
-        _owned_batches.append(instance)
-    else:
-        multimesh = instance.multimesh
-        if multimesh == null:
-            multimesh = MultiMesh.new()
-            multimesh.transform_format = MultiMesh.TRANSFORM_3D
-            instance.multimesh = multimesh
-    multimesh.mesh = mesh
-    multimesh.instance_count = transforms.size()
-    for index in transforms.size():
-        multimesh.set_instance_transform(index, transforms[index])
-    instance.visible = _batches_visible
-    return instance
-
-func _ensure_tree_presentation_meshes() -> void:
-    if _presentation_meshes.has("tree_trunk"):
-        return
-    var trunk_mesh := CylinderMesh.new()
-    trunk_mesh.top_radius = 0.14
-    trunk_mesh.bottom_radius = 0.19
-    trunk_mesh.height = 3.4
-    trunk_mesh.radial_segments = 6
-    trunk_mesh.rings = 1
-    var trunk_material := StandardMaterial3D.new()
-    trunk_material.albedo_color = Color("66513c")
-    trunk_material.roughness = 1.0
-    trunk_mesh.material = trunk_material
-    _presentation_meshes["tree_trunk"] = trunk_mesh
-
-    var crown_mesh := SphereMesh.new()
-    crown_mesh.radius = 1.45
-    crown_mesh.height = 2.2
-    crown_mesh.radial_segments = 8
-    crown_mesh.rings = 4
-    var crown_material := StandardMaterial3D.new()
-    crown_material.albedo_color = Color("587650")
-    crown_material.roughness = 0.95
-    crown_mesh.material = crown_material
-    _presentation_meshes["tree_crown"] = crown_mesh
-
-    var far_lobe_mesh := SphereMesh.new()
-    far_lobe_mesh.radius = 1.22
-    far_lobe_mesh.height = 2.0
-    far_lobe_mesh.radial_segments = 6
-    far_lobe_mesh.rings = 3
-    var far_lobe_material := StandardMaterial3D.new()
-    far_lobe_material.albedo_color = Color("587650")
-    far_lobe_material.roughness = 0.95
-    far_lobe_mesh.material = far_lobe_material
-    _presentation_meshes["tree_far_lobe"] = far_lobe_mesh
-
-func _ensure_street_lamp_presentation_meshes() -> void:
-    if _presentation_meshes.has("street_lamp_pole"):
-        return
-    var pole_mesh := CylinderMesh.new()
-    pole_mesh.top_radius = 0.07
-    pole_mesh.bottom_radius = 0.1
-    pole_mesh.height = 4.4
-    pole_mesh.radial_segments = 6
-    pole_mesh.rings = 1
-    var pole_material := StandardMaterial3D.new()
-    pole_material.albedo_color = Color("20252a")
-    pole_material.metallic = 0.4
-    pole_material.roughness = 0.55
-    pole_mesh.material = pole_material
-    _presentation_meshes["street_lamp_pole"] = pole_mesh
-
-    var head_mesh := BoxMesh.new()
-    head_mesh.size = Vector3(0.36, 0.18, 0.36)
-    var head_material := StandardMaterial3D.new()
-    head_material.albedo_color = Color("d8d0a9")
-    head_material.emission_enabled = true
-    head_material.emission = Color("7a704b")
-    head_material.emission_energy_multiplier = 0.55
-    head_mesh.material = head_material
-    _presentation_meshes["street_lamp_head"] = head_mesh
-
-func _ensure_bollard_presentation_meshes() -> void:
-    if _presentation_meshes.has("bollard_body"):
-        return
-    var body_mesh := CylinderMesh.new()
-    body_mesh.top_radius = 0.12
-    body_mesh.bottom_radius = 0.14
-    body_mesh.height = 0.88
-    body_mesh.radial_segments = 6
-    body_mesh.rings = 1
-    var body_material := StandardMaterial3D.new()
-    body_material.albedo_color = Color("2a2d31")
-    body_material.metallic = 0.25
-    body_material.roughness = 0.65
-    body_mesh.material = body_material
-    _presentation_meshes["bollard_body"] = body_mesh
-
-func _tree_transforms(rows: Array, anchor: Vector3) -> Dictionary:
-    var trunk_transforms: Array[Transform3D] = []
-    var near_crown_transforms: Array[Transform3D] = []
-    var far_tree_positions: Array[Vector3] = []
-    var detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m
-    for row_variant in rows:
-        var row := row_variant as Dictionary
-        var p: Vector3 = row["position"]
-        var dx := p.x - anchor.x
-        var dz := p.z - anchor.z
-        trunk_transforms.append(Transform3D(Basis.IDENTITY, p + Vector3(0.0, 1.7, 0.0)))
-        if dx * dx + dz * dz <= detail_radius_sq:
-            near_crown_transforms.append(Transform3D(Basis.IDENTITY, p + Vector3(0.0, 4.25, 0.0)))
-        else:
-            far_tree_positions.append(p)
-    return {
-        "trunks": trunk_transforms,
-        "near_crowns": near_crown_transforms,
-        "far_positions": far_tree_positions,
-    }
-
-func _far_tree_lobe_offsets() -> Array[Vector3]:
-    return [
-        Vector3(0.0, 4.15, 0.0),
-        Vector3(0.48, 4.25, 0.0),
-        Vector3(-0.48, 4.25, 0.0),
-        Vector3(0.0, 4.3, 0.48),
-        Vector3(0.0, 4.3, -0.48),
-        Vector3(0.34, 4.3, 0.34),
-        Vector3(-0.34, 4.3, -0.34),
-    ]
-
-func _build_tree_foliage_batches(rows: Array, anchor: Vector3, replace_existing := false) -> void:
-    _ensure_tree_presentation_meshes()
-    var transforms := _tree_transforms(rows, anchor)
-    var near_crowns := transforms["near_crowns"] as Array[Transform3D]
-    var far_positions := transforms["far_positions"] as Array[Vector3]
-    if replace_existing:
-        _clear_tree_foliage_batches()
-    _batch("TreeFoliageNear", _presentation_meshes["tree_crown"], near_crowns)
-    var offsets := _far_tree_lobe_offsets()
-    var far_foliage_instances := 0
-    for lobe_index in TREE_FAR_FOLIAGE_LOBE_INDICES:
-        var far_lobe_transforms: Array[Transform3D] = []
-        for p in far_positions:
-            far_lobe_transforms.append(Transform3D(Basis.IDENTITY, p + offsets[lobe_index]))
-        far_foliage_instances += far_lobe_transforms.size()
-        _batch("TreeFoliageFar_%d" % lobe_index, _presentation_meshes["tree_far_lobe"], far_lobe_transforms)
-    last_tree_lod_counts = {
-        "near": near_crowns.size(),
-        "far": far_positions.size(),
-        "foliage_instances": near_crowns.size() + far_foliage_instances,
-    }
-
-func _build_tree_batches(rows: Array, anchor: Vector3) -> void:
-    _ensure_tree_presentation_meshes()
-    var transforms := _tree_transforms(rows, anchor)
-    _batch("TreeTrunks", _presentation_meshes["tree_trunk"], transforms["trunks"], true)
-    _build_tree_foliage_batches(rows, anchor)
-
-func _build_street_lamp_batches(rows: Array) -> void:
-    _ensure_street_lamp_presentation_meshes()
-    var poles: Array[Transform3D] = []
-    var heads: Array[Transform3D] = []
-    for row_variant in rows:
-        var p: Vector3 = (row_variant as Dictionary)["position"]
-        poles.append(Transform3D(Basis.IDENTITY, p + Vector3(0.0, 2.2, 0.0)))
-        heads.append(Transform3D(Basis.IDENTITY, p + Vector3(0.0, 4.38, 0.0)))
-    _batch("StreetLampPoles", _presentation_meshes["street_lamp_pole"], poles, true)
-    _batch("StreetLampHeads", _presentation_meshes["street_lamp_head"], heads, true)
-
-func _build_bollard_batches(rows: Array) -> void:
-    _ensure_bollard_presentation_meshes()
-    var transforms: Array[Transform3D] = []
-    for row_variant in rows:
-        var p: Vector3 = (row_variant as Dictionary)["position"]
-        transforms.append(Transform3D(Basis.IDENTITY, p + Vector3(0.0, 0.44, 0.0)))
-    _batch("Bollards", _presentation_meshes["bollard_body"], transforms, true)
+    return rows
 
 func _clear_owned_batches() -> void:
     for batch: MultiMeshInstance3D in _owned_batches:
@@ -561,21 +420,154 @@ func _clear_owned_batches() -> void:
     _owned_batches.clear()
 
 func _rebuild(anchor: Vector3) -> void:
-    var trees := _select_rows("tree", anchor, max_trees)
-    var lamps := _select_rows("street_lamp", anchor, max_street_lamps)
-    var bollards := _select_rows("bollard", anchor, max_bollards)
-    _rendered_trees = trees.duplicate(false)
-    _tree_lod_boundary_margin_m = 0.0
-    _tree_lod_boundary_margin_radius_m = tree_full_detail_radius_m
-    _clear_owned_batches()
-    _build_tree_batches(trees, anchor)
-    _build_street_lamp_batches(lamps)
-    _build_bollard_batches(bollards)
+    var trees := _nearby("tree", anchor, max_trees)
+    var lamps := _nearby("street_lamp", anchor, max_street_lamps)
+    var bollards := _nearby("bollard", anchor, max_bollards)
+    _rendered_trees = trees
     _last_tree_lod_anchor = anchor
-    last_render_counts = {
-        "tree": trees.size(),
-        "street_lamp": lamps.size(),
-        "bollard": bollards.size(),
-    }
+    last_render_counts = {"tree": trees.size(), "street_lamp": lamps.size(), "bollard": bollards.size()}
+    _build_tree_batches(trees, true)
+    _build_lamp_batches(lamps, true)
+    _build_bollard_batches(bollards, true)
     set_meta("render_counts", last_render_counts.duplicate(true))
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
+    print("BRUSSELS_OSM_ENVIRONMENT_READY: %s radius=%.0fm tree_lod=%s" % [JSON.stringify(last_render_counts), render_radius_m, JSON.stringify(last_tree_lod_counts)])
+
+func _batch(name_value: String, mesh: Mesh, transforms: Array, reuse_existing: bool = false) -> void:
+    _prune_invalid_owned_batches()
+    var instance: MultiMeshInstance3D = null
+    if reuse_existing:
+        for owned: MultiMeshInstance3D in _owned_batches:
+            if owned.name == name_value:
+                instance = owned
+                break
+    if transforms.is_empty() and instance == null:
+        return
+    var multimesh: MultiMesh = null
+    if instance != null:
+        multimesh = instance.multimesh
+    if multimesh == null:
+        multimesh = MultiMesh.new()
+        multimesh.transform_format = MultiMesh.TRANSFORM_3D
+    multimesh.mesh = mesh
+    multimesh.instance_count = transforms.size()
+    for index in range(transforms.size()):
+        multimesh.set_instance_transform(index, transforms[index] as Transform3D)
+    var is_new := instance == null
+    if is_new:
+        instance = MultiMeshInstance3D.new()
+        instance.name = name_value
+        instance.set_meta("source_dimensions_measured", false)
+    instance.multimesh = multimesh
+    instance.visible = _batches_visible
+    if is_new:
+        add_child(instance)
+        _owned_batches.append(instance)
+
+func _ensure_tree_presentation_meshes() -> void:
+    if _presentation_meshes.has("tree_trunk"):
+        return
+    var materials := BrusselsStreetTreeAsset.create_materials()
+    _presentation_meshes["tree_trunk"] = BrusselsStreetTreeAsset.create_trunk_mesh(materials["trunk"])
+    _presentation_meshes["tree_foliage_dark"] = BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_dark"])
+    _presentation_meshes["tree_foliage_light"] = BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_light"])
+
+func _ensure_lamp_presentation_meshes() -> void:
+    if _presentation_meshes.has("lamp_pole"):
+        return
+    var materials := BrusselsStreetLampAsset.create_materials()
+    _presentation_meshes["lamp_pole"] = BrusselsStreetLampAsset.create_pole_mesh(materials["metal"])
+    _presentation_meshes["lamp_arm"] = BrusselsStreetLampAsset.create_arm_mesh(materials["metal"])
+    _presentation_meshes["lamp_luminaire"] = BrusselsStreetLampAsset.create_luminaire_mesh(materials["luminaire"])
+
+func _ensure_bollard_presentation_meshes() -> void:
+    if _presentation_meshes.has("bollard_body"):
+        return
+    var materials := BrusselsBollardAsset.create_materials()
+    _presentation_meshes["bollard_body"] = BrusselsBollardAsset.create_body_mesh(materials["body"])
+    _presentation_meshes["bollard_cap"] = BrusselsBollardAsset.create_cap_mesh(materials["cap"])
+
+func _build_tree_foliage_batches(rows: Array, anchor: Vector3 = Vector3(INF, INF, INF), reuse_existing: bool = false) -> void:
+    _tree_lod_boundary_margin_radius_m = tree_full_detail_radius_m
+    if rows.is_empty() and not reuse_existing:
+        _tree_lod_boundary_margin_m = 0.0
+        last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
+        return
+    _ensure_tree_presentation_meshes()
+    var dark: Array = []
+    var light: Array = []
+    var near_count := 0
+    var far_count := 0
+    var minimum_boundary_margin := INF
+    var full_detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m
+    var use_current_anchor := anchor != Vector3(INF, INF, INF)
+    for row_variant in rows:
+        var row := row_variant as Dictionary
+        var base: Vector3 = row["position"]
+        var osm_id := int(row["osm_id"])
+        var distance_sq := float(row.get("distance_sq", 0.0))
+        if use_current_anchor:
+            var dx := base.x - anchor.x
+            var dz := base.z - anchor.z
+            distance_sq = dx * dx + dz * dz
+        var radial_distance := sqrt(distance_sq)
+        minimum_boundary_margin = min(minimum_boundary_margin, abs(radial_distance - tree_full_detail_radius_m))
+        if distance_sq <= full_detail_radius_sq:
+            near_count += 1
+            for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):
+                var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
+                (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
+        else:
+            far_count += 1
+            for index_variant in TREE_FAR_FOLIAGE_LOBE_INDICES:
+                var index := int(index_variant)
+                var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
+                (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
+    if rows.is_empty():
+        _tree_lod_boundary_margin_m = 0.0
+    else:
+        _tree_lod_boundary_margin_m = max(0.0, minimum_boundary_margin - BOUNDS_NUMERIC_EPSILON_M)
+    last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}
+    _batch("TreeFoliageDark", _presentation_meshes["tree_foliage_dark"] as Mesh, dark, reuse_existing)
+    _batch("TreeFoliageLight", _presentation_meshes["tree_foliage_light"] as Mesh, light, reuse_existing)
+
+func _build_tree_batches(rows: Array, reuse_existing: bool = false) -> void:
+    if rows.is_empty() and not reuse_existing:
+        last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
+        return
+    _ensure_tree_presentation_meshes()
+    var trunk: Array = []
+    for row_variant in rows:
+        var base: Vector3 = (row_variant as Dictionary)["position"]
+        trunk.append(BrusselsStreetTreeAsset.trunk_transform(base))
+    _batch("TreeTrunks", _presentation_meshes["tree_trunk"] as Mesh, trunk, reuse_existing)
+    _build_tree_foliage_batches(rows, Vector3(INF, INF, INF), reuse_existing)
+
+func _build_lamp_batches(rows: Array, reuse_existing: bool = false) -> void:
+    if rows.is_empty() and not reuse_existing:
+        return
+    _ensure_lamp_presentation_meshes()
+    var poles: Array = []
+    var arms: Array = []
+    var luminaires: Array = []
+    for row_variant in rows:
+        var base: Vector3 = (row_variant as Dictionary)["position"]
+        poles.append(BrusselsStreetLampAsset.pole_transform(base))
+        arms.append(BrusselsStreetLampAsset.arm_transform(base))
+        luminaires.append(BrusselsStreetLampAsset.luminaire_transform(base))
+    _batch("LampPoles", _presentation_meshes["lamp_pole"] as Mesh, poles, reuse_existing)
+    _batch("LampArms", _presentation_meshes["lamp_arm"] as Mesh, arms, reuse_existing)
+    _batch("LampLuminaires", _presentation_meshes["lamp_luminaire"] as Mesh, luminaires, reuse_existing)
+
+func _build_bollard_batches(rows: Array, reuse_existing: bool = false) -> void:
+    if rows.is_empty() and not reuse_existing:
+        return
+    _ensure_bollard_presentation_meshes()
+    var bodies: Array = []
+    var caps: Array = []
+    for row_variant in rows:
+        var base: Vector3 = (row_variant as Dictionary)["position"]
+        bodies.append(BrusselsBollardAsset.body_transform(base))
+        caps.append(BrusselsBollardAsset.cap_transform(base))
+    _batch("BollardBodies", _presentation_meshes["bollard_body"] as Mesh, bodies, reuse_existing)
+    _batch("BollardCaps", _presentation_meshes["bollard_cap"] as Mesh, caps, reuse_existing)

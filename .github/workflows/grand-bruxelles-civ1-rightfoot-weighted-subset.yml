@@ -1,4 +1,4 @@
-name: Grand Bruxelles CIV-1 Skin Influence Census
+name: Grand Bruxelles CIV-1 RightFoot Chain Geometry
 on:
   pull_request:
     paths:
@@ -39,58 +39,65 @@ jobs:
           python /tmp/civ1subset/strip.py /tmp/civ1subset/body.glb /tmp/civ1subset/project/civ1_body.glb --require-animations
           echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1subset/project/civ1_body.glb' | sha256sum -c -
           cp grand-bruxelles-game/tools/godot_civ1_rightfoot_weighted_subset_probe.gd /tmp/civ1subset/project/probe.gd
-          printf '[application]\nconfig/name="CIV1SkinInfluenceCensus"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1subset/project/project.godot
+          printf '[application]\nconfig/name="CIV1RightFootChainGeometry"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1subset/project/project.godot
           curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1subset/godot.zip
           echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1subset/godot.zip' | sha256sum -c -
           unzip -q /tmp/civ1subset/godot.zip -d /tmp/civ1subset/engine
           chmod +x /tmp/civ1subset/engine/Godot_v4.7.1-stable_linux.x86_64
-      - name: Census real Skin-bind geometry
+      - name: Characterize fixed RightFoot to RightToeBase chain geometry
         run: |
           set -euo pipefail
           G=/tmp/civ1subset/engine/Godot_v4.7.1-stable_linux.x86_64
           "$G" --headless --editor --path /tmp/civ1subset/project --quit 2>&1 | tee /tmp/civ1subset/out/import.log
           set +e
-          "$G" --headless --path /tmp/civ1subset/project --script res://probe.gd -- /tmp/civ1subset/out/skin-influence-census.json 2>&1 | tee /tmp/civ1subset/out/probe.log
+          "$G" --headless --path /tmp/civ1subset/project --script res://probe.gd -- /tmp/civ1subset/out/rightfoot-chain-geometry.json 2>&1 | tee /tmp/civ1subset/out/probe.log
           probe_rc=${PIPESTATUS[0]}
           set -e
-          test -f /tmp/civ1subset/out/skin-influence-census.json || { echo "missing census receipt"; exit "$probe_rc"; }
+          test -f /tmp/civ1subset/out/rightfoot-chain-geometry.json || { echo "missing chain geometry receipt"; exit "$probe_rc"; }
           python - <<'PY'
           import json
           from pathlib import Path
-          r=json.loads(Path('/tmp/civ1subset/out/skin-influence-census.json').read_text())
-          assert r['schema']=='grand-bruxelles-civ1-skin-influence-census-v4'
+          r=json.loads(Path('/tmp/civ1subset/out/rightfoot-chain-geometry.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-rightfoot-chain-geometry-v5'
           assert r['target_bone']=='mixamorig_RightFoot'
+          assert r['toe_bone']=='mixamorig_RightToeBase'
+          assert r['toe_is_descendant_of_rightfoot'] is True
           assert r['threshold_tuned'] is False
           assert r['presence_rule']=='stored_weight_greater_than_zero_only'
-          assert r['bind_mapping_rule']=='ARRAY_BONES_is_skin_bind_index_then_resolve_get_bind_bone_or_get_bind_name_to_skeleton'
+          assert r['chain_rule']=='skeleton_parent_topology_only_no_name_guess_no_weight_cutoff'
           assert r['skinned_mesh_count'] == 3
           assert r['surface_count'] == 4
           assert r['skeleton_bone_count'] == 52
           assert r['positive_weight_slot_count'] > 0
           assert r['resolved_positive_bind_slot_count'] == r['positive_weight_slot_count']
-          assert r['indexed_bind_resolution_slot_count'] + r['named_bind_resolution_slot_count'] == r['positive_weight_slot_count']
           assert r['unresolved_positive_bind_slot_count'] == 0
-          assert r['named_bind_resolution_slot_count'] > 0
-          assert len(r['right_side_positive_bones']) > 0
-          assert any(b['positive_vertex_count'] > 0 for b in r['right_side_positive_bones'])
+          assert r['target_rightfoot_positive_vertex_count'] == 2087
+          assert r['righttoebase_positive_vertex_count'] == 3306
+          assert r['chain_union_vertex_count'] > 0
+          assert r['chain_overlap_vertex_count'] >= 0
+          assert r['chain_union_vertex_count'] == r['rightfoot_only_vertex_count'] + r['righttoebase_only_vertex_count'] + r['chain_overlap_vertex_count']
+          assert r['chain_union_vertex_count'] == r['target_rightfoot_positive_vertex_count'] + r['righttoebase_positive_vertex_count'] - r['chain_overlap_vertex_count']
+          assert r['chain_union_accounting_valid'] is True
+          assert len(r['chain_union_vertices']) == r['chain_union_vertex_count']
+          for v in r['chain_union_vertices']:
+              assert {'mesh_path','surface','vertex','rightfoot_weight','righttoebase_weight','vertex_position'} <= set(v)
+              assert v['rightfoot_weight'] > 0.0 or v['righttoebase_weight'] > 0.0
           assert r['contact_phase_ready'] is False
           assert r['quantitative_foot_slide_candidate'] is False
           assert r['animation_correction_authorized'] is False
           assert r['runtime_authorized'] is False
           assert r['next_selection_authorized'] is False
-          print('CIV1_SKIN_INFLUENCE_CENSUS_V4_RECEIPT_OK')
-          print('slots', r['positive_weight_slot_count'], 'indexed', r['indexed_bind_resolution_slot_count'], 'named', r['named_bind_resolution_slot_count'])
-          print('target', r['target_rightfoot_positive_vertex_count'], r['target_rightfoot_dominant_vertex_count'])
-          for b in r['right_side_positive_bones']:
-              print(b['bone_name'], b['positive_vertex_count'], b['dominant_vertex_count'], b['total_stored_weight'])
+          print('CIV1_RIGHTFOOT_CHAIN_GEOMETRY_V5_RECEIPT_OK')
+          print('foot', r['target_rightfoot_positive_vertex_count'], 'toe', r['righttoebase_positive_vertex_count'])
+          print('overlap', r['chain_overlap_vertex_count'], 'foot_only', r['rightfoot_only_vertex_count'], 'toe_only', r['righttoebase_only_vertex_count'], 'union', r['chain_union_vertex_count'])
           PY
           test "$probe_rc" = 0
-          grep -F CIV1_SKIN_INFLUENCE_CENSUS_OK /tmp/civ1subset/out/probe.log
-      - name: Upload immutable characterization evidence
+          grep -F CIV1_RIGHTFOOT_CHAIN_GEOMETRY_OK /tmp/civ1subset/out/probe.log
+      - name: Upload immutable chain characterization evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: civ1-skin-influence-census-${{ github.event.pull_request.head.sha || github.sha }}
+          name: civ1-rightfoot-chain-geometry-${{ github.event.pull_request.head.sha || github.sha }}
           path: /tmp/civ1subset/out
           if-no-files-found: error
           retention-days: 90

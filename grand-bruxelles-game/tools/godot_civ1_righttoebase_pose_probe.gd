@@ -10,7 +10,7 @@ func _initialize() -> void:
     var args := OS.get_cmdline_user_args()
     if args.size() != 2:
         push_error("CIV1_RIGHTTOEBASE_POSE_FAIL:args"); quit(2); return
-    var bundle := _read_json(args[0])
+    var bundle: Variant = _read_json(args[0])
     if not bundle is Dictionary or bundle.get("schema", "") != "grand-bruxelles-civ1-skeleton-witness-bundle-v1":
         push_error("CIV1_RIGHTTOEBASE_POSE_FAIL:bundle"); quit(3); return
     var frames: Array = bundle.get("frames", [])
@@ -135,7 +135,7 @@ func _pose(rec: Dictionary) -> Transform3D:
     return Transform3D(Basis(_quat(rec.get("rotation_xyzw", []))), _v3(rec.get("origin", [])))
 
 func _transform_record(t: Transform3D) -> Dictionary:
-    var q := t.basis.get_rotation_quaternion().normalized()
+    var q: Quaternion = t.basis.get_rotation_quaternion().normalized()
     return {"origin":[t.origin.x,t.origin.y,t.origin.z], "rotation_xyzw":[q.x,q.y,q.z,q.w]}
 
 func _write_json(path: String, data: Dictionary) -> bool:

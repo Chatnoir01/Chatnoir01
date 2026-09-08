@@ -1,0 +1,91 @@
+name: Grand Bruxelles CIV-1 Ground Candidate Windows
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_ground_candidate_windows.py'
+      - 'grand-bruxelles-game/tests/test_civ1_ground_candidate_windows_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-ground-candidate-windows.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  ground-candidate-windows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "1a2210270477f3e20b5127a42a7b3e13000a624c"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare immutable run context
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1windows/out
+          {
+            echo "validated_main=1a2210270477f3e20b5127a42a7b3e13000a624c"
+            echo "head=${{ github.event.pull_request.head.sha || github.sha }}"
+            echo "skeleton_artifact=9996432028"
+            echo "righttoebase_artifact=10024557192"
+          } > /tmp/civ1windows/out/run-context.txt
+      - name: Run candidate-window contract
+        run: python grand-bruxelles-game/tests/test_civ1_ground_candidate_windows_contract.py
+      - name: Acquire immutable GREEN kinematic evidence
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1windows/{skeleton,toe,out}
+          api="https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/9996432028/zip" -o /tmp/civ1windows/skeleton.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1windows/skeleton.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10024557192/zip" -o /tmp/civ1windows/toe.zip
+          echo '3ec94d7b8ed10663d0ee17bf44ffec77104600a7c3006343f0dfbae13877023c  /tmp/civ1windows/toe.zip' | sha256sum -c -
+          unzip -q /tmp/civ1windows/skeleton.zip -d /tmp/civ1windows/skeleton
+          unzip -q /tmp/civ1windows/toe.zip -d /tmp/civ1windows/toe
+          cp "$(find /tmp/civ1windows/skeleton -name skeleton-bundle.json -print -quit)" /tmp/civ1windows/skeleton.json
+          cp "$(find /tmp/civ1windows/toe -name righttoebase-pose.json -print -quit)" /tmp/civ1windows/righttoebase-pose.json
+      - name: Derive independent same-sample Ground evidence windows
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_ground_candidate_windows.py /tmp/civ1windows/skeleton.json /tmp/civ1windows/righttoebase-pose.json /tmp/civ1windows/out/ground-candidate-windows.json | tee /tmp/civ1windows/out/classifier.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1windows/out/ground-candidate-windows.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-ground-candidate-windows-v1'
+          assert r['frame_count']==120
+          assert r['rightfoot_reversal_candidates']==[25,44,60,67,71]
+          assert r['righttoebase_reversal_candidates']==[40,43,59,72,94]
+          assert r['exact_common_reversal_candidates']==[]
+          assert r['righttoebase_anchor_max_origin_error_m'] <= 1e-6
+          assert r['window_count']==10
+          assert r['requires_canonical_ground_same_sample'] is True
+          assert r['requires_skinned_geometry_same_sample'] is True
+          assert r['candidate_is_ground_contact_proof'] is False
+          assert r['planted_interval_claimable'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          print('CIV1_GROUND_CANDIDATE_WINDOWS_RECEIPT_OK', r['same_sample_ground_geometry_windows'])
+          PY
+      - name: Upload immutable candidate-window evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-ground-candidate-windows-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1windows/out
+          if-no-files-found: error
+          retention-days: 90

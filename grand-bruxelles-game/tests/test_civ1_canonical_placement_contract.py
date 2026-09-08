@@ -1,10 +1,15 @@
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+# This test lives at grand-bruxelles-game/tests/, while the tool lives one level
+# above it at grand-bruxelles-game/tools/. Keep the project root anchored to
+# parents[1]; parents[2] is the repository root and caused the workflow to look
+# for a non-existent repository-level tools/ directory.
+ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tools" / "civ1_canonical_placement_contract.py"
 
 
 def test_civ1_canonical_placement_contract_source() -> None:
+    assert TOOL.is_file(), f"missing canonical placement classifier: {TOOL}"
     text = TOOL.read_text(encoding="utf-8")
 
     assert 'grand-bruxelles-civ1-canonical-placement-contract-v1' in text

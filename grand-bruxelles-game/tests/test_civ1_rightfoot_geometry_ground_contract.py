@@ -33,6 +33,7 @@ for forbidden in (
     assert forbidden not in s, forbidden
 
 assert 'if world_position.y < ground_top_y:' in s
-assert 'min_clearance_m = min(min_clearance_m, world_position.y - ground_top_y)' in s
+assert 'if world_position.y - ground_top_y < min_clearance_m:' in s
+assert 'min_clearance_m = world_position.y - ground_top_y' in s
 assert 'abs(weight_sum - 1.0) > WEIGHT_SUM_TOLERANCE' in s
 print('CIV1_RIGHTFOOT_GEOMETRY_GROUND_CONTRACT_OK')

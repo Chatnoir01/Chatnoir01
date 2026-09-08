@@ -181,6 +181,38 @@ func _readiness_blocker(reason: String) -> String:
 func _vector3_json(value: Vector3) -> Dictionary:
     return {"x": value.x, "y": value.y, "z": value.z}
 
+func _support_visual_owner(collider_node: Node) -> Dictionary:
+    var result := {
+        "found": false,
+        "path": "",
+        "class": "",
+        "name": "",
+        "visible": false,
+        "visible_in_tree": false,
+        "renderable": false,
+        "metadata": {},
+        "same_urbis_midi_subtree": false,
+        "is_exact_road_carriageways": false,
+    }
+    var current: Node = collider_node.get_parent()
+    while current != null:
+        if current is GeometryInstance3D:
+            var geometry := current as GeometryInstance3D
+            var path := geometry.get_path().get_concatenated_names()
+            result["found"] = true
+            result["path"] = path
+            result["class"] = geometry.get_class()
+            result["name"] = str(geometry.name)
+            result["visible"] = geometry.visible
+            result["visible_in_tree"] = geometry.is_visible_in_tree()
+            result["renderable"] = _renderable_geometry(geometry)
+            result["metadata"] = _metadata_snapshot(geometry)
+            result["same_urbis_midi_subtree"] = path.contains("/UrbISMidiExact/UrbISStreetSurfaces/")
+            result["is_exact_road_carriageways"] = str(geometry.name) == "ExactRoadCarriageways"
+            return result
+        current = current.get_parent()
+    return result
+
 func _support_probe(node: GeometryInstance3D) -> Dictionary:
     var origin := node.global_position + Vector3(0.0, SUPPORT_RAY_UP_M, 0.0)
     var finish := node.global_position - Vector3(0.0, SUPPORT_RAY_DOWN_M, 0.0)
@@ -194,6 +226,7 @@ func _support_probe(node: GeometryInstance3D) -> Dictionary:
         "position": {},
         "normal": {},
         "metadata": {},
+        "visual_owner": {},
     }
     var world := node.get_world_3d()
     if world == null:
@@ -217,6 +250,7 @@ func _support_probe(node: GeometryInstance3D) -> Dictionary:
         result["collider_path"] = collider_node.get_path().get_concatenated_names()
         result["collider_class"] = collider_node.get_class()
         result["metadata"] = _metadata_snapshot(collider_node)
+        result["visual_owner"] = _support_visual_owner(collider_node)
         if collider_node is CollisionObject3D:
             result["collision_layer"] = (collider_node as CollisionObject3D).collision_layer
     return result
@@ -272,6 +306,8 @@ func _run() -> void:
     var rows: Array[Dictionary] = []
     var total_hidden_samples := 0
     var total_hidden_support_hits := 0
+    var total_support_visual_owner_hits := 0
+    var total_exact_urbis_carriageway_owner_hits := 0
     var ownership_errors: Array[String] = []
     var ownership_counts: Dictionary = {}
     var blocker_counts: Dictionary = {}
@@ -286,6 +322,8 @@ func _run() -> void:
         var token_named := 0
         var metadata_mentions := 0
         var support_hits := 0
+        var support_visual_owner_hits := 0
+        var exact_urbis_carriageway_owner_hits := 0
         var reasons: Dictionary = {}
         var visibility_owners: Dictionary = {}
         var readiness_blockers: Dictionary = {}
@@ -332,6 +370,13 @@ func _run() -> void:
                     if bool(support.get("hit", false)):
                         support_hits += 1
                         total_hidden_support_hits += 1
+                        var visual_owner := support.get("visual_owner", {}) as Dictionary
+                        if bool(visual_owner.get("found", false)) and bool(visual_owner.get("visible_in_tree", false)) and bool(visual_owner.get("renderable", false)):
+                            support_visual_owner_hits += 1
+                            total_support_visual_owner_hits += 1
+                        if bool(visual_owner.get("same_urbis_midi_subtree", false)) and bool(visual_owner.get("is_exact_road_carriageways", false)) and bool(visual_owner.get("visible_in_tree", false)) and bool(visual_owner.get("renderable", false)):
+                            exact_urbis_carriageway_owner_hits += 1
+                            total_exact_urbis_carriageway_owner_hits += 1
                     total_hidden_samples += 1
                     hidden_identity_samples.append({
                         "path": geometry.get_path().get_concatenated_names(),
@@ -367,15 +412,22 @@ func _run() -> void:
             "hidden_ancestors": hidden_ancestors,
             "hidden_identity_samples": hidden_identity_samples,
             "hidden_support_hits": support_hits,
+            "support_visual_owner_hits": support_visual_owner_hits,
+            "exact_urbis_carriageway_owner_hits": exact_urbis_carriageway_owner_hits,
             "id_token_named_geometry": token_named,
             "metadata_mentions": metadata_mentions,
             "samples": samples,
         })
-        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d source_bound=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d support_hits=%d reasons=%s owners=%s blockers=%s hidden_ancestors=%s hidden_identity_samples=%d" % [osm_id, exact_named, exact_leaf_osm_id_matches, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, support_hits, JSON.stringify(reasons), JSON.stringify(visibility_owners), JSON.stringify(readiness_blockers), JSON.stringify(hidden_ancestors), hidden_identity_samples.size()])
+        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d source_bound=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d support_hits=%d visual_owner_hits=%d exact_urbis_owner_hits=%d reasons=%s owners=%s blockers=%s hidden_ancestors=%s hidden_identity_samples=%d" % [osm_id, exact_named, exact_leaf_osm_id_matches, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, support_hits, support_visual_owner_hits, exact_urbis_carriageway_owner_hits, JSON.stringify(reasons), JSON.stringify(visibility_owners), JSON.stringify(readiness_blockers), JSON.stringify(hidden_ancestors), hidden_identity_samples.size()])
+
+    if total_hidden_support_hits > 0 and total_support_visual_owner_hits != total_hidden_support_hits:
+        ownership_errors.append("not every physical support hit has a visible renderable geometry owner")
+    if total_hidden_support_hits > 0 and total_exact_urbis_carriageway_owner_hits != total_hidden_support_hits:
+        ownership_errors.append("physical support owner is not consistently visible ExactRoadCarriageways under UrbISMidiExact")
 
     var output := {
         "schema": "grand-bruxelles-midi-road-render-identity-v3",
-        "visibility_ownership_contract_version": 1,
+        "visibility_ownership_contract_version": 2,
         "visibility_ownership_fail_closed": true,
         "visibility_ownership_errors": ownership_errors,
         "visibility_owner_counts": ownership_counts,
@@ -392,6 +444,11 @@ func _run() -> void:
         "hidden_support_probe_count": total_hidden_samples,
         "hidden_support_hit_count": total_hidden_support_hits,
         "hidden_support_probe_independent": true,
+        "support_visual_owner_hit_count": total_support_visual_owner_hits,
+        "exact_urbis_carriageway_owner_hit_count": total_exact_urbis_carriageway_owner_hits,
+        "support_visual_owner_relationship_proven": total_hidden_support_hits > 0 and total_support_visual_owner_hits == total_hidden_support_hits,
+        "urbis_exact_carriageway_owner_relationship_proven": total_hidden_support_hits > 0 and total_exact_urbis_carriageway_owner_hits == total_hidden_support_hits,
+        "osm_to_urbis_crosswalk_claimed": false,
         "rows": rows,
         "diagnostic_only": true,
         "source_geometry_changed": false,
@@ -410,7 +467,7 @@ func _run() -> void:
     file.store_string(JSON.stringify(output, "  ", true) + "\n")
     file.close()
     if not ownership_errors.is_empty():
-        _fail("visibility ownership contract ambiguous: %s" % JSON.stringify(ownership_errors))
+        _fail("visibility/support ownership contract ambiguous: %s" % JSON.stringify(ownership_errors))
         return
-    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d hidden_support_probes=%d hidden_support_hits=%d ownership_contract=1 ownership_errors=0 hidden_identity_proof=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable, total_hidden_samples, total_hidden_support_hits])
+    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d hidden_support_probes=%d hidden_support_hits=%d visual_owner_hits=%d exact_urbis_owner_hits=%d ownership_contract=2 ownership_errors=0 crosswalk_claimed=false destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable, total_hidden_samples, total_hidden_support_hits, total_support_visual_owner_hits, total_exact_urbis_carriageway_owner_hits])
     quit(0)

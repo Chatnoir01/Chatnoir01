@@ -3,6 +3,7 @@ extends SceneTree
 const RUNTIME_SCRIPT := preload("res://game/scripts/brussels_osm_environment_runtime.gd")
 const JETTE_DATA := "res://data/osm/zones/jette/environment.game.json"
 const MISSING_DATA := "res://data/osm/zones/__missing__/environment.game.json"
+const RESTORED_SAME_PATH_DATA := "user://brussels_osm_same_path_recovery.environment.game.json"
 
 func _fail(message: String) -> void:
     push_error("BRUSSELS_OSM_SOURCE_PATH_REFRESH_FAIL: %s" % message)
@@ -71,6 +72,44 @@ func _run() -> void:
     startup_runtime.queue_free()
     await process_frame
 
+    # Regression: availability may recover at the configured path itself (for
+    # example an artifact mounted after the scene). data_path then never changes,
+    # so the renderer must notice missing -> present without busy-retrying a
+    # still-missing source every frame.
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(RESTORED_SAME_PATH_DATA))
+    var same_path_runtime := RUNTIME_SCRIPT.new() as Node3D
+    same_path_runtime.name = "SamePathSourceRecoveryRuntime"
+    same_path_runtime.set("data_path", RESTORED_SAME_PATH_DATA)
+    root.add_child(same_path_runtime)
+    await process_frame
+    if same_path_runtime.is_processing() == false:
+        _fail("same-path missing source disabled processing")
+        return
+    if _count_points(same_path_runtime) != 0 or same_path_runtime.has_meta("source") or same_path_runtime.has_meta("license"):
+        _fail("same-path missing source did not remain fail-closed")
+        return
+    var canonical_text := FileAccess.get_file_as_string(JETTE_DATA)
+    if canonical_text.is_empty():
+        _fail("canonical Jette source could not be read for same-path recovery witness")
+        return
+    var restored_file := FileAccess.open(RESTORED_SAME_PATH_DATA, FileAccess.WRITE)
+    if restored_file == null:
+        _fail("same-path recovery witness could not create restored artifact")
+        return
+    restored_file.store_string(canonical_text)
+    restored_file.close()
+    for _frame: int in range(4):
+        await process_frame
+    if _count_points(same_path_runtime) <= 0:
+        _fail("runtime did not recover when a missing source appeared at the unchanged data_path")
+        return
+    if str(same_path_runtime.get_meta("source", "")) != "OpenStreetMap contributors via Overpass API" or str(same_path_runtime.get_meta("license", "")) != "ODbL-1.0":
+        _fail("same-path recovery restored incorrect provenance")
+        return
+    same_path_runtime.queue_free()
+    await process_frame
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(RESTORED_SAME_PATH_DATA))
+
     var runtime := RUNTIME_SCRIPT.new() as Node3D
     runtime.name = "EnvironmentRuntime"
     runtime.set("data_path", JETTE_DATA)
@@ -101,5 +140,5 @@ func _run() -> void:
         _fail("restored source provenance is incorrect")
         return
 
-    print("BRUSSELS_OSM_SOURCE_PATH_REFRESH_OK: config_recovery=true initial_recovery=true initial_points=%d stale_points=0 restored_points=%d" % [initial_count, _count_points(runtime)])
+    print("BRUSSELS_OSM_SOURCE_PATH_REFRESH_OK: config_recovery=true initial_recovery=true same_path_recovery=true initial_points=%d stale_points=0 restored_points=%d" % [initial_count, _count_points(runtime)])
     quit(0)

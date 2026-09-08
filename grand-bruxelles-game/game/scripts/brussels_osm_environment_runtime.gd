@@ -328,6 +328,9 @@ func _refresh_tree_lod(anchor: Vector3) -> void:
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
 
 func _refresh(force: bool) -> void:
+    if not _configuration_error().is_empty():
+        _set_batches_visible(false)
+        return
     if data_path != _last_source_attempt_path:
         if not _load_points():
             _set_batches_visible(false)
@@ -335,9 +338,6 @@ func _refresh(force: bool) -> void:
                 set_process(false)
             return
     if _loaded_data_path != data_path:
-        _set_batches_visible(false)
-        return
-    if not _configuration_error().is_empty():
         _set_batches_visible(false)
         return
     var target := _target()
@@ -603,6 +603,7 @@ func _build_bollard_batches(rows: Array, reuse_existing: bool = false) -> void:
     if rows.is_empty() and not reuse_existing:
         return
     _ensure_bollard_presentation_meshes()
+    var materials := BrusselsBollardAsset.create_materials()
     var bodies: Array = []
     var caps: Array = []
     for row_variant in rows:

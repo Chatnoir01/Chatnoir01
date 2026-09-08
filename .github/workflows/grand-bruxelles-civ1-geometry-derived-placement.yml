@@ -1,0 +1,96 @@
+name: Grand Bruxelles CIV-1 Geometry Derived Placement
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_geometry_derived_placement_probe.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_geometry_derived_placement_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-geometry-derived-placement.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  geometry-derived-placement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "76183910ea9ffd2933f9e80c64c3a283f548aa47"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Run causal contract
+        run: python grand-bruxelles-game/tests/test_civ1_geometry_derived_placement_contract.py
+      - name: Acquire immutable GREEN inputs
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1place/{bind,skeleton,toe,ground,project,engine,out}
+          api="https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10031928117/zip" -o /tmp/civ1place/bind.zip
+          echo 'd607637c6dd7231d11f3e37d72680936e313e5f139b82b31083c926054eb509c  /tmp/civ1place/bind.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/9996432028/zip" -o /tmp/civ1place/skeleton.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1place/skeleton.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10024557192/zip" -o /tmp/civ1place/toe.zip
+          echo '3ec94d7b8ed10663d0ee17bf44ffec77104600a7c3006343f0dfbae13877023c  /tmp/civ1place/toe.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10037379556/zip" -o /tmp/civ1place/ground.zip
+          echo '8fa717aaff9668ed5ef8e307a2509e389e439fa8cb8a602de1989b19765727c5  /tmp/civ1place/ground.zip' | sha256sum -c -
+          unzip -q /tmp/civ1place/bind.zip -d /tmp/civ1place/bind
+          unzip -q /tmp/civ1place/skeleton.zip -d /tmp/civ1place/skeleton
+          unzip -q /tmp/civ1place/toe.zip -d /tmp/civ1place/toe
+          unzip -q /tmp/civ1place/ground.zip -d /tmp/civ1place/ground
+          cp "$(find /tmp/civ1place/bind -name rightfoot-bind-pose.json -print -quit)" /tmp/civ1place/project/bind.json
+          cp "$(find /tmp/civ1place/skeleton -name skeleton-bundle.json -print -quit)" /tmp/civ1place/project/skeleton.json
+          cp "$(find /tmp/civ1place/toe -name righttoebase-pose.json -print -quit)" /tmp/civ1place/project/toe.json
+          cp "$(find /tmp/civ1place/ground -name rightfoot-same-sample-ground.json -print -quit)" /tmp/civ1place/project/ground.json
+      - name: Acquire pinned Godot 4.7.1
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/tools/godot_civ1_geometry_derived_placement_probe.gd /tmp/civ1place/project/probe.gd
+          printf '[application]\nconfig/name="CIV1GeometryPlacement"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1place/project/project.godot
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1place/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1place/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1place/godot.zip -d /tmp/civ1place/engine
+          chmod +x /tmp/civ1place/engine/Godot_v4.7.1-stable_linux.x86_64
+      - name: Compare bilateral and geometry-derived placement
+        run: |
+          set -euo pipefail
+          G=/tmp/civ1place/engine/Godot_v4.7.1-stable_linux.x86_64
+          "$G" --headless --path /tmp/civ1place/project --script res://probe.gd -- /tmp/civ1place/project/bind.json /tmp/civ1place/project/skeleton.json /tmp/civ1place/project/toe.json /tmp/civ1place/project/ground.json /tmp/civ1place/out/geometry-placement.json 2>&1 | tee /tmp/civ1place/out/probe.log
+          grep -F CIV1_GEOMETRY_PLACEMENT_OK /tmp/civ1place/out/probe.log
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1place/out/geometry-placement.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-geometry-derived-placement-v1'
+          assert r['fixed_vertex_count'] == 3306
+          assert r['sample_indices'] == [68,69,70,71]
+          assert len(r['samples']) == 4
+          assert r['geometry_placement_is_runtime_solution'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          for s in r['samples']:
+              assert s['replayed_vertex_count'] == 3306
+              assert math.isfinite(s['placement_delta_m'])
+              assert math.isfinite(s['bilateral_lower_envelope_clearance_m'])
+              assert abs(s['geometry_lower_envelope_clearance_m']) <= 1e-6
+              assert s['geometry_below_ground_vertex_count'] == 0
+          print('CIV1_GEOMETRY_DERIVED_PLACEMENT_RECEIPT_OK', r['max_abs_placement_delta_m'])
+          PY
+      - name: Upload immutable placement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-geometry-derived-placement-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1place/out
+          if-no-files-found: error
+          retention-days: 90

@@ -11,6 +11,7 @@ const REQUIRED_LICENSE := "ODbL-1.0"
 const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
 const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
+const SOURCE_RETRY_MIN_INTERVAL_MSEC := 250
 # Canonical environment bounds are serialized at 0.01 m while point positions
 # retain 0.001 m precision. Half a bound quantization step is therefore the
 # maximum source-preserving edge discrepancy; the epsilon is numeric only.
@@ -40,6 +41,8 @@ var _last_render_radius_m := INF
 var _loaded_data_path := ""
 var _last_source_attempt_path := ""
 var _last_source_failure_retryable := false
+var _last_retryable_source_signature := ""
+var _last_retryable_source_probe_msec := 0
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
 var _presentation_meshes: Dictionary = {}
@@ -95,6 +98,26 @@ func _reset_loaded_source_state() -> void:
         if has_meta(key):
             remove_meta(key)
 
+func _source_availability_signature(path: String) -> String:
+    if path.is_empty() or not FileAccess.file_exists(path):
+        return "missing"
+    return "%d:%d" % [FileAccess.get_modified_time(path), FileAccess.get_size(path)]
+
+func _record_retryable_source_failure() -> void:
+    _last_retryable_source_signature = _source_availability_signature(data_path)
+    _last_retryable_source_probe_msec = Time.get_ticks_msec()
+
+func _retryable_source_should_reload() -> bool:
+    if not _last_source_failure_retryable or _loaded_data_path == data_path:
+        return false
+    var signature := _source_availability_signature(data_path)
+    var now_msec := Time.get_ticks_msec()
+    if signature == _last_retryable_source_signature and now_msec - _last_retryable_source_probe_msec < SOURCE_RETRY_MIN_INTERVAL_MSEC:
+        return false
+    _last_retryable_source_signature = signature
+    _last_retryable_source_probe_msec = now_msec
+    return true
+
 func _load_points() -> bool:
     # A replacement source is authoritative as soon as loading is attempted.
     # If validation fails, retaining any previously trusted points/provenance or
@@ -104,11 +127,13 @@ func _load_points() -> bool:
     _reset_loaded_source_state()
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
         _last_source_failure_retryable = true
+        _record_retryable_source_failure()
         push_error("OSM environment artifact missing: %s" % data_path)
         return false
     var file := FileAccess.open(data_path, FileAccess.READ)
     if file == null:
         _last_source_failure_retryable = true
+        _record_retryable_source_failure()
         push_error("OSM environment artifact unreadable: %s" % data_path)
         return false
     var parsed = JSON.parse_string(file.get_as_text())
@@ -135,6 +160,8 @@ func _load_points() -> bool:
         return false
     _points = validated_points
     _loaded_data_path = data_path
+    _last_retryable_source_signature = ""
+    _last_retryable_source_probe_msec = 0
     set_meta("source", source)
     set_meta("license", license)
     set_meta("source_dimensions_measured", false)
@@ -331,7 +358,8 @@ func _refresh(force: bool) -> void:
     if not _configuration_error().is_empty():
         _set_batches_visible(false)
         return
-    if data_path != _last_source_attempt_path:
+    var source_reload_required := data_path != _last_source_attempt_path or _retryable_source_should_reload()
+    if source_reload_required:
         if not _load_points():
             _set_batches_visible(false)
             if not _last_source_failure_retryable:

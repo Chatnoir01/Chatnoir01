@@ -1,0 +1,75 @@
+name: Grand Bruxelles CIV-1 Contact Phase Causality
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_contact_phase_causality.py'
+      - 'grand-bruxelles-game/tests/test_civ1_contact_phase_causality_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-contact-phase-causality.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  contact-phase-causality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "76183910ea9ffd2933f9e80c64c3a283f548aa47"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Run contact-phase contract
+        run: python grand-bruxelles-game/tests/test_civ1_contact_phase_causality_contract.py
+      - name: Acquire immutable GREEN inputs
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1phase/{geometry,skeleton,out}
+          api="https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10039569596/zip" -o /tmp/civ1phase/geometry.zip
+          echo 'ca8e4fd953d638409d3271789e471beae18c3c6ff549238d1df4e211f13257b8  /tmp/civ1phase/geometry.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/9996432028/zip" -o /tmp/civ1phase/skeleton.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1phase/skeleton.zip' | sha256sum -c -
+          unzip -q /tmp/civ1phase/geometry.zip -d /tmp/civ1phase/geometry
+          unzip -q /tmp/civ1phase/skeleton.zip -d /tmp/civ1phase/skeleton
+          cp "$(find /tmp/civ1phase/geometry -name geometry-placement.json -print -quit)" /tmp/civ1phase/geometry.json
+          cp "$(find /tmp/civ1phase/skeleton -name skeleton-bundle.json -print -quit)" /tmp/civ1phase/skeleton.json
+      - name: Classify same-sample contact phase without thresholds
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_contact_phase_causality.py /tmp/civ1phase/geometry.json /tmp/civ1phase/skeleton.json /tmp/civ1phase/out/contact-phase.json | tee /tmp/civ1phase/out/classifier.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1phase/out/contact-phase.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-contact-phase-causality-v1'
+          assert r['sample_indices']==[68,69,70,71]
+          assert r['fixed_vertex_count']==3306
+          assert r['source_hips_static'] is True
+          assert r['strict_rightfoot_descent'] is True
+          assert r['strict_lower_envelope_descent'] is True
+          assert r['root_motion_explains_descent'] is False
+          assert r['contact_plateau_observed'] is False
+          assert r['planted_interval_claimable'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          print('CIV1_CONTACT_PHASE_RECEIPT_OK', r['rightfoot_y_span_m'], r['raw_lower_envelope_span_m'])
+          PY
+      - name: Upload immutable contact-phase evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-contact-phase-causality-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1phase/out
+          if-no-files-found: error
+          retention-days: 90

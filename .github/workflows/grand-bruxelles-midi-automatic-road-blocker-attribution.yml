@@ -115,10 +115,11 @@ jobs:
           assert sum(int(d['blocker_counts'][k]) for k in allowed)==d['candidate_count']
           assert d['resolver_contract_unchanged'] is True and d['source_geometry_changed'] is False and d['collision_changed'] is False
           assert d['destination_advertisable'] is False and d['visual_acceptance'] is False and d['jouable_authorized'] is False
-          assert identity['schema']=='grand-bruxelles-midi-road-render-identity-v2'
+          assert identity['schema']=='grand-bruxelles-midi-road-render-identity-v3'
           assert identity['source_sha256']==d['source_sha256']
           assert set(identity['candidate_ids'])==seen
           assert len(identity['rows'])==d['candidate_count']
+          assert identity['hidden_identity_proof'] is True
           assert isinstance(identity['road_visibility_reasons'],dict)
           for row in identity['rows']:
               assert row['osm_id'] in seen
@@ -133,6 +134,20 @@ jobs:
               assert sum(int(v) for v in reasons.values())==exact
               hidden=row['hidden_ancestors']; assert isinstance(hidden,dict)
               assert all(isinstance(k,str) and k and int(v)>0 for k,v in hidden.items())
+              samples=row['hidden_identity_samples']; assert isinstance(samples,list)
+              assert len(samples) <= 8
+              if exact > tree_visible:
+                  assert samples, f'missing hidden identity sample for road-{row["osm_id"]}'
+              for sample in samples:
+                  assert isinstance(sample.get('path'),str) and sample['path']
+                  assert isinstance(sample.get('reason'),str) and sample['reason'] != 'visible_renderable'
+                  assert isinstance(sample.get('metadata'),dict)
+                  ancestry=sample.get('ancestor_chain'); assert isinstance(ancestry,list) and ancestry
+                  assert len(ancestry) <= 12
+                  for ancestor in ancestry:
+                      assert isinstance(ancestor.get('path'),str) and ancestor['path']
+                      assert isinstance(ancestor.get('class'),str) and ancestor['class']
+                      assert isinstance(ancestor.get('metadata'),dict)
           assert identity['diagnostic_only'] is True and identity['source_geometry_changed'] is False
           assert identity['collision_changed'] is False and identity['resolver_changed'] is False
           assert identity['destination_advertisable'] is False and identity['visual_acceptance'] is False and identity['jouable_authorized'] is False

@@ -53,3 +53,11 @@ jobs:
           timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_same_metadata_source_update_test.gd 2>&1 | tee /tmp/witness.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_SAME_METADATA_SOURCE_UPDATE_FAIL" /tmp/witness.log; then exit 1; fi
           test "$(grep -c 'BRUSSELS_OSM_SAME_METADATA_SOURCE_UPDATE_OK' /tmp/witness.log)" -eq 1
+      - name: Upload causal witness log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-same-metadata-witness
+          path: /tmp/witness.log
+          if-no-files-found: error
+          retention-days: 7

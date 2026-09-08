@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          test "$(git rev-parse origin/main)" = "c47ba30ef01080d3fbcfbd216ac76ade221cc447"
+          test "$(git rev-parse origin/main)" = "4de04897e1ddcc2e98701a8b6a0826d3d85e5ae2"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff --quiet origin/main...HEAD -- \
             grand-bruxelles-game/game/main.tscn \
@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/civ1placement/out
           {
-            echo "validated_main=c47ba30ef01080d3fbcfbd216ac76ade221cc447"
+            echo "validated_main=4de04897e1ddcc2e98701a8b6a0826d3d85e5ae2"
             echo "head=${{ github.event.pull_request.head.sha || github.sha }}"
             echo "skeleton_artifact=9996432028"
             echo "skeleton_digest=sha256:9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00"
@@ -46,9 +46,13 @@ jobs:
             echo "phase_minima_artifact=10057731450"
             echo "phase_minima_digest=sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f"
             echo "phase_lowest_candidate_sample=72"
-            echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v4"
+            echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v5"
             echo "required_samples=71,72,73"
             echo "source_repository=https://github.com/ibrews/VitruvianGodot"
+            echo "source_commit=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
+            echo "source_git_blob_sha1=09bcade1092e5a89b474e91e6013209d4c68c127"
+            echo "source_size_bytes=6879364"
+            echo "source_license=CC0-1.0"
             sha256sum \
               grand-bruxelles-game/game/main.tscn \
               grand-bruxelles-game/game/scripts/npc_agent.gd \
@@ -69,7 +73,7 @@ jobs:
           import json
           from pathlib import Path
           r=json.loads(Path('/tmp/civ1placement/out/canonical-placement-contract.json').read_text())
-          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v5'
+          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v6'
           assert abs(r['canonical_ground']['top_y_m'] - (-0.03)) <= 1e-12
           assert r['canonical_ground']['use_collision'] is True
           assert r['runtime']['population_director_loaded'] is True
@@ -78,7 +82,7 @@ jobs:
           assert r['runtime']['spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['pooled_spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['grounding_mechanism_hits'] == []
-          assert r['runtime_witness']['schema']=='grand-bruxelles-civ1-runtime-placement-witness-v4'
+          assert r['runtime_witness']['schema']=='grand-bruxelles-civ1-runtime-placement-witness-v5'
           assert r['runtime_witness']['present'] is False
           assert r['runtime_witness']['validated'] is False
           assert r['runtime_witness']['required_sample_indices'] == [71,72,73]
@@ -89,6 +93,12 @@ jobs:
           assert ae['phase_minima_artifact_id']==10057731450
           assert ae['phase_minima_artifact_digest']=='sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f'
           assert ae['phase_lowest_candidate_sample_index']==72
+          se=r['runtime_witness']['required_source_evidence']
+          assert se['repository_url']=='https://github.com/ibrews/VitruvianGodot'
+          assert se['source_commit_sha']=='bdecdcd537b4031fdd0fb299b7e4f93f084fffa0'
+          assert se['source_git_blob_sha1']=='09bcade1092e5a89b474e91e6013209d4c68c127'
+          assert se['source_size_bytes']==6879364
+          assert se['license_id']=='CC0-1.0'
           assert r['canonical_character_placement_available'] is False
           assert r['ground_contact_classifiable'] is False
           assert r['contact_proof_claimed'] is False

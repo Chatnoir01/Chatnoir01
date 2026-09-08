@@ -13,6 +13,7 @@ on:
       - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
       - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
       - 'grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_precondition.py'
+      - 'grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_artifact_receipt.py'
       - 'grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_repository_content_receipt.py'
       - 'grand-bruxelles-game/tests/test_spatial_crosswalk_precondition.py'
       - 'grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_origin_evidence.py'
@@ -63,5 +64,6 @@ jobs:
       - name: Validate canonical spatial crosswalk source bindings
         working-directory: grand-bruxelles-game
         run: |
+          python tools/city_machine/validate_spatial_crosswalk_origin_artifact_receipt.py
           python tools/city_machine/validate_spatial_crosswalk_repository_content_receipt.py
           python tools/city_machine/validate_spatial_crosswalk_precondition.py

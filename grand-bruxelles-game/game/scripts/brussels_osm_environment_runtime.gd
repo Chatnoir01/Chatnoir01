@@ -596,7 +596,6 @@ func _build_bollard_batches(rows: Array, reuse_existing: bool = false) -> void:
     if rows.is_empty() and not reuse_existing:
         return
     _ensure_bollard_presentation_meshes()
-    var materials := BrusselsBollardAsset.create_materials()
     var bodies: Array = []
     var caps: Array = []
     for row_variant in rows:

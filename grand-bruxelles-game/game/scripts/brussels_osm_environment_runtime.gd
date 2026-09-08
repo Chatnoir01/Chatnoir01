@@ -41,6 +41,7 @@ var _last_selection_limits := Vector3i(-1, -1, -1)
 var _last_render_radius_m := INF
 var _loaded_data_path := ""
 var _last_source_attempt_path := ""
+var _last_source_attempt_signature := ""
 var _last_source_failure_retryable := false
 var _last_retryable_source_signature := ""
 var _last_retryable_source_probe_msec := 0
@@ -113,12 +114,23 @@ func _source_content_signature(path: String) -> String:
         return "missing"
     return FileAccess.get_sha256(path)
 
+func _bytes_sha256(bytes: PackedByteArray) -> String:
+    var context := HashingContext.new()
+    if context.start(HashingContext.HASH_SHA256) != OK:
+        return ""
+    if context.update(bytes) != OK:
+        return ""
+    return context.finish().hex_encode()
+
 func _record_retryable_source_failure() -> void:
     _last_retryable_source_signature = _source_availability_signature(data_path)
     _last_retryable_source_probe_msec = Time.get_ticks_msec()
 
 func _record_rejected_source_failure() -> void:
-    _last_rejected_source_signature = _source_content_signature(data_path)
+    if _last_source_attempt_path == data_path and not _last_source_attempt_signature.is_empty():
+        _last_rejected_source_signature = _last_source_attempt_signature
+    else:
+        _last_rejected_source_signature = _source_content_signature(data_path)
     _last_rejected_source_probe_msec = Time.get_ticks_msec()
 
 func _loaded_source_should_reload(force_probe: bool) -> bool:
@@ -159,6 +171,7 @@ func _load_points() -> bool:
     # If validation fails, retaining any previously trusted points/provenance or
     # materialized batches would present stale data under the rejected data_path.
     _last_source_attempt_path = data_path
+    _last_source_attempt_signature = ""
     _last_source_failure_retryable = false
     _reset_loaded_source_state()
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
@@ -172,7 +185,21 @@ func _load_points() -> bool:
         _record_retryable_source_failure()
         push_error("OSM environment artifact unreadable: %s" % data_path)
         return false
-    var parsed = JSON.parse_string(file.get_as_text())
+    var source_size := file.get_length()
+    var source_bytes := file.get_buffer(source_size)
+    file.close()
+    if source_bytes.size() != source_size:
+        _last_source_failure_retryable = true
+        _record_retryable_source_failure()
+        push_error("OSM environment artifact changed or became unreadable during read: %s" % data_path)
+        return false
+    _last_source_attempt_signature = _bytes_sha256(source_bytes)
+    if _last_source_attempt_signature.is_empty():
+        _last_source_failure_retryable = true
+        _record_retryable_source_failure()
+        push_error("OSM environment artifact SHA-256 failed: %s" % data_path)
+        return false
+    var parsed = JSON.parse_string(source_bytes.get_string_from_utf8())
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("OSM environment artifact invalid JSON object")
         return false
@@ -200,7 +227,7 @@ func _load_points() -> bool:
     _last_retryable_source_probe_msec = 0
     _last_rejected_source_signature = ""
     _last_rejected_source_probe_msec = 0
-    _loaded_source_signature = _source_content_signature(data_path)
+    _loaded_source_signature = _last_source_attempt_signature
     _last_loaded_source_probe_msec = Time.get_ticks_msec()
     set_meta("source", source)
     set_meta("license", license)

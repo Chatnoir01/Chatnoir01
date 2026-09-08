@@ -121,15 +121,27 @@ jobs:
           assert len(identity['rows'])==d['candidate_count']
           assert identity['hidden_identity_proof'] is True
           assert isinstance(identity['road_visibility_reasons'],dict)
+          total_support_hits=0
+          total_visual_owner_hits=0
+          total_exact_urbis_owner_hits=0
           for row in identity['rows']:
               assert row['osm_id'] in seen
               exact=int(row['exact_named_geometry'])
+              source_bound=int(row['exact_leaf_osm_id_matches'])
               self_visible=int(row['exact_self_visible_geometry'])
               renderable=int(row['exact_renderable_geometry'])
               tree_visible=int(row['exact_visible_renderable_geometry'])
+              assert source_bound==exact, f'road-{row["osm_id"]} lost exact OSM leaf identity'
               assert 0 <= self_visible <= exact
               assert 0 <= renderable <= exact
               assert 0 <= tree_visible <= min(self_visible,renderable)
+              support_hits=int(row['hidden_support_hits'])
+              visual_owner_hits=int(row['support_visual_owner_hits'])
+              exact_urbis_owner_hits=int(row['exact_urbis_carriageway_owner_hits'])
+              assert 0 <= exact_urbis_owner_hits <= visual_owner_hits <= support_hits
+              total_support_hits += support_hits
+              total_visual_owner_hits += visual_owner_hits
+              total_exact_urbis_owner_hits += exact_urbis_owner_hits
               reasons=row['visibility_reasons']; assert isinstance(reasons,dict)
               assert sum(int(v) for v in reasons.values())==exact
               hidden=row['hidden_ancestors']; assert isinstance(hidden,dict)
@@ -148,6 +160,15 @@ jobs:
                       assert isinstance(ancestor.get('path'),str) and ancestor['path']
                       assert isinstance(ancestor.get('class'),str) and ancestor['class']
                       assert isinstance(ancestor.get('metadata'),dict)
+          assert total_support_hits==int(identity['hidden_support_hit_count'])
+          assert total_visual_owner_hits==int(identity['support_visual_owner_hit_count'])
+          assert total_exact_urbis_owner_hits==int(identity['exact_urbis_carriageway_owner_hit_count'])
+          if total_support_hits > 0:
+              assert identity['support_visual_owner_relationship_proven'] is True
+              assert identity['urbis_exact_carriageway_owner_relationship_proven'] is True
+              assert total_visual_owner_hits==total_support_hits
+              assert total_exact_urbis_owner_hits==total_support_hits
+          assert identity['osm_to_urbis_crosswalk_claimed'] is False
           assert identity['diagnostic_only'] is True and identity['source_geometry_changed'] is False
           assert identity['collision_changed'] is False and identity['resolver_changed'] is False
           assert identity['destination_advertisable'] is False and identity['visual_acceptance'] is False and identity['jouable_authorized'] is False

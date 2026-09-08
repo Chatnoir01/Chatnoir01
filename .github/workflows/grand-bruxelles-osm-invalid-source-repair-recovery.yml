@@ -53,11 +53,11 @@ jobs:
           timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_invalid_source_repair_recovery_test.gd 2>&1 | tee /tmp/witness.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_INVALID_SOURCE_REPAIR_RECOVERY_FAIL" /tmp/witness.log; then exit 1; fi
           test "$(grep -c 'BRUSSELS_OSM_INVALID_SOURCE_REPAIR_RECOVERY_OK' /tmp/witness.log)" -eq 1
-      - name: Upload causal witness log
-        if: always()
+      - name: Upload causal failure witness log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-osm-invalid-source-repair-witness
           path: /tmp/witness.log
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7

@@ -20,6 +20,32 @@ func _run() -> void:
     player.name = "Player"
     root.add_child(player)
 
+    # Regression: exported runtime configuration may be temporarily invalid while
+    # a zone is being mounted/configured. The renderer must fail closed without
+    # permanently disabling its process loop, then recover once configuration is valid.
+    var config_runtime := RUNTIME_SCRIPT.new() as Node3D
+    config_runtime.name = "StartupConfigurationRecoveryRuntime"
+    config_runtime.set("data_path", JETTE_DATA)
+    config_runtime.set("render_radius_m", -1.0)
+    root.add_child(config_runtime)
+    await process_frame
+    if config_runtime.is_processing() == false:
+        _fail("initial invalid configuration disabled processing and made later configuration recovery unreachable")
+        return
+    if _count_points(config_runtime) != 0 or config_runtime.has_meta("render_counts"):
+        _fail("initial invalid configuration did not remain fail-closed")
+        return
+    config_runtime.set("render_radius_m", 350.0)
+    await process_frame
+    if _count_points(config_runtime) <= 0:
+        _fail("runtime did not recover after startup configuration became valid")
+        return
+    if str(config_runtime.get_meta("source", "")) != "OpenStreetMap contributors via Overpass API" or str(config_runtime.get_meta("license", "")) != "ODbL-1.0":
+        _fail("startup-configuration recovery restored incorrect provenance")
+        return
+    config_runtime.queue_free()
+    await process_frame
+
     # Regression: a source can be temporarily unavailable when the runtime first
     # enters the tree. The runtime must remain alive so a later data_path change
     # can use the same fail-closed reload path exercised below.
@@ -75,5 +101,5 @@ func _run() -> void:
         _fail("restored source provenance is incorrect")
         return
 
-    print("BRUSSELS_OSM_SOURCE_PATH_REFRESH_OK: initial_recovery=true initial_points=%d stale_points=0 restored_points=%d" % [initial_count, _count_points(runtime)])
+    print("BRUSSELS_OSM_SOURCE_PATH_REFRESH_OK: config_recovery=true initial_recovery=true initial_points=%d stale_points=0 restored_points=%d" % [initial_count, _count_points(runtime)])
     quit(0)

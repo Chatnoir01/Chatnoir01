@@ -46,7 +46,6 @@ var _presentation_meshes: Dictionary = {}
 
 func _ready() -> void:
     if not _validate_configuration():
-        set_process(false)
         return
     if not _load_points():
         if not _last_source_failure_retryable:
@@ -329,6 +328,9 @@ func _refresh_tree_lod(anchor: Vector3) -> void:
     set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
 
 func _refresh(force: bool) -> void:
+    if not _configuration_error().is_empty():
+        _set_batches_visible(false)
+        return
     if data_path != _last_source_attempt_path:
         if not _load_points():
             _set_batches_visible(false)
@@ -336,9 +338,6 @@ func _refresh(force: bool) -> void:
                 set_process(false)
             return
     if _loaded_data_path != data_path:
-        _set_batches_visible(false)
-        return
-    if not _configuration_error().is_empty():
         _set_batches_visible(false)
         return
     var target := _target()

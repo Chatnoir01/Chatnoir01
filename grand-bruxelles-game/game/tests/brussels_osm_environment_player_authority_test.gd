@@ -86,6 +86,8 @@ func _run() -> void:
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(spoofed_path))
 
+    # Configuration errors are fail-closed but retryable: they must not acquire
+    # source provenance or player authority until configuration becomes valid.
     var invalid_runtime := RUNTIME_SCRIPT.new() as Node3D
     invalid_runtime.name = "BrusselsOsmEnvironmentInvalidConfigProbe"
     invalid_runtime.set("data_path", JETTE_DATA)
@@ -93,14 +95,33 @@ func _run() -> void:
     live_world.add_child(invalid_runtime)
     for _frame: int in range(4):
         await process_frame
-    if invalid_runtime.is_processing():
-        _fail("negative refresh_distance_m did not disable shared OSM processing")
+    if not invalid_runtime.is_processing():
+        _fail("negative refresh_distance_m permanently disabled retryable shared OSM processing")
         return
     if invalid_runtime.get_child_count() != 0:
         _fail("invalid shared OSM configuration materialized render batches")
         return
     if invalid_runtime.has_meta("source") or invalid_runtime.has_meta("license"):
         _fail("invalid shared OSM configuration accepted source provenance")
+        return
+    if invalid_runtime.call("_target") != live_player:
+        _fail("retryable invalid configuration lost current-scene Player authority")
+        return
+    invalid_runtime.set("refresh_distance_m", 80.0)
+    for _frame: int in range(8):
+        await process_frame
+    var invalid_recovery_counts: Dictionary = invalid_runtime.get("last_render_counts")
+    if int(invalid_recovery_counts.get("tree", 0)) == 0 or int(invalid_recovery_counts.get("street_lamp", 0)) == 0:
+        _fail("shared OSM renderer did not recover after configuration became valid")
+        return
+    if not _all_batches_visible(invalid_runtime, true):
+        _fail("configuration recovery did not expose source-backed environment batches")
+        return
+    if str(invalid_runtime.get_meta("source", "")) != "OpenStreetMap contributors via Overpass API" or str(invalid_runtime.get_meta("license", "")) != "ODbL-1.0":
+        _fail("configuration recovery restored incorrect source provenance")
+        return
+    if invalid_runtime.call("_target") != live_player:
+        _fail("configuration recovery did not preserve current-scene Player authority")
         return
     invalid_runtime.queue_free()
     await process_frame
@@ -210,5 +231,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: provenance_fail_closed=true config_fail_closed=true current_scene_authoritative=true reusable_batch_refresh=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: provenance_fail_closed=true config_fail_closed=true config_recovery=true current_scene_authoritative=true reusable_batch_refresh=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

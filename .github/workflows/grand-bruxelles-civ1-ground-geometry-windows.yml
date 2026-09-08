@@ -1,0 +1,102 @@
+name: Grand Bruxelles CIV-1 Ground Geometry Windows
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_ground_geometry_windows_probe.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_ground_geometry_windows_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-ground-geometry-windows.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  ground-geometry-windows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "1a2210270477f3e20b5127a42a7b3e13000a624c"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Run witness contract
+        run: python grand-bruxelles-game/tests/test_civ1_ground_geometry_windows_contract.py
+      - name: Acquire immutable GREEN inputs
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1ggw/{bind,skeleton,toe,windows,ground,project,engine,out}
+          api="https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10031928117/zip" -o /tmp/civ1ggw/bind.zip
+          echo 'd607637c6dd7231d11f3e37d72680936e313e5f139b82b31083c926054eb509c  /tmp/civ1ggw/bind.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/9996432028/zip" -o /tmp/civ1ggw/skeleton.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1ggw/skeleton.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10053292431/zip" -o /tmp/civ1ggw/toe.zip
+          echo 'fe1ad2a7bcd92ca444d5b1b6474f31a05058ccfa3a4a09208af5aabd6bba6269  /tmp/civ1ggw/toe.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10051214336/zip" -o /tmp/civ1ggw/windows.zip
+          echo '46fc9641a7e68b4bd2244580379ce464db3a5b865eff382cd8df2366aea2bdf6  /tmp/civ1ggw/windows.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10037379556/zip" -o /tmp/civ1ggw/ground.zip
+          echo '8fa717aaff9668ed5ef8e307a2509e389e439fa8cb8a602de1989b19765727c5  /tmp/civ1ggw/ground.zip' | sha256sum -c -
+          unzip -q /tmp/civ1ggw/bind.zip -d /tmp/civ1ggw/bind
+          unzip -q /tmp/civ1ggw/skeleton.zip -d /tmp/civ1ggw/skeleton
+          unzip -q /tmp/civ1ggw/toe.zip -d /tmp/civ1ggw/toe
+          unzip -q /tmp/civ1ggw/windows.zip -d /tmp/civ1ggw/windows
+          unzip -q /tmp/civ1ggw/ground.zip -d /tmp/civ1ggw/ground
+          cp "$(find /tmp/civ1ggw/bind -name rightfoot-bind-pose.json -print -quit)" /tmp/civ1ggw/project/bind.json
+          cp "$(find /tmp/civ1ggw/skeleton -name skeleton-bundle.json -print -quit)" /tmp/civ1ggw/project/skeleton.json
+          cp "$(find /tmp/civ1ggw/toe -name righttoebase-full-pose.json -print -quit)" /tmp/civ1ggw/project/toe.json
+          cp "$(find /tmp/civ1ggw/windows -name ground-candidate-windows.json -print -quit)" /tmp/civ1ggw/project/windows.json
+          cp "$(find /tmp/civ1ggw/ground -name rightfoot-same-sample-ground.json -print -quit)" /tmp/civ1ggw/project/ground.json
+      - name: Acquire pinned Godot 4.7.1
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/tools/godot_civ1_ground_geometry_windows_probe.gd /tmp/civ1ggw/project/probe.gd
+          printf '[application]\nconfig/name="CIV1GroundGeometryWindows"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1ggw/project/project.godot
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1ggw/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1ggw/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1ggw/godot.zip -d /tmp/civ1ggw/engine
+          chmod +x /tmp/civ1ggw/engine/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/civ1ggw/engine/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+      - name: Replay same-sample full skinned geometry against canonical Ground
+        run: |
+          set -euo pipefail
+          G=/tmp/civ1ggw/engine/Godot_v4.7.1-stable_linux.x86_64
+          "$G" --headless --path /tmp/civ1ggw/project --script res://probe.gd -- /tmp/civ1ggw/project/bind.json /tmp/civ1ggw/project/skeleton.json /tmp/civ1ggw/project/toe.json /tmp/civ1ggw/project/windows.json /tmp/civ1ggw/project/ground.json /tmp/civ1ggw/out/ground-geometry-windows.json 2>&1 | tee /tmp/civ1ggw/out/probe.log
+          grep -F CIV1_GROUND_GEOMETRY_WINDOWS_OK /tmp/civ1ggw/out/probe.log
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1ggw/out/ground-geometry-windows.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-ground-geometry-windows-v1'
+          assert r['fixed_vertex_count']==3306
+          assert r['window_count']==10
+          assert r['same_sample_ground_geometry_ready'] is True
+          assert r['canonical_character_placement_available'] is False
+          assert r['ground_contact_classifiable'] is False
+          assert r['contact_proof_claimed'] is False
+          assert r['animation_correction_authorized'] is False
+          assert r['runtime_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          assert len(r['samples'])==len(r['sample_indices'])
+          assert 66 in r['sample_indices'] and 73 in r['sample_indices']
+          for s in r['samples']:
+              assert s['replayed_vertex_count']==3306
+              assert math.isfinite(s['raw_skinned_lower_envelope_y_m'])
+              assert math.isfinite(s['geometry_derived_placement_to_ground_m'])
+          print('CIV1_GROUND_GEOMETRY_WINDOWS_RECEIPT_OK', len(r['samples']))
+          PY
+      - name: Upload immutable Ground geometry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-ground-geometry-windows-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1ggw/out
+          if-no-files-found: error
+          retention-days: 90

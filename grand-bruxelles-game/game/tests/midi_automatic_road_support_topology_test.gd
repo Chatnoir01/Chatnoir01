@@ -8,6 +8,7 @@ const MIDI_ANCHOR_ID := "midi"
 const MAX_DISTANCE_M := 80.0
 const SUPPORT_RAY_UP_M := 4.0
 const SUPPORT_RAY_DOWN_M := 8.0
+const PROBE_BASIS := "mesh_aabb_center_world"
 const EXPECTED_COLLIDER_SUFFIX := "/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways/ExactRoadCarriageways_col"
 const EXPECTED_OWNER_SUFFIX := "/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways"
 
@@ -82,27 +83,52 @@ func _visual_owner(collider: Node) -> GeometryInstance3D:
 func _path_string(node: Node) -> String:
     return node.get_path().get_concatenated_names()
 
-func _support_probe(node: GeometryInstance3D) -> Dictionary:
-    var origin := node.global_position + Vector3(0.0, SUPPORT_RAY_UP_M, 0.0)
-    var finish := node.global_position - Vector3(0.0, SUPPORT_RAY_DOWN_M, 0.0)
+func _mesh_probe_point(node: MeshInstance3D) -> Dictionary:
+    if node.mesh == null:
+        return {"valid": false, "reason": "mesh_unavailable"}
+    var local_aabb := node.mesh.get_aabb()
+    if local_aabb.size.length_squared() <= 0.0:
+        return {"valid": false, "reason": "empty_mesh_aabb"}
+    var local_center := local_aabb.get_center()
+    var world_center := node.global_transform * local_center
+    if not world_center.is_finite():
+        return {"valid": false, "reason": "non_finite_mesh_center"}
+    return {
+        "valid": true,
+        "basis": PROBE_BASIS,
+        "local_aabb_center": [local_center.x, local_center.y, local_center.z],
+        "world_position": [world_center.x, world_center.y, world_center.z],
+    }
+
+func _support_probe(node: MeshInstance3D) -> Dictionary:
+    var probe := _mesh_probe_point(node)
+    if not bool(probe.get("valid", false)):
+        return {"hit": false, "reason": str(probe.get("reason", "probe_point_unavailable")), "probe": probe}
+    var world_position_values: Array = probe.get("world_position", []) as Array
+    if world_position_values.size() != 3:
+        return {"hit": false, "reason": "invalid_probe_world_position", "probe": probe}
+    var world_position := Vector3(float(world_position_values[0]), float(world_position_values[1]), float(world_position_values[2]))
+    var origin := world_position + Vector3(0.0, SUPPORT_RAY_UP_M, 0.0)
+    var finish := world_position - Vector3(0.0, SUPPORT_RAY_DOWN_M, 0.0)
     var query := PhysicsRayQueryParameters3D.create(origin, finish)
     query.collide_with_areas = false
     query.collide_with_bodies = true
     var world := node.get_world_3d()
     if world == null:
-        return {"hit": false, "reason": "world_unavailable"}
+        return {"hit": false, "reason": "world_unavailable", "probe": probe}
     var hit: Dictionary = world.direct_space_state.intersect_ray(query)
     if hit.is_empty():
-        return {"hit": false, "reason": "no_support_hit"}
+        return {"hit": false, "reason": "no_support_hit", "probe": probe}
     var collider: Variant = hit.get("collider", null)
     if not collider is CollisionObject3D:
-        return {"hit": false, "reason": "non_collision_object"}
+        return {"hit": false, "reason": "non_collision_object", "probe": probe}
     var collision := collider as CollisionObject3D
     var owner := _visual_owner(collision)
     var normal: Variant = hit.get("normal", Vector3.ZERO)
     var position: Variant = hit.get("position", Vector3.ZERO)
     return {
         "hit": true,
+        "probe": probe,
         "collider_path": _path_string(collision),
         "collider_class": collision.get_class(),
         "collision_layer": collision.collision_layer,
@@ -156,44 +182,49 @@ func _run() -> void:
         if current is GeometryInstance3D and str(current.name).begins_with("Road_") and current.has_meta("osm_id"):
             var osm_id := int(current.get_meta("osm_id"))
             if id_set.has(osm_id) and str(current.name).begins_with("Road_%d_" % osm_id):
-                var geometry := current as GeometryInstance3D
                 exact_leaf_count += 1
-                if geometry.visible:
-                    errors.append("road-%d leaf unexpectedly visible: %s" % [osm_id, _path_string(geometry)])
-                var support := _support_probe(geometry)
-                if not bool(support.get("hit", false)):
-                    errors.append("road-%d leaf has no physical support: %s" % [osm_id, _path_string(geometry)])
+                if not current is MeshInstance3D:
+                    errors.append("road-%d exact geometry is not MeshInstance3D: %s" % [osm_id, _path_string(current)])
                 else:
-                    support_hit_count += 1
-                    var collider_path := str(support.get("collider_path", ""))
-                    var owner_path := str(support.get("owner_path", ""))
-                    var layer := int(support.get("collision_layer", 0))
-                    collider_paths[collider_path] = int(collider_paths.get(collider_path, 0)) + 1
-                    owner_paths[owner_path] = int(owner_paths.get(owner_path, 0)) + 1
-                    collision_layers[str(layer)] = int(collision_layers.get(str(layer), 0)) + 1
-                    if not collider_path.ends_with(EXPECTED_COLLIDER_SUFFIX):
-                        errors.append("road-%d support collider drifted: %s" % [osm_id, collider_path])
-                    if not owner_path.ends_with(EXPECTED_OWNER_SUFFIX):
-                        errors.append("road-%d support visual owner drifted: %s" % [osm_id, owner_path])
-                    if not bool(support.get("owner_visible", false)) or not bool(support.get("owner_visible_in_tree", false)):
-                        errors.append("road-%d support owner is not visible in tree" % osm_id)
-                    if layer <= 0:
-                        errors.append("road-%d support collider has no collision layer" % osm_id)
-                    if float(support.get("normal_y", 0.0)) <= 0.0:
-                        errors.append("road-%d support hit is not upward-facing" % osm_id)
-                rows.append({
-                    "osm_id": osm_id,
-                    "road_leaf_path": _path_string(geometry),
-                    "road_leaf_visible": geometry.visible,
-                    "support": support,
-                })
+                    var geometry := current as MeshInstance3D
+                    if geometry.visible:
+                        errors.append("road-%d leaf unexpectedly visible: %s" % [osm_id, _path_string(geometry)])
+                    var support := _support_probe(geometry)
+                    if not bool(support.get("hit", false)):
+                        errors.append("road-%d leaf has no physical support at mesh center: %s (%s)" % [osm_id, _path_string(geometry), str(support.get("reason", "unknown"))])
+                    else:
+                        support_hit_count += 1
+                        var collider_path := str(support.get("collider_path", ""))
+                        var owner_path := str(support.get("owner_path", ""))
+                        var layer := int(support.get("collision_layer", 0))
+                        collider_paths[collider_path] = int(collider_paths.get(collider_path, 0)) + 1
+                        owner_paths[owner_path] = int(owner_paths.get(owner_path, 0)) + 1
+                        collision_layers[str(layer)] = int(collision_layers.get(str(layer), 0)) + 1
+                        if not collider_path.ends_with(EXPECTED_COLLIDER_SUFFIX):
+                            errors.append("road-%d support collider drifted: %s" % [osm_id, collider_path])
+                        if not owner_path.ends_with(EXPECTED_OWNER_SUFFIX):
+                            errors.append("road-%d support visual owner drifted: %s" % [osm_id, owner_path])
+                        if not bool(support.get("owner_visible", false)) or not bool(support.get("owner_visible_in_tree", false)):
+                            errors.append("road-%d support owner is not visible in tree" % osm_id)
+                        if layer <= 0:
+                            errors.append("road-%d support collider has no collision layer" % osm_id)
+                        if float(support.get("normal_y", 0.0)) <= 0.0:
+                            errors.append("road-%d support hit is not upward-facing" % osm_id)
+                    rows.append({
+                        "osm_id": osm_id,
+                        "road_leaf_path": _path_string(geometry),
+                        "road_leaf_visible": geometry.visible,
+                        "support": support,
+                    })
         for child: Node in current.get_children():
             stack.append(child)
 
     if exact_leaf_count <= 0:
         errors.append("no exact candidate road leaves found")
+    if rows.size() != exact_leaf_count:
+        errors.append("not every exact candidate road leaf is probeable mesh geometry")
     if support_hit_count != exact_leaf_count:
-        errors.append("not every exact candidate leaf has physical support")
+        errors.append("not every exact candidate leaf has physical support at its mesh AABB center")
     if collider_paths.size() != 1:
         errors.append("support topology is fragmented across %d collider paths" % collider_paths.size())
     if owner_paths.size() != 1:
@@ -202,9 +233,10 @@ func _run() -> void:
         errors.append("support topology uses inconsistent collision layers")
 
     var output := {
-        "schema": "grand-bruxelles-midi-automatic-road-support-topology-v1",
+        "schema": "grand-bruxelles-midi-automatic-road-support-topology-v2",
         "source_path": SOURCE_PATH,
         "source_sha256": FileAccess.get_sha256(SOURCE_PATH).to_lower(),
+        "probe_basis": PROBE_BASIS,
         "candidate_ids": ids,
         "candidate_count": ids.size(),
         "exact_road_leaf_count": exact_leaf_count,
@@ -231,5 +263,5 @@ func _run() -> void:
     if not errors.is_empty():
         _fail("support topology contract failed: %s" % JSON.stringify(errors))
         return
-    print("MIDI_AUTOMATIC_ROAD_SUPPORT_TOPOLOGY_GREEN: candidates=%d leaves=%d hits=%d collider_paths=%d owner_paths=%d collision_layers=%d crosswalk_claimed=false destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), exact_leaf_count, support_hit_count, collider_paths.size(), owner_paths.size(), collision_layers.size()])
+    print("MIDI_AUTOMATIC_ROAD_SUPPORT_TOPOLOGY_GREEN: candidates=%d leaves=%d hits=%d probe_basis=%s collider_paths=%d owner_paths=%d collision_layers=%d crosswalk_claimed=false destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), exact_leaf_count, support_hit_count, PROBE_BASIS, collider_paths.size(), owner_paths.size(), collision_layers.size()])
     quit(0)

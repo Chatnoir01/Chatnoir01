@@ -7,6 +7,8 @@ const MIDI_ANCHOR_ID := "midi"
 const MAX_DISTANCE_M := 80.0
 const OUTPUT_PATH := "res://artifacts/qa/midi_automatic_road_render_identity.json"
 const SAMPLE_LIMIT := 64
+const HIDDEN_SAMPLE_LIMIT := 8
+const ANCESTRY_DEPTH_LIMIT := 12
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -84,6 +86,43 @@ func _metadata_mentions(node: Node, token: String) -> bool:
         if str(node.get_meta(key)).contains(token):
             return true
     return false
+
+func _metadata_snapshot(node: Node) -> Dictionary:
+    var snapshot: Dictionary = {}
+    for key: StringName in node.get_meta_list():
+        var value: Variant = node.get_meta(key)
+        if value is String or value is StringName or value is bool or value is int or value is float:
+            snapshot[str(key)] = value
+        elif value is Array:
+            var simple: Array = []
+            var valid := true
+            for item: Variant in value:
+                if item is String or item is StringName or item is bool or item is int or item is float:
+                    simple.append(item)
+                else:
+                    valid = false
+                    break
+            if valid:
+                snapshot[str(key)] = simple
+    return snapshot
+
+func _ancestor_chain(node: Node3D) -> Array[Dictionary]:
+    var chain: Array[Dictionary] = []
+    var current: Node = node
+    var depth := 0
+    while current != null and depth < ANCESTRY_DEPTH_LIMIT:
+        var row := {
+            "path": current.get_path().get_concatenated_names(),
+            "class": current.get_class(),
+            "metadata": _metadata_snapshot(current),
+        }
+        if current is Node3D:
+            row["visible"] = (current as Node3D).visible
+            row["visible_in_tree"] = (current as Node3D).is_visible_in_tree()
+        chain.append(row)
+        current = current.get_parent()
+        depth += 1
+    return chain
 
 func _first_hidden_3d_ancestor(node: Node3D) -> String:
     var current: Node = node
@@ -164,6 +203,7 @@ func _run() -> void:
         var reasons: Dictionary = {}
         var hidden_ancestors: Dictionary = {}
         var samples: Array[String] = []
+        var hidden_identity_samples: Array[Dictionary] = []
         for geometry: GeometryInstance3D in all_geometry:
             var name := str(geometry.name)
             var exact := name.begins_with(prefix)
@@ -182,6 +222,13 @@ func _run() -> void:
                     hidden_ancestors[hidden_path] = int(hidden_ancestors.get(hidden_path, 0)) + 1
                 if reason == "visible_renderable":
                     exact_visible_renderable += 1
+                elif hidden_identity_samples.size() < HIDDEN_SAMPLE_LIMIT:
+                    hidden_identity_samples.append({
+                        "path": geometry.get_path().get_concatenated_names(),
+                        "reason": reason,
+                        "metadata": _metadata_snapshot(geometry),
+                        "ancestor_chain": _ancestor_chain(geometry),
+                    })
             if token_hit:
                 token_named += 1
             if meta_hit:
@@ -197,14 +244,15 @@ func _run() -> void:
             "exact_visible_renderable_geometry": exact_visible_renderable,
             "visibility_reasons": reasons,
             "hidden_ancestors": hidden_ancestors,
+            "hidden_identity_samples": hidden_identity_samples,
             "id_token_named_geometry": token_named,
             "metadata_mentions": metadata_mentions,
             "samples": samples,
         })
-        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d reasons=%s hidden_ancestors=%s" % [osm_id, exact_named, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, JSON.stringify(reasons), JSON.stringify(hidden_ancestors)])
+        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d reasons=%s hidden_ancestors=%s hidden_identity_samples=%d" % [osm_id, exact_named, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, JSON.stringify(reasons), JSON.stringify(hidden_ancestors), hidden_identity_samples.size()])
 
     var output := {
-        "schema": "grand-bruxelles-midi-road-render-identity-v2",
+        "schema": "grand-bruxelles-midi-road-render-identity-v3",
         "source_path": SOURCE_PATH,
         "source_sha256": FileAccess.get_sha256(SOURCE_PATH).to_lower(),
         "candidate_ids": ids,
@@ -213,6 +261,7 @@ func _run() -> void:
         "road_named_visible_renderable_count": road_named_visible_renderable,
         "road_visibility_reasons": road_visibility_reasons,
         "road_named_samples": road_named_samples,
+        "hidden_identity_proof": true,
         "rows": rows,
         "diagnostic_only": true,
         "source_geometry_changed": false,
@@ -230,5 +279,5 @@ func _run() -> void:
         return
     file.store_string(JSON.stringify(output, "  ", true) + "\n")
     file.close()
-    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable])
+    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d hidden_identity_proof=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable])
     quit(0)

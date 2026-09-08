@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from tools.city_machine import validate_spatial_crosswalk_precondition as validator
+
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
 RECEIPT = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json"
@@ -41,6 +43,31 @@ def _load_json_bytes_strict(raw):
 def _exact_keys(payload, expected, label):
     assert isinstance(payload, dict), f"{label} must be an object"
     assert set(payload) == expected, f"{label} schema drift: {set(payload) ^ expected}"
+
+
+def test_production_validator_exposes_origin_artifact_receipt_binding():
+    assert callable(validator.validate_origin_artifact_receipt)
+    validator.validate_origin_artifact_receipt(EVIDENCE.read_bytes(), RECEIPT.read_bytes())
+
+
+def test_production_validator_rejects_duplicate_receipt_key():
+    canonical = RECEIPT.read_bytes()
+    duplicate = canonical.replace(
+        b'{\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1",',
+        b'{\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1",\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1",',
+        1,
+    )
+    assert duplicate != canonical
+    with pytest.raises(ValueError, match="duplicate JSON key: schema"):
+        validator.validate_origin_artifact_receipt(EVIDENCE.read_bytes(), duplicate)
+
+
+def test_production_validator_rejects_repinned_owner_mismatch():
+    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+    evidence["source_owner"]["artifact_id"] = 10065069361
+    forged = (json.dumps(evidence, separators=(",", ":")) + "\n").encode("utf-8")
+    with pytest.raises(ValueError, match="origin artifact receipt does not match source_owner"):
+        validator.validate_origin_artifact_receipt(forged, RECEIPT.read_bytes())
 
 
 def test_origin_artifact_receipt_duplicate_keys_fail_closed():

@@ -73,8 +73,8 @@ func _run() -> void:
     live_world.add_child(spoofed_runtime)
     for _frame: int in range(4):
         await process_frame
-    if spoofed_runtime.is_processing():
-        _fail("spoofed OSM source/license did not disable shared OSM processing")
+    if not spoofed_runtime.is_processing():
+        _fail("spoofed OSM source/license disabled bounded rejected-source watch")
         return
     if spoofed_runtime.get_child_count() != 0:
         _fail("spoofed OSM source/license materialized render batches")
@@ -231,5 +231,5 @@ func _run() -> void:
         _fail("environment batches remained visible without a legitimate current-scene Player")
         return
 
-    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: provenance_fail_closed=true config_fail_closed=true config_recovery=true current_scene_authoritative=true reusable_batch_refresh=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
+    print("BRUSSELS_OSM_ENVIRONMENT_PLAYER_AUTHORITY_OK: provenance_fail_closed=true provenance_repair_watch=true config_fail_closed=true config_recovery=true current_scene_authoritative=true reusable_batch_refresh=true horizontal_refresh_only=true nonfinite_anchor_rejected=true queued_player_rejected=true stale_group_rejected=true fail_closed=true source=%s license=%s" % [str(runtime.get_meta("source", "")), str(runtime.get_meta("license", ""))])
     quit(0)

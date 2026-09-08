@@ -44,6 +44,8 @@ var _last_source_attempt_path := ""
 var _last_source_failure_retryable := false
 var _last_retryable_source_signature := ""
 var _last_retryable_source_probe_msec := 0
+var _last_rejected_source_signature := ""
+var _last_rejected_source_probe_msec := 0
 var _loaded_source_signature := ""
 var _last_loaded_source_probe_msec := 0
 # Runtime-local cache: these meshes/materials are authored presentation resources,
@@ -55,7 +57,7 @@ func _ready() -> void:
         return
     if not _load_points():
         if not _last_source_failure_retryable:
-            set_process(false)
+            _record_rejected_source_failure()
         return
     call_deferred("_refresh", true)
 
@@ -115,6 +117,10 @@ func _record_retryable_source_failure() -> void:
     _last_retryable_source_signature = _source_availability_signature(data_path)
     _last_retryable_source_probe_msec = Time.get_ticks_msec()
 
+func _record_rejected_source_failure() -> void:
+    _last_rejected_source_signature = _source_content_signature(data_path)
+    _last_rejected_source_probe_msec = Time.get_ticks_msec()
+
 func _loaded_source_should_reload(force_probe: bool) -> bool:
     if _loaded_data_path != data_path or data_path.is_empty():
         return false
@@ -133,6 +139,19 @@ func _retryable_source_should_reload() -> bool:
         return false
     _last_retryable_source_signature = signature
     _last_retryable_source_probe_msec = now_msec
+    return true
+
+func _rejected_source_should_reload() -> bool:
+    if _last_source_failure_retryable or _loaded_data_path == data_path or data_path != _last_source_attempt_path or data_path.is_empty():
+        return false
+    var now_msec := Time.get_ticks_msec()
+    if now_msec - _last_rejected_source_probe_msec < SOURCE_CHANGE_PROBE_MIN_INTERVAL_MSEC:
+        return false
+    _last_rejected_source_probe_msec = now_msec
+    var signature := _source_content_signature(data_path)
+    if signature == _last_rejected_source_signature:
+        return false
+    _last_rejected_source_signature = signature
     return true
 
 func _load_points() -> bool:
@@ -179,6 +198,8 @@ func _load_points() -> bool:
     _loaded_data_path = data_path
     _last_retryable_source_signature = ""
     _last_retryable_source_probe_msec = 0
+    _last_rejected_source_signature = ""
+    _last_rejected_source_probe_msec = 0
     _loaded_source_signature = _source_content_signature(data_path)
     _last_loaded_source_probe_msec = Time.get_ticks_msec()
     set_meta("source", source)
@@ -369,12 +390,12 @@ func _refresh(force: bool) -> void:
     if not _configuration_error().is_empty():
         _set_batches_visible(false)
         return
-    var source_reload_required := data_path != _last_source_attempt_path or _retryable_source_should_reload() or _loaded_source_should_reload(force)
+    var source_reload_required := data_path != _last_source_attempt_path or _retryable_source_should_reload() or _rejected_source_should_reload() or _loaded_source_should_reload(force)
     if source_reload_required:
         if not _load_points():
             _set_batches_visible(false)
             if not _last_source_failure_retryable:
-                set_process(false)
+                _record_rejected_source_failure()
             return
     if _loaded_data_path != data_path:
         _set_batches_visible(false)

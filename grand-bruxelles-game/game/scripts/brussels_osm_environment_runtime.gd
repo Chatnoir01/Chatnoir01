@@ -199,7 +199,11 @@ func _load_points() -> bool:
         _record_retryable_source_failure()
         push_error("OSM environment artifact SHA-256 failed: %s" % data_path)
         return false
-    var parsed = JSON.parse_string(source_bytes.get_string_from_utf8())
+    var source_text := source_bytes.get_string_from_utf8()
+    if source_text.to_utf8_buffer() != source_bytes:
+        push_error("OSM environment artifact is not valid UTF-8")
+        return false
+    var parsed = JSON.parse_string(source_text)
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("OSM environment artifact invalid JSON object")
         return false

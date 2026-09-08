@@ -642,12 +642,11 @@ func _build_bollard_batches(rows: Array, reuse_existing: bool = false) -> void:
     if rows.is_empty() and not reuse_existing:
         return
     _ensure_bollard_presentation_meshes()
-    var materials := BrusselsBollardAsset.create_materials()
     var bodies: Array = []
     var caps: Array = []
     for row_variant in rows:
         var base: Vector3 = (row_variant as Dictionary)["position"]
         bodies.append(BrusselsBollardAsset.body_transform(base))
         caps.append(BrusselsBollardAsset.cap_transform(base))
-    _batch("BollardBodies", BrusselsBollardAsset.create_body_mesh(materials["body"]), bodies, reuse_existing)
-    _batch("BollardCaps", BrusselsBollardAsset.create_cap_mesh(materials["cap"]), caps, reuse_existing)
+    _batch("BollardBodies", _presentation_meshes["bollard_body"] as Mesh, bodies, reuse_existing)
+    _batch("BollardCaps", _presentation_meshes["bollard_cap"] as Mesh, caps, reuse_existing)

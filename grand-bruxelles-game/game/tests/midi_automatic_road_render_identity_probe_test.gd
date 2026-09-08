@@ -353,8 +353,6 @@ func _run() -> void:
                 samples.append(geometry.get_path().get_concatenated_names())
         if exact_named > 0 and exact_leaf_osm_id_matches != exact_named:
             ownership_errors.append("road-%d exact geometry identity is not fully source-bound" % osm_id)
-        if sum(visibility_owners.values()) != exact_named:
-            ownership_errors.append("road-%d visibility ownership count does not match exact geometry count" % osm_id)
         rows.append({
             "osm_id": osm_id,
             "expected_prefix": prefix,

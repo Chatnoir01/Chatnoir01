@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -11,7 +12,11 @@ from typing import Any
 GROUND_NODE_RE = re.compile(r'\[node name="Ground" type="CSGBox3D" parent="\."\]\n(?P<body>.*?)(?=\n\[node |\Z)', re.S)
 VEC3_RE = re.compile(r'Vector3\(([^,]+),\s*([^,]+),\s*([^\)]+)\)')
 SHA256_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
-WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v1"
+WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v2"
+
+
+def sha256_file(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def parse_vec3(value: str) -> tuple[float, float, float]:
@@ -36,7 +41,11 @@ def finite_vector(value: Any, length: int) -> bool:
     )
 
 
-def validate_runtime_witness(witness: Any, ground_top_y: float) -> list[str]:
+def validate_runtime_witness(
+    witness: Any,
+    ground_top_y: float,
+    expected_runtime_hashes: dict[str, str],
+) -> list[str]:
     errors: list[str] = []
     if not isinstance(witness, dict):
         return ["root:not-object"]
@@ -99,6 +108,17 @@ def validate_runtime_witness(witness: Any, ground_top_y: float) -> list[str]:
     if not isinstance(provenance_record, str) or not provenance_record.strip():
         errors.append("provenance_record:missing")
 
+    runtime_inputs = witness.get("runtime_inputs")
+    if not isinstance(runtime_inputs, dict):
+        errors.append("runtime_inputs:not-object")
+    else:
+        for key, expected_hash in expected_runtime_hashes.items():
+            value = runtime_inputs.get(key)
+            if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
+                errors.append(f"runtime_inputs.{key}:not-sha256")
+            elif value != expected_hash:
+                errors.append(f"runtime_inputs.{key}:mismatch:{value}:{expected_hash}")
+
     capture = witness.get("capture")
     if not isinstance(capture, dict):
         errors.append("capture:not-object")
@@ -129,6 +149,11 @@ def main() -> int:
     scene = scene_path.read_text(encoding="utf-8")
     agent = agent_path.read_text(encoding="utf-8")
     director = director_path.read_text(encoding="utf-8")
+    runtime_input_hashes = {
+        "main_scene_sha256": sha256_file(scene_path),
+        "npc_agent_sha256": sha256_file(agent_path),
+        "npc_director_sha256": sha256_file(director_path),
+    }
 
     ground_match = GROUND_NODE_RE.search(scene)
     if not ground_match:
@@ -171,7 +196,7 @@ def main() -> int:
             witness = json.loads(witness_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise SystemExit(f"CIV1_RUNTIME_WITNESS_FAIL: unreadable-json:{exc}") from exc
-        witness_errors = validate_runtime_witness(witness, ground_top_y)
+        witness_errors = validate_runtime_witness(witness, ground_top_y, runtime_input_hashes)
         if witness_errors:
             raise SystemExit("CIV1_RUNTIME_WITNESS_FAIL: " + ";".join(witness_errors))
         witness_validated = True
@@ -179,7 +204,7 @@ def main() -> int:
     canonical_available = witness_validated
 
     receipt = {
-        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v2",
+        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v3",
         "canonical_ground": {
             "node": "Main/Ground",
             "position_y_m": ground_position[1],
@@ -194,6 +219,7 @@ def main() -> int:
             "spawn_y_is_copied_verbatim": exact_spawn_copy,
             "pooled_spawn_y_is_copied_verbatim": pooled_spawn_copy,
             "grounding_mechanism_hits": grounding_hits,
+            "input_sha256": runtime_input_hashes,
         },
         "runtime_witness": {
             "schema": WITNESS_SCHEMA,
@@ -215,6 +241,9 @@ def main() -> int:
                 "ground_top_y_m",
                 "candidate_source_sha256",
                 "provenance_record",
+                "runtime_inputs.main_scene_sha256",
+                "runtime_inputs.npc_agent_sha256",
+                "runtime_inputs.npc_director_sha256",
                 "mcp_ephemeral",
                 "canonical_export_modified",
                 "capture.loaded_scene_tree_observed",
@@ -233,8 +262,9 @@ def main() -> int:
         "visual_approval_claimed": False,
         "player_view_claimed": False,
         "required_next_evidence": (
-            "supply a schema-valid Godot 4.7.1 live-loaded CIV-1 mount transform witness; "
-            "after placement validates, replay [71,72,73] skinned geometry against canonical Ground before contact classification"
+            "supply a schema-valid Godot 4.7.1 live-loaded CIV-1 mount transform witness cryptographically bound "
+            "to the exact main scene and NPC runtime inputs; after placement validates, replay [71,72,73] skinned "
+            "geometry against canonical Ground before contact classification"
         ),
     }
 

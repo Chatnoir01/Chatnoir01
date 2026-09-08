@@ -72,7 +72,7 @@ def y_series(frames, bone: str):
     return values
 
 
-def static_toe_local(toe_pose):
+def stable_toe_local_origin(toe_pose):
     if toe_pose.get("schema") != TOE_SCHEMA:
         raise ValueError("toe-schema")
     if toe_pose.get("sample_indices") != PHASE_SAMPLES:
@@ -83,19 +83,23 @@ def static_toe_local(toe_pose):
     first = samples[0]["source_righttoebase_relative_to_rightfoot"]
     origin0 = vec(first.get("origin", []), 3, "toe-local-origin:0")
     rotation0 = quat(first.get("rotation_xyzw", []), "toe-local-rotation:0")
+    max_origin_drift = 0.0
+    max_rotation_delta = 0.0
     for i, sample in enumerate(samples[1:], 1):
         rec = sample["source_righttoebase_relative_to_rightfoot"]
         origin = vec(rec.get("origin", []), 3, f"toe-local-origin:{i}")
         rotation = quat(rec.get("rotation_xyzw", []), f"toe-local-rotation:{i}")
-        if distance(origin, origin0) > LOCAL_TOLERANCE:
-            raise ValueError("toe-local-origin-drift")
-        if quat_delta(rotation, rotation0) > LOCAL_TOLERANCE:
-            raise ValueError("toe-local-rotation-drift")
-    return origin0, rotation0
+        max_origin_drift = max(max_origin_drift, distance(origin, origin0))
+        max_rotation_delta = max(max_rotation_delta, quat_delta(rotation, rotation0))
+    if max_origin_drift > LOCAL_TOLERANCE:
+        raise ValueError(f"toe-local-origin-drift:{max_origin_drift}")
+    # Only the child origin is needed to reconstruct RightToeBase global origin.
+    # Child-local rotation is validated as finite above and recorded diagnostically,
+    # but it cannot move the child origin and therefore must not gate this position witness.
+    return origin0, max_origin_drift, max_rotation_delta
 
 
-def reconstruct_toe(frames, toe_local):
-    local_origin, _ = toe_local
+def reconstruct_toe(frames, local_origin):
     result = []
     for i, frame in enumerate(frames):
         foot = frame.get("poses", {}).get("RightFoot", {})
@@ -151,8 +155,8 @@ def main() -> int:
         return 4
 
     foot_y = y_series(frames, "RightFoot")
-    toe_local = static_toe_local(toe_pose)
-    toe_origins = reconstruct_toe(frames, toe_local)
+    toe_local_origin, toe_origin_drift, toe_rotation_delta = stable_toe_local_origin(toe_pose)
+    toe_origins = reconstruct_toe(frames, toe_local_origin)
     anchor_error = validate_anchors(toe_origins, toe_pose)
     toe_y = [origin[1] for origin in toe_origins]
     foot_candidates = reversals(foot_y)
@@ -167,6 +171,9 @@ def main() -> int:
         "rightfoot_reversal_candidates": foot_candidates,
         "righttoebase_reversal_candidates": toe_candidates,
         "exact_common_reversal_candidates": sorted(set(foot_candidates).intersection(toe_candidates)),
+        "righttoebase_local_origin_max_drift_m": toe_origin_drift,
+        "righttoebase_local_rotation_max_quaternion_delta": toe_rotation_delta,
+        "righttoebase_local_rotation_diagnostic_only": True,
         "righttoebase_anchor_max_origin_error_m": anchor_error,
         "candidate_events": events,
         "same_sample_ground_geometry_windows": windows,
@@ -183,7 +190,14 @@ def main() -> int:
         "player_view_claimed": False,
     }
     Path(sys.argv[3]).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print("CIV1_GROUND_WINDOWS_OK", f"events={len(events)}", f"windows={len(windows)}", f"anchor_error={anchor_error:.9g}")
+    print(
+        "CIV1_GROUND_WINDOWS_OK",
+        f"events={len(events)}",
+        f"windows={len(windows)}",
+        f"anchor_error={anchor_error:.9g}",
+        f"local_origin_drift={toe_origin_drift:.9g}",
+        f"local_rotation_delta={toe_rotation_delta:.9g}",
+    )
     return 0
 
 

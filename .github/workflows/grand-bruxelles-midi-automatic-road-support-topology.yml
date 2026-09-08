@@ -1,0 +1,119 @@
+name: Grand Bruxelles Midi Automatic Road Support Topology
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/tests/midi_automatic_road_support_topology_test.gd"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - ".github/workflows/grand-bruxelles-midi-automatic-road-support-topology.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-road-support-topology:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and exact checked-out head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf '%s\n' "$MAIN_SHA" > /tmp/midi-support-main.sha
+          printf '%s\n' "$PR_HEAD_SHA" > /tmp/midi-support-head.sha
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install verified Godot 4.7.1
+        shell: bash
+        env:
+          GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -E '^4\.7\.1\.stable\.'
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-support-import.log
+          test "${PIPESTATUS[0]}" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-support-import.log
+      - name: Prove deterministic hidden-road support topology
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/midi_automatic_road_support_topology_test.gd 2>&1 | tee /tmp/midi-support-topology.log
+          test "${PIPESTATUS[0]}" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|MIDI_AUTOMATIC_ROAD_SUPPORT_TOPOLOGY_FAIL" /tmp/midi-support-topology.log
+          test "$(grep -c 'MIDI_AUTOMATIC_ROAD_SUPPORT_TOPOLOGY_GREEN' /tmp/midi-support-topology.log)" -eq 1
+      - name: Seal fail-closed topology evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=grand-bruxelles-game/artifacts/qa/midi_automatic_road_support_topology.json
+          test -s "$evidence"
+          python3 - "$evidence" <<'PY'
+          import json,pathlib,sys
+          p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text())
+          assert d['schema']=='grand-bruxelles-midi-automatic-road-support-topology-v1'
+          assert isinstance(d['candidate_count'],int) and d['candidate_count']>0
+          assert len(d['candidate_ids'])==d['candidate_count']
+          assert isinstance(d['exact_road_leaf_count'],int) and d['exact_road_leaf_count']>0
+          assert d['support_hit_count']==d['exact_road_leaf_count']
+          assert len(d['rows'])==d['exact_road_leaf_count']
+          assert len(d['support_collider_paths'])==1
+          assert len(d['support_visual_owner_paths'])==1
+          assert len(d['support_collision_layers'])==1
+          assert d['topology_errors']==[] and d['topology_fail_closed'] is True
+          assert d['osm_to_urbis_crosswalk_claimed'] is False
+          assert d['destination_advertisable'] is False
+          assert d['visual_acceptance'] is False
+          assert d['jouable_authorized'] is False
+          for row in d['rows']:
+              assert row['osm_id'] in d['candidate_ids']
+              assert row['road_leaf_visible'] is False
+              support=row['support']; assert support['hit'] is True
+              assert support['collider_path'].endswith('/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways/ExactRoadCarriageways_col')
+              assert support['owner_path'].endswith('/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways')
+              assert support['owner_found'] is True and support['owner_visible'] is True and support['owner_visible_in_tree'] is True
+              assert int(support['collision_layer'])>0
+              assert float(support['normal_y'])>0.0
+          PY
+          mkdir -p /tmp/midi-road-support-topology
+          cp "$evidence" /tmp/midi-road-support-topology/evidence.json
+          cp /tmp/midi-support-topology.log /tmp/midi-road-support-topology/runtime.log
+          cp /tmp/midi-support-import.log /tmp/midi-road-support-topology/import.log
+          sha256sum /tmp/midi-road-support-topology/* > /tmp/midi-road-support-topology/evidence-sha256.txt
+      - name: Revalidate exact proof identity before success
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_MAIN="$(cat /tmp/midi-support-main.sha)"
+          EXPECTED_HEAD="$(cat /tmp/midi-support-head.sha)"
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Upload topology evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-automatic-road-support-topology
+          path: /tmp/midi-road-support-topology
+          if-no-files-found: warn

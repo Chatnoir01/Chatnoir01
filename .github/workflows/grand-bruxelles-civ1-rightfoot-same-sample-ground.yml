@@ -110,22 +110,32 @@ jobs:
             2>&1 | tee /tmp/civ1same/out/witness.log
           grep -F CIV1_RIGHTFOOT_SAME_SAMPLE_GROUND_OK /tmp/civ1same/out/witness.log
           python - <<'PY'
-          import json, struct
+          import json, math, struct
           from pathlib import Path
 
           receipt = json.loads(Path('/tmp/civ1same/out/rightfoot-same-sample-ground.json').read_text())
+
+          def close_scalar(actual, expected, tol=1e-6):
+              assert math.isfinite(float(actual))
+              assert abs(float(actual) - float(expected)) <= tol, (actual, expected, tol)
+
+          def close_vector(actual, expected, tol=1e-6):
+              assert len(actual) == len(expected)
+              for a, e in zip(actual, expected):
+                  close_scalar(a, e, tol)
+
           assert receipt['schema'] == 'grand-bruxelles-civ1-rightfoot-same-sample-ground-v1'
           assert receipt['source_scene'] == 'res://game/main.tscn'
           assert receipt['source_scene_instantiated'] is True
           assert receipt['source_ground_node'] == 'Ground'
           assert receipt['ground_use_collision'] is True
           assert receipt['ground_reference_ready'] is True
-          assert receipt['ground_source_position_m'] == [0.0, -0.23, 0.0]
-          assert receipt['ground_source_size_m'] == [1800.0, 0.4, 1800.0]
-          assert abs(receipt['ground_top_y_m'] - (-0.03)) < 1e-9
+          close_vector(receipt['ground_source_position_m'], [0.0, -0.23, 0.0])
+          close_vector(receipt['ground_source_size_m'], [1800.0, 0.4, 1800.0])
+          close_scalar(receipt['ground_top_y_m'], -0.03)
           assert receipt['player_camera_source_path'] == 'Player/CameraPivot/SpringArm3D/Camera3D'
-          assert abs(receipt['player_camera_fov_deg'] - 69.0) < 1e-9
-          assert abs(receipt['player_spring_length_m'] - 4.9) < 1e-9
+          close_scalar(receipt['player_camera_fov_deg'], 69.0)
+          close_scalar(receipt['player_spring_length_m'], 4.9)
           assert receipt['player_camera_provenance_present'] is True
           assert receipt['sample_indices'] == [68, 69, 70, 71]
           assert receipt['capture_count'] == 4
@@ -133,6 +143,9 @@ jobs:
           assert receipt['max_pose_origin_error_m'] <= 1e-4
           assert len(receipt['samples']) == 4
           assert all(s['ground_collider_name'] == 'CanonicalMainGround' for s in receipt['samples'])
+          for sample in receipt['samples']:
+              for key in ('rightfoot_clearance_m', 'righttoebase_clearance_m'):
+                  assert math.isfinite(float(sample[key]))
           for key in ('planted_contact_claimed','quantitative_foot_slide_candidate','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
               assert receipt[key] is False
           pngs = sorted(Path('/tmp/civ1same/captures').glob('rightfoot-ground-*.png'))

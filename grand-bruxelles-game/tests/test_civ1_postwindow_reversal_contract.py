@@ -19,9 +19,12 @@ def main() -> int:
         'PHASE_SAMPLES = [68, 69, 70, 71]',
         'len(frames) != 120',
         'y_series(frames, "RightFoot")',
-        'y_series(frames, "RightToeBase")',
+        'optional_y_series(frames, "RightToeBase")',
         'values[i] - values[i - 1] < 0.0',
         'values[i + 1] - values[i] >= 0.0',
+        '"righttoebase_series_available": toe_available',
+        '"righttoebase_series_coverage_count": toe_coverage',
+        '"toe_coverage_required_before_common_candidate": not toe_available',
         '"candidate_is_ground_contact_proof": False',
         '"quantitative_foot_slide_candidate": False',
         '"animation_correction_authorized": False',
@@ -30,6 +33,7 @@ def main() -> int:
     ):
         require(script, token)
 
+    assert 'y_series(frames, "RightToeBase")' not in script
     for forbidden in ('percentile', 'WEIGHT_THRESHOLD', 'camera rescue', 'viewport rescue'):
         assert forbidden not in script
 

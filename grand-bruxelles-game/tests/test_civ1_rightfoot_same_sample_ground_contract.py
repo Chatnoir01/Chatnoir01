@@ -1,7 +1,9 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parent
 PROBE = ROOT / "tools" / "godot_civ1_rightfoot_same_sample_ground_witness.gd"
+WORKFLOW = REPO / ".github" / "workflows" / "grand-bruxelles-civ1-rightfoot-same-sample-ground.yml"
 
 
 def require(text: str, token: str) -> None:
@@ -14,6 +16,7 @@ def forbid(text: str, token: str) -> None:
 
 def main() -> None:
     text = PROBE.read_text(encoding="utf-8")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
 
     require(text, 'const MAIN_SCENE_PATH := "res://game/main.tscn"')
     require(text, 'const MAIN_GROUND_PATH := NodePath("Ground")')
@@ -39,6 +42,16 @@ def main() -> None:
     require(text, '"visual_approval_claimed": false')
     require(text, '"player_view_claimed": false')
     require(text, 'CIV1_RIGHTFOOT_SAME_SAMPLE_GROUND_OK')
+
+    # Receipt validation must respect Godot float32 serialization while remaining exact on semantics.
+    require(workflow, 'def close_scalar(actual, expected, tol=1e-6):')
+    require(workflow, 'def close_vector(actual, expected, tol=1e-6):')
+    require(workflow, "close_vector(receipt['ground_source_position_m'], [0.0, -0.23, 0.0])")
+    require(workflow, "close_vector(receipt['ground_source_size_m'], [1800.0, 0.4, 1800.0])")
+    require(workflow, "close_scalar(receipt['ground_top_y_m'], -0.03)")
+    require(workflow, "close_scalar(receipt['player_spring_length_m'], 4.9)")
+    forbid(workflow, "assert receipt['ground_source_position_m'] == [0.0, -0.23, 0.0]")
+    forbid(workflow, "assert receipt['ground_source_size_m'] == [1800.0, 0.4, 1800.0]")
 
     # This gate must not invent a perceptual/contact threshold or camera rescue.
     for forbidden in (

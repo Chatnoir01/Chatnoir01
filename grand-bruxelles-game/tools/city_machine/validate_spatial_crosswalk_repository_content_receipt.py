@@ -11,6 +11,10 @@ RECEIPT_PATH = "data/source_plans/brussels_spatial_crosswalk_repository_content_
 EXPECTED_SCHEMA = "grand-bruxelles-spatial-crosswalk-repository-content-receipt-v1"
 EXPECTED_REGISTERED_PATH = "data/provenance/brussels_registered_cell_manifest_index.json"
 EXPECTED_RUNTIME_PATH = "data/runtime/road_destination_runtime_index.json"
+EXPECTED_REGISTERED_BLOB_SHA1 = "fc0c60cfc283f5d50cead38706ad2f01b6b41e62"
+EXPECTED_REGISTERED_SEMANTIC_SHA256 = "8dd6b8994160b7a22b83f8be4ce63cfa4b579f724d51b3896c0426782b259187"
+EXPECTED_RUNTIME_BLOB_SHA1 = "6f99535dd547f768c1a75bf62f7745dd914126b6"
+EXPECTED_RUNTIME_CATALOG_SHA256 = "7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f"
 EXPECTED_TOP_LEVEL_KEYS = {
     "schema",
     "registered_cell_index",
@@ -126,6 +130,11 @@ def validate_repository_content_receipt(receipt_raw: bytes, *, repo_root: Path =
     runtime_catalog = _require_lower_hex(
         runtime["catalog_sha256"], LOWER_HEX_64, "road_runtime_index.catalog_sha256"
     )
+
+    if registered_blob != EXPECTED_REGISTERED_BLOB_SHA1 or registered_semantic != EXPECTED_REGISTERED_SEMANTIC_SHA256:
+        raise ValueError("registered-cell immutable producer identity mismatch")
+    if runtime_blob != EXPECTED_RUNTIME_BLOB_SHA1 or runtime_catalog != EXPECTED_RUNTIME_CATALOG_SHA256:
+        raise ValueError("road-runtime immutable producer identity mismatch")
 
     registered_raw = registered_path.read_bytes()
     runtime_raw = runtime_path.read_bytes()

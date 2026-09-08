@@ -34,6 +34,7 @@ jobs:
             echo "head=${{ github.event.pull_request.head.sha || github.sha }}"
             echo "skeleton_artifact=9996432028"
             echo "phase_artifact=10040629198"
+            echo "righttoebase_artifact=10024557192"
           } > /tmp/civ1rev/out/run-context.txt
       - name: Run classifier contract
         run: python grand-bruxelles-game/tests/test_civ1_postwindow_reversal_contract.py
@@ -41,27 +42,34 @@ jobs:
         env: {GH_TOKEN: "${{ github.token }}"}
         run: |
           set -euo pipefail
-          mkdir -p /tmp/civ1rev/{skeleton,phase,out}
+          mkdir -p /tmp/civ1rev/{skeleton,phase,toe,out}
           api="https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
           curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/9996432028/zip" -o /tmp/civ1rev/skeleton.zip
           echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1rev/skeleton.zip' | sha256sum -c -
           curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10040629198/zip" -o /tmp/civ1rev/phase.zip
           echo '353f091fe482abfe21e026ab31264315580bbfa463e9d384713cab45e88f4f87  /tmp/civ1rev/phase.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "$api/10024557192/zip" -o /tmp/civ1rev/toe.zip
+          echo '3ec94d7b8ed10663d0ee17bf44ffec77104600a7c3006343f0dfbae13877023c  /tmp/civ1rev/toe.zip' | sha256sum -c -
           unzip -q /tmp/civ1rev/skeleton.zip -d /tmp/civ1rev/skeleton
           unzip -q /tmp/civ1rev/phase.zip -d /tmp/civ1rev/phase
+          unzip -q /tmp/civ1rev/toe.zip -d /tmp/civ1rev/toe
           cp "$(find /tmp/civ1rev/skeleton -name skeleton-bundle.json -print -quit)" /tmp/civ1rev/skeleton.json
           cp "$(find /tmp/civ1rev/phase -name contact-phase.json -print -quit)" /tmp/civ1rev/phase.json
+          cp "$(find /tmp/civ1rev/toe -name righttoebase-pose.json -print -quit)" /tmp/civ1rev/righttoebase-pose.json
       - name: Search full 120-frame post-window reversal candidates
         run: |
           set -euo pipefail
-          python grand-bruxelles-game/tools/civ1_postwindow_reversal.py /tmp/civ1rev/skeleton.json /tmp/civ1rev/phase.json /tmp/civ1rev/out/postwindow-reversal.json | tee /tmp/civ1rev/out/classifier.log
+          python grand-bruxelles-game/tools/civ1_postwindow_reversal.py /tmp/civ1rev/skeleton.json /tmp/civ1rev/phase.json /tmp/civ1rev/righttoebase-pose.json /tmp/civ1rev/out/postwindow-reversal.json | tee /tmp/civ1rev/out/classifier.log
           python - <<'PY'
           import json
           from pathlib import Path
           r=json.loads(Path('/tmp/civ1rev/out/postwindow-reversal.json').read_text())
-          assert r['schema']=='grand-bruxelles-civ1-postwindow-reversal-v1'
+          assert r['schema']=='grand-bruxelles-civ1-postwindow-reversal-v2'
           assert r['source_phase_samples']==[68,69,70,71]
           assert r['frame_count']==120
+          assert r['righttoebase_series_available'] is True
+          assert r['righttoebase_series_coverage_count']==120
+          assert r['righttoebase_anchor_max_origin_error_m'] <= 1e-6
           assert r['candidate_is_ground_contact_proof'] is False
           assert r['planted_interval_claimable'] is False
           assert r['quantitative_foot_slide_candidate'] is False
@@ -69,7 +77,7 @@ jobs:
           assert r['runtime_authorized'] is False
           assert r['visual_approval_claimed'] is False
           assert r['player_view_claimed'] is False
-          print('CIV1_POSTWINDOW_REVERSAL_RECEIPT_OK', r['first_rightfoot_reversal_after_window'], r['first_righttoebase_reversal_after_window'], r['first_common_reversal_after_window'])
+          print('CIV1_POSTWINDOW_REVERSAL_RECEIPT_OK', r['rightfoot_reversal_candidates'], r['righttoebase_reversal_candidates'], r['common_reversal_candidates'])
           PY
       - name: Upload immutable reversal evidence
         if: always()

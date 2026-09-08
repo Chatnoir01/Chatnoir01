@@ -30,6 +30,21 @@ def y_series(frames, bone: str):
     return out
 
 
+def optional_y_series(frames, bone: str):
+    coverage = 0
+    out = []
+    for i, frame in enumerate(frames):
+        origin = frame.get("poses", {}).get(bone, {}).get("origin", [])
+        if len(origin) != 3:
+            return None, coverage, i
+        y = float(origin[1])
+        if not math.isfinite(y):
+            raise ValueError(f"nonfinite:{bone}:{i}")
+        out.append(y)
+        coverage += 1
+    return out, coverage, None
+
+
 def reversal_candidates(values):
     # Exact sign reversal only: descending into frame i, non-descending out of i.
     return [i for i in range(1, len(values) - 1)
@@ -62,13 +77,15 @@ def main() -> int:
 
     hips = y_series(frames, "Hips")
     foot = y_series(frames, "RightFoot")
-    toe = y_series(frames, "RightToeBase")
+    toe, toe_coverage, toe_missing_from = optional_y_series(frames, "RightToeBase")
+
     foot_candidates = reversal_candidates(foot)
-    toe_candidates = reversal_candidates(toe)
     foot_next = first_after(foot_candidates, PHASE_SAMPLES[-1])
-    toe_next = first_after(toe_candidates, PHASE_SAMPLES[-1])
-    common = sorted(set(foot_candidates).intersection(toe_candidates))
-    common_next = first_after(common, PHASE_SAMPLES[-1])
+    toe_available = toe is not None
+    toe_candidates = reversal_candidates(toe) if toe_available else []
+    toe_next = first_after(toe_candidates, PHASE_SAMPLES[-1]) if toe_available else None
+    common = sorted(set(foot_candidates).intersection(toe_candidates)) if toe_available else []
+    common_next = first_after(common, PHASE_SAMPLES[-1]) if toe_available else None
 
     report = {
         "schema": OUTPUT_SCHEMA,
@@ -76,6 +93,9 @@ def main() -> int:
         "source_phase_samples": PHASE_SAMPLES,
         "frame_count": 120,
         "rightfoot_reversal_candidates": foot_candidates,
+        "righttoebase_series_available": toe_available,
+        "righttoebase_series_coverage_count": toe_coverage,
+        "righttoebase_series_first_missing_frame": toe_missing_from,
         "righttoebase_reversal_candidates": toe_candidates,
         "common_reversal_candidates": common,
         "first_rightfoot_reversal_after_window": foot_next,
@@ -89,12 +109,14 @@ def main() -> int:
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
+        "toe_coverage_required_before_common_candidate": not toe_available,
         "next_evidence_window": ([common_next - 1, common_next, common_next + 1]
                                  if common_next is not None else []),
     }
     Path(sys.argv[3]).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print("CIV1_POSTWINDOW_REVERSAL_OK",
-          f"foot={foot_next}", f"toe={toe_next}", f"common={common_next}")
+          f"foot={foot_next}", f"toe={toe_next}", f"common={common_next}",
+          f"toe_available={toe_available}", f"toe_coverage={toe_coverage}")
     return 0
 
 

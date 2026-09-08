@@ -108,6 +108,11 @@ func _metadata_mentions(node: Node, token: String) -> bool:
             return true
     return false
 
+func _leaf_osm_id_matches(node: Node, osm_id: int) -> bool:
+    if not node.has_meta("osm_id"):
+        return false
+    return int(node.get_meta("osm_id")) == osm_id
+
 func _ancestor_chain(node: Node3D) -> Array[Dictionary]:
     var chain: Array[Dictionary] = []
     var current: Node = node
@@ -126,8 +131,15 @@ func _ancestor_chain(node: Node3D) -> Array[Dictionary]:
         depth += 1
     return chain
 
+func _captured_ancestors_all_visible(chain: Array[Dictionary]) -> bool:
+    for index: int in range(1, chain.size()):
+        var row: Dictionary = chain[index]
+        if row.has("visible") and not bool(row["visible"]):
+            return false
+    return true
+
 func _first_hidden_3d_ancestor(node: Node3D) -> String:
-    var current: Node = node
+    var current: Node = node.get_parent()
     while current != null:
         if current is Node3D and not (current as Node3D).visible:
             return current.get_path().get_concatenated_names()
@@ -143,6 +155,28 @@ func _visibility_reason(node: GeometryInstance3D) -> String:
         var hidden_ancestor := _first_hidden_3d_ancestor(node)
         return "ancestor_hidden:%s" % hidden_ancestor if not hidden_ancestor.is_empty() else "tree_hidden_unknown"
     return "visible_renderable"
+
+func _visibility_owner(reason: String) -> String:
+    if reason == "self_hidden":
+        return "road_leaf"
+    if reason.begins_with("ancestor_hidden:"):
+        return "ancestor:%s" % reason.trim_prefix("ancestor_hidden:")
+    if reason == "visible_renderable":
+        return "runtime_visible"
+    if reason == "not_renderable":
+        return "not_renderable"
+    return "unknown"
+
+func _readiness_blocker(reason: String) -> String:
+    if reason == "self_hidden":
+        return "exact_osm_geometry_leaf_self_hidden"
+    if reason.begins_with("ancestor_hidden:"):
+        return "exact_osm_geometry_ancestor_hidden"
+    if reason == "visible_renderable":
+        return "none"
+    if reason == "not_renderable":
+        return "exact_osm_geometry_not_renderable"
+    return "unknown_visibility_owner"
 
 func _vector3_json(value: Vector3) -> Dictionary:
     return {"x": value.x, "y": value.y, "z": value.z}
@@ -238,6 +272,9 @@ func _run() -> void:
     var rows: Array[Dictionary] = []
     var total_hidden_samples := 0
     var total_hidden_support_hits := 0
+    var ownership_errors: Array[String] = []
+    var ownership_counts: Dictionary = {}
+    var blocker_counts: Dictionary = {}
     for osm_id: int in ids:
         var prefix := "Road_%d_" % osm_id
         var token := str(osm_id)
@@ -245,10 +282,13 @@ func _run() -> void:
         var exact_visible_renderable := 0
         var exact_self_visible := 0
         var exact_renderable := 0
+        var exact_leaf_osm_id_matches := 0
         var token_named := 0
         var metadata_mentions := 0
         var support_hits := 0
         var reasons: Dictionary = {}
+        var visibility_owners: Dictionary = {}
+        var readiness_blockers: Dictionary = {}
         var hidden_ancestors: Dictionary = {}
         var samples: Array[String] = []
         var hidden_identity_samples: Array[Dictionary] = []
@@ -263,14 +303,31 @@ func _run() -> void:
                     exact_self_visible += 1
                 if _renderable_geometry(geometry):
                     exact_renderable += 1
+                var leaf_matches := _leaf_osm_id_matches(geometry, osm_id)
+                if leaf_matches:
+                    exact_leaf_osm_id_matches += 1
+                else:
+                    ownership_errors.append("road-%d exact geometry %s does not carry matching osm_id metadata" % [osm_id, geometry.get_path().get_concatenated_names()])
                 var reason := _visibility_reason(geometry)
+                var owner := _visibility_owner(reason)
+                var blocker := _readiness_blocker(reason)
                 reasons[reason] = int(reasons.get(reason, 0)) + 1
+                visibility_owners[owner] = int(visibility_owners.get(owner, 0)) + 1
+                readiness_blockers[blocker] = int(readiness_blockers.get(blocker, 0)) + 1
+                ownership_counts[owner] = int(ownership_counts.get(owner, 0)) + 1
+                blocker_counts[blocker] = int(blocker_counts.get(blocker, 0)) + 1
+                if owner == "unknown" or blocker == "unknown_visibility_owner":
+                    ownership_errors.append("road-%d has ambiguous visibility reason %s at %s" % [osm_id, reason, geometry.get_path().get_concatenated_names()])
                 if reason.begins_with("ancestor_hidden:"):
                     var hidden_path := reason.trim_prefix("ancestor_hidden:")
                     hidden_ancestors[hidden_path] = int(hidden_ancestors.get(hidden_path, 0)) + 1
                 if reason == "visible_renderable":
                     exact_visible_renderable += 1
                 elif hidden_identity_samples.size() < HIDDEN_SAMPLE_LIMIT:
+                    var ancestry := _ancestor_chain(geometry)
+                    var ancestors_all_visible := _captured_ancestors_all_visible(ancestry)
+                    if reason == "self_hidden" and not ancestors_all_visible:
+                        ownership_errors.append("road-%d self-hidden leaf has an additional hidden captured ancestor at %s" % [osm_id, geometry.get_path().get_concatenated_names()])
                     var support := _support_probe(geometry)
                     if bool(support.get("hit", false)):
                         support_hits += 1
@@ -279,8 +336,13 @@ func _run() -> void:
                     hidden_identity_samples.append({
                         "path": geometry.get_path().get_concatenated_names(),
                         "reason": reason,
+                        "visibility_owner": owner,
+                        "readiness_blocker": blocker,
+                        "direct_leaf_visibility_disabled": not geometry.visible,
+                        "captured_ancestors_all_visible": ancestors_all_visible,
+                        "leaf_osm_id_matches_candidate": leaf_matches,
                         "metadata": _metadata_snapshot(geometry),
-                        "ancestor_chain": _ancestor_chain(geometry),
+                        "ancestor_chain": ancestry,
                         "support_probe": support,
                     })
             if token_hit:
@@ -289,6 +351,10 @@ func _run() -> void:
                 metadata_mentions += 1
             if (exact or token_hit or meta_hit) and samples.size() < 12:
                 samples.append(geometry.get_path().get_concatenated_names())
+        if exact_named > 0 and exact_leaf_osm_id_matches != exact_named:
+            ownership_errors.append("road-%d exact geometry identity is not fully source-bound" % osm_id)
+        if sum(visibility_owners.values()) != exact_named:
+            ownership_errors.append("road-%d visibility ownership count does not match exact geometry count" % osm_id)
         rows.append({
             "osm_id": osm_id,
             "expected_prefix": prefix,
@@ -296,7 +362,10 @@ func _run() -> void:
             "exact_self_visible_geometry": exact_self_visible,
             "exact_renderable_geometry": exact_renderable,
             "exact_visible_renderable_geometry": exact_visible_renderable,
+            "exact_leaf_osm_id_matches": exact_leaf_osm_id_matches,
             "visibility_reasons": reasons,
+            "visibility_owners": visibility_owners,
+            "readiness_blockers": readiness_blockers,
             "hidden_ancestors": hidden_ancestors,
             "hidden_identity_samples": hidden_identity_samples,
             "hidden_support_hits": support_hits,
@@ -304,10 +373,15 @@ func _run() -> void:
             "metadata_mentions": metadata_mentions,
             "samples": samples,
         })
-        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d support_hits=%d reasons=%s hidden_ancestors=%s hidden_identity_samples=%d" % [osm_id, exact_named, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, support_hits, JSON.stringify(reasons), JSON.stringify(hidden_ancestors), hidden_identity_samples.size()])
+        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d source_bound=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d support_hits=%d reasons=%s owners=%s blockers=%s hidden_ancestors=%s hidden_identity_samples=%d" % [osm_id, exact_named, exact_leaf_osm_id_matches, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, support_hits, JSON.stringify(reasons), JSON.stringify(visibility_owners), JSON.stringify(readiness_blockers), JSON.stringify(hidden_ancestors), hidden_identity_samples.size()])
 
     var output := {
         "schema": "grand-bruxelles-midi-road-render-identity-v3",
+        "visibility_ownership_contract_version": 1,
+        "visibility_ownership_fail_closed": true,
+        "visibility_ownership_errors": ownership_errors,
+        "visibility_owner_counts": ownership_counts,
+        "readiness_blocker_counts": blocker_counts,
         "source_path": SOURCE_PATH,
         "source_sha256": FileAccess.get_sha256(SOURCE_PATH).to_lower(),
         "candidate_ids": ids,
@@ -337,5 +411,8 @@ func _run() -> void:
         return
     file.store_string(JSON.stringify(output, "  ", true) + "\n")
     file.close()
-    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d hidden_support_probes=%d hidden_support_hits=%d hidden_identity_proof=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable, total_hidden_samples, total_hidden_support_hits])
+    if not ownership_errors.is_empty():
+        _fail("visibility ownership contract ambiguous: %s" % JSON.stringify(ownership_errors))
+        return
+    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d hidden_support_probes=%d hidden_support_hits=%d ownership_contract=1 ownership_errors=0 hidden_identity_proof=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable, total_hidden_samples, total_hidden_support_hits])
     quit(0)

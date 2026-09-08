@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.city_machine import validate_spatial_crosswalk_precondition as validator
+from tools.city_machine import validate_spatial_crosswalk_origin_artifact_receipt as validator
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
@@ -66,8 +66,16 @@ def test_production_validator_rejects_repinned_owner_mismatch():
     evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
     evidence["source_owner"]["artifact_id"] = 10065069361
     forged = (json.dumps(evidence, separators=(",", ":")) + "\n").encode("utf-8")
-    with pytest.raises(ValueError, match="origin artifact receipt does not match source_owner"):
+    with pytest.raises(ValueError, match="source_owner immutable identity drift"):
         validator.validate_origin_artifact_receipt(forged, RECEIPT.read_bytes())
+
+
+def test_production_validator_rejects_open_authorization():
+    receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
+    receipt["authorization"]["runtime_mount_authorized"] = True
+    forged = (json.dumps(receipt, separators=(",", ":")) + "\n").encode("utf-8")
+    with pytest.raises(ValueError, match="runtime_mount_authorized must remain false"):
+        validator.validate_origin_artifact_receipt(EVIDENCE.read_bytes(), forged)
 
 
 def test_origin_artifact_receipt_duplicate_keys_fail_closed():

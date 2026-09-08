@@ -44,10 +44,14 @@ func _run() -> void:
 
     var initial_text := JSON.stringify(base) + "\n"
     var replacement := base.duplicate(true)
-    ((replacement["environment_points"] as Array)[0] as Dictionary)["osm_id"] = replacement_id
+    # JSON.parse_string() materializes JSON numbers as floats in Godot. Preserve
+    # that numeric representation here so this fixture changes only the digits
+    # of the OSM id; assigning an int would serialize without the trailing `.0`
+    # and destroy the intended same-size metadata collision before runtime.
+    ((replacement["environment_points"] as Array)[0] as Dictionary)["osm_id"] = float(replacement_id)
     var replacement_text := JSON.stringify(replacement) + "\n"
     if replacement_text.length() != initial_text.length():
-        _fail("replacement payload is not byte-length stable")
+        _fail("replacement payload is not byte-length stable: initial=%d replacement=%d" % [initial_text.length(), replacement_text.length()])
         return
 
     var live_absolute := ProjectSettings.globalize_path(LIVE_COPY)

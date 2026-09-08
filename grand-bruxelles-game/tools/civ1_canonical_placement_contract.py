@@ -12,9 +12,12 @@ from typing import Any
 GROUND_NODE_RE = re.compile(r'\[node name="Ground" type="CSGBox3D" parent="\."\]\n(?P<body>.*?)(?=\n\[node |\Z)', re.S)
 VEC3_RE = re.compile(r'Vector3\(([^,]+),\s*([^,]+),\s*([^\)]+)\)')
 SHA256_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
-COMMIT_SHA_RE = re.compile(r'^[0-9a-f]{40}$')
-WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v4"
+WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v5"
 EXPECTED_SOURCE_REPOSITORY = "https://github.com/ibrews/VitruvianGodot"
+EXPECTED_SOURCE_COMMIT = "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
+EXPECTED_SOURCE_GIT_BLOB_SHA1 = "09bcade1092e5a89b474e91e6013209d4c68c127"
+EXPECTED_SOURCE_SIZE_BYTES = 6879364
+EXPECTED_SOURCE_LICENSE = "CC0-1.0"
 REQUIRED_SAMPLE_INDICES = [71, 72, 73]
 SKELETON_ARTIFACT_ID = 9996432028
 SKELETON_ARTIFACT_DIGEST = "sha256:9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00"
@@ -154,14 +157,17 @@ def validate_runtime_witness(
     if not isinstance(source_evidence, dict):
         errors.append("source_evidence:not-object")
     else:
-        if source_evidence.get("repository_url") != EXPECTED_SOURCE_REPOSITORY:
-            errors.append(f"source_evidence.repository_url:expected:{EXPECTED_SOURCE_REPOSITORY!r}:got:{source_evidence.get('repository_url')!r}")
-        source_commit = source_evidence.get("source_commit_sha")
-        if not isinstance(source_commit, str) or COMMIT_SHA_RE.fullmatch(source_commit) is None:
-            errors.append("source_evidence.source_commit_sha:not-40hex")
-        license_id = source_evidence.get("license_id")
-        if not isinstance(license_id, str) or not license_id.strip():
-            errors.append("source_evidence.license_id:missing")
+        exact_source = {
+            "repository_url": EXPECTED_SOURCE_REPOSITORY,
+            "source_commit_sha": EXPECTED_SOURCE_COMMIT,
+            "source_git_blob_sha1": EXPECTED_SOURCE_GIT_BLOB_SHA1,
+            "source_size_bytes": EXPECTED_SOURCE_SIZE_BYTES,
+            "license_id": EXPECTED_SOURCE_LICENSE,
+        }
+        for key, expected in exact_source.items():
+            actual = source_evidence.get(key)
+            if actual != expected:
+                errors.append(f"source_evidence.{key}:mismatch:{actual!r}:{expected!r}")
         artifact_id = source_evidence.get("artifact_id")
         if not isinstance(artifact_id, int) or isinstance(artifact_id, bool) or artifact_id <= 0:
             errors.append("source_evidence.artifact_id:not-positive-int")
@@ -264,8 +270,15 @@ def main() -> int:
         "phase_lowest_candidate_sample_index": PHASE_LOWEST_CANDIDATE_SAMPLE_INDEX,
         "bound_sample_indices": REQUIRED_SAMPLE_INDICES,
     }
+    required_source_evidence = {
+        "repository_url": EXPECTED_SOURCE_REPOSITORY,
+        "source_commit_sha": EXPECTED_SOURCE_COMMIT,
+        "source_git_blob_sha1": EXPECTED_SOURCE_GIT_BLOB_SHA1,
+        "source_size_bytes": EXPECTED_SOURCE_SIZE_BYTES,
+        "license_id": EXPECTED_SOURCE_LICENSE,
+    }
     receipt = {
-        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v5",
+        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v6",
         "canonical_ground": {"node": "Main/Ground", "position_y_m": ground_position[1], "size_y_m": ground_size[1], "top_y_m": ground_top_y, "use_collision": "use_collision = true" in ground_block},
         "runtime": {
             "population_director_loaded": 'script = ExtResource("14_npc_director")' in scene,
@@ -283,10 +296,11 @@ def main() -> int:
             "validation_errors": witness_errors,
             "required_sample_indices": REQUIRED_SAMPLE_INDICES,
             "required_animation_evidence": required_animation_evidence,
+            "required_source_evidence": required_source_evidence,
             "required_fields": [
                 "schema", "evidence_kind", "engine_version", "main_scene", "candidate", "node_paths.npc_agent", "node_paths.character_mount", "node_paths.skeleton", "node_paths.ground",
                 "world_transforms_by_sample.71.origin_m", "world_transforms_by_sample.71.basis_rows", "world_transforms_by_sample.72.origin_m", "world_transforms_by_sample.72.basis_rows", "world_transforms_by_sample.73.origin_m", "world_transforms_by_sample.73.basis_rows",
-                "ground_top_y_m", "candidate_source_sha256", "provenance_record", "source_evidence.repository_url", "source_evidence.source_commit_sha", "source_evidence.license_id", "source_evidence.artifact_id", "source_evidence.artifact_digest", "source_evidence.source_file_sha256",
+                "ground_top_y_m", "candidate_source_sha256", "provenance_record", "source_evidence.repository_url", "source_evidence.source_commit_sha", "source_evidence.source_git_blob_sha1", "source_evidence.source_size_bytes", "source_evidence.license_id", "source_evidence.artifact_id", "source_evidence.artifact_digest", "source_evidence.source_file_sha256",
                 "animation_evidence.skeleton_artifact_id", "animation_evidence.skeleton_artifact_digest", "animation_evidence.skeleton_sample_count", "animation_evidence.phase_minima_artifact_id", "animation_evidence.phase_minima_artifact_digest", "animation_evidence.phase_lowest_candidate_sample_index", "animation_evidence.bound_sample_indices",
                 "runtime_inputs.main_scene_sha256", "runtime_inputs.npc_agent_sha256", "runtime_inputs.npc_director_sha256", "mcp_ephemeral", "canonical_export_modified", "capture.loaded_scene_tree_observed", "capture.character_mount_observed", "capture.canonical_ground_observed", "capture.sample_indices",
             ],
@@ -300,7 +314,7 @@ def main() -> int:
         "runtime_change_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 mount witness whose 71/72/73 transforms are bound to the immutable 120-sample Skeleton and geometry-phase artifacts; only then replay those exact skinned samples against canonical Ground",
+        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 mount witness whose exact pinned source identity and 71/72/73 transforms are bound to the immutable 120-sample Skeleton and geometry-phase artifacts; only then replay those exact skinned samples against canonical Ground",
     }
 
     if not main_has_runtime_owner_nodes:

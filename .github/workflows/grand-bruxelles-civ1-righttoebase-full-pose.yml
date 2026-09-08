@@ -1,0 +1,104 @@
+name: Grand Bruxelles CIV-1 RightToeBase Full Pose
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_righttoebase_full_pose_probe.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_righttoebase_full_pose_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-righttoebase-full-pose.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  righttoebase-full-pose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "1a2210270477f3e20b5127a42a7b3e13000a624c"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Prepare durable evidence directory
+        run: |
+          mkdir -p /tmp/civ1toefull/{identity,project,engine,out}
+          printf '%s\n' \
+            'validated_main=1a2210270477f3e20b5127a42a7b3e13000a624c' \
+            "head=${{ github.event.pull_request.head.sha || github.sha }}" \
+            'skeleton_artifact=9996432028' > /tmp/civ1toefull/out/run-context.txt
+      - name: Causal contract
+        run: python grand-bruxelles-game/tests/test_civ1_righttoebase_full_pose_contract.py 2>&1 | tee /tmp/civ1toefull/out/causal-contract.log
+      - name: Acquire immutable reconstructed pose bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/9996432028/zip" -o /tmp/civ1toefull/rightfoot.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1toefull/rightfoot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1toefull/rightfoot.zip -d /tmp/civ1toefull/identity
+          cp "$(find /tmp/civ1toefull/identity -name skeleton-bundle.json -print -quit)" /tmp/civ1toefull/project/skeleton.json
+      - name: Acquire pinned source-authored CIV-1 and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          SRC_REF=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          SRC_BLOB=09bcade1092e5a89b474e91e6013209d4c68c127
+          curl -fL --retry 3 "https://raw.githubusercontent.com/ibrews/VitruvianGodot/$SRC_REF/godot_project/vitruvian_body.glb" -o /tmp/civ1toefull/project/civ1_animated.glb
+          test "$(stat -c '%s' /tmp/civ1toefull/project/civ1_animated.glb)" = 6879364
+          git_hash=$(printf 'blob %s\0' "$(stat -c '%s' /tmp/civ1toefull/project/civ1_animated.glb)" | cat - /tmp/civ1toefull/project/civ1_animated.glb | sha1sum | cut -d' ' -f1)
+          test "$git_hash" = "$SRC_BLOB"
+          sha256sum /tmp/civ1toefull/project/civ1_animated.glb | tee /tmp/civ1toefull/out/source-animated.sha256
+          printf '%s\n' 'source_repo=ibrews/VitruvianGodot' "source_ref=$SRC_REF" "source_blob_sha1=$SRC_BLOB" 'source_asset_license=CC0 per upstream LICENSE/NOTICE' > /tmp/civ1toefull/out/source-provenance.txt
+          cp grand-bruxelles-game/tools/godot_civ1_righttoebase_full_pose_probe.gd /tmp/civ1toefull/project/probe.gd
+          printf '[application]\nconfig/name="CIV1RightToeBaseFullPose"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > /tmp/civ1toefull/project/project.godot
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1toefull/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1toefull/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1toefull/godot.zip -d /tmp/civ1toefull/engine
+          chmod +x /tmp/civ1toefull/engine/Godot_v4.7.1-stable_linux.x86_64
+      - name: Emit complete source-relative RightToeBase pose coverage
+        run: |
+          set -euo pipefail
+          G=/tmp/civ1toefull/engine/Godot_v4.7.1-stable_linux.x86_64
+          "$G" --headless --editor --path /tmp/civ1toefull/project --quit 2>&1 | tee /tmp/civ1toefull/out/import.log
+          "$G" --headless --path /tmp/civ1toefull/project --script res://probe.gd -- \
+            /tmp/civ1toefull/project/skeleton.json /tmp/civ1toefull/out/righttoebase-full-pose.json \
+            2>&1 | tee /tmp/civ1toefull/out/probe.log
+          grep -F CIV1_RIGHTTOEBASE_FULL_POSE_OK /tmp/civ1toefull/out/probe.log
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1toefull/out/righttoebase-full-pose.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-righttoebase-full-pose-v1'
+          assert r['frame_count']==120
+          assert len(r['samples'])==120
+          assert r['sample_indices']==list(range(120))
+          assert r['source_rightfoot_key_count']>=120
+          assert r['righttoebase_direct_child_of_rightfoot'] is True
+          assert r['full_pose_coverage_ready'] is True
+          assert r['full_rotation_coverage_ready'] is True
+          assert r['same_sample_ground_geometry_ready'] is True
+          assert [row['sample_index'] for row in r['samples']]==list(range(120))
+          for row in r['samples']:
+              for key in ('source_righttoebase_relative_to_rightfoot','validated_rightfoot_global','derived_righttoebase_global'):
+                  rec=row[key]
+                  assert len(rec['origin'])==3 and len(rec['rotation_xyzw'])==4
+                  assert all(math.isfinite(float(x)) for x in rec['origin']+rec['rotation_xyzw'])
+          for k in ('contact_proof_claimed','planted_interval_claimable','quantitative_foot_slide_candidate','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
+              assert r[k] is False
+          print('CIV1_RIGHTTOEBASE_FULL_POSE_RECEIPT_OK', len(r['samples']))
+          PY
+      - name: Upload immutable full-pose evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-righttoebase-full-pose-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1toefull/out
+          if-no-files-found: error
+          retention-days: 90

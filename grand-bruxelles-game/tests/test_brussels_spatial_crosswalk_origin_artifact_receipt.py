@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
 RECEIPT = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json"
@@ -19,14 +21,43 @@ EXPECTED_AUTHORIZATION_KEYS = {
 }
 
 
+def _reject_duplicate_pairs(pairs):
+    payload = {}
+    for key, value in pairs:
+        if key in payload:
+            raise ValueError(f"duplicate JSON key: {key}")
+        payload[key] = value
+    return payload
+
+
+def _load_json_strict(path):
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_pairs)
+
+
+def _load_json_bytes_strict(raw):
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_pairs)
+
+
 def _exact_keys(payload, expected, label):
     assert isinstance(payload, dict), f"{label} must be an object"
     assert set(payload) == expected, f"{label} schema drift: {set(payload) ^ expected}"
 
 
+def test_origin_artifact_receipt_duplicate_keys_fail_closed():
+    canonical = RECEIPT.read_bytes()
+    duplicate = canonical.replace(
+        b'{\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1",',
+        b'{\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1",\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1",',
+        1,
+    )
+    assert duplicate != canonical
+    with pytest.raises(ValueError, match="duplicate JSON key: schema"):
+        _load_json_bytes_strict(duplicate)
+
+
 def test_origin_artifact_receipt_matches_locked_crosswalk_evidence():
-    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
-    receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
+    evidence = _load_json_strict(EVIDENCE)
+    receipt = _load_json_strict(RECEIPT)
 
     _exact_keys(receipt, EXPECTED_RECEIPT_KEYS, "artifact receipt")
     assert receipt["schema"] == "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1"

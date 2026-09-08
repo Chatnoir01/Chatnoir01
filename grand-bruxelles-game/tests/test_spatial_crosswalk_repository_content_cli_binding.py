@@ -9,6 +9,8 @@ from tools.city_machine import validate_spatial_crosswalk_repository_content_rec
 
 ROOT = Path(__file__).resolve().parents[1]
 RECEIPT = ROOT / "data/source_plans/brussels_spatial_crosswalk_repository_content_receipt.lock.json"
+CANONICAL_REGISTERED = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
+CANONICAL_RUNTIME = ROOT / "data/runtime/road_destination_runtime_index.json"
 
 
 def test_production_cli_validator_exposes_repository_content_binding() -> None:
@@ -21,16 +23,10 @@ def test_repository_content_binding_rejects_repinned_repository_byte_drift(tmp_p
     runtime = repo_root / "data/runtime/road_destination_runtime_index.json"
     registered.parent.mkdir(parents=True)
     runtime.parent.mkdir(parents=True)
-    registered.write_text('{"semantic_sha256":"' + "a" * 64 + '"}\n', encoding="utf-8")
-    runtime.write_text('{"catalog_sha256":"' + "b" * 64 + '"}\n', encoding="utf-8")
+    registered.write_bytes(CANONICAL_REGISTERED.read_bytes())
+    runtime.write_bytes(CANONICAL_RUNTIME.read_bytes())
 
-    receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
-    receipt["registered_cell_index"]["semantic_sha256"] = "a" * 64
-    receipt["road_runtime_index"]["catalog_sha256"] = "b" * 64
-    receipt["registered_cell_index"]["git_blob_sha1"] = validator._git_blob_sha1(registered.read_bytes())
-    receipt["road_runtime_index"]["git_blob_sha1"] = validator._git_blob_sha1(runtime.read_bytes())
-    candidate_raw = (json.dumps(receipt, separators=(",", ":")) + "\n").encode("utf-8")
-
+    candidate_raw = RECEIPT.read_bytes()
     validator.validate_repository_content_receipt(candidate_raw, repo_root=repo_root)
 
     registered.write_text('{"semantic_sha256":"' + "c" * 64 + '"}\n', encoding="utf-8")

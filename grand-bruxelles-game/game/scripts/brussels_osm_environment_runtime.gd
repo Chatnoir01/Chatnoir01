@@ -12,6 +12,7 @@ const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
 const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 const SOURCE_RETRY_MIN_INTERVAL_MSEC := 250
+const SOURCE_CHANGE_PROBE_MIN_INTERVAL_MSEC := 1000
 # Canonical environment bounds are serialized at 0.01 m while point positions
 # retain 0.001 m precision. Half a bound quantization step is therefore the
 # maximum source-preserving edge discrepancy; the epsilon is numeric only.
@@ -43,6 +44,8 @@ var _last_source_attempt_path := ""
 var _last_source_failure_retryable := false
 var _last_retryable_source_signature := ""
 var _last_retryable_source_probe_msec := 0
+var _loaded_source_signature := ""
+var _last_loaded_source_probe_msec := 0
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
 var _presentation_meshes: Dictionary = {}
@@ -107,6 +110,15 @@ func _record_retryable_source_failure() -> void:
     _last_retryable_source_signature = _source_availability_signature(data_path)
     _last_retryable_source_probe_msec = Time.get_ticks_msec()
 
+func _loaded_source_should_reload(force_probe: bool) -> bool:
+    if _loaded_data_path != data_path or data_path.is_empty():
+        return false
+    var now_msec := Time.get_ticks_msec()
+    if not force_probe and now_msec - _last_loaded_source_probe_msec < SOURCE_CHANGE_PROBE_MIN_INTERVAL_MSEC:
+        return false
+    _last_loaded_source_probe_msec = now_msec
+    return _source_availability_signature(data_path) != _loaded_source_signature
+
 func _retryable_source_should_reload() -> bool:
     if not _last_source_failure_retryable or _loaded_data_path == data_path:
         return false
@@ -162,6 +174,8 @@ func _load_points() -> bool:
     _loaded_data_path = data_path
     _last_retryable_source_signature = ""
     _last_retryable_source_probe_msec = 0
+    _loaded_source_signature = _source_availability_signature(data_path)
+    _last_loaded_source_probe_msec = Time.get_ticks_msec()
     set_meta("source", source)
     set_meta("license", license)
     set_meta("source_dimensions_measured", false)
@@ -252,9 +266,6 @@ func _target() -> Node3D:
     if scene != null:
         if scene.is_queued_for_deletion():
             return null
-        # Zone-scoped renderers must be owned by the authoritative current scene.
-        # During scene replacement an old scene can remain alive until deferred
-        # teardown; never let that stale renderer borrow the new scene's Player.
         if self != scene and not scene.is_ancestor_of(self):
             return null
         var canonical_player := scene.get_node_or_null("Player") as Node3D
@@ -265,9 +276,6 @@ func _target() -> Node3D:
             if candidate != null and not candidate.is_queued_for_deletion() and scene.is_ancestor_of(candidate):
                 return candidate
         return null
-    # Headless/dev witnesses legitimately run without current_scene. Scope that
-    # fallback to the runtime's own top-level world so a stale nested renderer
-    # cannot borrow a Player from a sibling replacement world during transitions.
     var direct_root_runtime := get_parent() == tree.root
     var scope: Node = self
     if not direct_root_runtime:
@@ -282,8 +290,6 @@ func _target() -> Node3D:
             continue
         if scope.is_ancestor_of(fallback):
             return fallback
-        # Preserve the explicit root-sibling harness contract only for a runtime
-        # that is itself directly rooted. Nested worlds remain strictly scoped.
         if direct_root_runtime and fallback.get_parent() == tree.root:
             return fallback
     return null
@@ -358,7 +364,7 @@ func _refresh(force: bool) -> void:
     if not _configuration_error().is_empty():
         _set_batches_visible(false)
         return
-    var source_reload_required := data_path != _last_source_attempt_path or _retryable_source_should_reload()
+    var source_reload_required := data_path != _last_source_attempt_path or _retryable_source_should_reload() or _loaded_source_should_reload(force)
     if source_reload_required:
         if not _load_points():
             _set_batches_visible(false)

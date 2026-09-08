@@ -21,6 +21,10 @@ def main() -> int:
         'foot_candidates = reversals(foot_y)',
         'toe_candidates = reversals(toe_y)',
         'evidence_windows(foot_candidates, toe_candidates, len(frames))',
+        'stable_toe_local_origin(toe_pose)',
+        '"righttoebase_local_origin_max_drift_m": toe_origin_drift',
+        '"righttoebase_local_rotation_max_quaternion_delta": toe_rotation_delta',
+        '"righttoebase_local_rotation_diagnostic_only": True',
         '"same_sample_ground_geometry_windows": windows',
         '"window_semantics": "kinematic-reversal-neighborhood-only"',
         '"requires_canonical_ground_same_sample": True',
@@ -41,6 +45,7 @@ def main() -> int:
         'camera rescue',
         'viewport rescue',
         'exact_common_reversal_required',
+        'toe-local-rotation-drift',
     ):
         assert forbidden not in script
 

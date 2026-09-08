@@ -26,6 +26,7 @@ def sha256_file(path: Path) -> str:
 
 
 def valid_runtime_witness() -> dict[str, object]:
+    source_hash = "sha256:" + "1" * 64
     return {
         "schema": "grand-bruxelles-civ1-runtime-placement-witness-v2",
         "evidence_kind": "godot-live-loaded-scene",
@@ -45,8 +46,16 @@ def valid_runtime_witness() -> dict[str, object]:
             "basis_rows": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         },
         "ground_top_y_m": -0.03,
-        "candidate_source_sha256": "sha256:" + "1" * 64,
+        "candidate_source_sha256": source_hash,
         "provenance_record": "CIV-1 immutable source receipt",
+        "source_evidence": {
+            "repository_url": "https://github.com/ibrews/VitruvianGodot",
+            "source_commit_sha": "bdecdcd000000000000000000000000000000000",
+            "license_id": "CC0-1.0",
+            "artifact_id": 10024557192,
+            "artifact_digest": "sha256:" + "2" * 64,
+            "source_file_sha256": source_hash,
+        },
         "runtime_inputs": {
             "main_scene_sha256": sha256_file(MAIN),
             "npc_agent_sha256": sha256_file(AGENT),
@@ -106,6 +115,13 @@ def test_runtime_witness_contract_is_explicit_and_malformed_evidence_is_rejected
         '"ground_top_y_m"',
         '"candidate_source_sha256"',
         '"provenance_record"',
+        '"source_evidence"',
+        '"repository_url"',
+        '"source_commit_sha"',
+        '"license_id"',
+        '"artifact_id"',
+        '"artifact_digest"',
+        '"source_file_sha256"',
         '"runtime_inputs"',
         '"main_scene_sha256"',
         '"npc_agent_sha256"',
@@ -147,7 +163,46 @@ def test_structurally_valid_but_stale_runtime_inputs_are_rejected_causally() -> 
         assert "runtime_inputs.main_scene_sha256:mismatch" in combined
 
 
-def test_exact_runtime_input_hashes_allow_only_the_placement_stage_not_contact() -> None:
+def test_candidate_source_hash_must_match_immutable_source_evidence() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        witness_data = valid_runtime_witness()
+        source_evidence = witness_data["source_evidence"]
+        assert isinstance(source_evidence, dict)
+        source_evidence["source_file_sha256"] = "sha256:" + "9" * 64
+        witness = tmp_path / "source-mismatch-witness.json"
+        witness.write_text(json.dumps(witness_data), encoding="utf-8")
+        out = tmp_path / "receipt.json"
+        result = run_classifier(out, witness)
+        assert result.returncode != 0
+        combined = result.stdout + result.stderr
+        assert "RUNTIME_WITNESS_FAIL" in combined
+        assert "source_evidence.source_file_sha256:mismatch" in combined
+
+
+def test_source_evidence_requires_repository_commit_license_and_artifact_receipt() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        witness_data = valid_runtime_witness()
+        source_evidence = witness_data["source_evidence"]
+        assert isinstance(source_evidence, dict)
+        source_evidence["repository_url"] = "https://example.invalid/other-source"
+        source_evidence["license_id"] = ""
+        source_evidence["artifact_id"] = 0
+        source_evidence["artifact_digest"] = "not-a-digest"
+        witness = tmp_path / "bad-provenance-witness.json"
+        witness.write_text(json.dumps(witness_data), encoding="utf-8")
+        out = tmp_path / "receipt.json"
+        result = run_classifier(out, witness)
+        assert result.returncode != 0
+        combined = result.stdout + result.stderr
+        assert "source_evidence.repository_url:expected" in combined
+        assert "source_evidence.license_id:missing" in combined
+        assert "source_evidence.artifact_id:not-positive-int" in combined
+        assert "source_evidence.artifact_digest:not-sha256" in combined
+
+
+def test_exact_runtime_and_source_evidence_allow_only_placement_not_contact() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         witness = tmp_path / "fresh-witness.json"
@@ -183,6 +238,8 @@ if __name__ == "__main__":
     test_current_runtime_is_fail_closed_without_loaded_transform_witness()
     test_runtime_witness_contract_is_explicit_and_malformed_evidence_is_rejected()
     test_structurally_valid_but_stale_runtime_inputs_are_rejected_causally()
-    test_exact_runtime_input_hashes_allow_only_the_placement_stage_not_contact()
+    test_candidate_source_hash_must_match_immutable_source_evidence()
+    test_source_evidence_requires_repository_commit_license_and_artifact_receipt()
+    test_exact_runtime_and_source_evidence_allow_only_placement_not_contact()
     test_no_old_grounding_shortcuts_are_reintroduced()
     print("CIV1_CANONICAL_PLACEMENT_CONTRACT_REGRESSION_GREEN")

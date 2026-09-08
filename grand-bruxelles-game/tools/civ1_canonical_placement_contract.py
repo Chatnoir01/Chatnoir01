@@ -49,6 +49,14 @@ def finite_vector(value: Any, length: int) -> bool:
     return isinstance(value, list) and len(value) == length and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)) for v in value)
 
 
+def canonical_node_path(value: Any) -> bool:
+    if not isinstance(value, str) or not value or value != value.strip():
+        return False
+    if value.startswith("/") or value.endswith("/") or "//" in value:
+        return False
+    return all(part not in ("", ".", "..") for part in value.split("/"))
+
+
 def validate_transform(transform: Any, prefix: str, errors: list[str]) -> None:
     if not isinstance(transform, dict):
         errors.append(f"{prefix}:not-object")
@@ -109,6 +117,17 @@ def validate_runtime_witness(witness: Any, ground_top_y: float, expected_runtime
             value = node_paths.get(key)
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"node_paths.{key}:missing")
+            elif not canonical_node_path(value):
+                errors.append(f"node_paths.{key}:not-canonical")
+        npc_agent_path = node_paths.get("npc_agent")
+        character_mount_path = node_paths.get("character_mount")
+        skeleton_path = node_paths.get("skeleton")
+        if canonical_node_path(npc_agent_path) and canonical_node_path(character_mount_path):
+            if not character_mount_path.startswith(npc_agent_path + "/"):
+                errors.append("node_paths.character_mount:not-descendant-of-npc-agent")
+        if canonical_node_path(character_mount_path) and canonical_node_path(skeleton_path):
+            if not skeleton_path.startswith(character_mount_path + "/"):
+                errors.append("node_paths.skeleton:not-descendant-of-character-mount")
         if node_paths.get("ground") != "Main/Ground":
             errors.append(f"node_paths.ground:expected:'Main/Ground':got:{node_paths.get('ground')!r}")
     transforms = witness.get("world_transforms_by_sample")
@@ -232,7 +251,7 @@ def main() -> int:
         "runtime_change_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 mount witness whose exact pinned source identity and 71/72/73 transforms are bound to the immutable 120-sample Skeleton and geometry-phase artifacts; only then replay those exact skinned samples against canonical Ground",
+        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 mount witness whose exact pinned source identity and 71/72/73 transforms are bound to one canonical observed NPC-agent/mount/skeleton hierarchy plus the immutable 120-sample Skeleton and geometry-phase artifacts; only then replay those exact skinned samples against canonical Ground",
     }
     if not main_has_runtime_owner_nodes:
         raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: NPC runtime owner nodes missing")

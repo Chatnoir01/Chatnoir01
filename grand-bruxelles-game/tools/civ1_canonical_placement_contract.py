@@ -12,7 +12,9 @@ from typing import Any
 GROUND_NODE_RE = re.compile(r'\[node name="Ground" type="CSGBox3D" parent="\."\]\n(?P<body>.*?)(?=\n\[node |\Z)', re.S)
 VEC3_RE = re.compile(r'Vector3\(([^,]+),\s*([^,]+),\s*([^\)]+)\)')
 SHA256_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
+COMMIT_SHA_RE = re.compile(r'^[0-9a-f]{40}$')
 WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v2"
+EXPECTED_SOURCE_REPOSITORY = "https://github.com/ibrews/VitruvianGodot"
 
 
 def sha256_file(path: Path) -> str:
@@ -107,6 +109,32 @@ def validate_runtime_witness(
     provenance_record = witness.get("provenance_record")
     if not isinstance(provenance_record, str) or not provenance_record.strip():
         errors.append("provenance_record:missing")
+
+    source_evidence = witness.get("source_evidence")
+    if not isinstance(source_evidence, dict):
+        errors.append("source_evidence:not-object")
+    else:
+        if source_evidence.get("repository_url") != EXPECTED_SOURCE_REPOSITORY:
+            errors.append(
+                f"source_evidence.repository_url:expected:{EXPECTED_SOURCE_REPOSITORY!r}:got:{source_evidence.get('repository_url')!r}"
+            )
+        source_commit = source_evidence.get("source_commit_sha")
+        if not isinstance(source_commit, str) or COMMIT_SHA_RE.fullmatch(source_commit) is None:
+            errors.append("source_evidence.source_commit_sha:not-40hex")
+        license_id = source_evidence.get("license_id")
+        if not isinstance(license_id, str) or not license_id.strip():
+            errors.append("source_evidence.license_id:missing")
+        artifact_id = source_evidence.get("artifact_id")
+        if not isinstance(artifact_id, int) or isinstance(artifact_id, bool) or artifact_id <= 0:
+            errors.append("source_evidence.artifact_id:not-positive-int")
+        artifact_digest = source_evidence.get("artifact_digest")
+        if not isinstance(artifact_digest, str) or SHA256_RE.fullmatch(artifact_digest) is None:
+            errors.append("source_evidence.artifact_digest:not-sha256")
+        source_file_hash = source_evidence.get("source_file_sha256")
+        if not isinstance(source_file_hash, str) or SHA256_RE.fullmatch(source_file_hash) is None:
+            errors.append("source_evidence.source_file_sha256:not-sha256")
+        elif isinstance(source_hash, str) and SHA256_RE.fullmatch(source_hash) is not None and source_file_hash != source_hash:
+            errors.append(f"source_evidence.source_file_sha256:mismatch:{source_file_hash}:{source_hash}")
 
     runtime_inputs = witness.get("runtime_inputs")
     if not isinstance(runtime_inputs, dict):
@@ -241,6 +269,12 @@ def main() -> int:
                 "ground_top_y_m",
                 "candidate_source_sha256",
                 "provenance_record",
+                "source_evidence.repository_url",
+                "source_evidence.source_commit_sha",
+                "source_evidence.license_id",
+                "source_evidence.artifact_id",
+                "source_evidence.artifact_digest",
+                "source_evidence.source_file_sha256",
                 "runtime_inputs.main_scene_sha256",
                 "runtime_inputs.npc_agent_sha256",
                 "runtime_inputs.npc_director_sha256",
@@ -262,9 +296,9 @@ def main() -> int:
         "visual_approval_claimed": False,
         "player_view_claimed": False,
         "required_next_evidence": (
-            "supply a schema-valid Godot 4.7.1 live-loaded CIV-1 mount transform witness cryptographically bound "
-            "to the exact main scene and NPC runtime inputs; after placement validates, replay [71,72,73] skinned "
-            "geometry against canonical Ground before contact classification"
+            "supply a schema-valid Godot 4.7.1 live-loaded CIV-1 mount transform witness bound to exact runtime bytes "
+            "and immutable source/provenance evidence; after placement validates, replay [71,72,73] skinned geometry "
+            "against canonical Ground before contact classification"
         ),
     }
 

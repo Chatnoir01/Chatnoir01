@@ -55,12 +55,6 @@ func _run() -> void:
     DirAccess.remove_absolute(live_absolute)
     DirAccess.remove_absolute(staged_absolute)
 
-    # Materialize both equal-size payloads in the same filesystem timestamp second
-    # before runtime startup. The staged file keeps that mtime while the runtime
-    # does arbitrary work, so the later atomic-style replacement is a real,
-    # deterministic mtime:size collision rather than a race against CI speed.
-    while fmod(Time.get_unix_time_from_system(), 1.0) > 0.20:
-        await process_frame
     var f := FileAccess.open(LIVE_COPY, FileAccess.WRITE)
     if f == null:
         _fail("could not create initial live source")
@@ -73,6 +67,16 @@ func _run() -> void:
         return
     staged.store_string(replacement_text)
     staged.close()
+
+    # The dedicated workflow is Linux-only. Pin the staged replacement to the
+    # live file's exact filesystem mtime before runtime startup instead of racing
+    # a one-second timestamp bucket. Rename then preserves the staged inode mtime,
+    # yielding a deterministic legacy mtime:size collision regardless of CI speed.
+    var touch_output: Array = []
+    var touch_status := OS.execute("touch", ["-r", live_absolute, staged_absolute], touch_output, true)
+    if touch_status != 0:
+        _fail("could not pin staged replacement mtime: status=%d output=%s" % [touch_status, touch_output])
+        return
 
     var initial_metadata_signature := "%d:%d" % [FileAccess.get_modified_time(LIVE_COPY), FileAccess.get_size(LIVE_COPY)]
     var staged_metadata_signature := "%d:%d" % [FileAccess.get_modified_time(STAGED_COPY), FileAccess.get_size(STAGED_COPY)]

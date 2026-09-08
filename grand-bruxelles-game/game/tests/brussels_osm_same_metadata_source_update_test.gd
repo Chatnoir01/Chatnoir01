@@ -3,6 +3,7 @@ extends SceneTree
 const RUNTIME_SCRIPT := preload("res://game/scripts/brussels_osm_environment_runtime.gd")
 const JETTE_DATA := "res://data/osm/zones/jette/environment.game.json"
 const LIVE_COPY := "user://brussels_osm_same_metadata_reload.environment.game.json"
+const STAGED_COPY := "user://brussels_osm_same_metadata_reload.staged.environment.game.json"
 
 func _fail(message: String) -> void:
     push_error("BRUSSELS_OSM_SAME_METADATA_SOURCE_UPDATE_FAIL: %s" % message)
@@ -49,12 +50,35 @@ func _run() -> void:
         _fail("replacement payload is not byte-length stable")
         return
 
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(LIVE_COPY))
+    var live_absolute := ProjectSettings.globalize_path(LIVE_COPY)
+    var staged_absolute := ProjectSettings.globalize_path(STAGED_COPY)
+    DirAccess.remove_absolute(live_absolute)
+    DirAccess.remove_absolute(staged_absolute)
+
+    # Materialize both equal-size payloads in the same filesystem timestamp second
+    # before runtime startup. The staged file keeps that mtime while the runtime
+    # does arbitrary work, so the later atomic-style replacement is a real,
+    # deterministic mtime:size collision rather than a race against CI speed.
     while fmod(Time.get_unix_time_from_system(), 1.0) > 0.20:
         await process_frame
     var f := FileAccess.open(LIVE_COPY, FileAccess.WRITE)
+    if f == null:
+        _fail("could not create initial live source")
+        return
     f.store_string(initial_text)
     f.close()
+    var staged := FileAccess.open(STAGED_COPY, FileAccess.WRITE)
+    if staged == null:
+        _fail("could not create staged replacement source")
+        return
+    staged.store_string(replacement_text)
+    staged.close()
+
+    var initial_metadata_signature := "%d:%d" % [FileAccess.get_modified_time(LIVE_COPY), FileAccess.get_size(LIVE_COPY)]
+    var staged_metadata_signature := "%d:%d" % [FileAccess.get_modified_time(STAGED_COPY), FileAccess.get_size(STAGED_COPY)]
+    if initial_metadata_signature != staged_metadata_signature:
+        _fail("could not materialize deterministic metadata collision: initial=%s staged=%s" % [initial_metadata_signature, staged_metadata_signature])
+        return
 
     var player := Node3D.new()
     player.name = "Player"
@@ -65,13 +89,19 @@ func _run() -> void:
     await process_frame
     var before_count := _count_points(runtime)
     var before_signature := str(runtime.call("_source_availability_signature", LIVE_COPY))
+    if before_signature != initial_metadata_signature:
+        _fail("runtime metadata signature disagrees with fixture: runtime=%s fixture=%s" % [before_signature, initial_metadata_signature])
+        return
 
-    var r := FileAccess.open(LIVE_COPY, FileAccess.WRITE)
-    r.store_string(replacement_text)
-    r.close()
+    if DirAccess.remove_absolute(live_absolute) != OK:
+        _fail("could not remove initial live source before staged replacement")
+        return
+    if DirAccess.rename_absolute(staged_absolute, live_absolute) != OK:
+        _fail("could not promote staged replacement to live path")
+        return
     var after_signature := str(runtime.call("_source_availability_signature", LIVE_COPY))
     if before_signature != after_signature:
-        _fail("filesystem metadata did not collide as required: before=%s after=%s" % [before_signature, after_signature])
+        _fail("filesystem metadata collision was not preserved across replacement: before=%s after=%s" % [before_signature, after_signature])
         return
 
     runtime.call("_refresh", true)

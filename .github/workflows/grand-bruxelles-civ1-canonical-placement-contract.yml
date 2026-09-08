@@ -43,6 +43,7 @@ jobs:
             echo "phase_minima_artifact=10057731450"
             echo "phase_minima_digest=sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f"
             echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v2"
+            echo "source_repository=https://github.com/ibrews/VitruvianGodot"
             sha256sum \
               grand-bruxelles-game/game/main.tscn \
               grand-bruxelles-game/game/scripts/npc_agent.gd \
@@ -78,11 +79,18 @@ jobs:
           assert r['runtime_witness']['present'] is False
           assert r['runtime_witness']['validated'] is False
           assert r['runtime_witness']['validation_errors'] == []
-          assert 'world_transform.origin_m' in r['runtime_witness']['required_fields']
-          assert 'world_transform.basis_rows' in r['runtime_witness']['required_fields']
-          assert 'runtime_inputs.main_scene_sha256' in r['runtime_witness']['required_fields']
-          assert 'runtime_inputs.npc_agent_sha256' in r['runtime_witness']['required_fields']
-          assert 'runtime_inputs.npc_director_sha256' in r['runtime_witness']['required_fields']
+          required=set(r['runtime_witness']['required_fields'])
+          assert 'world_transform.origin_m' in required
+          assert 'world_transform.basis_rows' in required
+          assert 'source_evidence.repository_url' in required
+          assert 'source_evidence.source_commit_sha' in required
+          assert 'source_evidence.license_id' in required
+          assert 'source_evidence.artifact_id' in required
+          assert 'source_evidence.artifact_digest' in required
+          assert 'source_evidence.source_file_sha256' in required
+          assert 'runtime_inputs.main_scene_sha256' in required
+          assert 'runtime_inputs.npc_agent_sha256' in required
+          assert 'runtime_inputs.npc_director_sha256' in required
           assert r['canonical_character_placement_available'] is False
           assert r['ground_contact_classifiable'] is False
           assert r['contact_proof_claimed'] is False

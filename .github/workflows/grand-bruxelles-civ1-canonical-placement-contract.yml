@@ -42,6 +42,7 @@ jobs:
             echo "head=${{ github.event.pull_request.head.sha || github.sha }}"
             echo "phase_minima_artifact=10057731450"
             echo "phase_minima_digest=sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f"
+            echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v1"
           } > /tmp/civ1placement/out/run-context.txt
       - name: Run causal regression
         run: python grand-bruxelles-game/tests/test_civ1_canonical_placement_contract.py
@@ -58,7 +59,7 @@ jobs:
           import json
           from pathlib import Path
           r=json.loads(Path('/tmp/civ1placement/out/canonical-placement-contract.json').read_text())
-          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v1'
+          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v2'
           assert abs(r['canonical_ground']['top_y_m'] - (-0.03)) <= 1e-12
           assert r['canonical_ground']['use_collision'] is True
           assert r['runtime']['population_director_loaded'] is True
@@ -67,9 +68,16 @@ jobs:
           assert r['runtime']['spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['pooled_spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['grounding_mechanism_hits'] == []
+          assert r['runtime_witness']['schema']=='grand-bruxelles-civ1-runtime-placement-witness-v1'
+          assert r['runtime_witness']['present'] is False
+          assert r['runtime_witness']['validated'] is False
+          assert r['runtime_witness']['validation_errors'] == []
+          assert 'world_transform.origin_m' in r['runtime_witness']['required_fields']
+          assert 'world_transform.basis_rows' in r['runtime_witness']['required_fields']
           assert r['canonical_character_placement_available'] is False
           assert r['ground_contact_classifiable'] is False
           assert r['contact_proof_claimed'] is False
+          assert r['planted_interval_claimable'] is False
           assert r['quantitative_foot_slide_candidate'] is False
           assert r['runtime_change_authorized'] is False
           assert r['visual_approval_claimed'] is False

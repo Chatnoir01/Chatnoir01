@@ -1,0 +1,159 @@
+name: Grand Bruxelles CIV-1 RightFoot Same-Sample Ground
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/godot_civ1_rightfoot_same_sample_ground_witness.gd'
+      - 'grand-bruxelles-game/tests/test_civ1_rightfoot_same_sample_ground_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-rightfoot-same-sample-ground.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  same-sample-ground:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and Character/NPC ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- \
+            grand-bruxelles-game/game/main.tscn \
+            grand-bruxelles-game/game/scripts \
+            grand-bruxelles-game/game/data
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run causal same-sample Ground contract
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tests/test_civ1_rightfoot_same_sample_ground_contract.py
+
+      - name: Acquire immutable Skeleton and RightToeBase pose evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1same/{skeleton,toe,source,engine,project,out,captures}
+          api="https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$api/9996432028/zip" -o /tmp/civ1same/skeleton.zip
+          echo '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00  /tmp/civ1same/skeleton.zip' | sha256sum -c -
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$api/10024557192/zip" -o /tmp/civ1same/toe.zip
+          echo '3ec94d7b8ed10663d0ee17bf44ffec77104600a7c3006343f0dfbae13877023c  /tmp/civ1same/toe.zip' | sha256sum -c -
+          unzip -q /tmp/civ1same/skeleton.zip -d /tmp/civ1same/skeleton
+          unzip -q /tmp/civ1same/toe.zip -d /tmp/civ1same/toe
+          BUNDLE=$(find /tmp/civ1same/skeleton -name skeleton-bundle.json -print -quit)
+          TOE=$(find /tmp/civ1same/toe -name righttoebase-pose.json -print -quit)
+          test -n "$BUNDLE" -a -n "$TOE"
+          cp "$BUNDLE" /tmp/civ1same/out/skeleton-bundle.json
+          cp "$TOE" /tmp/civ1same/out/righttoebase-pose.json
+
+      - name: Acquire pinned CIV-1 source, provenance, and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          STRIP_REF=48c277eaf57b7ceafc98fbee67eea155c991f00c
+          SOURCE_REF=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          curl -fL --retry 3 "https://raw.githubusercontent.com/${{ github.repository }}/$STRIP_REF/grand-bruxelles-game/tools/strip_glb_animations.py" -o /tmp/civ1same/strip.py
+          curl -fL --retry 3 "https://raw.githubusercontent.com/ibrews/VitruvianGodot/$SOURCE_REF/godot_project/vitruvian_body.glb" -o /tmp/civ1same/source/body.glb
+          test "$(stat -c '%s' /tmp/civ1same/source/body.glb)" = 6879364
+          { printf 'blob %s\0' "$(stat -c '%s' /tmp/civ1same/source/body.glb)"; cat /tmp/civ1same/source/body.glb; } | sha1sum | grep -F '09bcade1092e5a89b474e91e6013209d4c68c127'
+          curl -fL --retry 3 "https://raw.githubusercontent.com/ibrews/VitruvianGodot/$SOURCE_REF/LICENSE" -o /tmp/civ1same/out/upstream-LICENSE
+          curl -fL --retry 3 "https://raw.githubusercontent.com/ibrews/VitruvianGodot/$SOURCE_REF/NOTICE.md" -o /tmp/civ1same/out/upstream-NOTICE.md
+          grep -Eiq 'CC0|Creative Commons Zero|public domain' /tmp/civ1same/out/upstream-LICENSE /tmp/civ1same/out/upstream-NOTICE.md
+          python /tmp/civ1same/strip.py /tmp/civ1same/source/body.glb /tmp/civ1same/project/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1same/project/civ1_body.glb' | sha256sum -c -
+          printf '%s\n' \
+            'source_repo=ibrews/VitruvianGodot' \
+            "source_commit=$SOURCE_REF" \
+            'source_file=godot_project/vitruvian_body.glb' \
+            'source_git_blob_sha1=09bcade1092e5a89b474e91e6013209d4c68c127' \
+            'source_size=6879364' \
+            'stripped_body_sha256=8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888' \
+            > /tmp/civ1same/out/source-provenance.txt
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/civ1same/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1same/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1same/godot.zip -d /tmp/civ1same/engine
+          chmod +x /tmp/civ1same/engine/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Prepare exact-current-main Godot project and import
+        run: |
+          set -euo pipefail
+          shopt -s dotglob
+          cp -a grand-bruxelles-game/* /tmp/civ1same/project/
+          cp grand-bruxelles-game/tools/godot_civ1_rightfoot_same_sample_ground_witness.gd /tmp/civ1same/project/godot_civ1_rightfoot_same_sample_ground_witness.gd
+          cp /tmp/civ1same/project/civ1_body.glb /tmp/civ1same/project/civ1_body.glb
+          GODOT=/tmp/civ1same/engine/Godot_v4.7.1-stable_linux.x86_64
+          "$GODOT" --headless --editor --path /tmp/civ1same/project --quit 2>&1 | tee /tmp/civ1same/out/import.log
+
+      - name: Capture exact Ground and RightFoot RightToeBase evidence at samples 68-71
+        run: |
+          set -euo pipefail
+          GODOT=/tmp/civ1same/engine/Godot_v4.7.1-stable_linux.x86_64
+          xvfb-run -a "$GODOT" --path /tmp/civ1same/project --resolution 1280x720 \
+            --script res://godot_civ1_rightfoot_same_sample_ground_witness.gd -- \
+            /tmp/civ1same/out/skeleton-bundle.json \
+            /tmp/civ1same/out/righttoebase-pose.json \
+            /tmp/civ1same/out/rightfoot-same-sample-ground.json \
+            /tmp/civ1same/captures \
+            2>&1 | tee /tmp/civ1same/out/witness.log
+          grep -F CIV1_RIGHTFOOT_SAME_SAMPLE_GROUND_OK /tmp/civ1same/out/witness.log
+          python - <<'PY'
+          import json, struct
+          from pathlib import Path
+
+          receipt = json.loads(Path('/tmp/civ1same/out/rightfoot-same-sample-ground.json').read_text())
+          assert receipt['schema'] == 'grand-bruxelles-civ1-rightfoot-same-sample-ground-v1'
+          assert receipt['source_scene'] == 'res://game/main.tscn'
+          assert receipt['source_scene_instantiated'] is True
+          assert receipt['source_ground_node'] == 'Ground'
+          assert receipt['ground_use_collision'] is True
+          assert receipt['ground_reference_ready'] is True
+          assert receipt['ground_source_position_m'] == [0.0, -0.23, 0.0]
+          assert receipt['ground_source_size_m'] == [1800.0, 0.4, 1800.0]
+          assert abs(receipt['ground_top_y_m'] - (-0.03)) < 1e-9
+          assert receipt['player_camera_source_path'] == 'Player/CameraPivot/SpringArm3D/Camera3D'
+          assert abs(receipt['player_camera_fov_deg'] - 69.0) < 1e-9
+          assert abs(receipt['player_spring_length_m'] - 4.9) < 1e-9
+          assert receipt['player_camera_provenance_present'] is True
+          assert receipt['sample_indices'] == [68, 69, 70, 71]
+          assert receipt['capture_count'] == 4
+          assert receipt['same_sample_ground_evidence'] is True
+          assert receipt['max_pose_origin_error_m'] <= 1e-4
+          assert len(receipt['samples']) == 4
+          assert all(s['ground_collider_name'] == 'CanonicalMainGround' for s in receipt['samples'])
+          for key in ('planted_contact_claimed','quantitative_foot_slide_candidate','animation_correction_authorized','runtime_authorized','visual_approval_claimed','player_view_claimed'):
+              assert receipt[key] is False
+          pngs = sorted(Path('/tmp/civ1same/captures').glob('rightfoot-ground-*.png'))
+          assert len(pngs) == 4
+          for p in pngs:
+              data = p.read_bytes()[:24]
+              assert data[:8] == b'\x89PNG\r\n\x1a\n'
+              width, height = struct.unpack('>II', data[16:24])
+              assert (width, height) == (1280, 720)
+              assert p.stat().st_size > 0
+          print('CIV1_RIGHTFOOT_SAME_SAMPLE_GROUND_RECEIPT_OK captures=4')
+          PY
+
+      - name: Upload immutable same-sample Ground evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-rightfoot-same-sample-ground-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/civ1same/out
+            /tmp/civ1same/captures
+          if-no-files-found: error
+          retention-days: 90

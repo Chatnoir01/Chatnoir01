@@ -1,0 +1,60 @@
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+EVIDENCE = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
+RECEIPT = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json"
+
+EXPECTED_RECEIPT_KEYS = {"schema", "repository", "workflow_run", "artifact", "authorization", "scope_note"}
+EXPECTED_RUN_KEYS = {"id", "head_sha"}
+EXPECTED_ARTIFACT_KEYS = {"id", "name", "size_in_bytes", "digest"}
+EXPECTED_AUTHORIZATION_KEYS = {
+    "crosswalk_authorized",
+    "road_cell_mapping_authorized",
+    "runtime_mount_authorized",
+    "rendered_geometry_authorized",
+    "collision_authorized",
+    "safe_spawn_authorized",
+    "jouable_promotion_authorized",
+}
+
+
+def _exact_keys(payload, expected, label):
+    assert isinstance(payload, dict), f"{label} must be an object"
+    assert set(payload) == expected, f"{label} schema drift: {set(payload) ^ expected}"
+
+
+def test_origin_artifact_receipt_matches_locked_crosswalk_evidence():
+    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+    receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
+
+    _exact_keys(receipt, EXPECTED_RECEIPT_KEYS, "artifact receipt")
+    assert receipt["schema"] == "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1"
+    assert receipt["repository"] == "Chatnoir01/Chatnoir01"
+
+    run = receipt["workflow_run"]
+    artifact = receipt["artifact"]
+    authorization = receipt["authorization"]
+    owner = evidence["source_owner"]
+
+    _exact_keys(run, EXPECTED_RUN_KEYS, "workflow run")
+    _exact_keys(artifact, EXPECTED_ARTIFACT_KEYS, "artifact")
+    _exact_keys(authorization, EXPECTED_AUTHORIZATION_KEYS, "artifact receipt authorization")
+
+    assert run == {"id": 34248313500, "head_sha": "9fdbf01073deb311097bcc70e2e8b627a004a8b1"}
+    assert artifact == {
+        "id": 10065069360,
+        "name": "road-registered-cell-overlap-v2-candidate",
+        "size_in_bytes": 2473,
+        "digest": "sha256:7c6dbd4e1ce3feeca476d60acfb147f97dd4cd43a0bc1063ca2d12059a230894",
+    }
+
+    assert owner["run_id"] == run["id"]
+    assert owner["head_sha"] == run["head_sha"]
+    assert owner["artifact_id"] == artifact["id"]
+    assert owner["artifact_name"] == artifact["name"]
+    assert owner["artifact_digest"] == artifact["digest"]
+
+    assert authorization and all(type(value) is bool and value is False for value in authorization.values())
+    assert isinstance(receipt["scope_note"], str) and receipt["scope_note"].strip() == receipt["scope_note"]
+    assert receipt["scope_note"]

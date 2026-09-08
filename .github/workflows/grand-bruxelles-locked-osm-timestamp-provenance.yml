@@ -1,0 +1,32 @@
+name: Grand Bruxelles Locked OSM Timestamp Provenance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-locked-osm-timestamp-provenance.yml'
+      - 'grand-bruxelles-game/data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json'
+      - 'grand-bruxelles-game/tools/city_machine/validate_locked_osm_timestamp_provenance.py'
+      - 'grand-bruxelles-game/tests/test_locked_osm_timestamp_provenance_contract.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-locked-osm-timestamps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Reproduce locked timestamp provenance contract
+        run: python -m pytest -q tests/test_locked_osm_timestamp_provenance_contract.py
+      - name: Validate OSM base timestamps against pinned acquisition run
+        run: python tools/city_machine/validate_locked_osm_timestamp_provenance.py

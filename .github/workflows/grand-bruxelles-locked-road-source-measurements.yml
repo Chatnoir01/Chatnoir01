@@ -1,0 +1,41 @@
+name: Grand Bruxelles Locked Road Source Measurements
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/brussels_locked_road_source_measurements.lock.json'
+      - 'grand-bruxelles-game/tools/city_machine/build_locked_road_source_measurement_manifest.py'
+      - 'grand-bruxelles-game/tests/test_locked_road_source_measurement_manifest.py'
+      - '.github/workflows/grand-bruxelles-locked-road-source-measurements.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-locked-road-source-measurements:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          test "$(git merge-base "$PR_HEAD_SHA" origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Validate deterministic locked source measurements
+        run: python -m pytest -q grand-bruxelles-game/tests/test_locked_road_source_measurement_manifest.py

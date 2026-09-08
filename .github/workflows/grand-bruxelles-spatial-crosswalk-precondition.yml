@@ -1,0 +1,65 @@
+name: Grand Bruxelles Spatial Crosswalk Precondition
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/source_plans/brussels_locked_road_source_measurements.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_precondition.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json'
+      - 'grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_repository_content_receipt.lock.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/cell_manifests/**.json'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - 'grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_precondition.py'
+      - 'grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_repository_content_receipt.py'
+      - 'grand-bruxelles-game/tests/test_spatial_crosswalk_precondition.py'
+      - 'grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_origin_evidence.py'
+      - 'grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_origin_artifact_receipt.py'
+      - 'grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_repository_content_binding.py'
+      - 'grand-bruxelles-game/tests/test_spatial_crosswalk_repository_content_cli_binding.py'
+      - '.github/workflows/grand-bruxelles-spatial-crosswalk-precondition.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-spatial-crosswalk-precondition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          test "$(git merge-base "$PR_HEAD_SHA" origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Reproduce fail-closed spatial crosswalk regressions
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m pytest -q \
+            tests/test_spatial_crosswalk_precondition.py \
+            tests/test_brussels_spatial_crosswalk_origin_evidence.py \
+            tests/test_brussels_spatial_crosswalk_origin_artifact_receipt.py \
+            tests/test_brussels_spatial_crosswalk_repository_content_binding.py \
+            tests/test_spatial_crosswalk_repository_content_cli_binding.py
+      - name: Validate canonical spatial crosswalk source bindings
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/city_machine/validate_spatial_crosswalk_repository_content_receipt.py
+          python tools/city_machine/validate_spatial_crosswalk_precondition.py

@@ -19,6 +19,32 @@ func _run() -> void:
     var player := Node3D.new()
     player.name = "Player"
     root.add_child(player)
+
+    # Regression: a source can be temporarily unavailable when the runtime first
+    # enters the tree. The runtime must remain alive so a later data_path change
+    # can use the same fail-closed reload path exercised below.
+    var startup_runtime := RUNTIME_SCRIPT.new() as Node3D
+    startup_runtime.name = "StartupRecoveryRuntime"
+    startup_runtime.set("data_path", MISSING_DATA)
+    root.add_child(startup_runtime)
+    await process_frame
+    if startup_runtime.is_processing() == false:
+        _fail("initial missing source disabled processing and made later source recovery unreachable")
+        return
+    if _count_points(startup_runtime) != 0 or startup_runtime.has_meta("source") or startup_runtime.has_meta("license"):
+        _fail("initial missing source did not remain fail-closed")
+        return
+    startup_runtime.set("data_path", JETTE_DATA)
+    await process_frame
+    if _count_points(startup_runtime) <= 0:
+        _fail("runtime did not recover after initial missing source became valid")
+        return
+    if str(startup_runtime.get_meta("source", "")) != "OpenStreetMap contributors via Overpass API" or str(startup_runtime.get_meta("license", "")) != "ODbL-1.0":
+        _fail("initial-source recovery restored incorrect provenance")
+        return
+    startup_runtime.queue_free()
+    await process_frame
+
     var runtime := RUNTIME_SCRIPT.new() as Node3D
     runtime.name = "EnvironmentRuntime"
     runtime.set("data_path", JETTE_DATA)
@@ -49,5 +75,5 @@ func _run() -> void:
         _fail("restored source provenance is incorrect")
         return
 
-    print("BRUSSELS_OSM_SOURCE_PATH_REFRESH_OK: initial_points=%d stale_points=0 restored_points=%d" % [initial_count, _count_points(runtime)])
+    print("BRUSSELS_OSM_SOURCE_PATH_REFRESH_OK: initial_recovery=true initial_points=%d stale_points=0 restored_points=%d" % [initial_count, _count_points(runtime)])
     quit(0)

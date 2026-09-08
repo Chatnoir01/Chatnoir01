@@ -39,6 +39,7 @@ var _last_selection_limits := Vector3i(-1, -1, -1)
 var _last_render_radius_m := INF
 var _loaded_data_path := ""
 var _last_source_attempt_path := ""
+var _last_source_failure_retryable := false
 # Runtime-local cache: these meshes/materials are authored presentation resources,
 # independent of source point selection. Keep them stable across transform refreshes.
 var _presentation_meshes: Dictionary = {}
@@ -48,7 +49,8 @@ func _ready() -> void:
         set_process(false)
         return
     if not _load_points():
-        set_process(false)
+        if not _last_source_failure_retryable:
+            set_process(false)
         return
     call_deferred("_refresh", true)
 
@@ -99,12 +101,15 @@ func _load_points() -> bool:
     # If validation fails, retaining any previously trusted points/provenance or
     # materialized batches would present stale data under the rejected data_path.
     _last_source_attempt_path = data_path
+    _last_source_failure_retryable = false
     _reset_loaded_source_state()
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
+        _last_source_failure_retryable = true
         push_error("OSM environment artifact missing: %s" % data_path)
         return false
     var file := FileAccess.open(data_path, FileAccess.READ)
     if file == null:
+        _last_source_failure_retryable = true
         push_error("OSM environment artifact unreadable: %s" % data_path)
         return false
     var parsed = JSON.parse_string(file.get_as_text())
@@ -327,6 +332,8 @@ func _refresh(force: bool) -> void:
     if data_path != _last_source_attempt_path:
         if not _load_points():
             _set_batches_visible(false)
+            if not _last_source_failure_retryable:
+                set_process(false)
             return
     if _loaded_data_path != data_path:
         _set_batches_visible(false)

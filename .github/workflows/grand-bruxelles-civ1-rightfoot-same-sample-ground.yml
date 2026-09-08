@@ -94,7 +94,6 @@ jobs:
           shopt -s dotglob
           cp -a grand-bruxelles-game/* /tmp/civ1same/project/
           cp grand-bruxelles-game/tools/godot_civ1_rightfoot_same_sample_ground_witness.gd /tmp/civ1same/project/godot_civ1_rightfoot_same_sample_ground_witness.gd
-          cp /tmp/civ1same/project/civ1_body.glb /tmp/civ1same/project/civ1_body.glb
           GODOT=/tmp/civ1same/engine/Godot_v4.7.1-stable_linux.x86_64
           "$GODOT" --headless --editor --path /tmp/civ1same/project --quit 2>&1 | tee /tmp/civ1same/out/import.log
 

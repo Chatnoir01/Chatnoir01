@@ -2,6 +2,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
 PRECONDITION = ROOT / "data/source_plans/brussels_spatial_crosswalk_precondition.lock.json"
@@ -52,15 +54,44 @@ EXPECTED_AUTHORIZATION_KEYS = {
 }
 
 
+def _reject_duplicate_pairs(pairs):
+    payload = {}
+    for key, value in pairs:
+        if key in payload:
+            raise ValueError(f"duplicate JSON key: {key}")
+        payload[key] = value
+    return payload
+
+
+def _load_json_strict(path):
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_pairs)
+
+
+def _load_json_bytes_strict(raw):
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_pairs)
+
+
 def _assert_exact_keys(payload, expected, label):
     assert isinstance(payload, dict), f"{label} must be an object"
     assert set(payload) == expected, f"{label} schema drift: {set(payload) ^ expected}"
 
 
+def test_origin_evidence_duplicate_keys_fail_closed():
+    canonical = EVIDENCE.read_bytes()
+    duplicate = canonical.replace(
+        b'{\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-evidence-v1",',
+        b'{\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-evidence-v1",\n  "schema": "grand-bruxelles-spatial-crosswalk-origin-evidence-v1",',
+        1,
+    )
+    assert duplicate != canonical
+    with pytest.raises(ValueError, match="duplicate JSON key: schema"):
+        _load_json_bytes_strict(duplicate)
+
+
 def test_spatial_crosswalk_origin_evidence_is_pinned_and_fail_closed():
-    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
-    precondition = json.loads(PRECONDITION.read_text(encoding="utf-8"))
-    midi = json.loads(MIDI_CANDIDATE.read_text(encoding="utf-8"))
+    evidence = _load_json_strict(EVIDENCE)
+    precondition = _load_json_strict(PRECONDITION)
+    midi = _load_json_strict(MIDI_CANDIDATE)
 
     _assert_exact_keys(evidence, EXPECTED_TOP_LEVEL_KEYS, "origin evidence")
     assert evidence["schema"] == "grand-bruxelles-spatial-crosswalk-origin-evidence-v1"

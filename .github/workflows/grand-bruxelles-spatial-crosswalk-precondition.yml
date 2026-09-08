@@ -19,6 +19,7 @@ on:
       - 'grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_origin_artifact_receipt.py'
       - 'grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_repository_content_binding.py'
       - 'grand-bruxelles-game/tests/test_spatial_crosswalk_repository_content_cli_binding.py'
+      - 'grand-bruxelles-game/tests/test_spatial_crosswalk_repository_content_immutable_identity.py'
       - '.github/workflows/grand-bruxelles-spatial-crosswalk-precondition.yml'
   workflow_dispatch:
 
@@ -57,7 +58,8 @@ jobs:
             tests/test_brussels_spatial_crosswalk_origin_evidence.py \
             tests/test_brussels_spatial_crosswalk_origin_artifact_receipt.py \
             tests/test_brussels_spatial_crosswalk_repository_content_binding.py \
-            tests/test_spatial_crosswalk_repository_content_cli_binding.py
+            tests/test_spatial_crosswalk_repository_content_cli_binding.py \
+            tests/test_spatial_crosswalk_repository_content_immutable_identity.py
       - name: Validate canonical spatial crosswalk source bindings
         working-directory: grand-bruxelles-game
         run: |

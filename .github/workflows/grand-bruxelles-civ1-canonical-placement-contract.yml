@@ -42,7 +42,11 @@ jobs:
             echo "head=${{ github.event.pull_request.head.sha || github.sha }}"
             echo "phase_minima_artifact=10057731450"
             echo "phase_minima_digest=sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f"
-            echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v1"
+            echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v2"
+            sha256sum \
+              grand-bruxelles-game/game/main.tscn \
+              grand-bruxelles-game/game/scripts/npc_agent.gd \
+              grand-bruxelles-game/game/scripts/npc_population_director.gd
           } > /tmp/civ1placement/out/run-context.txt
       - name: Run causal regression
         run: python grand-bruxelles-game/tests/test_civ1_canonical_placement_contract.py
@@ -59,7 +63,7 @@ jobs:
           import json
           from pathlib import Path
           r=json.loads(Path('/tmp/civ1placement/out/canonical-placement-contract.json').read_text())
-          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v2'
+          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v3'
           assert abs(r['canonical_ground']['top_y_m'] - (-0.03)) <= 1e-12
           assert r['canonical_ground']['use_collision'] is True
           assert r['runtime']['population_director_loaded'] is True
@@ -68,12 +72,17 @@ jobs:
           assert r['runtime']['spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['pooled_spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['grounding_mechanism_hits'] == []
-          assert r['runtime_witness']['schema']=='grand-bruxelles-civ1-runtime-placement-witness-v1'
+          assert set(r['runtime']['input_sha256']) == {'main_scene_sha256','npc_agent_sha256','npc_director_sha256'}
+          assert all(v.startswith('sha256:') and len(v)==71 for v in r['runtime']['input_sha256'].values())
+          assert r['runtime_witness']['schema']=='grand-bruxelles-civ1-runtime-placement-witness-v2'
           assert r['runtime_witness']['present'] is False
           assert r['runtime_witness']['validated'] is False
           assert r['runtime_witness']['validation_errors'] == []
           assert 'world_transform.origin_m' in r['runtime_witness']['required_fields']
           assert 'world_transform.basis_rows' in r['runtime_witness']['required_fields']
+          assert 'runtime_inputs.main_scene_sha256' in r['runtime_witness']['required_fields']
+          assert 'runtime_inputs.npc_agent_sha256' in r['runtime_witness']['required_fields']
+          assert 'runtime_inputs.npc_director_sha256' in r['runtime_witness']['required_fields']
           assert r['canonical_character_placement_available'] is False
           assert r['ground_contact_classifiable'] is False
           assert r['contact_proof_claimed'] is False

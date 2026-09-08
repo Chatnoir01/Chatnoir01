@@ -9,6 +9,8 @@ const OUTPUT_PATH := "res://artifacts/qa/midi_automatic_road_render_identity.jso
 const SAMPLE_LIMIT := 64
 const HIDDEN_SAMPLE_LIMIT := 8
 const ANCESTRY_DEPTH_LIMIT := 12
+const SUPPORT_RAY_UP_M := 4.0
+const SUPPORT_RAY_DOWN_M := 8.0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -81,12 +83,6 @@ func _renderable_geometry(node: GeometryInstance3D) -> bool:
         return true
     return false
 
-func _metadata_mentions(node: Node, token: String) -> bool:
-    for key: StringName in node.get_meta_list():
-        if str(node.get_meta(key)).contains(token):
-            return true
-    return false
-
 func _metadata_snapshot(node: Node) -> Dictionary:
     var snapshot: Dictionary = {}
     for key: StringName in node.get_meta_list():
@@ -105,6 +101,12 @@ func _metadata_snapshot(node: Node) -> Dictionary:
             if valid:
                 snapshot[str(key)] = simple
     return snapshot
+
+func _metadata_mentions(node: Node, token: String) -> bool:
+    for key: StringName in node.get_meta_list():
+        if str(node.get_meta(key)).contains(token):
+            return true
+    return false
 
 func _ancestor_chain(node: Node3D) -> Array[Dictionary]:
     var chain: Array[Dictionary] = []
@@ -141,6 +143,49 @@ func _visibility_reason(node: GeometryInstance3D) -> String:
         var hidden_ancestor := _first_hidden_3d_ancestor(node)
         return "ancestor_hidden:%s" % hidden_ancestor if not hidden_ancestor.is_empty() else "tree_hidden_unknown"
     return "visible_renderable"
+
+func _vector3_json(value: Vector3) -> Dictionary:
+    return {"x": value.x, "y": value.y, "z": value.z}
+
+func _support_probe(node: GeometryInstance3D) -> Dictionary:
+    var origin := node.global_position + Vector3(0.0, SUPPORT_RAY_UP_M, 0.0)
+    var finish := node.global_position - Vector3(0.0, SUPPORT_RAY_DOWN_M, 0.0)
+    var result := {
+        "ray_from": _vector3_json(origin),
+        "ray_to": _vector3_json(finish),
+        "hit": false,
+        "collider_path": "",
+        "collider_class": "",
+        "collision_layer": 0,
+        "position": {},
+        "normal": {},
+        "metadata": {},
+    }
+    var world := node.get_world_3d()
+    if world == null:
+        return result
+    var query := PhysicsRayQueryParameters3D.create(origin, finish)
+    query.collide_with_areas = false
+    query.collide_with_bodies = true
+    var hit: Dictionary = world.direct_space_state.intersect_ray(query)
+    if hit.is_empty():
+        return result
+    result["hit"] = true
+    var position: Variant = hit.get("position", null)
+    var normal: Variant = hit.get("normal", null)
+    if position is Vector3:
+        result["position"] = _vector3_json(position)
+    if normal is Vector3:
+        result["normal"] = _vector3_json(normal)
+    var collider: Variant = hit.get("collider", null)
+    if collider is Node:
+        var collider_node := collider as Node
+        result["collider_path"] = collider_node.get_path().get_concatenated_names()
+        result["collider_class"] = collider_node.get_class()
+        result["metadata"] = _metadata_snapshot(collider_node)
+        if collider_node is CollisionObject3D:
+            result["collision_layer"] = (collider_node as CollisionObject3D).collision_layer
+    return result
 
 func _run() -> void:
     var document := _document()
@@ -191,6 +236,8 @@ func _run() -> void:
                 road_named_samples.append(name)
 
     var rows: Array[Dictionary] = []
+    var total_hidden_samples := 0
+    var total_hidden_support_hits := 0
     for osm_id: int in ids:
         var prefix := "Road_%d_" % osm_id
         var token := str(osm_id)
@@ -200,6 +247,7 @@ func _run() -> void:
         var exact_renderable := 0
         var token_named := 0
         var metadata_mentions := 0
+        var support_hits := 0
         var reasons: Dictionary = {}
         var hidden_ancestors: Dictionary = {}
         var samples: Array[String] = []
@@ -223,11 +271,17 @@ func _run() -> void:
                 if reason == "visible_renderable":
                     exact_visible_renderable += 1
                 elif hidden_identity_samples.size() < HIDDEN_SAMPLE_LIMIT:
+                    var support := _support_probe(geometry)
+                    if bool(support.get("hit", false)):
+                        support_hits += 1
+                        total_hidden_support_hits += 1
+                    total_hidden_samples += 1
                     hidden_identity_samples.append({
                         "path": geometry.get_path().get_concatenated_names(),
                         "reason": reason,
                         "metadata": _metadata_snapshot(geometry),
                         "ancestor_chain": _ancestor_chain(geometry),
+                        "support_probe": support,
                     })
             if token_hit:
                 token_named += 1
@@ -245,11 +299,12 @@ func _run() -> void:
             "visibility_reasons": reasons,
             "hidden_ancestors": hidden_ancestors,
             "hidden_identity_samples": hidden_identity_samples,
+            "hidden_support_hits": support_hits,
             "id_token_named_geometry": token_named,
             "metadata_mentions": metadata_mentions,
             "samples": samples,
         })
-        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d reasons=%s hidden_ancestors=%s hidden_identity_samples=%d" % [osm_id, exact_named, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, JSON.stringify(reasons), JSON.stringify(hidden_ancestors), hidden_identity_samples.size()])
+        print("MIDI_ROAD_RENDER_IDENTITY_ROW: osm_id=%d exact=%d self_visible=%d renderable=%d visible_renderable=%d token=%d metadata=%d support_hits=%d reasons=%s hidden_ancestors=%s hidden_identity_samples=%d" % [osm_id, exact_named, exact_self_visible, exact_renderable, exact_visible_renderable, token_named, metadata_mentions, support_hits, JSON.stringify(reasons), JSON.stringify(hidden_ancestors), hidden_identity_samples.size()])
 
     var output := {
         "schema": "grand-bruxelles-midi-road-render-identity-v3",
@@ -262,6 +317,9 @@ func _run() -> void:
         "road_visibility_reasons": road_visibility_reasons,
         "road_named_samples": road_named_samples,
         "hidden_identity_proof": true,
+        "hidden_support_probe_count": total_hidden_samples,
+        "hidden_support_hit_count": total_hidden_support_hits,
+        "hidden_support_probe_independent": true,
         "rows": rows,
         "diagnostic_only": true,
         "source_geometry_changed": false,
@@ -279,5 +337,5 @@ func _run() -> void:
         return
     file.store_string(JSON.stringify(output, "  ", true) + "\n")
     file.close()
-    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d hidden_identity_proof=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable])
+    print("MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN: candidates=%d geometry=%d road_named=%d road_named_visible_renderable=%d hidden_support_probes=%d hidden_support_hits=%d hidden_identity_proof=true destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), all_geometry.size(), road_named_total, road_named_visible_renderable, total_hidden_samples, total_hidden_support_hits])
     quit(0)

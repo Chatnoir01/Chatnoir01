@@ -1,0 +1,161 @@
+name: Grand Bruxelles Midi Automatic Road Blocker Attribution
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/tests/midi_automatic_road_blocker_attribution_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_automatic_road_render_identity_probe_test.gd"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - ".github/workflows/grand-bruxelles-midi-automatic-road-blocker-attribution.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  blocker-attribution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" origin/main)" = "$live_main"
+          printf 'MIDI_BLOCKER_BASE_SHA=%s\n' "$live_main" >> "$GITHUB_ENV"
+          printf 'MIDI_BLOCKER_HEAD_SHA=%s\n' "$PR_HEAD_SHA" >> "$GITHUB_ENV"
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install verified Godot 4.7.1
+        shell: bash
+        env:
+          GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -E '^4\.7\.1\.stable\.'
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-blocker-import.log
+          test "${PIPESTATUS[0]}" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-blocker-import.log
+      - name: Attribute each Midi Fonsny candidate blocker
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/midi_automatic_road_blocker_attribution_test.gd 2>&1 | tee /tmp/midi-blocker-runtime.log
+          test "${PIPESTATUS[0]}" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|MIDI_AUTOMATIC_ROAD_BLOCKER_ATTRIBUTION_FAIL" /tmp/midi-blocker-runtime.log
+          grep -q "MIDI_AUTOMATIC_ROAD_BLOCKER_ATTRIBUTION_GREEN" /tmp/midi-blocker-runtime.log
+      - name: Probe rendered road identity contract with durable RED evidence
+        shell: bash
+        run: |
+          set -uo pipefail
+          stage=/tmp/midi-road-blocker-attribution
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp /tmp/midi-blocker-runtime.log "$stage/runtime.log" 2>/dev/null || true
+          cp /tmp/midi-blocker-import.log "$stage/import.log" 2>/dev/null || true
+          set +e
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/midi_automatic_road_render_identity_probe_test.gd 2>&1 | tee "$stage/render-identity.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > "$stage/probe-exit-code.txt"
+          cp grand-bruxelles-game/artifacts/qa/midi_automatic_road_blockers.json "$stage/blockers-preseal.json" 2>/dev/null || true
+          cp grand-bruxelles-game/artifacts/qa/midi_automatic_road_render_identity.json "$stage/render-identity-preseal.json" 2>/dev/null || true
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_FAIL" "$stage/render-identity.log"; then status=1; fi
+          if ! grep -q "MIDI_AUTOMATIC_ROAD_RENDER_IDENTITY_GREEN" "$stage/render-identity.log"; then status=1; fi
+          printf '%s\n' "$status" > "$stage/probe-effective-exit-code.txt"
+          exit "$status"
+      - name: Seal fail-closed attribution evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="grand-bruxelles-game/artifacts/qa/midi_automatic_road_blockers.json"
+          identity="grand-bruxelles-game/artifacts/qa/midi_automatic_road_render_identity.json"
+          test -s "$result"
+          test -s "$identity"
+          stage=/tmp/midi-road-blocker-attribution
+          mkdir -p "$stage"
+          cp "$result" "$stage/blockers.json"
+          cp "$identity" "$stage/render-identity.json"
+          cp /tmp/midi-blocker-runtime.log "$stage/runtime.log"
+          cp /tmp/midi-blocker-import.log "$stage/import.log"
+          python3 - "$stage/blockers.json" "$stage/render-identity.json" <<'PY'
+          import json,os,pathlib,sys
+          p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text())
+          identity_path=pathlib.Path(sys.argv[2]); identity=json.loads(identity_path.read_text())
+          assert d['schema']=='grand-bruxelles-midi-automatic-road-blocker-attribution-v1'
+          assert isinstance(d['candidate_count'],int) and d['candidate_count']>0
+          assert len(d['rows'])==d['candidate_count']
+          allowed={'source_bundle','rendered_geometry','safe_viewpoint','exact_road_support','ready'}
+          seen=set()
+          for row in d['rows']:
+              oid=row['osm_id']; assert isinstance(oid,int) and oid>0 and oid not in seen; seen.add(oid)
+              assert row['first_blocker'] in allowed
+              expected = bool(row['source_bundle'] and row['rendered_geometry'] and row['safe_viewpoint'] and row['exact_road_support'])
+              assert bool(row['apply_to_player']) == expected
+          assert sum(int(d['blocker_counts'][k]) for k in allowed)==d['candidate_count']
+          assert d['resolver_contract_unchanged'] is True and d['source_geometry_changed'] is False and d['collision_changed'] is False
+          assert d['destination_advertisable'] is False and d['visual_acceptance'] is False and d['jouable_authorized'] is False
+          assert identity['schema']=='grand-bruxelles-midi-road-render-identity-v2'
+          assert identity['source_sha256']==d['source_sha256']
+          assert set(identity['candidate_ids'])==seen
+          assert len(identity['rows'])==d['candidate_count']
+          assert isinstance(identity['road_visibility_reasons'],dict)
+          for row in identity['rows']:
+              assert row['osm_id'] in seen
+              exact=int(row['exact_named_geometry'])
+              self_visible=int(row['exact_self_visible_geometry'])
+              renderable=int(row['exact_renderable_geometry'])
+              tree_visible=int(row['exact_visible_renderable_geometry'])
+              assert 0 <= self_visible <= exact
+              assert 0 <= renderable <= exact
+              assert 0 <= tree_visible <= min(self_visible,renderable)
+              reasons=row['visibility_reasons']; assert isinstance(reasons,dict)
+              assert sum(int(v) for v in reasons.values())==exact
+              hidden=row['hidden_ancestors']; assert isinstance(hidden,dict)
+              assert all(isinstance(k,str) and k and int(v)>0 for k,v in hidden.items())
+          assert identity['diagnostic_only'] is True and identity['source_geometry_changed'] is False
+          assert identity['collision_changed'] is False and identity['resolver_changed'] is False
+          assert identity['destination_advertisable'] is False and identity['visual_acceptance'] is False and identity['jouable_authorized'] is False
+          d['base_sha']=os.environ.get('MIDI_BLOCKER_BASE_SHA','')
+          d['head_sha']=os.environ.get('MIDI_BLOCKER_HEAD_SHA','')
+          identity['base_sha']=d['base_sha']; identity['head_sha']=d['head_sha']
+          p.write_text(json.dumps(d,indent=2,sort_keys=True)+'\n')
+          identity_path.write_text(json.dumps(identity,indent=2,sort_keys=True)+'\n')
+          PY
+          cp "$stage/render-identity.log" /tmp/midi-render-identity.log
+          (cd "$stage" && find . -maxdepth 1 -type f ! -name evidence-sha256.txt -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > evidence-sha256.txt)
+      - name: Revalidate exact proof identity
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$MIDI_BLOCKER_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$MIDI_BLOCKER_HEAD_SHA"
+      - name: Upload blocker attribution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-automatic-road-blocker-attribution
+          path: /tmp/midi-road-blocker-attribution/
+          if-no-files-found: error

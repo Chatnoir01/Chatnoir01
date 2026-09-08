@@ -1,0 +1,86 @@
+name: Grand Bruxelles CIV-1 Canonical Placement Contract
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_canonical_placement_contract.py'
+      - 'grand-bruxelles-game/tests/test_civ1_canonical_placement_contract.py'
+      - '.github/workflows/grand-bruxelles-civ1-canonical-placement-contract.yml'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/game/scripts/npc_agent.gd'
+      - 'grand-bruxelles-game/game/scripts/npc_population_director.gd'
+permissions:
+  contents: read
+jobs:
+  canonical-placement-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and Character/NPC QA ownership boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "df0be8d795556ad0673c95e2df97e8276755fcb3"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- \
+            grand-bruxelles-game/game/main.tscn \
+            grand-bruxelles-game/game/scripts \
+            grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare immutable run context
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1placement/out
+          {
+            echo "validated_main=df0be8d795556ad0673c95e2df97e8276755fcb3"
+            echo "head=${{ github.event.pull_request.head.sha || github.sha }}"
+            echo "phase_minima_artifact=10057731450"
+            echo "phase_minima_digest=sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f"
+          } > /tmp/civ1placement/out/run-context.txt
+      - name: Run causal regression
+        run: python grand-bruxelles-game/tests/test_civ1_canonical_placement_contract.py
+      - name: Classify current canonical placement availability
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_canonical_placement_contract.py \
+            grand-bruxelles-game/game/main.tscn \
+            grand-bruxelles-game/game/scripts/npc_agent.gd \
+            grand-bruxelles-game/game/scripts/npc_population_director.gd \
+            /tmp/civ1placement/out/canonical-placement-contract.json \
+            | tee /tmp/civ1placement/out/classifier.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/civ1placement/out/canonical-placement-contract.json').read_text())
+          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v1'
+          assert abs(r['canonical_ground']['top_y_m'] - (-0.03)) <= 1e-12
+          assert r['canonical_ground']['use_collision'] is True
+          assert r['runtime']['population_director_loaded'] is True
+          assert r['runtime']['runtime_integration_loaded'] is True
+          assert r['runtime']['npc_agent_instance_authored_in_main'] is False
+          assert r['runtime']['spawn_y_is_copied_verbatim'] is True
+          assert r['runtime']['pooled_spawn_y_is_copied_verbatim'] is True
+          assert r['runtime']['grounding_mechanism_hits'] == []
+          assert r['canonical_character_placement_available'] is False
+          assert r['ground_contact_classifiable'] is False
+          assert r['contact_proof_claimed'] is False
+          assert r['quantitative_foot_slide_candidate'] is False
+          assert r['runtime_change_authorized'] is False
+          assert r['visual_approval_claimed'] is False
+          assert r['player_view_claimed'] is False
+          print('CIV1_CANONICAL_PLACEMENT_RECEIPT_OK', r)
+          PY
+      - name: Upload canonical placement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-canonical-placement-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1placement/out
+          if-no-files-found: error
+          retention-days: 90

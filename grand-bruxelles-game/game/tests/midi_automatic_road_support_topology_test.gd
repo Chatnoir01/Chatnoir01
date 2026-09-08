@@ -8,7 +8,8 @@ const MIDI_ANCHOR_ID := "midi"
 const MAX_DISTANCE_M := 80.0
 const SUPPORT_RAY_UP_M := 4.0
 const SUPPORT_RAY_DOWN_M := 8.0
-const PROBE_BASIS := "mesh_aabb_center_world"
+const PROBE_BASIS := "nearest_triangle_centroid_to_mesh_aabb_center"
+const TRIANGLE_AREA_EPSILON_SQ := 0.000000000001
 const EXPECTED_COLLIDER_SUFFIX := "/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways/ExactRoadCarriageways_col"
 const EXPECTED_OWNER_SUFFIX := "/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways"
 
@@ -83,21 +84,73 @@ func _visual_owner(collider: Node) -> GeometryInstance3D:
 func _path_string(node: Node) -> String:
     return node.get_path().get_concatenated_names()
 
+func _consider_triangle(best: Dictionary, target: Vector3, vertices: PackedVector3Array, surface_index: int, triangle_index: int, ia: int, ib: int, ic: int) -> Dictionary:
+    if ia < 0 or ib < 0 or ic < 0 or ia >= vertices.size() or ib >= vertices.size() or ic >= vertices.size():
+        return best
+    var a := vertices[ia]
+    var b := vertices[ib]
+    var c := vertices[ic]
+    if ((b - a).cross(c - a)).length_squared() <= TRIANGLE_AREA_EPSILON_SQ:
+        return best
+    var centroid := (a + b + c) / 3.0
+    var distance_sq := centroid.distance_squared_to(target)
+    if best.is_empty() or distance_sq < float(best.get("distance_sq", INF)):
+        return {
+            "distance_sq": distance_sq,
+            "surface_index": surface_index,
+            "triangle_index": triangle_index,
+            "local_centroid": centroid,
+        }
+    return best
+
 func _mesh_probe_point(node: MeshInstance3D) -> Dictionary:
     if node.mesh == null:
         return {"valid": false, "reason": "mesh_unavailable"}
-    var local_aabb := node.mesh.get_aabb()
+    var mesh := node.mesh
+    var local_aabb := mesh.get_aabb()
     if local_aabb.size.length_squared() <= 0.0:
         return {"valid": false, "reason": "empty_mesh_aabb"}
-    var local_center := local_aabb.get_center()
-    var world_center := node.global_transform * local_center
-    if not world_center.is_finite():
-        return {"valid": false, "reason": "non_finite_mesh_center"}
+    var target := local_aabb.get_center()
+    var best: Dictionary = {}
+    for surface_index: int in range(mesh.get_surface_count()):
+        if mesh.surface_get_primitive_type(surface_index) != Mesh.PRIMITIVE_TRIANGLES:
+            continue
+        var arrays: Array = mesh.surface_get_arrays(surface_index)
+        if arrays.size() <= Mesh.ARRAY_INDEX:
+            continue
+        var vertices_variant: Variant = arrays[Mesh.ARRAY_VERTEX]
+        if not vertices_variant is PackedVector3Array:
+            continue
+        var vertices := vertices_variant as PackedVector3Array
+        if vertices.size() < 3:
+            continue
+        var indices_variant: Variant = arrays[Mesh.ARRAY_INDEX]
+        if indices_variant is PackedInt32Array and not (indices_variant as PackedInt32Array).is_empty():
+            var indices := indices_variant as PackedInt32Array
+            var triangle_count := indices.size() / 3
+            for triangle_index: int in range(triangle_count):
+                var offset := triangle_index * 3
+                best = _consider_triangle(best, target, vertices, surface_index, triangle_index, indices[offset], indices[offset + 1], indices[offset + 2])
+        else:
+            var triangle_count := vertices.size() / 3
+            for triangle_index: int in range(triangle_count):
+                var offset := triangle_index * 3
+                best = _consider_triangle(best, target, vertices, surface_index, triangle_index, offset, offset + 1, offset + 2)
+    if best.is_empty():
+        return {"valid": false, "reason": "no_non_degenerate_triangle"}
+    var local_centroid := best.get("local_centroid", Vector3.ZERO) as Vector3
+    var world_position := node.global_transform * local_centroid
+    if not world_position.is_finite():
+        return {"valid": false, "reason": "non_finite_triangle_centroid"}
     return {
         "valid": true,
         "basis": PROBE_BASIS,
-        "local_aabb_center": [local_center.x, local_center.y, local_center.z],
-        "world_position": [world_center.x, world_center.y, world_center.z],
+        "surface_index": int(best.get("surface_index", -1)),
+        "triangle_index": int(best.get("triangle_index", -1)),
+        "local_aabb_center": [target.x, target.y, target.z],
+        "local_triangle_centroid": [local_centroid.x, local_centroid.y, local_centroid.z],
+        "world_position": [world_position.x, world_position.y, world_position.z],
+        "distance_to_aabb_center_m": sqrt(float(best.get("distance_sq", 0.0))),
     }
 
 func _support_probe(node: MeshInstance3D) -> Dictionary:
@@ -191,7 +244,7 @@ func _run() -> void:
                         errors.append("road-%d leaf unexpectedly visible: %s" % [osm_id, _path_string(geometry)])
                     var support := _support_probe(geometry)
                     if not bool(support.get("hit", false)):
-                        errors.append("road-%d leaf has no physical support at mesh center: %s (%s)" % [osm_id, _path_string(geometry), str(support.get("reason", "unknown"))])
+                        errors.append("road-%d leaf has no physical support at sampled triangle: %s (%s)" % [osm_id, _path_string(geometry), str(support.get("reason", "unknown"))])
                     else:
                         support_hit_count += 1
                         var collider_path := str(support.get("collider_path", ""))
@@ -224,7 +277,7 @@ func _run() -> void:
     if rows.size() != exact_leaf_count:
         errors.append("not every exact candidate road leaf is probeable mesh geometry")
     if support_hit_count != exact_leaf_count:
-        errors.append("not every exact candidate leaf has physical support at its mesh AABB center")
+        errors.append("not every exact candidate leaf has physical support at a real sampled triangle")
     if collider_paths.size() != 1:
         errors.append("support topology is fragmented across %d collider paths" % collider_paths.size())
     if owner_paths.size() != 1:
@@ -233,7 +286,7 @@ func _run() -> void:
         errors.append("support topology uses inconsistent collision layers")
 
     var output := {
-        "schema": "grand-bruxelles-midi-automatic-road-support-topology-v2",
+        "schema": "grand-bruxelles-midi-automatic-road-support-topology-v3",
         "source_path": SOURCE_PATH,
         "source_sha256": FileAccess.get_sha256(SOURCE_PATH).to_lower(),
         "probe_basis": PROBE_BASIS,

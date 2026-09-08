@@ -106,6 +106,11 @@ func _source_availability_signature(path: String) -> String:
         return "missing"
     return "%d:%d" % [FileAccess.get_modified_time(path), FileAccess.get_size(path)]
 
+func _source_content_signature(path: String) -> String:
+    if path.is_empty() or not FileAccess.file_exists(path):
+        return "missing"
+    return FileAccess.get_sha256(path)
+
 func _record_retryable_source_failure() -> void:
     _last_retryable_source_signature = _source_availability_signature(data_path)
     _last_retryable_source_probe_msec = Time.get_ticks_msec()
@@ -117,7 +122,7 @@ func _loaded_source_should_reload(force_probe: bool) -> bool:
     if not force_probe and now_msec - _last_loaded_source_probe_msec < SOURCE_CHANGE_PROBE_MIN_INTERVAL_MSEC:
         return false
     _last_loaded_source_probe_msec = now_msec
-    return _source_availability_signature(data_path) != _loaded_source_signature
+    return _source_content_signature(data_path) != _loaded_source_signature
 
 func _retryable_source_should_reload() -> bool:
     if not _last_source_failure_retryable or _loaded_data_path == data_path:
@@ -174,7 +179,7 @@ func _load_points() -> bool:
     _loaded_data_path = data_path
     _last_retryable_source_signature = ""
     _last_retryable_source_probe_msec = 0
-    _loaded_source_signature = _source_availability_signature(data_path)
+    _loaded_source_signature = _source_content_signature(data_path)
     _last_loaded_source_probe_msec = Time.get_ticks_msec()
     set_meta("source", source)
     set_meta("license", license)

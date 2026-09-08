@@ -1,0 +1,63 @@
+name: Grand Bruxelles OSM Same-Metadata Source Update
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-same-metadata-source-update.yml"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_same_metadata_source_update_test.gd"
+      - "grand-bruxelles-game/data/osm/zones/**/environment.game.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  same-metadata-source-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and exact checked-out head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+      - name: Install verified Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_URL="https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip "$GODOT_URL"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+      - name: Import project
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log; then exit 1; fi
+      - name: Prove same-size same-mtime source replacement reloads
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_same_metadata_source_update_test.gd 2>&1 | tee /tmp/witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_SAME_METADATA_SOURCE_UPDATE_FAIL" /tmp/witness.log; then exit 1; fi
+          test "$(grep -c 'BRUSSELS_OSM_SAME_METADATA_SOURCE_UPDATE_OK' /tmp/witness.log)" -eq 1
+      - name: Upload causal witness log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-same-metadata-witness
+          path: /tmp/witness.log
+          if-no-files-found: error
+          retention-days: 7

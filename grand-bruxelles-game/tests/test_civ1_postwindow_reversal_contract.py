@@ -31,16 +31,18 @@ def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     for token in (
-        'OUTPUT_SCHEMA = "grand-bruxelles-civ1-postwindow-reversal-v1"',
+        'OUTPUT_SCHEMA = "grand-bruxelles-civ1-postwindow-reversal-v2"',
+        'TOE_SCHEMA = "grand-bruxelles-civ1-righttoebase-pose-v1"',
         'PHASE_SAMPLES = [68, 69, 70, 71]',
         'len(frames) != 120',
         'y_series(frames, "RightFoot")',
-        'optional_y_series(frames, "RightToeBase")',
-        'values[i] - values[i - 1] < 0.0',
-        'values[i + 1] - values[i] >= 0.0',
-        '"righttoebase_series_available": toe_available',
-        '"righttoebase_series_coverage_count": toe_coverage',
-        '"toe_coverage_required_before_common_candidate": not toe_available',
+        'toe_relative_transform(toe_pose)',
+        'reconstruct_toe_series(frames, toe_local)',
+        'validate_toe_anchor_samples(frames, toe_pose, toe_local)',
+        '"righttoebase_series_available": True',
+        '"righttoebase_series_coverage_count": len(toe)',
+        '"righttoebase_anchor_max_origin_error_m": toe_anchor_error',
+        '"toe_coverage_required_before_common_candidate": False',
         '"candidate_is_ground_contact_proof": False',
         '"quantitative_foot_slide_candidate": False',
         '"animation_correction_authorized": False',
@@ -58,6 +60,9 @@ def main() -> int:
     require(workflow, '353f091fe482abfe21e026ab31264315580bbfa463e9d384713cab45e88f4f87')
     require(workflow, '9996432028')
     require(workflow, '9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00')
+    require(workflow, '10024557192')
+    require(workflow, '3ec94d7b8ed10663d0ee17bf44ffec77104600a7c3006343f0dfbae13877023c')
+    require(workflow, 'righttoebase-pose.json')
     require(workflow, 'run-context.txt')
     print('CIV1_POSTWINDOW_REVERSAL_CONTRACT_OK')
     return 0

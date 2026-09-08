@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 GROUND_NODE_RE = re.compile(r'\[node name="Ground" type="CSGBox3D" parent="\."\]\n(?P<body>.*?)(?=\n\[node |\Z)', re.S)
 VEC3_RE = re.compile(r'Vector3\(([^,]+),\s*([^,]+),\s*([^\)]+)\)')
+SHA256_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
+WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v1"
 
 
 def parse_vec3(value: str) -> tuple[float, float, float]:
@@ -24,12 +28,104 @@ def extract_assignment(block: str, key: str) -> str:
     return match.group(1).strip()
 
 
+def finite_vector(value: Any, length: int) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) == length
+        and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)) for v in value)
+    )
+
+
+def validate_runtime_witness(witness: Any, ground_top_y: float) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(witness, dict):
+        return ["root:not-object"]
+
+    exact_scalars = {
+        "schema": WITNESS_SCHEMA,
+        "evidence_kind": "godot-live-loaded-scene",
+        "engine_version": "4.7.1",
+        "main_scene": "res://game/main.tscn",
+        "candidate": "CIV-1",
+        "mcp_ephemeral": True,
+        "canonical_export_modified": False,
+    }
+    for key, expected in exact_scalars.items():
+        if witness.get(key) != expected:
+            errors.append(f"{key}:expected:{expected!r}:got:{witness.get(key)!r}")
+
+    node_paths = witness.get("node_paths")
+    if not isinstance(node_paths, dict):
+        errors.append("node_paths:not-object")
+    else:
+        for key in ("npc_agent", "character_mount", "skeleton"):
+            value = node_paths.get(key)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"node_paths.{key}:missing")
+        if node_paths.get("ground") != "Main/Ground":
+            errors.append(f"node_paths.ground:expected:'Main/Ground':got:{node_paths.get('ground')!r}")
+
+    transform = witness.get("world_transform")
+    if not isinstance(transform, dict):
+        errors.append("world_transform:not-object")
+    else:
+        origin = transform.get("origin_m")
+        if not finite_vector(origin, 3):
+            errors.append("world_transform.origin_m:not-finite-vec3")
+        basis = transform.get("basis_rows")
+        if not isinstance(basis, list) or len(basis) != 3 or not all(finite_vector(row, 3) for row in basis):
+            errors.append("world_transform.basis_rows:not-finite-3x3")
+        else:
+            a, b, c = [[float(v) for v in row] for row in basis]
+            determinant = (
+                a[0] * (b[1] * c[2] - b[2] * c[1])
+                - a[1] * (b[0] * c[2] - b[2] * c[0])
+                + a[2] * (b[0] * c[1] - b[1] * c[0])
+            )
+            if not math.isfinite(determinant) or abs(determinant) <= 1e-9:
+                errors.append(f"world_transform.basis_rows:singular:det={determinant!r}")
+
+    witness_ground_top = witness.get("ground_top_y_m")
+    if not isinstance(witness_ground_top, (int, float)) or isinstance(witness_ground_top, bool) or not math.isfinite(float(witness_ground_top)):
+        errors.append("ground_top_y_m:not-finite-number")
+    elif abs(float(witness_ground_top) - ground_top_y) > 1e-12:
+        errors.append(f"ground_top_y_m:mismatch:{witness_ground_top!r}:{ground_top_y!r}")
+
+    source_hash = witness.get("candidate_source_sha256")
+    if not isinstance(source_hash, str) or SHA256_RE.fullmatch(source_hash) is None:
+        errors.append("candidate_source_sha256:not-sha256")
+
+    provenance_record = witness.get("provenance_record")
+    if not isinstance(provenance_record, str) or not provenance_record.strip():
+        errors.append("provenance_record:missing")
+
+    capture = witness.get("capture")
+    if not isinstance(capture, dict):
+        errors.append("capture:not-object")
+    else:
+        if capture.get("loaded_scene_tree_observed") is not True:
+            errors.append("capture.loaded_scene_tree_observed:not-true")
+        if capture.get("character_mount_observed") is not True:
+            errors.append("capture.character_mount_observed:not-true")
+        if capture.get("canonical_ground_observed") is not True:
+            errors.append("capture.canonical_ground_observed:not-true")
+        sample_index = capture.get("sample_index")
+        if not isinstance(sample_index, int) or isinstance(sample_index, bool) or sample_index < 0:
+            errors.append("capture.sample_index:not-nonnegative-int")
+
+    return errors
+
+
 def main() -> int:
-    if len(sys.argv) != 5:
-        print("usage: civ1_canonical_placement_contract.py MAIN_TSCN NPC_AGENT NPC_DIRECTOR OUT", file=sys.stderr)
+    if len(sys.argv) not in (5, 6):
+        print(
+            "usage: civ1_canonical_placement_contract.py MAIN_TSCN NPC_AGENT NPC_DIRECTOR OUT [RUNTIME_WITNESS_JSON]",
+            file=sys.stderr,
+        )
         return 2
 
-    scene_path, agent_path, director_path, out_path = map(Path, sys.argv[1:])
+    scene_path, agent_path, director_path, out_path = map(Path, sys.argv[1:5])
+    witness_path = Path(sys.argv[5]) if len(sys.argv) == 6 else None
     scene = scene_path.read_text(encoding="utf-8")
     agent = agent_path.read_text(encoding="utf-8")
     director = director_path.read_text(encoding="utf-8")
@@ -61,17 +157,29 @@ def main() -> int:
     ]
     grounding_hits = [token for token in grounding_tokens if token in agent]
 
-    main_has_agent_instance = 'script = ExtResource("14_npc_director")' in scene and 'script = ExtResource("15_npc_runtime")' in scene
+    main_has_runtime_owner_nodes = (
+        'script = ExtResource("14_npc_director")' in scene
+        and 'script = ExtResource("15_npc_runtime")' in scene
+    )
     explicit_agent_node = 'type="CharacterBody3D"' in scene and 'npc_agent.gd' in scene
 
-    canonical_available = bool(
-        explicit_agent_node
-        and grounding_hits
-        and not exact_spawn_copy
-    )
+    witness_present = witness_path is not None
+    witness_validated = False
+    witness_errors: list[str] = []
+    if witness_path is not None:
+        try:
+            witness = json.loads(witness_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"CIV1_RUNTIME_WITNESS_FAIL: unreadable-json:{exc}") from exc
+        witness_errors = validate_runtime_witness(witness, ground_top_y)
+        if witness_errors:
+            raise SystemExit("CIV1_RUNTIME_WITNESS_FAIL: " + ";".join(witness_errors))
+        witness_validated = True
+
+    canonical_available = witness_validated
 
     receipt = {
-        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v1",
+        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v2",
         "canonical_ground": {
             "node": "Main/Ground",
             "position_y_m": ground_position[1],
@@ -87,6 +195,34 @@ def main() -> int:
             "pooled_spawn_y_is_copied_verbatim": pooled_spawn_copy,
             "grounding_mechanism_hits": grounding_hits,
         },
+        "runtime_witness": {
+            "schema": WITNESS_SCHEMA,
+            "present": witness_present,
+            "validated": witness_validated,
+            "validation_errors": witness_errors,
+            "required_fields": [
+                "schema",
+                "evidence_kind",
+                "engine_version",
+                "main_scene",
+                "candidate",
+                "node_paths.npc_agent",
+                "node_paths.character_mount",
+                "node_paths.skeleton",
+                "node_paths.ground",
+                "world_transform.origin_m",
+                "world_transform.basis_rows",
+                "ground_top_y_m",
+                "candidate_source_sha256",
+                "provenance_record",
+                "mcp_ephemeral",
+                "canonical_export_modified",
+                "capture.loaded_scene_tree_observed",
+                "capture.character_mount_observed",
+                "capture.canonical_ground_observed",
+                "capture.sample_index",
+            ],
+        },
         "canonical_character_placement_available": canonical_available,
         "ground_contact_classifiable": False,
         "contact_proof_claimed": False,
@@ -96,17 +232,18 @@ def main() -> int:
         "runtime_change_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "required_next_evidence": "real loaded NpcAgent/CIV-1 mount transform or runtime grounding contract binding character local origin to canonical Ground",
+        "required_next_evidence": (
+            "supply a schema-valid Godot 4.7.1 live-loaded CIV-1 mount transform witness; "
+            "after placement validates, replay [71,72,73] skinned geometry against canonical Ground before contact classification"
+        ),
     }
 
-    if not main_has_agent_instance:
+    if not main_has_runtime_owner_nodes:
         raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: NPC runtime owner nodes missing")
     if not exact_spawn_copy:
         raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: spawn semantics changed; re-audit required")
     if not pooled_spawn_copy:
         raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: pooled spawn semantics changed; re-audit required")
-    if canonical_available:
-        raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: classifier unexpectedly promoted canonical placement")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")

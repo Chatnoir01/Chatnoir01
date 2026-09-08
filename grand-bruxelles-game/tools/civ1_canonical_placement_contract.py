@@ -13,8 +13,9 @@ GROUND_NODE_RE = re.compile(r'\[node name="Ground" type="CSGBox3D" parent="\."\]
 VEC3_RE = re.compile(r'Vector3\(([^,]+),\s*([^,]+),\s*([^\)]+)\)')
 SHA256_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
 COMMIT_SHA_RE = re.compile(r'^[0-9a-f]{40}$')
-WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v2"
+WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v3"
 EXPECTED_SOURCE_REPOSITORY = "https://github.com/ibrews/VitruvianGodot"
+REQUIRED_SAMPLE_INDICES = [71, 72, 73]
 
 
 def sha256_file(path: Path) -> str:
@@ -41,6 +42,27 @@ def finite_vector(value: Any, length: int) -> bool:
         and len(value) == length
         and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)) for v in value)
     )
+
+
+def validate_transform(transform: Any, prefix: str, errors: list[str]) -> None:
+    if not isinstance(transform, dict):
+        errors.append(f"{prefix}:not-object")
+        return
+    origin = transform.get("origin_m")
+    if not finite_vector(origin, 3):
+        errors.append(f"{prefix}.origin_m:not-finite-vec3")
+    basis = transform.get("basis_rows")
+    if not isinstance(basis, list) or len(basis) != 3 or not all(finite_vector(row, 3) for row in basis):
+        errors.append(f"{prefix}.basis_rows:not-finite-3x3")
+        return
+    a, b, c = [[float(v) for v in row] for row in basis]
+    determinant = (
+        a[0] * (b[1] * c[2] - b[2] * c[1])
+        - a[1] * (b[0] * c[2] - b[2] * c[0])
+        + a[2] * (b[0] * c[1] - b[1] * c[0])
+    )
+    if not math.isfinite(determinant) or abs(determinant) <= 1e-9:
+        errors.append(f"{prefix}.basis_rows:singular:det={determinant!r}")
 
 
 def validate_runtime_witness(
@@ -76,25 +98,20 @@ def validate_runtime_witness(
         if node_paths.get("ground") != "Main/Ground":
             errors.append(f"node_paths.ground:expected:'Main/Ground':got:{node_paths.get('ground')!r}")
 
-    transform = witness.get("world_transform")
-    if not isinstance(transform, dict):
-        errors.append("world_transform:not-object")
+    transforms = witness.get("world_transforms_by_sample")
+    expected_keys = {str(index) for index in REQUIRED_SAMPLE_INDICES}
+    if not isinstance(transforms, dict):
+        errors.append("world_transforms_by_sample:not-object")
     else:
-        origin = transform.get("origin_m")
-        if not finite_vector(origin, 3):
-            errors.append("world_transform.origin_m:not-finite-vec3")
-        basis = transform.get("basis_rows")
-        if not isinstance(basis, list) or len(basis) != 3 or not all(finite_vector(row, 3) for row in basis):
-            errors.append("world_transform.basis_rows:not-finite-3x3")
-        else:
-            a, b, c = [[float(v) for v in row] for row in basis]
-            determinant = (
-                a[0] * (b[1] * c[2] - b[2] * c[1])
-                - a[1] * (b[0] * c[2] - b[2] * c[0])
-                + a[2] * (b[0] * c[1] - b[1] * c[0])
+        actual_keys = set(transforms)
+        if actual_keys != expected_keys:
+            errors.append(
+                f"world_transforms_by_sample.keys:mismatch:{sorted(actual_keys)!r}:{sorted(expected_keys)!r}"
             )
-            if not math.isfinite(determinant) or abs(determinant) <= 1e-9:
-                errors.append(f"world_transform.basis_rows:singular:det={determinant!r}")
+        for index in REQUIRED_SAMPLE_INDICES:
+            key = str(index)
+            if key in transforms:
+                validate_transform(transforms[key], f"world_transforms_by_sample.{key}", errors)
 
     witness_ground_top = witness.get("ground_top_y_m")
     if not isinstance(witness_ground_top, (int, float)) or isinstance(witness_ground_top, bool) or not math.isfinite(float(witness_ground_top)):
@@ -157,9 +174,9 @@ def validate_runtime_witness(
             errors.append("capture.character_mount_observed:not-true")
         if capture.get("canonical_ground_observed") is not True:
             errors.append("capture.canonical_ground_observed:not-true")
-        sample_index = capture.get("sample_index")
-        if not isinstance(sample_index, int) or isinstance(sample_index, bool) or sample_index < 0:
-            errors.append("capture.sample_index:not-nonnegative-int")
+        sample_indices = capture.get("sample_indices")
+        if sample_indices != REQUIRED_SAMPLE_INDICES:
+            errors.append(f"capture.sample_indices:mismatch:{sample_indices!r}:{REQUIRED_SAMPLE_INDICES!r}")
 
     return errors
 
@@ -232,7 +249,7 @@ def main() -> int:
     canonical_available = witness_validated
 
     receipt = {
-        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v3",
+        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v4",
         "canonical_ground": {
             "node": "Main/Ground",
             "position_y_m": ground_position[1],
@@ -254,6 +271,7 @@ def main() -> int:
             "present": witness_present,
             "validated": witness_validated,
             "validation_errors": witness_errors,
+            "required_sample_indices": REQUIRED_SAMPLE_INDICES,
             "required_fields": [
                 "schema",
                 "evidence_kind",
@@ -264,8 +282,12 @@ def main() -> int:
                 "node_paths.character_mount",
                 "node_paths.skeleton",
                 "node_paths.ground",
-                "world_transform.origin_m",
-                "world_transform.basis_rows",
+                "world_transforms_by_sample.71.origin_m",
+                "world_transforms_by_sample.71.basis_rows",
+                "world_transforms_by_sample.72.origin_m",
+                "world_transforms_by_sample.72.basis_rows",
+                "world_transforms_by_sample.73.origin_m",
+                "world_transforms_by_sample.73.basis_rows",
                 "ground_top_y_m",
                 "candidate_source_sha256",
                 "provenance_record",
@@ -283,7 +305,7 @@ def main() -> int:
                 "capture.loaded_scene_tree_observed",
                 "capture.character_mount_observed",
                 "capture.canonical_ground_observed",
-                "capture.sample_index",
+                "capture.sample_indices",
             ],
         },
         "canonical_character_placement_available": canonical_available,
@@ -296,9 +318,8 @@ def main() -> int:
         "visual_approval_claimed": False,
         "player_view_claimed": False,
         "required_next_evidence": (
-            "supply a schema-valid Godot 4.7.1 live-loaded CIV-1 mount transform witness bound to exact runtime bytes "
-            "and immutable source/provenance evidence; after placement validates, replay [71,72,73] skinned geometry "
-            "against canonical Ground before contact classification"
+            "supply a schema-valid Godot 4.7.1 live-loaded CIV-1 mount witness bound to exact runtime bytes, immutable source/provenance evidence, "
+            "and distinct full world transforms for samples [71,72,73]; only then replay those same samples of skinned geometry against canonical Ground"
         ),
     }
 

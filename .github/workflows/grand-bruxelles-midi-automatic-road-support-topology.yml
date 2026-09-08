@@ -69,9 +69,10 @@ jobs:
           evidence=grand-bruxelles-game/artifacts/qa/midi_automatic_road_support_topology.json
           test -s "$evidence"
           python3 - "$evidence" <<'PY'
-          import json,pathlib,sys
+          import json,math,pathlib,sys
           p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text())
-          assert d['schema']=='grand-bruxelles-midi-automatic-road-support-topology-v1'
+          assert d['schema']=='grand-bruxelles-midi-automatic-road-support-topology-v2'
+          assert d['probe_basis']=='mesh_aabb_center_world'
           assert isinstance(d['candidate_count'],int) and d['candidate_count']>0
           assert len(d['candidate_ids'])==d['candidate_count']
           assert isinstance(d['exact_road_leaf_count'],int) and d['exact_road_leaf_count']>0
@@ -89,6 +90,12 @@ jobs:
               assert row['osm_id'] in d['candidate_ids']
               assert row['road_leaf_visible'] is False
               support=row['support']; assert support['hit'] is True
+              probe=support['probe']
+              assert probe['valid'] is True
+              assert probe['basis']=='mesh_aabb_center_world'
+              assert len(probe['local_aabb_center'])==3 and len(probe['world_position'])==3
+              assert all(math.isfinite(float(v)) for v in probe['local_aabb_center'])
+              assert all(math.isfinite(float(v)) for v in probe['world_position'])
               assert support['collider_path'].endswith('/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways/ExactRoadCarriageways_col')
               assert support['owner_path'].endswith('/UrbISMidiExact/UrbISStreetSurfaces/ExactRoadCarriageways')
               assert support['owner_found'] is True and support['owner_visible'] is True and support['owner_visible_in_tree'] is True

@@ -44,7 +44,7 @@ func _authoritative_support_at(world_point: Vector3, authoritative_root: Node) -
         var collider: Variant = hit.get("collider")
         if collider is Node and _is_descendant_of(collider as Node, authoritative_root):
             return true
-        var hit_rid: RID = hit.get("rid", RID()) as RID
+        var hit_rid: RID = hit.get("rid", RID())
         if not hit_rid.is_valid():
             return false
         excluded.append(hit_rid)

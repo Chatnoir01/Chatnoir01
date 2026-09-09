@@ -14,6 +14,7 @@ EVIDENCE = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.
 RECEIPT = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json"
 ROAD_SOURCE = ROOT / "data/osm/vertical_slice_01.game.json"
 RUNTIME_INDEX = ROOT / "data/runtime/road_destination_runtime_index.json"
+REGISTERED_CELL_INDEX = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
 
 
 def _bytes(payload: dict) -> bytes:
@@ -69,6 +70,19 @@ class OriginArtifactReceiptFailClosedTests(unittest.TestCase):
                 validate_origin_artifact_receipt(evidence_raw, receipt_raw)
         finally:
             RUNTIME_INDEX.write_bytes(original)
+
+    def test_rejects_registered_cell_index_drift_with_locked_measured_contract(self) -> None:
+        evidence_raw = EVIDENCE.read_bytes()
+        receipt_raw = RECEIPT.read_bytes()
+        original = REGISTERED_CELL_INDEX.read_bytes()
+        registered_index = json.loads(original.decode("utf-8"))
+        registered_index["registered_cell_count"] = 6
+        try:
+            REGISTERED_CELL_INDEX.write_bytes(_bytes(registered_index))
+            with self.assertRaises(ValueError):
+                validate_origin_artifact_receipt(evidence_raw, receipt_raw)
+        finally:
+            REGISTERED_CELL_INDEX.write_bytes(original)
 
 
 if __name__ == "__main__":

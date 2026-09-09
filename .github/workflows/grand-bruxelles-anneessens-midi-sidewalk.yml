@@ -18,6 +18,18 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify raw candidate revision
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha }}"
+          echo "candidate_head=$actual"
+          test "$actual" = "$expected"
       - name: Install display dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1
@@ -31,7 +43,7 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/anneessens-sidewalk-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/anneessens-sidewalk-import.log; then exit 1; fi
-      - name: Anneessens 1280x720 player-eye A/B
+      - name: Anneessens 1280x720 player-eye toggle witness
         shell: bash
         run: |
           set -o pipefail
@@ -39,10 +51,13 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_MIDI_SIDEWALK_FAIL" /tmp/anneessens-sidewalk.log; then exit 1; fi
           grep -q "ANNEESSENS_MIDI_SIDEWALK_OK" /tmp/anneessens-sidewalk.log
       - name: Upload Anneessens evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: anneessens-midi-sidewalk-ab
+          name: anneessens-midi-sidewalk-evidence
           path: |
             grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_before.png
             grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_after.png
-          if-no-files-found: error
+            /tmp/anneessens-sidewalk.log
+            /tmp/anneessens-sidewalk-import.log
+          if-no-files-found: warn

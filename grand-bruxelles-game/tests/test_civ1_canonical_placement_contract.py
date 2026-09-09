@@ -50,7 +50,7 @@ def role_transforms(origin_x: float) -> dict[str, object]:
 def valid_runtime_witness() -> dict[str, object]:
     source_hash = SOURCE_SHA256
     return {
-        "schema": "grand-bruxelles-civ1-runtime-placement-witness-v6",
+        "schema": "grand-bruxelles-civ1-runtime-placement-witness-v7",
         "evidence_kind": "godot-live-loaded-scene",
         "engine_version": "4.7.1",
         "main_scene": "res://game/main.tscn",
@@ -125,9 +125,9 @@ def test_current_runtime_is_fail_closed_without_loaded_transform_witness() -> No
         result = run_classifier(out)
         assert result.returncode == 0, result.stderr or result.stdout
         receipt = json.loads(out.read_text(encoding="utf-8"))
-    assert receipt["schema"] == "grand-bruxelles-civ1-canonical-placement-contract-v7"
+    assert receipt["schema"] == "grand-bruxelles-civ1-canonical-placement-contract-v8"
     assert abs(receipt["canonical_ground"]["top_y_m"] - (-0.03)) <= 1e-12
-    assert receipt["runtime_witness"]["schema"] == "grand-bruxelles-civ1-runtime-placement-witness-v6"
+    assert receipt["runtime_witness"]["schema"] == "grand-bruxelles-civ1-runtime-placement-witness-v7"
     assert receipt["runtime_witness"]["required_sample_indices"] == REQUIRED_SAMPLES
     assert receipt["runtime_witness"]["required_transform_roles"] == TRANSFORM_ROLES
     assert receipt["runtime_witness"]["required_animation_evidence"]["skeleton_artifact_id"] == SKELETON_ARTIFACT_ID
@@ -135,6 +135,7 @@ def test_current_runtime_is_fail_closed_without_loaded_transform_witness() -> No
     assert receipt["runtime_witness"]["required_source_evidence"]["source_commit_sha"] == SOURCE_COMMIT
     assert receipt["runtime_witness"]["required_source_evidence"]["source_git_blob_sha1"] == SOURCE_GIT_BLOB
     assert receipt["runtime_witness"]["required_source_evidence"]["source_size_bytes"] == SOURCE_SIZE_BYTES
+    assert receipt["runtime_witness"]["required_source_evidence"]["source_file_sha256"] == SOURCE_SHA256
     assert receipt["canonical_character_placement_available"] is False
     assert receipt["ground_contact_classifiable"] is False
     assert receipt["contact_proof_claimed"] is False
@@ -230,7 +231,8 @@ def test_self_consistent_forged_source_hash_is_rejected() -> None:
     result = classify_witness(witness)
     combined = result.stdout + result.stderr
     assert result.returncode != 0
-    assert "candidate_source_sha256:mismatch" in combined or "source_evidence.source_file_sha256:mismatch" in combined
+    assert "candidate_source_sha256:mismatch" in combined
+    assert "source_evidence.source_file_sha256:mismatch" in combined
 
 
 def test_source_commit_blob_size_and_license_are_pinned() -> None:

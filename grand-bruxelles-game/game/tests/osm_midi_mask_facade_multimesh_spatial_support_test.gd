@@ -94,10 +94,18 @@ func _run() -> void:
     exact_buildings.name = "UrbISExactBuildings"
     urbis.add_child(exact_buildings)
     exact_buildings.add_child(_authoritative_building(0.0))
+
+    # Keep the mask in a harness without BrusselsOSM/UrbISMidiExact siblings for
+    # its first deferred _apply_mask(). This preserves the production _ready()
+    # behavior while allowing the test to prove its spatial precondition before
+    # the one explicit application under the real sibling layout.
+    var probe_harness := Node3D.new()
+    probe_harness.name = "MaskProbeHarness"
+    scene.add_child(probe_harness)
     var mask := Node.new()
     mask.name = "OSMMidiMask"
     mask.set_script(MASK_SCRIPT)
-    scene.add_child(mask)
+    probe_harness.add_child(mask)
 
     await process_frame
     await physics_frame
@@ -106,10 +114,14 @@ func _run() -> void:
     var world_sample: Vector3 = mask.call("_multimesh_instance_world_sample", facade_batch, source_transform)
     var direct_support: bool = mask.call("_authoritative_support_between", world_sample, exact_buildings, vertical_span.y, vertical_span.x)
     print("OSM_MIDI_MASK_FACADE_MULTIMESH_DIAGNOSTIC: sample=%s span=%s inside=%s support=%s buffer_floats=%d visible=%d" % [str(world_sample), str(vertical_span), str(mask.call("_inside", world_sample)), str(direct_support), facade_batch.multimesh.buffer.size(), facade_batch.multimesh.visible_instance_count])
+    if facade_batch.multimesh.buffer.size() != 48 or facade_batch.multimesh.visible_instance_count != 3:
+        _fail("precondition batch changed before explicit mask application")
+        return
     if not direct_support:
         _fail("covered MultiMesh transform did not resolve concrete UrbIS collision support; sample=%s span=%s" % [str(world_sample), str(vertical_span)])
         return
 
+    mask.reparent(scene)
     mask.call("_apply_mask")
     await process_frame
     if facade_batch.multimesh == null:

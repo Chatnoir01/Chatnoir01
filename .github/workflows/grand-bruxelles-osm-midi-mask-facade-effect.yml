@@ -76,7 +76,7 @@ jobs:
           timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/osm_midi_mask_facade_effect_test.gd 2>&1 | tee /tmp/head-effect.log
           if grep -E "SCRIPT ERROR|Parse Error:|OSM_MIDI_MASK_FACADE_EFFECT_FAIL" /tmp/head-effect.log; then exit 1; fi
           test "$(grep -c 'OSM_MIDI_MASK_FACADE_EFFECT_OK' /tmp/head-effect.log)" -eq 1
-      - name: Seal exact base-head facade effect evidence
+      - name: Seal exact base-head facade preservation evidence
         run: |
           set -euo pipefail
           base_result=/tmp/gbg-facade-base/grand-bruxelles-game/artifacts/qa/osm_midi_mask_facade_effect.json
@@ -113,21 +113,27 @@ jobs:
               assert d['threshold_changed'] is False
               assert d['visual_acceptance'] is False
               assert d['jouable_authorized'] is False
-          # Both revisions must have measured the exact same fixture position; tolerate only
-          # Godot's serialized float representation relative to the intended constant above.
           assert b['midi_world'] == h['midi_world']
-          # Exact base demonstrates the shipped blanket-parent failure mode.
-          assert b['parent_effective_visible'] is False
-          assert b['covered_effective_visible'] is False
-          assert b['unsupported_effective_visible'] is False
-          # Candidate must keep only concrete-authority facade replacement hidden.
-          assert h['parent_effective_visible'] is True
-          assert h['covered_effective_visible'] is False
-          assert h['unsupported_effective_visible'] is True
-          assert h['parent_local_visible'] is True
-          assert h['unsupported_local_visible'] is True
+          # #2018 is already shipped in exact-current-main. This gate now protects
+          # that production contract while #2020 changes only real MultiMesh batches:
+          # the parent stays available, concretely covered fallback stays hidden,
+          # and unsupported fallback stays visible on both base and candidate.
+          for d in (b, h):
+              assert d['parent_effective_visible'] is True
+              assert d['covered_effective_visible'] is False
+              assert d['unsupported_effective_visible'] is True
+              assert d['parent_local_visible'] is True
+              assert d['unsupported_local_visible'] is True
+          for key in (
+              'parent_effective_visible',
+              'covered_effective_visible',
+              'unsupported_effective_visible',
+              'parent_local_visible',
+              'unsupported_local_visible',
+          ):
+              assert b[key] == h[key]
           ab = {
-              'schema': 'grand-bruxelles-osm-midi-mask-facade-effect-ab-v1',
+              'schema': 'grand-bruxelles-osm-midi-mask-facade-preservation-ab-v1',
               'base_sha': os.environ['FACADE_BASE_SHA'],
               'head_sha': os.environ['FACADE_HEAD_SHA'],
               'fixture': h['fixture'],
@@ -137,6 +143,7 @@ jobs:
               'unsupported_effective_visible_head': h['unsupported_effective_visible'],
               'parent_effective_visible_base': b['parent_effective_visible'],
               'parent_effective_visible_head': h['parent_effective_visible'],
+              'production_contract_preserved': True,
               'source_geometry_changed': False,
               'camera_changed': False,
               'threshold_changed': False,

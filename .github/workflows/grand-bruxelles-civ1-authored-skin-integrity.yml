@@ -8,6 +8,7 @@ on:
       - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
       - 'grand-bruxelles-game/tools/civ1_canonical_resource_alias.py'
       - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
+      - 'grand-bruxelles-game/tools/civ1_node_table_uniqueness.py'
       - 'grand-bruxelles-game/game/**/*.tscn'
       - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
   pull_request:
@@ -16,6 +17,7 @@ on:
       - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
       - 'grand-bruxelles-game/tools/civ1_canonical_resource_alias.py'
       - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
+      - 'grand-bruxelles-game/tools/civ1_node_table_uniqueness.py'
       - 'grand-bruxelles-game/game/**/*.tscn'
       - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
 permissions:
@@ -57,6 +59,10 @@ jobs:
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py --self-test
+      - name: Reject duplicate paths, ambiguous attributes and malformed Godot node headers
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_node_table_uniqueness.py --self-test
       - name: Measure reachable authored-skin integrity
         run: |
           set -euo pipefail
@@ -73,6 +79,9 @@ jobs:
           python grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py \
             grand-bruxelles-game/game/main.tscn \
             /tmp/civ1-skin-integrity/civ1-resource-table-uniqueness.json
+          python grand-bruxelles-game/tools/civ1_node_table_uniqueness.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-skin-integrity/civ1-node-table-uniqueness.json
       - name: Assert fail-closed integrity contract
         run: |
           python - <<'PY'
@@ -164,7 +173,32 @@ jobs:
           assert u['visual_approval_claimed'] is False
           assert u['contact_verified'] is False
           assert u['foot_slide_verified'] is False
-          print(json.dumps({'skin': d, 'backing': b, 'canonical_alias': a, 'resource_table': u}, sort_keys=True))
+
+          n='/tmp/civ1-skin-integrity/civ1-node-table-uniqueness.json'
+          v=json.load(open(n, encoding='utf-8'))
+          assert v['schema']=='grand-bruxelles-civ1-node-table-uniqueness-v1'
+          assert v['evidence_mode']=='reachable_tscn_plus_unique_node_path_plus_complete_fully_parsed_unambiguous_node_headers'
+          assert v['reachable_scene_count'] >= 1
+          assert v['duplicate_node_path_evidence_accepted'] is False
+          assert v['duplicate_node_attribute_evidence_accepted'] is False
+          assert v['partially_parsed_node_header_evidence_accepted'] is False
+          assert v['malformed_outer_node_header_evidence_accepted'] is False
+          assert v['node_paths_unique'] == (len(v['duplicate_node_path_conflicts']) == 0)
+          assert v['node_header_attributes_unambiguous'] == (len(v['duplicate_node_attribute_conflicts']) == 0)
+          assert v['node_header_syntax_fully_parsed'] == (len(v['unparsed_node_header_fragments']) == 0)
+          assert v['node_outer_header_syntax_valid'] == (len(v['malformed_node_header_conflicts']) == 0)
+          assert v['node_table_identity_unambiguous'] == (
+              len(v['duplicate_node_path_conflicts']) == 0
+              and len(v['duplicate_node_attribute_conflicts']) == 0
+              and len(v['unparsed_node_header_fragments']) == 0
+              and len(v['malformed_node_header_conflicts']) == 0
+          )
+          assert v['node_table_identity_unambiguous'] is True
+          assert v['runtime_authorized'] is False
+          assert v['visual_approval_claimed'] is False
+          assert v['contact_verified'] is False
+          assert v['foot_slide_verified'] is False
+          print(json.dumps({'skin': d, 'backing': b, 'canonical_alias': a, 'resource_table': u, 'node_table': v}, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:

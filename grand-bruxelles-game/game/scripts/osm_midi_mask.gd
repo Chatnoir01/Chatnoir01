@@ -26,27 +26,55 @@ func _mask_children(root: Node) -> int:
     return hidden
 
 
+func _has_materialized_geometry(root: Node) -> bool:
+    if root == null:
+        return false
+    var stack: Array[Node] = [root]
+    while not stack.is_empty():
+        var node: Node = stack.pop_back()
+        if node is MeshInstance3D:
+            var mesh_instance := node as MeshInstance3D
+            if mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 0 and mesh_instance.is_visible_in_tree():
+                return true
+        for child: Node in node.get_children():
+            stack.append(child)
+    return false
+
+
 func _apply_mask() -> void:
     var osm: Node = get_node_or_null("../BrusselsOSM")
     if osm == null:
         return
 
+    var urbis: Node = get_node_or_null("../UrbISMidiExact")
+    var streets_ready := false
+    var buildings_ready := false
+    if urbis != null:
+        streets_ready = _has_materialized_geometry(urbis.get_node_or_null("UrbISStreetSurfaces"))
+        buildings_ready = _has_materialized_geometry(urbis.get_node_or_null("UrbISExactBuildings"))
+
     var hidden: int = 0
     var roads: Node = osm.get_node_or_null("GeneratedRoads")
-    if roads != null:
+    if roads != null and streets_ready:
         hidden += _mask_children(roads)
 
     var buildings: Node = osm.get_node_or_null("GeneratedBuildings")
-    if buildings != null:
+    if buildings != null and buildings_ready:
         hidden += _mask_children(buildings)
 
-    # These procedural facade instances only existed for the old Midi OSM massing.
-    var details: Node = osm.get_node_or_null("GeneratedFacadeDetails")
-    if details is CanvasItem:
-        var canvas_item: CanvasItem = details as CanvasItem
-        canvas_item.visible = false
-    elif details is Node3D:
-        var details_3d: Node3D = details as Node3D
-        details_3d.visible = false
+    # These procedural facade instances only belonged to the old Midi OSM
+    # massing. Keep them as fallback unless authoritative building geometry
+    # has actually materialized and is visible in the player scene.
+    if buildings_ready:
+        var details: Node = osm.get_node_or_null("GeneratedFacadeDetails")
+        if details is CanvasItem:
+            var canvas_item: CanvasItem = details as CanvasItem
+            canvas_item.visible = false
+        elif details is Node3D:
+            var details_3d: Node3D = details as Node3D
+            details_3d.visible = false
 
-    print("Grand Bruxelles UrbIS mask: %d approximate OSM geometry nodes hidden near Midi" % hidden)
+    print(
+        "Grand Bruxelles UrbIS mask: %d approximate OSM geometry nodes hidden near Midi (streets_ready=%s buildings_ready=%s)" %
+        [hidden, str(streets_ready), str(buildings_ready)]
+    )

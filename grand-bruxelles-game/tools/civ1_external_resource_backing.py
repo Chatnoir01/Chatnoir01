@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -8,26 +9,34 @@ from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
 
-SCHEMA = "grand-bruxelles-civ1-external-resource-backing-v1"
+SCHEMA = "grand-bruxelles-civ1-external-resource-backing-v2"
 
 
-def ext_resource_backed(resources: dict[tuple[str, str], dict[str, str]], raw: object, project_root: Path) -> tuple[bool, str | None]:
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
+
+
+def ext_resource_backed(resources: dict[tuple[str, str], dict[str, str]], raw: object, project_root: Path) -> tuple[bool, str | None, str | None]:
     ref = skin.resource_ref(raw)
     if ref is None:
-        return False, None
-    kind, rid = ref
+        return False, None, None
+    kind, _rid = ref
     attrs = resources.get(ref)
     if attrs is None:
-        return False, None
+        return False, None, None
     if kind == "SubResource":
-        return True, None
+        return True, None, None
     path = attrs.get("path")
     if not path:
-        return False, None
+        return False, None, None
     resolved = skin.res_to_file(project_root, path)
-    if resolved is None:
-        return False, path
-    return resolved.is_file(), path
+    if resolved is None or not resolved.is_file():
+        return False, path, None
+    return True, path, sha256_file(resolved)
 
 
 def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object]]:
@@ -57,9 +66,9 @@ def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object
             ref_results = []
             mesh_backed = True
             for role, raw in refs:
-                backed, path = ext_resource_backed(resources, raw, project_root)
+                backed, path, fingerprint = ext_resource_backed(resources, raw, project_root)
                 mesh_backed = mesh_backed and backed
-                ref_results.append({"role": role, "raw": raw, "external_path": path, "backed": backed})
+                ref_results.append({"role": role, "raw": raw, "external_path": path, "sha256": fingerprint, "backed": backed})
             all_backed = all_backed and mesh_backed
             mesh_details.append({"path": mesh_path, "resources": ref_results, "all_resources_backed": mesh_backed})
         out.append({
@@ -71,6 +80,20 @@ def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object
             "external_resource_backing_ready": all_backed,
         })
     return out
+
+
+def fingerprints(evidence: list[dict[str, object]]) -> list[dict[str, str]]:
+    unique: dict[str, str] = {}
+    for hierarchy in evidence:
+        for mesh in hierarchy.get("mesh_backing", []):
+            assert isinstance(mesh, dict)
+            for resource in mesh.get("resources", []):
+                assert isinstance(resource, dict)
+                path = resource.get("external_path")
+                digest = resource.get("sha256")
+                if isinstance(path, str) and isinstance(digest, str):
+                    unique[path] = digest
+    return [{"path": path, "sha256": unique[path]} for path in sorted(unique)]
 
 
 def self_test() -> None:
@@ -101,6 +124,14 @@ material_override = ExtResource("Mat_body")
         scene.write_text(base, encoding="utf-8")
         r = scene_backing(scene, root)
         assert len(r) == 1 and r[0]["external_resource_backing_ready"], "existing in-project external resources should pass backing preflight"
+        first = fingerprints(r)
+        assert len(first) == 3 and all(item["sha256"].startswith("sha256:") for item in first), "backed external resources must be content-addressed"
+
+        (assets / "body.skin").write_text("fixture-mutated", encoding="utf-8")
+        second = fingerprints(scene_backing(scene, root))
+        before = {item["path"]: item["sha256"] for item in first}
+        after = {item["path"]: item["sha256"] for item in second}
+        assert before["res://assets/body.skin"] != after["res://assets/body.skin"], "resource mutation must change the sealed SHA-256"
 
         missing = base.replace("res://assets/body.skin", "res://assets/missing.skin")
         scene.write_text(missing, encoding="utf-8")
@@ -131,21 +162,25 @@ def main() -> int:
         for item in scene_backing(scene_path, project_root):
             row = dict(item); row["scene"] = rel; evidence.append(row)
     ready = [e for e in evidence if e["external_resource_backing_ready"]]
+    sealed = fingerprints(evidence)
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_authored_skin_bundle_plus_in_project_external_resource_backing",
+        "evidence_mode": "reachable_authored_skin_bundle_plus_in_project_external_resource_backing_plus_sha256",
         "reachable_scene_count": len(scenes),
         "hierarchy_count": len(evidence),
         "backing_ready_count": len(ready),
         "hierarchies": evidence,
+        "external_resource_fingerprints": sealed,
+        "fingerprinted_external_resource_count": len(sealed),
         "typed_but_missing_external_resource_evidence_accepted": False,
         "out_of_project_external_resource_evidence_accepted": False,
+        "unhashed_external_resource_evidence_accepted": False,
         "authored_external_resources_backed": bool(ready),
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
-        "next_action": "rerun Godot 4.7.1 loaded-scene probe only after structural skin integrity and resource backing both become ready" if ready else "runtime owner must provide a reachable authored skin bundle whose external mesh/Skin/material resources resolve to real in-project files",
+        "next_action": "rerun Godot 4.7.1 loaded-scene probe only after structural skin integrity and resource backing both become ready; retain these SHA-256 fingerprints in the handoff" if ready else "runtime owner must provide a reachable authored skin bundle whose external mesh/Skin/material resources resolve to real in-project files",
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -159,6 +159,9 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _root.set_meta("visual_dimensions_source_backed", false)
     _root.set_meta("vertical_profile_source_backed", false)
     _root.set_meta("material_identity_source_backed", false)
+    _root.set_meta("collision_source_backed", false)
+    _root.set_meta("collision_authorized", false)
+    _root.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
     _root.set_meta("authored_proxy", true)
     _root.set_meta("presentation_recipe", "authored_midi_sidewalk_proxy_from_osm_road_alignment")
     _scene.add_child(_root)
@@ -203,7 +206,7 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.name = "AnneessensSidewalk_%s_%s" % [road.name, "L" if side < 0.0 else "R"]
         pavement.size = Vector3(width, SIDEWALK_HEIGHT_M, road.size.z)
         pavement.material = material
-        pavement.use_collision = _sidewalks_enabled
+        pavement.use_collision = false
         pavement.set_meta("source_road", road.name)
         pavement.set_meta("source", SOURCE_NAME)
         pavement.set_meta("license", SOURCE_LICENSE)
@@ -213,13 +216,15 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.set_meta("visual_dimensions_source_backed", false)
         pavement.set_meta("vertical_profile_source_backed", false)
         pavement.set_meta("material_identity_source_backed", false)
+        pavement.set_meta("collision_source_backed", false)
+        pavement.set_meta("collision_authorized", false)
+        pavement.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
         pavement.set_meta("authored_proxy", true)
         pavement.set_meta("recipe", "Midi")
         _root.add_child(pavement)
         pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)
         pavement.global_rotation = road.global_rotation
         _sidewalk_count += 1
-        _collision_count += 1
 
 func diagnostic_sidewalk_count() -> int:
     return _sidewalk_count
@@ -235,4 +240,4 @@ func set_sidewalks_enabled(enabled: bool) -> void:
     for child: Node in _root.get_children():
         if child is CSGBox3D:
             var pavement := child as CSGBox3D
-            pavement.use_collision = enabled
+            pavement.use_collision = false

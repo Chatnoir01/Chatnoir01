@@ -14,6 +14,7 @@ var _scene: Node3D = null
 var _player: Node3D = null
 var _root: Node3D = null
 var _tree_materials: Dictionary = {}
+var _tree_meshes: Dictionary = {}
 var _trees: Array[StaticBody3D] = []
 var _enhanced_trees_enabled := true
 var _manual_binding := false
@@ -89,6 +90,7 @@ func _release_owned_root() -> void:
     _root = null
     _trees.clear()
     _tree_materials.clear()
+    _tree_meshes.clear()
     _tree_activation_initialized = false
     _tree_active = false
 
@@ -279,6 +281,7 @@ func _build_once() -> void:
     _root.set_meta("collision_policy", "disabled_until_source_backed_trunk_profile")
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
+    _tree_meshes = TREE_ASSET.create_meshes(_tree_materials)
 
     for tree_point: Variant in tree_points:
         var validated_point := tree_point as Dictionary
@@ -337,7 +340,7 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     _remove_owned_tree_visuals(tree)
     var osm_id := int(tree.get_meta("osm_id", 0))
     if _enhanced_trees_enabled:
-        var enhanced_visual := TREE_ASSET.populate(tree, osm_id, _tree_materials)
+        var enhanced_visual := TREE_ASSET.populate(tree, osm_id, _tree_materials, _tree_meshes)
         _mark_owned_tree_visual(enhanced_visual)
         return
     tree.set_meta("asset_family", "legacy_primitive_tree")

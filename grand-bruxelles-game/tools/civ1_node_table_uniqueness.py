@@ -9,7 +9,7 @@ from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
 
-SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v2"
+SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v1"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 NODE_PREFIX_RE = re.compile(r'^\s*\[node\b')
 NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
@@ -43,7 +43,6 @@ def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
         if i >= n:
             residue.append(f"{name}=")
             break
-
         if header[i] == '"':
             i += 1
             escaped = False
@@ -89,13 +88,11 @@ def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
             if depth != 0 or in_string:
                 residue.append(header[name_match.start():].strip())
                 break
-
         value = header[value_start:i].strip()
         if not value:
             residue.append(f"{name}=")
             break
         pairs.append((name, value[1:-1] if value.startswith('"') and value.endswith('"') else value))
-
     return pairs, " ".join(r for r in residue if r)
 
 
@@ -112,7 +109,6 @@ def node_table_conflicts(scene_text: str) -> tuple[list[dict[str, object]], list
     attribute_conflicts: list[dict[str, object]] = []
     syntax_conflicts: list[dict[str, object]] = []
     malformed_header_conflicts: list[dict[str, object]] = []
-
     for line_number, line in enumerate(scene_text.splitlines(), start=1):
         match = NODE_RE.match(line)
         if not match:
@@ -130,7 +126,6 @@ def node_table_conflicts(scene_text: str) -> tuple[list[dict[str, object]], list
         path = declared_node_path(attrs)
         if path:
             seen_paths.setdefault(path, []).append({"line": line_number, "name": attrs.get("name", ""), "parent": attrs.get("parent", "."), "type": attrs.get("type", "")})
-
     path_conflicts = [{"node_path": path, "declaration_count": len(declarations), "declarations": declarations} for path, declarations in sorted(seen_paths.items()) if len(declarations) > 1]
     return path_conflicts, attribute_conflicts, syntax_conflicts, malformed_header_conflicts
 
@@ -146,7 +141,6 @@ def self_test() -> None:
 '''
     paths, attrs, syntax, malformed = node_table_conflicts(normal)
     assert paths == [] and attrs == [] and syntax == [] and malformed == []
-
     duplicate_path = normal + '[node name="CharacterMount" type="Node" parent="NpcAgent"]\n'
     legacy = skin.parse_node_blocks(duplicate_path)
     legacy_nodes: dict[str, dict[str, object]] = {}
@@ -157,19 +151,13 @@ def self_test() -> None:
             legacy_nodes[skin.node_path(block_attrs)] = block
     assert legacy_nodes["NpcAgent/CharacterMount"]["attrs"]["type"] == "Node", "regression precondition: legacy node dict silently overwrites duplicate node paths"
     paths, attrs, syntax, malformed = node_table_conflicts(duplicate_path)
-    assert len(paths) == 1 and paths[0]["node_path"] == "NpcAgent/CharacterMount"
-    assert attrs == [] and syntax == [] and malformed == []
-
+    assert len(paths) == 1 and paths[0]["node_path"] == "NpcAgent/CharacterMount" and attrs == [] and syntax == [] and malformed == []
     duplicate_name_attr = normal.replace('[node name="CharacterMount" type="Node3D" parent="NpcAgent"]','[node name="ForgedMount" name="CharacterMount" type="Node3D" parent="NpcAgent"]')
     paths, attrs, syntax, malformed = node_table_conflicts(duplicate_name_attr)
-    assert paths == [] and syntax == [] and malformed == []
-    assert len(attrs) == 1 and attrs[0]["duplicate_attributes"] == ["name"]
-
+    assert paths == [] and syntax == [] and malformed == [] and len(attrs) == 1 and attrs[0]["duplicate_attributes"] == ["name"]
     partial = normal.replace('[node name="Skeleton3D" type="Skeleton3D" parent="NpcAgent/CharacterMount"]','[node name="Skeleton3D" type="Skeleton3D" parent="NpcAgent/CharacterMount" forged_token]')
     paths, attrs, syntax, malformed = node_table_conflicts(partial)
-    assert paths == [] and attrs == [] and malformed == []
-    assert len(syntax) == 1 and syntax[0]["unparsed_fragment"] == "forged_token"
-
+    assert paths == [] and attrs == [] and malformed == [] and len(syntax) == 1 and syntax[0]["unparsed_fragment"] == "forged_token"
     missing_close = normal.replace('[node name="CharacterMount" type="Node3D" parent="NpcAgent"]','[node name="CharacterMount" type="Node3D" parent="NpcAgent"')
     paths, attrs, syntax, malformed = node_table_conflicts(missing_close)
     assert paths == [] and attrs == [] and syntax == [] and len(malformed) == 1
@@ -201,7 +189,7 @@ def main() -> int:
     unambiguous = not path_conflicts and not attribute_conflicts and not syntax_conflicts and not malformed_header_conflicts
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_unique_node_path_plus_complete_balanced_value_fully_parsed_unambiguous_node_headers",
+        "evidence_mode": "reachable_tscn_plus_unique_node_path_plus_complete_fully_parsed_unambiguous_node_headers",
         "reachable_scene_count": len(scenes),
         "duplicate_node_path_conflicts": path_conflicts,
         "duplicate_node_attribute_conflicts": attribute_conflicts,

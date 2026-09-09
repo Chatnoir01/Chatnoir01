@@ -4,6 +4,7 @@ on:
     paths:
       - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
       - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
+      - 'grand-bruxelles-game/tools/civ1_canonical_resource_alias.py'
       - 'grand-bruxelles-game/game/**/*.tscn'
       - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
 permissions:
@@ -37,6 +38,10 @@ jobs:
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_external_resource_backing.py --self-test
+      - name: Reject canonical external-resource aliases
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_canonical_resource_alias.py --self-test
       - name: Measure reachable authored-skin integrity
         run: |
           set -euo pipefail
@@ -47,6 +52,9 @@ jobs:
           python grand-bruxelles-game/tools/civ1_external_resource_backing.py \
             grand-bruxelles-game/game/main.tscn \
             /tmp/civ1-skin-integrity/civ1-external-resource-backing.json
+          python grand-bruxelles-game/tools/civ1_canonical_resource_alias.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-skin-integrity/civ1-canonical-resource-alias.json
       - name: Assert fail-closed integrity contract
         run: |
           python - <<'PY'
@@ -94,7 +102,19 @@ jobs:
           assert b['visual_approval_claimed'] is False
           assert b['contact_verified'] is False
           assert b['foot_slide_verified'] is False
-          print(json.dumps({'skin': d, 'backing': b}, sort_keys=True))
+          r='/tmp/civ1-skin-integrity/civ1-canonical-resource-alias.json'
+          a=json.load(open(r, encoding='utf-8'))
+          assert a['schema']=='grand-bruxelles-civ1-canonical-resource-alias-v1'
+          assert a['evidence_mode']=='reachable_authored_skin_bundle_plus_canonical_resolved_external_resource_identity'
+          assert a['reachable_scene_count'] >= 1
+          assert a['canonical_alias_evidence_accepted'] is False
+          assert a['canonical_external_resource_identity_consistent'] == (len(a['canonical_alias_conflicts']) == 0)
+          assert a['canonical_external_resource_identity_consistent'] is True
+          assert a['runtime_authorized'] is False
+          assert a['visual_approval_claimed'] is False
+          assert a['contact_verified'] is False
+          assert a['foot_slide_verified'] is False
+          print(json.dumps({'skin': d, 'backing': b, 'canonical_alias': a}, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:

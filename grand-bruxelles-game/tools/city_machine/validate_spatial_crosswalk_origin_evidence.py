@@ -11,6 +11,7 @@ EVIDENCE_PATH = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evid
 PRECONDITION_PATH = ROOT / "data/source_plans/brussels_spatial_crosswalk_precondition.lock.json"
 MIDI_CANDIDATE_PATH = ROOT / "data/qa/city_machine/midi_onboarding_candidate.json"
 MEASUREMENTS_PATH = ROOT / "data/source_plans/brussels_locked_road_source_measurements.lock.json"
+SOURCE_EVIDENCE_PATH = ROOT / "data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json"
 
 EXPECTED_SCHEMA = "grand-bruxelles-spatial-crosswalk-origin-evidence-v1"
 EXPECTED_PRECONDITION_SCHEMA = "grand-bruxelles-spatial-crosswalk-precondition-v1"
@@ -214,6 +215,9 @@ def validate() -> None:
     measurements_raw = MEASUREMENTS_PATH.read_bytes()
     if _git_blob_sha1(measurements_raw) != source_manifest["git_blob_sha1"]:
         raise ValueError("source measurement manifest Git blob mismatch")
+    source_evidence_raw = SOURCE_EVIDENCE_PATH.read_bytes()
+    if _git_blob_sha1(source_evidence_raw) != source_manifest["source_evidence_git_blob_sha1"]:
+        raise ValueError("source acquisition evidence Git blob mismatch")
     precondition_auth = precondition["authorization"]
     if precondition_auth != EXPECTED_PRECONDITION_AUTHORIZATION:
         raise ValueError("precondition authorization rails must remain closed")

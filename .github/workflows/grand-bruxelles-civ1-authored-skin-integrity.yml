@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          test "$(git rev-parse origin/main)" = "ec5138a7819d81f2715d6eb505e36a75e88a4534"
+          test "$(git rev-parse origin/main)" = "0c23cad0e2bc835e27e642353bd1702bc7df03e3"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff --quiet origin/main...HEAD -- \
             grand-bruxelles-game/game/main.tscn \
@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_canonical_resource_alias.py --self-test
-      - name: Reject duplicate Godot resource ids and ambiguous or partially parsed headers
+      - name: Reject duplicate ids, ambiguous attributes and malformed Godot resource headers
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py --self-test
@@ -139,21 +139,25 @@ jobs:
 
           s='/tmp/civ1-skin-integrity/civ1-resource-table-uniqueness.json'
           u=json.load(open(s, encoding='utf-8'))
-          assert u['schema']=='grand-bruxelles-civ1-resource-table-uniqueness-v3'
-          assert u['evidence_mode']=='reachable_tscn_plus_unique_resource_id_namespace_plus_whitespace_tolerant_fully_parsed_unambiguous_resource_header_attributes'
+          assert u['schema']=='grand-bruxelles-civ1-resource-table-uniqueness-v4'
+          assert u['evidence_mode']=='reachable_tscn_plus_unique_resource_id_namespace_plus_complete_outer_header_grammar_plus_whitespace_tolerant_fully_parsed_unambiguous_resource_header_attributes'
           assert u['reachable_scene_count'] >= 1
           assert u['duplicate_resource_id_evidence_accepted'] is False
           assert u['duplicate_resource_attribute_evidence_accepted'] is False
           assert u['partially_parsed_resource_header_evidence_accepted'] is False
           assert u['spaced_duplicate_attribute_evidence_accepted'] is False
+          assert u['malformed_outer_resource_header_evidence_accepted'] is False
           assert u['resource_header_attributes_unambiguous'] == (len(u['duplicate_resource_attribute_conflicts']) == 0)
           assert u['resource_header_syntax_fully_parsed'] == (len(u['unparsed_resource_header_fragments']) == 0)
+          assert u['resource_outer_header_syntax_valid'] == (len(u['malformed_resource_header_conflicts']) == 0)
           assert u['resource_header_attributes_unambiguous'] is True
           assert u['resource_header_syntax_fully_parsed'] is True
+          assert u['resource_outer_header_syntax_valid'] is True
           assert u['resource_table_identity_unambiguous'] == (
               len(u['duplicate_resource_id_conflicts']) == 0
               and len(u['duplicate_resource_attribute_conflicts']) == 0
               and len(u['unparsed_resource_header_fragments']) == 0
+              and len(u['malformed_resource_header_conflicts']) == 0
           )
           assert u['resource_table_identity_unambiguous'] is True
           assert u['runtime_authorized'] is False

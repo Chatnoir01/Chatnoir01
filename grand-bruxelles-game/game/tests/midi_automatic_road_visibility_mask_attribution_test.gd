@@ -92,6 +92,26 @@ func _first_hidden_ancestor(node: GeometryInstance3D) -> Node:
         cursor = cursor.get_parent()
     return null
 
+func _script_ancestry(scene: Node, node: Node) -> Array[Dictionary]:
+    var result: Array[Dictionary] = []
+    var cursor: Node = node
+    while cursor != null:
+        var script_variant: Variant = cursor.get_script()
+        if script_variant is Script:
+            var script := script_variant as Script
+            var path := script.resource_path
+            if not path.is_empty():
+                result.append({
+                    "node_path": str(scene.get_path_to(cursor)),
+                    "node_name": str(cursor.name),
+                    "node_class": cursor.get_class(),
+                    "script_path": path,
+                })
+        if cursor == scene:
+            break
+        cursor = cursor.get_parent()
+    return result
+
 func _run() -> void:
     var document := _document()
     if document.is_empty():
@@ -122,7 +142,9 @@ func _run() -> void:
     var rows: Array[Dictionary] = []
     var exact_nodes := 0
     var hidden_nodes := 0
+    var direct_self_hidden_nodes := 0
     var unattributed_hidden_nodes := 0
+    var missing_script_ancestry_nodes := 0
     var stack: Array[Node] = [scene]
     while not stack.is_empty():
         var node: Node = stack.pop_back()
@@ -144,6 +166,11 @@ func _run() -> void:
                     hidden_owner = _first_hidden_ancestor(geometry)
                     if hidden_owner == null:
                         unattributed_hidden_nodes += 1
+                    elif hidden_owner == geometry:
+                        direct_self_hidden_nodes += 1
+                var ancestry := _script_ancestry(scene, geometry)
+                if ancestry.is_empty():
+                    missing_script_ancestry_nodes += 1
                 var owner_meta := _json_meta(hidden_owner) if hidden_owner != null else {}
                 var row := {
                     "osm_id": osm_id,
@@ -157,9 +184,11 @@ func _run() -> void:
                     "first_hidden_ancestor_name": str(hidden_owner.name) if hidden_owner != null else "",
                     "first_hidden_ancestor_class": hidden_owner.get_class() if hidden_owner != null else "",
                     "first_hidden_ancestor_metadata": owner_meta,
+                    "hidden_owner_is_self": hidden_owner == geometry,
+                    "script_ancestry": ancestry,
                 }
                 rows.append(row)
-                print("MIDI_VISIBILITY_MASK_ROW: osm_id=%d node=%s visible=%s hidden_owner=%s owner_meta=%s" % [osm_id, row["node_path"], str(renderable), row["first_hidden_ancestor_path"], JSON.stringify(owner_meta)])
+                print("MIDI_VISIBILITY_MASK_ROW: osm_id=%d node=%s visible=%s hidden_owner=%s self_hidden=%s script_ancestry=%s owner_meta=%s" % [osm_id, row["node_path"], str(renderable), row["first_hidden_ancestor_path"], str(row["hidden_owner_is_self"]), JSON.stringify(ancestry), JSON.stringify(owner_meta)])
         for child: Node in node.get_children():
             stack.append(child)
 
@@ -169,14 +198,16 @@ func _run() -> void:
         return str(a["node_path"]) < str(b["node_path"])
     )
     var output := {
-        "schema": "grand-bruxelles-midi-automatic-road-visibility-mask-attribution-v1",
+        "schema": "grand-bruxelles-midi-automatic-road-visibility-mask-attribution-v2",
         "source_path": SOURCE_PATH,
         "source_sha256": FileAccess.get_sha256(SOURCE_PATH).to_lower(),
         "candidate_ids": ids,
         "candidate_count": ids.size(),
         "exact_candidate_geometry_node_count": exact_nodes,
         "hidden_candidate_geometry_node_count": hidden_nodes,
+        "direct_self_hidden_geometry_node_count": direct_self_hidden_nodes,
         "unattributed_hidden_geometry_node_count": unattributed_hidden_nodes,
+        "missing_script_ancestry_geometry_node_count": missing_script_ancestry_nodes,
         "rows": rows,
         "diagnostic_only": true,
         "osm_to_urbis_crosswalk_claimed": false,
@@ -199,11 +230,17 @@ func _run() -> void:
     if exact_nodes == 0:
         _fail("source-backed candidates have no exact runtime geometry")
         return
-    if hidden_nodes == 0:
-        _fail("no hidden candidate geometry reproduced")
+    if hidden_nodes != exact_nodes:
+        _fail("candidate visibility state is mixed; attribution no longer represents the reproduced blocker")
+        return
+    if direct_self_hidden_nodes != exact_nodes:
+        _fail("candidate masking is not direct per-road-node visibility state")
         return
     if unattributed_hidden_nodes != 0:
         _fail("hidden candidate geometry lacks a concrete hidden-node/ancestor cause")
         return
-    print("MIDI_AUTOMATIC_ROAD_VISIBILITY_MASK_ATTRIBUTION_GREEN: candidates=%d exact_nodes=%d hidden_nodes=%d unattributed=%d crosswalk_claimed=false destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), exact_nodes, hidden_nodes, unattributed_hidden_nodes])
+    if missing_script_ancestry_nodes != 0:
+        _fail("candidate geometry lacks script-bearing ancestry needed for ownership routing")
+        return
+    print("MIDI_AUTOMATIC_ROAD_VISIBILITY_MASK_ATTRIBUTION_GREEN: candidates=%d exact_nodes=%d hidden_nodes=%d direct_self_hidden=%d script_ancestry_missing=%d crosswalk_claimed=false destination_advertisable=false visual_acceptance=false jouable_authorized=false" % [ids.size(), exact_nodes, hidden_nodes, direct_self_hidden_nodes, missing_script_ancestry_nodes])
     quit(0)

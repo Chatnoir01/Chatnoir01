@@ -13,6 +13,7 @@ MAIN = ROOT / "game" / "main.tscn"
 AGENT = ROOT / "game" / "scripts" / "npc_agent.gd"
 DIRECTOR = ROOT / "game" / "scripts" / "npc_population_director.gd"
 REQUIRED_SAMPLES = [71, 72, 73]
+TRANSFORM_ROLES = ["npc_agent", "character_mount", "skeleton"]
 SKELETON_ARTIFACT_ID = 9996432028
 SKELETON_DIGEST = "sha256:9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00"
 PHASE_ARTIFACT_ID = 10057731450
@@ -33,14 +34,22 @@ def sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def identity_transform(origin_x: float) -> dict[str, object]:
-    return {"origin_m": [origin_x, 0.0, 0.0], "basis_rows": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]}
+def identity_transform(origin_x: float, origin_y: float = 0.0) -> dict[str, object]:
+    return {"origin_m": [origin_x, origin_y, 0.0], "basis_rows": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]}
+
+
+def role_transforms(origin_x: float) -> dict[str, object]:
+    return {
+        "npc_agent": identity_transform(origin_x, 0.0),
+        "character_mount": identity_transform(origin_x, 0.01),
+        "skeleton": identity_transform(origin_x, 0.02),
+    }
 
 
 def valid_runtime_witness() -> dict[str, object]:
     source_hash = "sha256:" + "1" * 64
     return {
-        "schema": "grand-bruxelles-civ1-runtime-placement-witness-v5",
+        "schema": "grand-bruxelles-civ1-runtime-placement-witness-v6",
         "evidence_kind": "godot-live-loaded-scene",
         "engine_version": "4.7.1",
         "main_scene": "res://game/main.tscn",
@@ -59,7 +68,11 @@ def valid_runtime_witness() -> dict[str, object]:
             "skeleton": "Skeleton3D",
             "ground": "CSGBox3D",
         },
-        "world_transforms_by_sample": {"71": identity_transform(0.00), "72": identity_transform(0.02), "73": identity_transform(0.04)},
+        "node_world_transforms_by_sample": {
+            "71": role_transforms(0.00),
+            "72": role_transforms(0.02),
+            "73": role_transforms(0.04),
+        },
         "ground_top_y_m": -0.03,
         "candidate_source_sha256": source_hash,
         "provenance_record": "CIV-1 immutable source receipt",
@@ -82,8 +95,17 @@ def valid_runtime_witness() -> dict[str, object]:
             "phase_lowest_candidate_sample_index": 72,
             "bound_sample_indices": REQUIRED_SAMPLES,
         },
-        "runtime_inputs": {"main_scene_sha256": sha256_file(MAIN), "npc_agent_sha256": sha256_file(AGENT), "npc_director_sha256": sha256_file(DIRECTOR)},
-        "capture": {"loaded_scene_tree_observed": True, "character_mount_observed": True, "canonical_ground_observed": True, "sample_indices": REQUIRED_SAMPLES},
+        "runtime_inputs": {
+            "main_scene_sha256": sha256_file(MAIN),
+            "npc_agent_sha256": sha256_file(AGENT),
+            "npc_director_sha256": sha256_file(DIRECTOR),
+        },
+        "capture": {
+            "loaded_scene_tree_observed": True,
+            "character_mount_observed": True,
+            "canonical_ground_observed": True,
+            "sample_indices": REQUIRED_SAMPLES,
+        },
     }
 
 
@@ -102,10 +124,11 @@ def test_current_runtime_is_fail_closed_without_loaded_transform_witness() -> No
         result = run_classifier(out)
         assert result.returncode == 0, result.stderr or result.stdout
         receipt = json.loads(out.read_text(encoding="utf-8"))
-    assert receipt["schema"] == "grand-bruxelles-civ1-canonical-placement-contract-v6"
+    assert receipt["schema"] == "grand-bruxelles-civ1-canonical-placement-contract-v7"
     assert abs(receipt["canonical_ground"]["top_y_m"] - (-0.03)) <= 1e-12
-    assert receipt["runtime_witness"]["schema"] == "grand-bruxelles-civ1-runtime-placement-witness-v5"
+    assert receipt["runtime_witness"]["schema"] == "grand-bruxelles-civ1-runtime-placement-witness-v6"
     assert receipt["runtime_witness"]["required_sample_indices"] == REQUIRED_SAMPLES
+    assert receipt["runtime_witness"]["required_transform_roles"] == TRANSFORM_ROLES
     assert receipt["runtime_witness"]["required_animation_evidence"]["skeleton_artifact_id"] == SKELETON_ARTIFACT_ID
     assert receipt["runtime_witness"]["required_animation_evidence"]["phase_minima_artifact_id"] == PHASE_ARTIFACT_ID
     assert receipt["runtime_witness"]["required_source_evidence"]["source_commit_sha"] == SOURCE_COMMIT
@@ -152,13 +175,28 @@ def test_phase_evidence_must_bind_exact_samples_and_lowest_candidate() -> None:
     assert "animation_evidence.phase_lowest_candidate_sample_index:mismatch" in combined
 
 
-def test_single_transform_witness_is_rejected() -> None:
+def test_legacy_root_only_sample_transforms_are_rejected() -> None:
     witness = valid_runtime_witness()
-    witness.pop("world_transforms_by_sample")
-    witness["world_transform"] = identity_transform(0.02)
+    witness.pop("node_world_transforms_by_sample")
+    witness["world_transforms_by_sample"] = {"71": identity_transform(0.00), "72": identity_transform(0.02), "73": identity_transform(0.04)}
     result = classify_witness(witness)
+    combined = result.stdout + result.stderr
     assert result.returncode != 0
-    assert "world_transforms_by_sample:not-object" in result.stdout + result.stderr
+    assert "node_world_transforms_by_sample:not-object" in combined
+    assert "world_transforms_by_sample:legacy-root-only-field-forbidden" in combined
+
+
+def test_each_sample_requires_all_observed_transform_roles() -> None:
+    witness = valid_runtime_witness()
+    transforms = witness["node_world_transforms_by_sample"]
+    assert isinstance(transforms, dict)
+    sample = transforms["72"]
+    assert isinstance(sample, dict)
+    sample.pop("skeleton")
+    result = classify_witness(witness)
+    combined = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert "node_world_transforms_by_sample.72.keys:mismatch" in combined
 
 
 def test_stale_runtime_inputs_are_rejected() -> None:
@@ -182,7 +220,12 @@ def test_source_hash_must_match_source_evidence() -> None:
 
 
 def test_source_commit_blob_size_and_license_are_pinned() -> None:
-    mutations = [("source_commit_sha", "0" * 40, "source_evidence.source_commit_sha:mismatch"), ("source_git_blob_sha1", "f" * 40, "source_evidence.source_git_blob_sha1:mismatch"), ("source_size_bytes", SOURCE_SIZE_BYTES - 1, "source_evidence.source_size_bytes:mismatch"), ("license_id", "MIT", "source_evidence.license_id:mismatch")]
+    mutations = [
+        ("source_commit_sha", "0" * 40, "source_evidence.source_commit_sha:mismatch"),
+        ("source_git_blob_sha1", "f" * 40, "source_evidence.source_git_blob_sha1:mismatch"),
+        ("source_size_bytes", SOURCE_SIZE_BYTES - 1, "source_evidence.source_size_bytes:mismatch"),
+        ("license_id", "MIT", "source_evidence.license_id:mismatch"),
+    ]
     for key, bad_value, expected_error in mutations:
         witness = valid_runtime_witness()
         source = witness["source_evidence"]
@@ -258,7 +301,8 @@ if __name__ == "__main__":
     test_wrong_animation_lineage_is_rejected_causally()
     test_wrong_animation_sample_count_is_rejected_causally()
     test_phase_evidence_must_bind_exact_samples_and_lowest_candidate()
-    test_single_transform_witness_is_rejected()
+    test_legacy_root_only_sample_transforms_are_rejected()
+    test_each_sample_requires_all_observed_transform_roles()
     test_stale_runtime_inputs_are_rejected()
     test_source_hash_must_match_source_evidence()
     test_source_commit_blob_size_and_license_are_pinned()

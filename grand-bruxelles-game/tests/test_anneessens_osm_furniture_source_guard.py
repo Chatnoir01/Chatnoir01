@@ -53,6 +53,21 @@ class AnneessensOsmFurnitureSourceGuardTest(unittest.TestCase):
         self.assertIn("return", build.split("if validated_tree_points == null:", 1)[1].split("_root = Node3D.new()", 1)[0])
         self.assertNotIn("_add_tree(int(point.get(\"osm_id\", 0))", build)
 
+    def test_unsourced_tree_dimensions_never_authorize_player_collision(self) -> None:
+        source = _source()
+        build = _function_body(source, "func _build_once() -> void:")
+        add_tree = _function_body(source, "func _add_tree(osm_id: int, world_position: Vector3) -> void:")
+        activation = _function_body(source, "func _apply_tree_activation(active: bool) -> void:")
+        self.assertIn('_root.set_meta("collision_source_backed", false)', build)
+        self.assertIn('_root.set_meta("collision_authorized", false)', build)
+        self.assertIn('_root.set_meta("collision_policy", "disabled_until_source_backed_trunk_profile")', build)
+        self.assertIn('tree.set_meta("collision_source_backed", false)', add_tree)
+        self.assertIn('tree.set_meta("collision_authorized", false)', add_tree)
+        self.assertIn('tree.set_meta("collision_policy", "disabled_until_source_backed_trunk_profile")', add_tree)
+        self.assertNotIn("CylinderShape3D.new()", add_tree)
+        self.assertNotIn("CollisionShape3D.new()", add_tree)
+        self.assertNotIn("collision.disabled = not active", activation)
+
 
 if __name__ == "__main__":
     unittest.main()

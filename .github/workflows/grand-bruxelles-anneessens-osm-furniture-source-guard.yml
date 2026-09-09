@@ -15,24 +15,45 @@ jobs:
   source-guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout raw PR head
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - name: Confirm base lacked point-level fail-closed guard
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Checkout dispatch ref
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Confirm exact current main ancestry
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
-          if git show "$BASE_SHA:grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd" | grep -q '_collect_validated_tree_points'; then
-            echo 'Base already contains the source guard; rehydrate/re-scope instead of replaying stale work.' >&2
-            exit 1
-          fi
-      - name: Prove fail-closed source contract
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA" || { echo 'Workflow is not executing the raw PR head.' >&2; exit 1; }
+          git cat-file -e "$BASE_SHA^{commit}"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA" || { echo 'PR head is stale relative to its resolved base.' >&2; exit 1; }
+      - name: Prove fail-closed source and collision contract
         run: python grand-bruxelles-game/tests/test_anneessens_osm_furniture_source_guard.py
       - name: Preserve source/runtime rails
         run: |
-          grep -F 'OpenStreetMap contributors via Overpass API' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
-          grep -F 'ODbL-1.0' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
-          grep -F 'placement_source_backed", true' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
-          grep -F 'visual_dimensions_source_backed", false' grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
+          RUNTIME=grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd
+          grep -F 'OpenStreetMap contributors via Overpass API' "$RUNTIME"
+          grep -F 'ODbL-1.0' "$RUNTIME"
+          grep -F 'placement_source_backed", true' "$RUNTIME"
+          grep -F 'visual_dimensions_source_backed", false' "$RUNTIME"
+          grep -F 'collision_source_backed", false' "$RUNTIME"
+          grep -F 'collision_authorized", false' "$RUNTIME"
+          grep -F 'disabled_until_source_backed_trunk_profile' "$RUNTIME"
+          if grep -Fq 'CylinderShape3D.new()' "$RUNTIME"; then
+            echo 'Unsourced tree collision shape reintroduced.' >&2
+            exit 1
+          fi
+          if grep -Fq 'collision.disabled = not active' "$RUNTIME"; then
+            echo 'Activation toggle must never authorize unsourced tree collision.' >&2
+            exit 1
+          fi

@@ -11,6 +11,7 @@ AUTOLOAD = "AnneessensOsmFurnitureRuntime"
 OWNED_ROOT = "AnneessensOsmFurniture"
 SOURCE = "OpenStreetMap contributors via Overpass API"
 LICENSE = "ODbL-1.0"
+COLLISION_POLICY = "disabled_until_source_backed_trunk_profile"
 
 
 def fail(message: str) -> None:
@@ -71,9 +72,17 @@ def main() -> None:
         'set_meta("visual_dimensions_source_backed", false)',
         'set_meta("source_height_measured", false)',
         'set_meta("source_species_measured", false)',
+        'set_meta("collision_source_backed", false)',
+        'set_meta("collision_authorized", false)',
+        f'"{COLLISION_POLICY}"',
     ):
         if required not in source:
-            fail(f"Anneessens furniture provenance rail missing: {required}")
+            fail(f"Anneessens furniture provenance/collision rail missing: {required}")
+
+    add_tree = function_body(source, "_add_tree")
+    for forbidden in ("CollisionShape3D.new()", "CylinderShape3D.new()"):
+        if forbidden in add_tree:
+            fail(f"Anneessens unsourced tree collision construction returned: {forbidden}")
 
     exit_body = function_body(source, "_exit_tree")
     if "_release_owned_root()" not in exit_body:
@@ -85,25 +94,23 @@ def main() -> None:
             fail(f"Anneessens furniture owned-root cleanup incomplete: {required}")
 
     activation = function_body(source, "_apply_tree_activation")
-    for required in (
-        "_root.visible = active",
-        "collision.disabled = not active",
-    ):
-        if required not in activation:
-            fail(f"Anneessens tree visibility/collision synchronization missing: {required}")
+    if "_root.visible = active" not in activation:
+        fail("Anneessens tree visibility activation drifted")
+    if "CollisionShape3D" in activation or "collision.disabled" in activation:
+        fail("Anneessens activation must not resurrect unsourced tree collision")
 
     process_body = function_body(source, "_process")
     if "_apply_tree_activation(" not in process_body:
-        fail("Anneessens distance activation bypasses collision synchronization")
+        fail("Anneessens distance activation no longer drives owned-root visibility")
 
     build_body = function_body(source, "_build_once")
     if "_apply_tree_activation(" not in build_body:
-        fail("Anneessens newly built colliders do not inherit current activation state")
+        fail("Anneessens newly built furniture does not inherit current visibility state")
 
     print(
         "ANNEESSENS_FURNITURE_OWNED_ROOT_CONTRACT_OK: "
         f"autoload={AUTOLOAD} root={OWNED_ROOT} source=OSM license={LICENSE} "
-        "detach_then_free=true tree_visibility_collision_sync=locked runtime_geometry_changed=false"
+        f"detach_then_free=true collision_policy={COLLISION_POLICY} proxy_collisions=0 runtime_geometry_changed=false"
     )
 
 

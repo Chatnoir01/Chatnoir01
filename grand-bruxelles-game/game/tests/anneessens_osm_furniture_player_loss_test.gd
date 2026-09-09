@@ -2,26 +2,31 @@ extends SceneTree
 
 const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_runtime.gd")
 const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
+const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 
 func _fail(message: String) -> void:
     push_error("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_FAIL: %s" % message)
     quit(1)
 
-func _all_collisions_disabled(furniture_root: Node3D) -> bool:
-    for child: Node in furniture_root.get_children():
-        if child is StaticBody3D:
-            var collision := child.get_node_or_null("CollisionShape3D") as CollisionShape3D
-            if collision == null or not collision.disabled:
-                return false
-    return true
+func _collision_shape_count(furniture_root: Node3D) -> int:
+    return furniture_root.find_children("*", "CollisionShape3D", true, false).size()
 
-func _all_collisions_enabled(furniture_root: Node3D) -> bool:
+func _collision_policy_is_fail_closed(furniture_root: Node3D) -> bool:
+    if bool(furniture_root.get_meta("collision_source_backed", true)):
+        return false
+    if bool(furniture_root.get_meta("collision_authorized", true)):
+        return false
+    if str(furniture_root.get_meta("collision_policy", "")) != COLLISION_POLICY:
+        return false
     for child: Node in furniture_root.get_children():
         if child is StaticBody3D:
-            var collision := child.get_node_or_null("CollisionShape3D") as CollisionShape3D
-            if collision == null or collision.disabled:
+            if bool(child.get_meta("collision_source_backed", true)):
                 return false
-    return true
+            if bool(child.get_meta("collision_authorized", true)):
+                return false
+            if str(child.get_meta("collision_policy", "")) != COLLISION_POLICY:
+                return false
+    return _collision_shape_count(furniture_root) == 0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -60,10 +65,13 @@ func _run() -> void:
         _fail("authoritative Main did not receive Anneessens furniture")
         return
     if int(runtime.call("tree_count")) != 7:
-        _fail("expected exactly seven source-backed Anneessens trees")
+        _fail("expected exactly seven source-backed Anneessens tree positions")
         return
-    if not furniture_root.visible or not _all_collisions_enabled(furniture_root):
-        _fail("near-player baseline must be visible and collision-enabled")
+    if not furniture_root.visible:
+        _fail("near-player baseline furniture must be visible")
+        return
+    if not _collision_policy_is_fail_closed(furniture_root):
+        _fail("near-player baseline resurrected unsourced tree collision")
         return
 
     main.remove_child(player)
@@ -74,8 +82,8 @@ func _run() -> void:
     if furniture_root.visible:
         _fail("furniture remained visible after required Player anchor disappeared")
         return
-    if not _all_collisions_disabled(furniture_root):
-        _fail("furniture collisions remained active after required Player anchor disappeared")
+    if not _collision_policy_is_fail_closed(furniture_root):
+        _fail("Player-anchor loss changed fail-closed collision policy")
         return
 
     var replacement_player := Node3D.new()
@@ -85,8 +93,11 @@ func _run() -> void:
     for _frame: int in range(12):
         await process_frame
 
-    if not furniture_root.visible or not _all_collisions_enabled(furniture_root):
-        _fail("furniture did not reactivate after a legitimate Player anchor returned")
+    if not furniture_root.visible:
+        _fail("furniture did not reactivate visually after a legitimate Player anchor returned")
+        return
+    if not _collision_policy_is_fail_closed(furniture_root):
+        _fail("Player-anchor reactivation resurrected unsourced tree collision")
         return
 
     if str(furniture_root.get_meta("source", "")) != "OpenStreetMap contributors via Overpass API":
@@ -96,5 +107,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 fail_closed=true reactivated=true source=OSM license=ODbL-1.0")
+    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true visual_reactivated=true source=OSM license=ODbL-1.0")
     quit(0)

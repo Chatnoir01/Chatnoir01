@@ -40,6 +40,28 @@ EXPECTED_ROAD_SOURCE = {
     "road_source_provider": "OpenStreetMap contributors via Overpass API",
     "road_source_license": "ODbL-1.0",
 }
+EXPECTED_MIDI_COORDINATE = {
+    "frame": "grand_bruxelles_project_global",
+    "origin_easting_m": 147868.29422791934,
+    "origin_northing_m": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres",
+    "runtime_translation_m": [0.0, 0.0, 0.0],
+    "additional_zone_offset_allowed": False,
+}
+EXPECTED_MIDI_BRIDGE = {
+    "road_runtime_index": "data/runtime/road_destination_runtime_index.json",
+    "road_runtime_index_format": "grand-bruxelles-road-runtime-index-v1",
+    "road_runtime_catalog_sha256": "7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f",
+    "road_source": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "road_source_provider": "OpenStreetMap contributors via Overpass API",
+    "road_source_license": "ODbL-1.0",
+    "official_world_frame_evidence": "data/urbis/bourse_street_axes.game.json",
+    "expected_midi_world_xz": [-668.5, 627.84],
+    "lambert72_formula": "E=origin_easting_m+x;N=origin_northing_m-z",
+    "road_cell_mapping_authorized": False,
+}
 EXPECTED_TOP_KEYS = {"schema", "source_owner", "measured_contract", "authorization", "scope_note"}
 EXPECTED_OWNER_KEYS = {"pr", "head_sha", "workflow", "run_id", "artifact_id", "artifact_digest", "artifact_name"}
 EXPECTED_FRAME_KEYS = {"crs", "origin_easting_m", "origin_northing_m", "formula"}
@@ -132,11 +154,15 @@ def validate() -> None:
 
     bridge = midi.get("road_frame_bridge")
     coordinate = midi.get("coordinate_contract")
-    if not isinstance(bridge, dict) or not isinstance(coordinate, dict):
-        raise ValueError("Midi origin bridge contract missing")
-    if coordinate.get("origin_easting_m") != frame["origin_easting_m"] or coordinate.get("origin_northing_m") != frame["origin_northing_m"]:
+    coordinate = _exact(coordinate, set(EXPECTED_MIDI_COORDINATE), "Midi coordinate_contract")
+    bridge = _exact(bridge, set(EXPECTED_MIDI_BRIDGE), "Midi road_frame_bridge")
+    if coordinate != EXPECTED_MIDI_COORDINATE:
+        raise ValueError("Midi coordinate_contract immutable identity drift")
+    if bridge != EXPECTED_MIDI_BRIDGE:
+        raise ValueError("Midi road_frame_bridge immutable identity drift")
+    if coordinate["origin_easting_m"] != frame["origin_easting_m"] or coordinate["origin_northing_m"] != frame["origin_northing_m"]:
         raise ValueError("Midi coordinate origin does not match locked origin evidence")
-    if bridge.get("lambert72_formula") != frame["formula"] or bridge.get("road_runtime_index") != measured["road_runtime_index"] or bridge.get("road_runtime_catalog_sha256") != measured["road_runtime_catalog_sha256"] or bridge.get("road_source") != measured["road_source"] or bridge.get("road_source_sha256") != measured["road_source_sha256"] or bridge.get("road_source_provider") != measured["road_source_provider"] or bridge.get("road_source_license") != measured["road_source_license"]:
+    if bridge["lambert72_formula"] != frame["formula"] or bridge["road_runtime_index"] != measured["road_runtime_index"] or bridge["road_runtime_catalog_sha256"] != measured["road_runtime_catalog_sha256"] or bridge["road_source"] != measured["road_source"] or bridge["road_source_sha256"] != measured["road_source_sha256"] or bridge["road_source_provider"] != measured["road_source_provider"] or bridge["road_source_license"] != measured["road_source_license"]:
         raise ValueError("Midi road-frame bridge does not match locked origin evidence")
 
     crosswalk = precondition.get("crosswalk")

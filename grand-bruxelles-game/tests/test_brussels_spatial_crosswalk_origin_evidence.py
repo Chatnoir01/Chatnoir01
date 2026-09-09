@@ -133,6 +133,35 @@ def test_origin_evidence_validator_rejects_coordinated_road_source_repin(tmp_pat
         validator.validate()
 
 
+def test_origin_evidence_validator_rejects_coordinated_index_repin(tmp_path, monkeypatch):
+    validator = _load_origin_validator()
+    evidence = _load_json_strict(EVIDENCE)
+    precondition = _load_json_strict(PRECONDITION)
+    midi = _load_json_strict(MIDI_CANDIDATE)
+
+    measured = evidence["measured_contract"]
+    bridge = midi["road_frame_bridge"]
+    measured["registered_cell_index"] = "data/provenance/repinned-cell-index.json"
+    measured["registered_cell_index_semantic_sha256"] = "1" * 64
+    measured["road_runtime_index"] = "data/runtime/repinned-road-index.json"
+    measured["road_runtime_catalog_sha256"] = "2" * 64
+    bridge["road_runtime_index"] = measured["road_runtime_index"]
+    bridge["road_runtime_catalog_sha256"] = measured["road_runtime_catalog_sha256"]
+
+    evidence_path = tmp_path / "evidence.json"
+    precondition_path = tmp_path / "precondition.json"
+    midi_path = tmp_path / "midi.json"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    precondition_path.write_text(json.dumps(precondition), encoding="utf-8")
+    midi_path.write_text(json.dumps(midi), encoding="utf-8")
+    monkeypatch.setattr(validator, "EVIDENCE_PATH", evidence_path)
+    monkeypatch.setattr(validator, "PRECONDITION_PATH", precondition_path)
+    monkeypatch.setattr(validator, "MIDI_CANDIDATE_PATH", midi_path)
+
+    with pytest.raises(ValueError, match="index immutable identity drift"):
+        validator.validate()
+
+
 def test_spatial_crosswalk_origin_evidence_is_pinned_and_fail_closed():
     evidence = _load_json_strict(EVIDENCE)
     precondition = _load_json_strict(PRECONDITION)

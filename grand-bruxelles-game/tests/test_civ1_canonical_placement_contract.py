@@ -21,6 +21,7 @@ PHASE_DIGEST = "sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a
 SOURCE_COMMIT = "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
 SOURCE_GIT_BLOB = "09bcade1092e5a89b474e91e6013209d4c68c127"
 SOURCE_SIZE_BYTES = 6879364
+SOURCE_SHA256 = "sha256:8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888"
 
 
 def run_classifier(out: Path, witness: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -47,7 +48,7 @@ def role_transforms(origin_x: float) -> dict[str, object]:
 
 
 def valid_runtime_witness() -> dict[str, object]:
-    source_hash = "sha256:" + "1" * 64
+    source_hash = SOURCE_SHA256
     return {
         "schema": "grand-bruxelles-civ1-runtime-placement-witness-v6",
         "evidence_kind": "godot-live-loaded-scene",
@@ -219,6 +220,19 @@ def test_source_hash_must_match_source_evidence() -> None:
     assert "source_evidence.source_file_sha256:mismatch" in result.stdout + result.stderr
 
 
+def test_self_consistent_forged_source_hash_is_rejected() -> None:
+    witness = valid_runtime_witness()
+    forged = "sha256:" + "9" * 64
+    witness["candidate_source_sha256"] = forged
+    source = witness["source_evidence"]
+    assert isinstance(source, dict)
+    source["source_file_sha256"] = forged
+    result = classify_witness(witness)
+    combined = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert "candidate_source_sha256:mismatch" in combined or "source_evidence.source_file_sha256:mismatch" in combined
+
+
 def test_source_commit_blob_size_and_license_are_pinned() -> None:
     mutations = [
         ("source_commit_sha", "0" * 40, "source_evidence.source_commit_sha:mismatch"),
@@ -305,6 +319,7 @@ if __name__ == "__main__":
     test_each_sample_requires_all_observed_transform_roles()
     test_stale_runtime_inputs_are_rejected()
     test_source_hash_must_match_source_evidence()
+    test_self_consistent_forged_source_hash_is_rejected()
     test_source_commit_blob_size_and_license_are_pinned()
     test_node_paths_must_prove_one_observed_hierarchy()
     test_node_classes_must_match_observed_runtime_roles()

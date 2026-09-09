@@ -99,7 +99,7 @@ func _run() -> void:
     await process_frame
     await physics_frame
     var vertical_span: Vector2 = mask.call("_authoritative_geometry_vertical_span", exact_buildings)
-    var source_transform := facade_batch.multimesh.get_instance_transform(0)
+    var source_transform: Transform3D = mask.call("_multimesh_transform_from_buffer", facade_batch.multimesh, 0)
     var world_sample: Vector3 = mask.call("_multimesh_instance_world_sample", facade_batch, source_transform)
     var direct_support: bool = mask.call("_authoritative_support_between", world_sample, exact_buildings, vertical_span.y, vertical_span.x)
     print("OSM_MIDI_MASK_FACADE_MULTIMESH_DIAGNOSTIC: sample=%s span=%s inside=%s support=%s buffer_floats=%d" % [str(world_sample), str(vertical_span), str(mask.call("_inside", world_sample)), str(direct_support), facade_batch.multimesh.buffer.size()])
@@ -115,8 +115,16 @@ func _run() -> void:
     if facade_batch.multimesh.instance_count != 2:
         _fail("expected exactly one supported Midi facade instance to be removed while unsupported/ineligible fallbacks remain; got %d instances" % facade_batch.multimesh.instance_count)
         return
-    var first := facade_batch.multimesh.get_instance_transform(0).origin
-    var second := facade_batch.multimesh.get_instance_transform(1).origin
+    if facade_batch.multimesh.visible_instance_count != 2:
+        _fail("visible instance contract changed unexpectedly after filtering; got %d" % facade_batch.multimesh.visible_instance_count)
+        return
+    if facade_batch.multimesh.buffer.size() != 24:
+        _fail("filtered renderer buffer has unexpected 3D payload size: %d" % facade_batch.multimesh.buffer.size())
+        return
+    var first_transform: Transform3D = mask.call("_multimesh_transform_from_buffer", facade_batch.multimesh, 0)
+    var second_transform: Transform3D = mask.call("_multimesh_transform_from_buffer", facade_batch.multimesh, 1)
+    var first := first_transform.origin
+    var second := second_transform.origin
     var expected_unsupported := MIDI_WORLD + Vector3(80.0, 10.0, 0.0)
     var expected_outside := MIDI_WORLD + Vector3(700.0, 10.0, 0.0)
     if not _origin_near(first, expected_unsupported) or not _origin_near(second, expected_outside):
@@ -125,5 +133,5 @@ func _run() -> void:
     if not facade_batch.is_visible_in_tree() or not details.visible:
         _fail("facade batch or parent was hidden wholesale instead of filtering only supported Midi instances")
         return
-    print("OSM_MIDI_MASK_FACADE_MULTIMESH_SPATIAL_SUPPORT_OK: supported_removed=1 unsupported_preserved=1 outside_radius_preserved=1 source_positions_preserved=true radius_unchanged=true")
+    print("OSM_MIDI_MASK_FACADE_MULTIMESH_SPATIAL_SUPPORT_OK: supported_removed=1 unsupported_preserved=1 outside_radius_preserved=1 source_positions_preserved=true renderer_buffer_preserved=true radius_unchanged=true")
     quit(0)

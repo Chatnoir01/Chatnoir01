@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import re
 from pathlib import Path
@@ -76,6 +77,15 @@ def _assert_exact_keys(payload, expected, label):
     assert set(payload) == expected, f"{label} schema drift: {set(payload) ^ expected}"
 
 
+def _load_origin_validator():
+    path = ROOT / "tools/city_machine/validate_spatial_crosswalk_origin_evidence.py"
+    spec = importlib.util.spec_from_file_location("spatial_crosswalk_origin_validator", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_origin_evidence_duplicate_keys_fail_closed():
     canonical = EVIDENCE.read_bytes()
     duplicate = canonical.replace(
@@ -86,6 +96,41 @@ def test_origin_evidence_duplicate_keys_fail_closed():
     assert duplicate != canonical
     with pytest.raises(ValueError, match="duplicate JSON key: schema"):
         _load_json_bytes_strict(duplicate)
+
+
+def test_origin_evidence_validator_rejects_coordinated_road_source_repin(tmp_path, monkeypatch):
+    validator = _load_origin_validator()
+    evidence = _load_json_strict(EVIDENCE)
+    precondition = _load_json_strict(PRECONDITION)
+    midi = _load_json_strict(MIDI_CANDIDATE)
+
+    fake_path = "data/osm/repinned-but-unverified.game.json"
+    fake_sha256 = "0" * 64
+    fake_provider = "repinned provider"
+    fake_license = "repinned-license"
+    measured = evidence["measured_contract"]
+    bridge = midi["road_frame_bridge"]
+    measured["road_source"] = fake_path
+    measured["road_source_sha256"] = fake_sha256
+    measured["road_source_provider"] = fake_provider
+    measured["road_source_license"] = fake_license
+    bridge["road_source"] = fake_path
+    bridge["road_source_sha256"] = fake_sha256
+    bridge["road_source_provider"] = fake_provider
+    bridge["road_source_license"] = fake_license
+
+    evidence_path = tmp_path / "evidence.json"
+    precondition_path = tmp_path / "precondition.json"
+    midi_path = tmp_path / "midi.json"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    precondition_path.write_text(json.dumps(precondition), encoding="utf-8")
+    midi_path.write_text(json.dumps(midi), encoding="utf-8")
+    monkeypatch.setattr(validator, "EVIDENCE_PATH", evidence_path)
+    monkeypatch.setattr(validator, "PRECONDITION_PATH", precondition_path)
+    monkeypatch.setattr(validator, "MIDI_CANDIDATE_PATH", midi_path)
+
+    with pytest.raises(ValueError, match="road source immutable identity drift"):
+        validator.validate()
 
 
 def test_spatial_crosswalk_origin_evidence_is_pinned_and_fail_closed():

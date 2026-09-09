@@ -33,3 +33,16 @@ def test_origin_measurement_semantic_identity_repin_fails_closed(tmp_path, monke
 
     with pytest.raises(ValueError, match="measurement semantic immutable identity drift"):
         validator.validate()
+
+
+def test_origin_measurement_semantic_identity_rejects_measured_contract_schema_extension(tmp_path, monkeypatch):
+    validator = _load_validator()
+    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+    evidence["measured_contract"]["shadow_semantic_sha256"] = evidence["measured_contract"]["semantic_sha256"]
+
+    evidence_path = tmp_path / "evidence.json"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    monkeypatch.setattr(validator, "EVIDENCE_PATH", evidence_path)
+
+    with pytest.raises(ValueError, match="origin evidence measured_contract schema drift"):
+        validator.validate()

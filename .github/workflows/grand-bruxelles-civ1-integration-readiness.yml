@@ -5,6 +5,7 @@ on:
       - 'grand-bruxelles-game/tools/civ1_integration_readiness.py'
       - 'grand-bruxelles-game/game/**/*.tscn'
       - 'grand-bruxelles-game/game/scripts/npc_agent.gd'
+      - 'grand-bruxelles-game/game/scripts/humanoid_visual.gd'
       - '.github/workflows/grand-bruxelles-civ1-integration-readiness.yml'
 permissions:
   contents: read
@@ -29,7 +30,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Reject token-only, disconnected and unreachable scene evidence
+      - name: Reject forged scene and visual-pipeline evidence
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_integration_readiness.py --self-test
@@ -40,6 +41,7 @@ jobs:
           python grand-bruxelles-game/tools/civ1_integration_readiness.py \
             grand-bruxelles-game/game/main.tscn \
             grand-bruxelles-game/game/scripts/npc_agent.gd \
+            grand-bruxelles-game/game/scripts/humanoid_visual.gd \
             /tmp/civ1-readiness/civ1-integration-readiness.json
       - name: Assert fail-closed evidence
         run: |
@@ -47,13 +49,19 @@ jobs:
           import json
           p='/tmp/civ1-readiness/civ1-integration-readiness.json'
           d=json.load(open(p, encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-integration-readiness-v3'
-          assert d['evidence_mode']=='reachable_packed_scene_graph'
+          assert d['schema']=='grand-bruxelles-civ1-integration-readiness-v4'
+          assert d['evidence_mode']=='reachable_packed_scene_graph_plus_npc_visual_pipeline'
           assert d['token_only_evidence_accepted'] is False
           assert d['declared_but_uninstanced_scene_evidence_accepted'] is False
           assert d['reachable_scene_count'] >= 1
           assert d['player_character_reuse_detected'] is False
           assert d['procedural_cube_fallback_detected'] is False
+          assert isinstance(d['procedural_profile_fallback_detected'], bool)
+          assert d['authored_visual_ready'] == (
+              d['hierarchy_statically_addressable']
+              and not d['procedural_profile_fallback_detected']
+              and not d['player_character_reuse_detected']
+          )
           assert d['runtime_authorized'] is False
           assert d['visual_approval_claimed'] is False
           assert d['contact_verified'] is False

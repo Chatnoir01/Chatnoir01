@@ -1,0 +1,163 @@
+name: Grand Bruxelles OSM Midi Mask Facade Effect
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-midi-mask-facade-effect.yml"
+      - "grand-bruxelles-game/game/scripts/osm_midi_mask.gd"
+      - "grand-bruxelles-game/game/tests/osm_midi_mask_facade_effect_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  facade-effect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main base and exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            test "$HEAD_SHA" = "$PR_HEAD_SHA"
+          else
+            PR_BASE_SHA="$(git merge-base HEAD origin/main)"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$MAIN_SHA" = "$PR_BASE_SHA"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'FACADE_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'FACADE_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+      - name: Install verified Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+      - name: Prepare exact base worktree with identical revision-neutral probe
+        run: |
+          set -euo pipefail
+          probe=grand-bruxelles-game/game/tests/osm_midi_mask_facade_effect_test.gd
+          cp "$probe" /tmp/osm_midi_mask_facade_effect_test.gd
+          rm -rf /tmp/gbg-facade-base
+          git worktree add --detach /tmp/gbg-facade-base "$FACADE_BASE_SHA"
+          mkdir -p /tmp/gbg-facade-base/grand-bruxelles-game/game/tests
+          cp /tmp/osm_midi_mask_facade_effect_test.gd /tmp/gbg-facade-base/$probe
+      - name: Import exact base and head projects
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path /tmp/gbg-facade-base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/base-import.log; then exit 1; fi
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/head-import.log; then exit 1; fi
+      - name: Measure exact base facade mask effect
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path /tmp/gbg-facade-base/grand-bruxelles-game --script res://game/tests/osm_midi_mask_facade_effect_test.gd 2>&1 | tee /tmp/base-effect.log
+          if grep -E "SCRIPT ERROR|Parse Error:|OSM_MIDI_MASK_FACADE_EFFECT_FAIL" /tmp/base-effect.log; then exit 1; fi
+          test "$(grep -c 'OSM_MIDI_MASK_FACADE_EFFECT_OK' /tmp/base-effect.log)" -eq 1
+      - name: Measure exact head facade mask effect
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/osm_midi_mask_facade_effect_test.gd 2>&1 | tee /tmp/head-effect.log
+          if grep -E "SCRIPT ERROR|Parse Error:|OSM_MIDI_MASK_FACADE_EFFECT_FAIL" /tmp/head-effect.log; then exit 1; fi
+          test "$(grep -c 'OSM_MIDI_MASK_FACADE_EFFECT_OK' /tmp/head-effect.log)" -eq 1
+      - name: Seal exact base-head facade effect evidence
+        run: |
+          set -euo pipefail
+          base_result=/tmp/gbg-facade-base/grand-bruxelles-game/artifacts/qa/osm_midi_mask_facade_effect.json
+          head_result=grand-bruxelles-game/artifacts/qa/osm_midi_mask_facade_effect.json
+          test -s "$base_result"
+          test -s "$head_result"
+          stage=/tmp/osm-midi-mask-facade-effect
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp "$base_result" "$stage/base-effect.json"
+          cp "$head_result" "$stage/head-effect.json"
+          cp /tmp/base-effect.log "$stage/base-effect.log"
+          cp /tmp/head-effect.log "$stage/head-effect.log"
+          cp /tmp/base-import.log "$stage/base-import.log"
+          cp /tmp/head-import.log "$stage/head-import.log"
+          python3 - "$stage/base-effect.json" "$stage/head-effect.json" "$stage/ab.json" <<'PY'
+          import json, os, pathlib, sys
+          bp, hp, op = map(pathlib.Path, sys.argv[1:])
+          b = json.loads(bp.read_text())
+          h = json.loads(hp.read_text())
+          expected_midi = [-668.5, 0.0, 627.84]
+          for d in (b, h):
+              assert d['schema'] == 'grand-bruxelles-osm-midi-mask-facade-effect-v1'
+              assert d['fixture'] == 'same-radius-covered-and-unsupported-facade'
+              assert len(d['midi_world']) == 3
+              assert all(abs(float(actual) - expected) <= 1e-3 for actual, expected in zip(d['midi_world'], expected_midi))
+              assert d['covered_offset_x_m'] == 0.0
+              assert d['unsupported_offset_x_m'] == 80.0
+              assert d['authoritative_building_count'] == 1
+              assert d['road_child_count'] == 0
+              assert d['fallback_building_child_count'] == 0
+              assert d['diagnostic_only'] is True
+              assert d['source_geometry_changed'] is False
+              assert d['camera_changed'] is False
+              assert d['threshold_changed'] is False
+              assert d['visual_acceptance'] is False
+              assert d['jouable_authorized'] is False
+          # Both revisions must have measured the exact same fixture position; tolerate only
+          # Godot's serialized float representation relative to the intended constant above.
+          assert b['midi_world'] == h['midi_world']
+          # Exact base demonstrates the shipped blanket-parent failure mode.
+          assert b['parent_effective_visible'] is False
+          assert b['covered_effective_visible'] is False
+          assert b['unsupported_effective_visible'] is False
+          # Candidate must keep only concrete-authority facade replacement hidden.
+          assert h['parent_effective_visible'] is True
+          assert h['covered_effective_visible'] is False
+          assert h['unsupported_effective_visible'] is True
+          assert h['parent_local_visible'] is True
+          assert h['unsupported_local_visible'] is True
+          ab = {
+              'schema': 'grand-bruxelles-osm-midi-mask-facade-effect-ab-v1',
+              'base_sha': os.environ['FACADE_BASE_SHA'],
+              'head_sha': os.environ['FACADE_HEAD_SHA'],
+              'fixture': h['fixture'],
+              'covered_effective_visible_base': b['covered_effective_visible'],
+              'covered_effective_visible_head': h['covered_effective_visible'],
+              'unsupported_effective_visible_base': b['unsupported_effective_visible'],
+              'unsupported_effective_visible_head': h['unsupported_effective_visible'],
+              'parent_effective_visible_base': b['parent_effective_visible'],
+              'parent_effective_visible_head': h['parent_effective_visible'],
+              'source_geometry_changed': False,
+              'camera_changed': False,
+              'threshold_changed': False,
+              'diagnostic_only': True,
+              'visual_acceptance': False,
+              'jouable_authorized': False,
+          }
+          op.write_text(json.dumps(ab, indent=2, sort_keys=True) + '\n')
+          PY
+          (cd "$stage" && sha256sum base-effect.json head-effect.json ab.json base-effect.log head-effect.log base-import.log head-import.log > evidence-sha256.txt)
+      - name: Revalidate exact proof identity
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$FACADE_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$FACADE_HEAD_SHA"
+      - name: Upload facade exact A/B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osm-midi-mask-facade-effect
+          path: /tmp/osm-midi-mask-facade-effect/
+          if-no-files-found: error
+          retention-days: 7

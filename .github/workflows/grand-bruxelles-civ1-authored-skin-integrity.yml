@@ -45,12 +45,14 @@ jobs:
           import json
           p='/tmp/civ1-skin-integrity/civ1-authored-skin-integrity.json'
           d=json.load(open(p, encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-authored-skin-integrity-v1'
-          assert d['evidence_mode']=='reachable_tscn_node_blocks_plus_explicit_skeleton_and_material_binding'
+          assert d['schema']=='grand-bruxelles-civ1-authored-skin-integrity-v2'
+          assert d['evidence_mode']=='reachable_tscn_plus_exact_skeleton_path_plus_declared_mesh_skin_material_resources'
           assert d['reachable_scene_count'] >= 1
           assert d['empty_skeleton_evidence_accepted'] is False
-          assert d['unbound_mesh_evidence_accepted'] is False
-          assert d['materialless_mesh_evidence_accepted'] is False
+          assert d['phantom_resource_evidence_accepted'] is False
+          assert d['missing_skin_resource_evidence_accepted'] is False
+          assert d['wrong_skin_type_evidence_accepted'] is False
+          assert d['wrong_skeleton_evidence_accepted'] is False
           assert d['integrity_ready_count'] <= d['hierarchy_count']
           assert d['authored_skin_integrity_ready'] == (d['integrity_ready_count'] > 0)
           assert d['runtime_authorized'] is False

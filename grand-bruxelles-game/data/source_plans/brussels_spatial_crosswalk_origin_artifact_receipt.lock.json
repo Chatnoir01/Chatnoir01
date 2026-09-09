@@ -1,0 +1,24 @@
+{
+  "schema": "grand-bruxelles-spatial-crosswalk-origin-artifact-receipt-v1",
+  "repository": "Chatnoir01/Chatnoir01",
+  "workflow_run": {
+    "id": 34248313500,
+    "head_sha": "9fdbf01073deb311097bcc70e2e8b627a004a8b1"
+  },
+  "artifact": {
+    "id": 10065069360,
+    "name": "road-registered-cell-overlap-v2-candidate",
+    "size_in_bytes": 2473,
+    "digest": "sha256:7c6dbd4e1ce3feeca476d60acfb147f97dd4cd43a0bc1063ca2d12059a230894"
+  },
+  "authorization": {
+    "crosswalk_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "scope_note": "Immutable receipt of the exact #1562 workflow artifact metadata independently re-verified through GitHub Actions. This receipt proves artifact identity only; it does not authorize source semantics, cell assignment, runtime mounting, collision, spawn safety or JOUABLE promotion."
+}

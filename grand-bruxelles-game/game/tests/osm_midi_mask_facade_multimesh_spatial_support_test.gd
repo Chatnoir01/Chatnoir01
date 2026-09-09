@@ -25,6 +25,23 @@ func _authoritative_building(offset_x: float) -> MeshInstance3D:
             body.collision_mask = 1
     return instance
 
+func _append_transform_3d(buffer: PackedFloat32Array, transform: Transform3D) -> void:
+    # MultiMesh.buffer stores 3D transforms row-major. Build the fixture through
+    # the same renderer-facing representation that is consumed by instancing so
+    # the regression stays deterministic under the CI headless renderer.
+    buffer.append(transform.basis.x.x)
+    buffer.append(transform.basis.y.x)
+    buffer.append(transform.basis.z.x)
+    buffer.append(transform.origin.x)
+    buffer.append(transform.basis.x.y)
+    buffer.append(transform.basis.y.y)
+    buffer.append(transform.basis.z.y)
+    buffer.append(transform.origin.y)
+    buffer.append(transform.basis.x.z)
+    buffer.append(transform.basis.y.z)
+    buffer.append(transform.basis.z.z)
+    buffer.append(transform.origin.z)
+
 func _facade_multimesh() -> MultiMeshInstance3D:
     var mesh := BoxMesh.new()
     mesh.size = Vector3.ONE
@@ -32,9 +49,12 @@ func _facade_multimesh() -> MultiMeshInstance3D:
     multimesh.transform_format = MultiMesh.TRANSFORM_3D
     multimesh.mesh = mesh
     multimesh.instance_count = 3
-    multimesh.set_instance_transform(0, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(0.0, 10.0, 0.0)))
-    multimesh.set_instance_transform(1, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(80.0, 10.0, 0.0)))
-    multimesh.set_instance_transform(2, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(700.0, 10.0, 0.0)))
+    multimesh.visible_instance_count = 3
+    var buffer := PackedFloat32Array()
+    _append_transform_3d(buffer, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(0.0, 10.0, 0.0)))
+    _append_transform_3d(buffer, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(80.0, 10.0, 0.0)))
+    _append_transform_3d(buffer, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(700.0, 10.0, 0.0)))
+    multimesh.buffer = buffer
     var instance := MultiMeshInstance3D.new()
     instance.name = "CorridorFacadeWindows"
     instance.multimesh = multimesh
@@ -82,7 +102,7 @@ func _run() -> void:
     var source_transform := facade_batch.multimesh.get_instance_transform(0)
     var world_sample: Vector3 = mask.call("_multimesh_instance_world_sample", facade_batch, source_transform)
     var direct_support: bool = mask.call("_authoritative_support_between", world_sample, exact_buildings, vertical_span.y, vertical_span.x)
-    print("OSM_MIDI_MASK_FACADE_MULTIMESH_DIAGNOSTIC: sample=%s span=%s inside=%s support=%s" % [str(world_sample), str(vertical_span), str(mask.call("_inside", world_sample)), str(direct_support)])
+    print("OSM_MIDI_MASK_FACADE_MULTIMESH_DIAGNOSTIC: sample=%s span=%s inside=%s support=%s buffer_floats=%d" % [str(world_sample), str(vertical_span), str(mask.call("_inside", world_sample)), str(direct_support), facade_batch.multimesh.buffer.size()])
     if not direct_support:
         _fail("covered MultiMesh transform did not resolve concrete UrbIS collision support; sample=%s span=%s" % [str(world_sample), str(vertical_span)])
         return

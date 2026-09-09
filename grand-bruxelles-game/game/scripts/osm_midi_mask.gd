@@ -6,6 +6,7 @@ const MIDI_WORLD := Vector3(-668.5, 0.0, 627.84)
 const SUPPORT_RAY_HEIGHT_M := 2.0
 const SUPPORT_RAY_DEPTH_M := 2.0
 const SUPPORT_RAY_MAX_HITS := 12
+const BUILDING_SUPPORT_RAY_MARGIN_M := 1.0
 
 
 func _ready() -> void:
@@ -25,13 +26,15 @@ func _is_descendant_of(node: Node, ancestor: Node) -> bool:
     return false
 
 
-func _authoritative_support_at(world_point: Vector3, authoritative_root: Node) -> bool:
+func _authoritative_support_between(world_point: Vector3, authoritative_root: Node, ray_from_y: float, ray_to_y: float) -> bool:
     if authoritative_root == null or get_viewport() == null or get_viewport().world_3d == null:
+        return false
+    if ray_from_y <= ray_to_y:
         return false
     var space_state: PhysicsDirectSpaceState3D = get_viewport().world_3d.direct_space_state
     var excluded: Array[RID] = []
-    var ray_from := world_point + Vector3.UP * SUPPORT_RAY_HEIGHT_M
-    var ray_to := world_point - Vector3.UP * SUPPORT_RAY_DEPTH_M
+    var ray_from := Vector3(world_point.x, ray_from_y, world_point.z)
+    var ray_to := Vector3(world_point.x, ray_to_y, world_point.z)
     for _hit_index: int in range(SUPPORT_RAY_MAX_HITS):
         var query := PhysicsRayQueryParameters3D.create(ray_from, ray_to)
         query.collision_mask = 1
@@ -49,6 +52,15 @@ func _authoritative_support_at(world_point: Vector3, authoritative_root: Node) -
             return false
         excluded.append(hit_rid)
     return false
+
+
+func _authoritative_support_at(world_point: Vector3, authoritative_root: Node) -> bool:
+    return _authoritative_support_between(
+        world_point,
+        authoritative_root,
+        world_point.y + SUPPORT_RAY_HEIGHT_M,
+        world_point.y - SUPPORT_RAY_DEPTH_M
+    )
 
 
 func _support_samples(node_3d: Node3D) -> Array[Vector3]:
@@ -72,6 +84,45 @@ func _has_spatial_authoritative_support(node_3d: Node3D, authoritative_root: Nod
     return true
 
 
+func _authoritative_geometry_vertical_span(authoritative_root: Node) -> Vector2:
+    if authoritative_root == null:
+        return Vector2.ZERO
+    var min_y := INF
+    var max_y := -INF
+    var found := false
+    var stack: Array[Node] = [authoritative_root]
+    while not stack.is_empty():
+        var node: Node = stack.pop_back()
+        if node is MeshInstance3D:
+            var mesh_instance := node as MeshInstance3D
+            if mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 0 and mesh_instance.is_visible_in_tree():
+                var aabb := mesh_instance.get_aabb()
+                for corner_index: int in range(8):
+                    var local_corner := Vector3(
+                        aabb.position.x + aabb.size.x * float(corner_index & 1),
+                        aabb.position.y + aabb.size.y * float((corner_index >> 1) & 1),
+                        aabb.position.z + aabb.size.z * float((corner_index >> 2) & 1)
+                    )
+                    var world_corner: Vector3 = mesh_instance.global_transform * local_corner
+                    min_y = minf(min_y, world_corner.y)
+                    max_y = maxf(max_y, world_corner.y)
+                    found = true
+        for child: Node in node.get_children():
+            stack.append(child)
+    if not found:
+        return Vector2.ZERO
+    return Vector2(min_y - BUILDING_SUPPORT_RAY_MARGIN_M, max_y + BUILDING_SUPPORT_RAY_MARGIN_M)
+
+
+func _has_spatial_authoritative_building_support(node_3d: Node3D, authoritative_root: Node, vertical_span: Vector2) -> bool:
+    if vertical_span.y <= vertical_span.x:
+        return false
+    for sample: Vector3 in _support_samples(node_3d):
+        if not _authoritative_support_between(sample, authoritative_root, vertical_span.y, vertical_span.x):
+            return false
+    return true
+
+
 func _mask_children(root: Node, authoritative_root: Node = null, require_spatial_support: bool = false) -> int:
     var hidden: int = 0
     for child: Node in root.get_children():
@@ -85,6 +136,27 @@ func _mask_children(root: Node, authoritative_root: Node = null, require_spatial
                 var geometry: GeometryInstance3D = node_3d as GeometryInstance3D
                 geometry.visible = false
                 hidden += 1
+    return hidden
+
+
+func _mask_buildings(root: Node, authoritative_root: Node) -> int:
+    var vertical_span := _authoritative_geometry_vertical_span(authoritative_root)
+    if vertical_span.y <= vertical_span.x:
+        return 0
+    var hidden := 0
+    for child: Node in root.get_children():
+        if child is not Node3D:
+            continue
+        var node_3d := child as Node3D
+        if not _inside(node_3d.global_position):
+            continue
+        if node_3d is not GeometryInstance3D:
+            continue
+        if not _has_spatial_authoritative_building_support(node_3d, authoritative_root, vertical_span):
+            continue
+        var geometry := node_3d as GeometryInstance3D
+        geometry.visible = false
+        hidden += 1
     return hidden
 
 
@@ -126,7 +198,7 @@ func _apply_mask() -> void:
 
     var buildings: Node = osm.get_node_or_null("GeneratedBuildings")
     if buildings != null and buildings_ready:
-        hidden += _mask_children(buildings)
+        hidden += _mask_buildings(buildings, exact_buildings)
 
     # These procedural facade instances only belonged to the old Midi OSM
     # massing. Keep them as fallback unless authoritative building geometry

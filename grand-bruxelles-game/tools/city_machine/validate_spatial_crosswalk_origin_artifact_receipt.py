@@ -53,6 +53,7 @@ EXPECTED_REGISTERED_CELL_ENTRIES = [
     ("bxl-e149000-n169000-s500", [149000.0, 169000.0, 149500.0, 169500.0], "data/cell_manifests/bxl-e149000-n169000-s500.json", "67409472171b260692f3495756c77839df79a02f05271e794f6b7db1168753cd"),
 ]
 EXPECTED_ARTIFACT_SIZE = 2473
+EXPECTED_REGISTERED_PRODUCTION_BASE_SHA = "49c62bbce71b1461da948777339e0f4d7cd101d6"
 EXPECTED_EVIDENCE_SCOPE_NOTE = "Pinned measured origin/CRS/grid evidence from #1562 for Data provenance intake only. This receipt does not identify municipality road artifacts, authorize OSM-to-UrbIS semantics, assign cells, mount runtime geometry, or promote JOUABLE."
 EXPECTED_RECEIPT_SCOPE_NOTE = "Immutable receipt of the exact #1562 workflow artifact metadata independently re-verified through GitHub Actions. This receipt proves artifact identity only; it does not authorize source semantics, cell assignment, runtime mounting, collision, spawn safety or JOUABLE promotion."
 EXPECTED_EVIDENCE_KEYS = {"schema", "source_owner", "measured_contract", "authorization", "scope_note"}
@@ -199,6 +200,8 @@ def _require_registered_cell_index_bytes(registered_index_raw: bytes) -> None:
         raise ValueError("origin evidence registered cell count drift")
     if LOWER_HEX_40.fullmatch(index["production_base_sha"]) is None:
         raise ValueError("origin evidence registered cell index production_base_sha must be lowercase Git SHA-1")
+    if index["production_base_sha"] != EXPECTED_REGISTERED_PRODUCTION_BASE_SHA:
+        raise ValueError("origin evidence registered cell index production_base_sha repin")
     for key in (
         "collision_authorized", "jouable_promotion_authorized", "rendered_geometry_authorized",
         "road_crosswalk_authorized", "runtime_directory_scan_authorized", "runtime_mount_authorized",

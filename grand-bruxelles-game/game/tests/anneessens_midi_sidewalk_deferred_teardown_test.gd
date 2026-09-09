@@ -33,13 +33,21 @@ func _new_runtime() -> Node:
         return null
     return runtime
 
+func _assert_proxy_collision_disabled(kit: Node) -> bool:
+    for child: Node in kit.get_children():
+        if not child is CSGBox3D:
+            _fail("non-CSG sidewalk child leaked into owned root")
+            return false
+        if (child as CSGBox3D).use_collision:
+            _fail("unverified authored sidewalk proxy owns collision before teardown")
+            return false
+    return true
+
 func _run() -> void:
     var canonical := root.get_node_or_null("AnneessensMidiSidewalkRuntime")
     if canonical != null:
         root.remove_child(canonical)
 
-    # Contract 1: a deferred bind already queued by _ready() must not mutate the
-    # production scene after the runtime owner leaves the SceneTree.
     var deferred_scene := _load_production_main()
     if deferred_scene == null:
         return
@@ -67,10 +75,6 @@ func _run() -> void:
     deferred_runtime.queue_free()
     await process_frame
 
-    # Contract 2: after a successful bind, leaving the SceneTree must clear the
-    # runtime ownership registries synchronously, but the generated subtree must
-    # be destroyed through queue_free instead of remove_child during _exit_tree.
-    # This preserves deterministic ownership without mutating a busy parent.
     var bound_scene := _load_production_main()
     if bound_scene == null:
         return
@@ -90,8 +94,13 @@ func _run() -> void:
         return
     var sidewalks := int(bound_runtime.call("diagnostic_sidewalk_count"))
     var collisions := int(bound_runtime.call("diagnostic_collision_count"))
-    if sidewalks <= 0 or collisions != sidewalks:
-        _fail("successful bind did not produce matching sidewalk/collision ownership")
+    if sidewalks <= 0:
+        _fail("successful bind produced no sidewalk visuals")
+        return
+    if collisions != 0:
+        _fail("successful bind claimed unverified proxy collision ownership")
+        return
+    if not _assert_proxy_collision_disabled(owned_root):
         return
 
     root.remove_child(bound_runtime)
@@ -112,5 +121,5 @@ func _run() -> void:
         _fail("owned sidewalk root survived deferred teardown destruction")
         return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true owned_root_queued=true owned_root_released=true sidewalks=%d collisions=%d" % [sidewalks, collisions])
+    print("ANNEESSENS_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true owned_root_queued=true owned_root_released=true sidewalks=%d proxy_collisions=0" % sidewalks)
     quit(0)

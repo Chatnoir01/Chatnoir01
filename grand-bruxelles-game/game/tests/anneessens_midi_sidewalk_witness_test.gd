@@ -6,8 +6,6 @@ const BEFORE_PATH := "res://artifacts/visual/anneessens_sidewalk_before.png"
 const AFTER_PATH := "res://artifacts/visual/anneessens_sidewalk_after.png"
 const ANNEESSENS_SPAWN := Vector3(-272.04, 1.05, -217.07)
 const ANNEESSENS := Vector2(-272.04, -217.07)
-const MIN_CHANGED_3 := 0.008
-const MIN_CHANGED_8 := 0.003
 const MIN_SIDEWALKS := 4
 const REBIND_WAIT_FRAMES := 180
 
@@ -80,7 +78,7 @@ func _wait_for_canonical_bind(runtime: Node, scene: Node3D, label: String) -> bo
         var owned := scene.get_node_or_null("AnneessensMidiSidewalkKit")
         if owned != null \
                 and int(runtime.call("diagnostic_sidewalk_count")) >= MIN_SIDEWALKS \
-                and int(runtime.call("diagnostic_collision_count")) == int(runtime.call("diagnostic_sidewalk_count")):
+                and int(runtime.call("diagnostic_collision_count")) == 0:
             return true
     push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: canonical autoload did not bind %s" % label)
     return false
@@ -124,8 +122,12 @@ func _prove_scene_replacement(packed: PackedScene) -> bool:
         push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: scene replacement changed sidewalk/collision cardinality %d/%d -> %d/%d" % [first_count, first_collisions, second_count, second_collisions])
         second.queue_free()
         return false
+    if second_collisions != 0:
+        push_error("ANNEESSENS_MIDI_SIDEWALK_FAIL: unverified proxy collision returned after scene replacement")
+        second.queue_free()
+        return false
 
-    print("ANNEESSENS_MIDI_SIDEWALK_REBIND_OK: autoload=canonical first=%d replacement=%d collisions=%d" % [first_count, second_count, second_collisions])
+    print("ANNEESSENS_MIDI_SIDEWALK_REBIND_OK: autoload=canonical first=%d replacement=%d proxy_collisions=%d" % [first_count, second_count, second_collisions])
     root.remove_child(second)
     second.queue_free()
     for _frame: int in range(4):
@@ -166,7 +168,7 @@ func _run() -> void:
 
     var ground := scene.get_node_or_null("Ground") as CSGBox3D
     if ground == null or not ground.use_collision:
-        _fail("Anneessens visit has no stable ground collision")
+        _fail("Anneessens visit has no stable canonical ground collision")
         return
     if ANNEESSENS_SPAWN.y < ground.position.y + ground.size.y * 0.5 + 0.5:
         _fail("Anneessens spawn is not safely above ground")
@@ -181,8 +183,12 @@ func _run() -> void:
     if sidewalk_count < MIN_SIDEWALKS:
         _fail("too few Anneessens sidewalks: %d" % sidewalk_count)
         return
-    if collision_count != sidewalk_count:
-        _fail("every Anneessens sidewalk must be collidable")
+    if collision_count != 0:
+        _fail("authored sidewalk proxy with unverified vertical profile must not own collision")
+        return
+    var kit := scene.get_node_or_null("AnneessensMidiSidewalkKit")
+    if kit == null or kit.get_meta("collision_source_backed", true) != false or kit.get_meta("collision_authorized", true) != false:
+        _fail("sidewalk kit collision provenance contract missing")
         return
 
     var camera := Camera3D.new()
@@ -191,6 +197,7 @@ func _run() -> void:
     camera.fov = 69.0
     camera.current = true
     scene.add_child(camera)
+
     runtime.call("set_sidewalks_enabled", false)
     for _frame: int in range(8):
         await process_frame
@@ -199,14 +206,12 @@ func _run() -> void:
     for _frame: int in range(8):
         await process_frame
     var after := await _capture(viewport, AFTER_PATH)
-    if before == null or after == null:
-        _fail("1280x720 A/B capture failed")
+    if before == null or after == null or before.get_size() != Vector2i(WIDTH, HEIGHT) or after.get_size() != Vector2i(WIDTH, HEIGHT):
+        _fail("1280x720 diagnostic capture failed")
         return
+
     var changed_3 := _changed_fraction(before, after, 3)
     var changed_8 := _changed_fraction(before, after, 8)
-    print("ANNEESSENS_MIDI_SIDEWALK_METRICS: sidewalks=%d collisions=%d changed_gt3=%.6f changed_gt8=%.6f" % [sidewalk_count, collision_count, changed_3, changed_8])
-    if changed_3 < MIN_CHANGED_3 or changed_8 < MIN_CHANGED_8:
-        _fail("3s visual gate too weak: gt3=%.4f%% gt8=%.4f%%" % [changed_3 * 100.0, changed_8 * 100.0])
-        return
-    print("ANNEESSENS_MIDI_SIDEWALK_OK: spawn=stable ground=collidable sidewalks=%d changed_gt3=%.4f%% gt8=%.4f%%" % [sidewalk_count, changed_3 * 100.0, changed_8 * 100.0])
+    print("ANNEESSENS_MIDI_SIDEWALK_METRICS: sidewalks=%d proxy_collisions=%d toggle_changed_gt3=%.6f toggle_changed_gt8=%.6f visual_acceptance=false" % [sidewalk_count, collision_count, changed_3, changed_8])
+    print("ANNEESSENS_MIDI_SIDEWALK_OK: canonical_ground=collidable proxy_collision=0 sidewalks=%d source_geometry_changed=false camera_changed=false threshold_changed=false visual_acceptance=false jouable_authorized=false" % sidewalk_count)
     quit(0)

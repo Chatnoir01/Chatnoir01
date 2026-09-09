@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/data/qa/city_machine/midi_onboarding_candidate.json"
       - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_evidence.py"
       - "grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_origin_evidence.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_measurement_semantic_identity.py"
   workflow_dispatch:
 
 permissions:
@@ -41,6 +42,6 @@ jobs:
       - name: Validate locked origin evidence through production CLI
         working-directory: grand-bruxelles-game
         run: python3 tools/city_machine/validate_spatial_crosswalk_origin_evidence.py
-      - name: Prove duplicate-key and authorization regressions
+      - name: Prove origin-evidence fail-closed regressions
         working-directory: grand-bruxelles-game
-        run: python3 -m pytest -q tests/test_brussels_spatial_crosswalk_origin_evidence.py
+        run: python3 -m pytest -q tests/test_brussels_spatial_crosswalk_origin_evidence.py tests/test_spatial_crosswalk_origin_measurement_semantic_identity.py

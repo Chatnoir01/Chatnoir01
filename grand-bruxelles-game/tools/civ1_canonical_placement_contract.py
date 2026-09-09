@@ -12,12 +12,13 @@ from typing import Any
 GROUND_NODE_RE = re.compile(r'\[node name="Ground" type="CSGBox3D" parent="\."\]\n(?P<body>.*?)(?=\n\[node |\Z)', re.S)
 VEC3_RE = re.compile(r'Vector3\(([^,]+),\s*([^,]+),\s*([^\)]+)\)')
 SHA256_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
-WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v6"
+WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v7"
 EXPECTED_SOURCE_REPOSITORY = "https://github.com/ibrews/VitruvianGodot"
 EXPECTED_SOURCE_COMMIT = "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
 EXPECTED_SOURCE_GIT_BLOB_SHA1 = "09bcade1092e5a89b474e91e6013209d4c68c127"
 EXPECTED_SOURCE_SIZE_BYTES = 6879364
 EXPECTED_SOURCE_LICENSE = "CC0-1.0"
+EXPECTED_SOURCE_SHA256 = "sha256:8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888"
 EXPECTED_NODE_CLASSES = {
     "npc_agent": "CharacterBody3D",
     "character_mount": "Node3D",
@@ -180,6 +181,8 @@ def validate_runtime_witness(witness: Any, ground_top_y: float, expected_runtime
     source_hash = witness.get("candidate_source_sha256")
     if not isinstance(source_hash, str) or SHA256_RE.fullmatch(source_hash) is None:
         errors.append("candidate_source_sha256:not-sha256")
+    elif source_hash != EXPECTED_SOURCE_SHA256:
+        errors.append(f"candidate_source_sha256:mismatch:{source_hash}:{EXPECTED_SOURCE_SHA256}")
     provenance_record = witness.get("provenance_record")
     if not isinstance(provenance_record, str) or not provenance_record.strip():
         errors.append("provenance_record:missing")
@@ -187,7 +190,14 @@ def validate_runtime_witness(witness: Any, ground_top_y: float, expected_runtime
     if not isinstance(source_evidence, dict):
         errors.append("source_evidence:not-object")
     else:
-        exact_source = {"repository_url": EXPECTED_SOURCE_REPOSITORY, "source_commit_sha": EXPECTED_SOURCE_COMMIT, "source_git_blob_sha1": EXPECTED_SOURCE_GIT_BLOB_SHA1, "source_size_bytes": EXPECTED_SOURCE_SIZE_BYTES, "license_id": EXPECTED_SOURCE_LICENSE}
+        exact_source = {
+            "repository_url": EXPECTED_SOURCE_REPOSITORY,
+            "source_commit_sha": EXPECTED_SOURCE_COMMIT,
+            "source_git_blob_sha1": EXPECTED_SOURCE_GIT_BLOB_SHA1,
+            "source_size_bytes": EXPECTED_SOURCE_SIZE_BYTES,
+            "license_id": EXPECTED_SOURCE_LICENSE,
+            "source_file_sha256": EXPECTED_SOURCE_SHA256,
+        }
         for key, expected in exact_source.items():
             actual = source_evidence.get(key)
             if actual != expected:
@@ -199,9 +209,7 @@ def validate_runtime_witness(witness: Any, ground_top_y: float, expected_runtime
         if not isinstance(artifact_digest, str) or SHA256_RE.fullmatch(artifact_digest) is None:
             errors.append("source_evidence.artifact_digest:not-sha256")
         source_file_hash = source_evidence.get("source_file_sha256")
-        if not isinstance(source_file_hash, str) or SHA256_RE.fullmatch(source_file_hash) is None:
-            errors.append("source_evidence.source_file_sha256:not-sha256")
-        elif isinstance(source_hash, str) and SHA256_RE.fullmatch(source_hash) is not None and source_file_hash != source_hash:
+        if isinstance(source_hash, str) and SHA256_RE.fullmatch(source_hash) is not None and source_file_hash != source_hash:
             errors.append(f"source_evidence.source_file_sha256:mismatch:{source_file_hash}:{source_hash}")
     validate_animation_evidence(witness.get("animation_evidence"), errors)
     runtime_inputs = witness.get("runtime_inputs")
@@ -266,10 +274,10 @@ def main() -> int:
             raise SystemExit("CIV1_RUNTIME_WITNESS_FAIL: " + ";".join(witness_errors))
         witness_validated = True
     required_animation_evidence = {"skeleton_artifact_id": SKELETON_ARTIFACT_ID, "skeleton_artifact_digest": SKELETON_ARTIFACT_DIGEST, "skeleton_sample_count": SKELETON_SAMPLE_COUNT, "phase_minima_artifact_id": PHASE_MINIMA_ARTIFACT_ID, "phase_minima_artifact_digest": PHASE_MINIMA_ARTIFACT_DIGEST, "phase_lowest_candidate_sample_index": PHASE_LOWEST_CANDIDATE_SAMPLE_INDEX, "bound_sample_indices": REQUIRED_SAMPLE_INDICES}
-    required_source_evidence = {"repository_url": EXPECTED_SOURCE_REPOSITORY, "source_commit_sha": EXPECTED_SOURCE_COMMIT, "source_git_blob_sha1": EXPECTED_SOURCE_GIT_BLOB_SHA1, "source_size_bytes": EXPECTED_SOURCE_SIZE_BYTES, "license_id": EXPECTED_SOURCE_LICENSE}
+    required_source_evidence = {"repository_url": EXPECTED_SOURCE_REPOSITORY, "source_commit_sha": EXPECTED_SOURCE_COMMIT, "source_git_blob_sha1": EXPECTED_SOURCE_GIT_BLOB_SHA1, "source_size_bytes": EXPECTED_SOURCE_SIZE_BYTES, "license_id": EXPECTED_SOURCE_LICENSE, "source_file_sha256": EXPECTED_SOURCE_SHA256}
     required_transform_fields = [f"node_world_transforms_by_sample.{index}.{role}.{field}" for index in REQUIRED_SAMPLE_INDICES for role in TRANSFORM_ROLES for field in ("origin_m", "basis_rows")]
     receipt = {
-        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v7",
+        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v8",
         "canonical_ground": {"node": "Main/Ground", "position_y_m": ground_position[1], "size_y_m": ground_size[1], "top_y_m": ground_top_y, "use_collision": "use_collision = true" in ground_block},
         "runtime": {"population_director_loaded": 'script = ExtResource("14_npc_director")' in scene, "runtime_integration_loaded": 'script = ExtResource("15_npc_runtime")' in scene, "npc_agent_instance_authored_in_main": explicit_agent_node, "spawn_y_is_copied_verbatim": exact_spawn_copy, "pooled_spawn_y_is_copied_verbatim": pooled_spawn_copy, "grounding_mechanism_hits": grounding_hits, "input_sha256": runtime_input_hashes},
         "runtime_witness": {"schema": WITNESS_SCHEMA, "present": witness_present, "validated": witness_validated, "validation_errors": witness_errors, "required_sample_indices": REQUIRED_SAMPLE_INDICES, "required_transform_roles": list(TRANSFORM_ROLES), "required_animation_evidence": required_animation_evidence, "required_source_evidence": required_source_evidence, "required_node_classes": EXPECTED_NODE_CLASSES, "required_fields": ["schema", "evidence_kind", "engine_version", "main_scene", "candidate", "node_paths.npc_agent", "node_paths.character_mount", "node_paths.skeleton", "node_paths.ground", "node_classes.npc_agent", "node_classes.character_mount", "node_classes.skeleton", "node_classes.ground", *required_transform_fields, "ground_top_y_m", "candidate_source_sha256", "provenance_record", "source_evidence.repository_url", "source_evidence.source_commit_sha", "source_evidence.source_git_blob_sha1", "source_evidence.source_size_bytes", "source_evidence.license_id", "source_evidence.artifact_id", "source_evidence.artifact_digest", "source_evidence.source_file_sha256", "animation_evidence.skeleton_artifact_id", "animation_evidence.skeleton_artifact_digest", "animation_evidence.skeleton_sample_count", "animation_evidence.phase_minima_artifact_id", "animation_evidence.phase_minima_artifact_digest", "animation_evidence.phase_lowest_candidate_sample_index", "animation_evidence.bound_sample_indices", "runtime_inputs.main_scene_sha256", "runtime_inputs.npc_agent_sha256", "runtime_inputs.npc_director_sha256", "mcp_ephemeral", "canonical_export_modified", "capture.loaded_scene_tree_observed", "capture.character_mount_observed", "capture.canonical_ground_observed", "capture.sample_indices"]},
@@ -282,7 +290,7 @@ def main() -> int:
         "runtime_change_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 witness with separate NpcAgent, CharacterMount and Skeleton3D world transforms for samples 71/72/73, exact pinned source identity and immutable animation lineage; only then replay the exact skinned samples against canonical Ground",
+        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 witness bound to the exact sanitized body SHA-256 with separate NpcAgent, CharacterMount and Skeleton3D world transforms for samples 71/72/73 and immutable animation lineage; only then replay the exact skinned samples against canonical Ground",
     }
     if not main_has_runtime_owner_nodes:
         raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: NPC runtime owner nodes missing")

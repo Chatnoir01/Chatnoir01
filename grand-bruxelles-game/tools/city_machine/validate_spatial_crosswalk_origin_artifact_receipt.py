@@ -22,6 +22,8 @@ EXPECTED_OWNER = {
     "artifact_name": "road-registered-cell-overlap-v2-candidate",
 }
 EXPECTED_ARTIFACT_SIZE = 2473
+EXPECTED_EVIDENCE_SCOPE_NOTE = "Pinned measured origin/CRS/grid evidence from #1562 for Data provenance intake only. This receipt does not identify municipality road artifacts, authorize OSM-to-UrbIS semantics, assign cells, mount runtime geometry, or promote JOUABLE."
+EXPECTED_RECEIPT_SCOPE_NOTE = "Immutable receipt of the exact #1562 workflow artifact metadata independently re-verified through GitHub Actions. This receipt proves artifact identity only; it does not authorize source semantics, cell assignment, runtime mounting, collision, spawn safety or JOUABLE promotion."
 EXPECTED_EVIDENCE_KEYS = {"schema", "source_owner", "measured_contract", "authorization", "scope_note"}
 EXPECTED_OWNER_KEYS = {"pr", "head_sha", "workflow", "run_id", "artifact_id", "artifact_digest", "artifact_name"}
 EXPECTED_RECEIPT_KEYS = {"schema", "repository", "workflow_run", "artifact", "authorization", "scope_note"}
@@ -69,9 +71,9 @@ def _require_closed_authorization(value: Any, label: str) -> None:
             raise ValueError(f"{label}.{key} must remain false")
 
 
-def _require_scope_note(value: Any, label: str) -> None:
-    if not isinstance(value, str) or not value or value != value.strip():
-        raise ValueError(f"{label} must be a non-empty trimmed string")
+def _require_scope_note(value: Any, expected: str, label: str) -> None:
+    if not isinstance(value, str) or value != expected:
+        raise ValueError(f"{label} immutable semantics drift")
 
 
 def validate_origin_artifact_receipt(evidence_raw: bytes, receipt_raw: bytes) -> None:
@@ -111,8 +113,8 @@ def validate_origin_artifact_receipt(evidence_raw: bytes, receipt_raw: bytes) ->
 
     _require_closed_authorization(evidence["authorization"], "origin evidence authorization")
     _require_closed_authorization(receipt["authorization"], "origin artifact receipt authorization")
-    _require_scope_note(evidence["scope_note"], "origin evidence scope_note")
-    _require_scope_note(receipt["scope_note"], "origin artifact receipt scope_note")
+    _require_scope_note(evidence["scope_note"], EXPECTED_EVIDENCE_SCOPE_NOTE, "origin evidence scope_note")
+    _require_scope_note(receipt["scope_note"], EXPECTED_RECEIPT_SCOPE_NOTE, "origin artifact receipt scope_note")
 
 
 def main() -> int:

@@ -12,6 +12,7 @@ MIDI_CANDIDATE_PATH = ROOT / "data/qa/city_machine/midi_onboarding_candidate.jso
 
 EXPECTED_SCHEMA = "grand-bruxelles-spatial-crosswalk-origin-evidence-v1"
 EXPECTED_MEASUREMENT_SCHEMA = "grand-bruxelles-road-registered-cell-overlap-measurement-v2"
+EXPECTED_MEASUREMENT_SEMANTIC_SHA256 = "2d84dbc4d6a80e10f093f8135e2fba6e9b55b813eb42c2588be7566ae6c16f95"
 EXPECTED_OWNER = {
     "pr": 1562,
     "head_sha": "9fdbf01073deb311097bcc70e2e8b627a004a8b1",
@@ -112,6 +113,8 @@ def validate() -> None:
     for key in ("registered_cell_index_semantic_sha256", "road_runtime_catalog_sha256", "road_source_sha256", "semantic_sha256"):
         if not isinstance(measured[key], str) or LOWER_HEX_64.fullmatch(measured[key]) is None:
             raise ValueError(f"origin evidence {key} must be lowercase SHA-256")
+    if measured["semantic_sha256"] != EXPECTED_MEASUREMENT_SEMANTIC_SHA256:
+        raise ValueError("measurement semantic immutable identity drift")
     if any(measured[key] != expected for key, expected in EXPECTED_INDEX_BINDINGS.items()):
         raise ValueError("origin evidence index immutable identity drift")
     if any(measured[key] != expected for key, expected in EXPECTED_ROAD_SOURCE.items()):

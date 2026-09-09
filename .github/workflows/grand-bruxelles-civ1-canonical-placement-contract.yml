@@ -4,6 +4,7 @@ on:
     paths:
       - 'grand-bruxelles-game/tools/civ1_canonical_placement_contract.py'
       - 'grand-bruxelles-game/tests/test_civ1_canonical_placement_contract.py'
+      - '.github/scripts/civ1_loaded_scene_probe.gd'
       - '.github/workflows/grand-bruxelles-civ1-canonical-placement-contract.yml'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/game/scripts/npc_agent.gd'
@@ -47,6 +48,7 @@ jobs:
             echo "phase_minima_digest=sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f"
             echo "phase_lowest_candidate_sample=72"
             echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v7"
+            echo "loaded_scene_probe_schema=grand-bruxelles-civ1-loaded-scene-probe-v1"
             echo "required_samples=71,72,73"
             echo "required_transform_roles=npc_agent,character_mount,skeleton"
             echo "required_node_classes=npc_agent:CharacterBody3D,character_mount:Node3D,skeleton:Skeleton3D,ground:CSGBox3D"
@@ -63,6 +65,41 @@ jobs:
           } > /tmp/civ1placement/out/run-context.txt
       - name: Run causal regression
         run: python grand-bruxelles-game/tests/test_civ1_canonical_placement_contract.py
+      - name: Install Godot 4.7.1 for ephemeral loaded-scene QA
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: '4.7.1'
+          use-dotnet: false
+          include-templates: false
+      - name: Probe actual loaded canonical scene
+        env:
+          CIV1_LOADED_SCENE_PROBE_OUT: /tmp/civ1placement/out/civ1-loaded-scene-probe.json
+        run: |
+          set -euo pipefail
+          godot --version | tee /tmp/civ1placement/out/godot-version.txt
+          godot --headless --path grand-bruxelles-game --editor --quit-after 2 2>&1 | tee /tmp/civ1placement/out/godot-import.log
+          godot --headless --path grand-bruxelles-game --script "$GITHUB_WORKSPACE/.github/scripts/civ1_loaded_scene_probe.gd" 2>&1 | tee /tmp/civ1placement/out/loaded-scene-probe.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/civ1placement/out/civ1-loaded-scene-probe.json')
+          assert p.is_file(), 'missing loaded-scene probe JSON'
+          r=json.loads(p.read_text())
+          assert r['schema']=='grand-bruxelles-civ1-loaded-scene-probe-v1'
+          assert r['canonical_scene']=='res://game/main.tscn'
+          assert r['canonical_scene_loaded'] is True
+          assert r['canonical_export_modified'] is False
+          assert r['probe_scope']=='ephemeral-qa-only'
+          assert r['animation_samples_captured'] is False
+          assert isinstance(r['npc_candidates'], list)
+          if r['capture_available']:
+              assert r['exact_npc_hierarchy_found'] is True
+              assert r['ground_found'] is True
+              assert r['capture_reason']=='loaded_hierarchy_observed_samples_not_captured'
+          else:
+              assert r['capture_reason']=='canonical_scene_has_no_civ1_hierarchy'
+          print('CIV1_LOADED_SCENE_PROBE_OK', r)
+          PY
       - name: Classify current canonical placement availability
         run: |
           set -euo pipefail

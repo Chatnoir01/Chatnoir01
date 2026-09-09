@@ -134,11 +134,9 @@ func _multimesh_buffer_stride(source: MultiMesh) -> int:
     return stride
 
 
-func _multimesh_transform_from_buffer(source: MultiMesh, index: int) -> Transform3D:
-    var stride := _multimesh_buffer_stride(source)
-    var buffer := source.buffer
+func _multimesh_transform_from_packed_buffer(buffer: PackedFloat32Array, stride: int, index: int) -> Transform3D:
     var offset := index * stride
-    if stride <= 0 or index < 0 or index >= source.instance_count or buffer.size() < offset + 12:
+    if stride < 12 or index < 0 or buffer.size() < offset + 12:
         return Transform3D()
     var basis := Basis(
         Vector3(buffer[offset + 0], buffer[offset + 4], buffer[offset + 8]),
@@ -147,6 +145,16 @@ func _multimesh_transform_from_buffer(source: MultiMesh, index: int) -> Transfor
     )
     var origin := Vector3(buffer[offset + 3], buffer[offset + 7], buffer[offset + 11])
     return Transform3D(basis, origin)
+
+
+func _multimesh_transform_from_buffer(source: MultiMesh, index: int) -> Transform3D:
+    var stride := _multimesh_buffer_stride(source)
+    if stride <= 0 or index < 0 or index >= source.instance_count:
+        return Transform3D()
+    var buffer := source.buffer
+    if buffer.size() != source.instance_count * stride:
+        return Transform3D()
+    return _multimesh_transform_from_packed_buffer(buffer, stride, index)
 
 
 func _append_multimesh_instance_buffer(target: PackedFloat32Array, source: PackedFloat32Array, offset: int, stride: int) -> void:
@@ -172,8 +180,8 @@ func _filter_facade_multimesh(instance: MultiMeshInstance3D, authoritative_root:
 
     # In headless Godot 4.7.1, per-instance getters can return identity even
     # while the renderer-facing MultiMesh buffer contains the correct transforms.
-    # Consume and preserve that canonical packed buffer directly. If its shape is
-    # inconsistent, fail closed by preserving the fallback batch untouched.
+    # Copy that canonical packed buffer once, then decode it linearly. If its
+    # shape is inconsistent, fail closed by preserving the fallback batch.
     var stride := _multimesh_buffer_stride(source)
     var source_buffer := source.buffer
     if stride <= 0 or source_buffer.size() != source.instance_count * stride:
@@ -188,7 +196,7 @@ func _filter_facade_multimesh(instance: MultiMeshInstance3D, authoritative_root:
     var kept_visible_count := 0
     var hidden := 0
     for index: int in range(source.instance_count):
-        var transform := _multimesh_transform_from_buffer(source, index)
+        var transform := _multimesh_transform_from_packed_buffer(source_buffer, stride, index)
         var world_sample := _multimesh_instance_world_sample(instance, transform)
         var supported := (
             index < active_count

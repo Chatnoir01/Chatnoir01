@@ -200,6 +200,9 @@ func _apply_mask() -> void:
     if buildings != null and buildings_ready:
         hidden += _mask_buildings(buildings, exact_buildings)
 
+    # These procedural facade instances only belonged to the old Midi OSM
+    # massing. Keep them as fallback unless authoritative building geometry
+    # has actually materialized and is visible in the player scene.
     if buildings_ready:
         var details: Node = osm.get_node_or_null("GeneratedFacadeDetails")
         if details is CanvasItem:

@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          test "$(git rev-parse origin/main)" = "b12c3cfaccdb5536ba79418cc2a469787da14730"
+          test "$(git rev-parse origin/main)" = "984bb93c6994e9674e5fbfe37e2c33100b7b8fce"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff --quiet origin/main...HEAD -- \
             grand-bruxelles-game/game/main.tscn \

@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json"
       - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_artifact_receipt.py"
       - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_artifact_receipt_failclosed.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_overlap_accounting.py"
   workflow_dispatch:
 
 permissions:
@@ -51,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/test_spatial_crosswalk_origin_artifact_receipt_failclosed.py
+          python3 tests/test_spatial_crosswalk_origin_overlap_accounting.py
 
       - name: Seal non-authorizing contract
         working-directory: grand-bruxelles-game

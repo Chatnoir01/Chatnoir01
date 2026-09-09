@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
       - 'grand-bruxelles-game/game/**/*.tscn'
       - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
 permissions:
@@ -32,6 +33,10 @@ jobs:
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_authored_skin_integrity.py --self-test
+      - name: Reject phantom external authored resources
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_external_resource_backing.py --self-test
       - name: Measure reachable authored-skin integrity
         run: |
           set -euo pipefail
@@ -39,6 +44,9 @@ jobs:
           python grand-bruxelles-game/tools/civ1_authored_skin_integrity.py \
             grand-bruxelles-game/game/main.tscn \
             /tmp/civ1-skin-integrity/civ1-authored-skin-integrity.json
+          python grand-bruxelles-game/tools/civ1_external_resource_backing.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-skin-integrity/civ1-external-resource-backing.json
       - name: Assert fail-closed integrity contract
         run: |
           python - <<'PY'
@@ -59,9 +67,22 @@ jobs:
           assert d['visual_approval_claimed'] is False
           assert d['contact_verified'] is False
           assert d['foot_slide_verified'] is False
-          print(json.dumps(d, sort_keys=True))
+          q='/tmp/civ1-skin-integrity/civ1-external-resource-backing.json'
+          b=json.load(open(q, encoding='utf-8'))
+          assert b['schema']=='grand-bruxelles-civ1-external-resource-backing-v1'
+          assert b['evidence_mode']=='reachable_authored_skin_bundle_plus_in_project_external_resource_backing'
+          assert b['reachable_scene_count'] >= 1
+          assert b['typed_but_missing_external_resource_evidence_accepted'] is False
+          assert b['out_of_project_external_resource_evidence_accepted'] is False
+          assert b['backing_ready_count'] <= b['hierarchy_count']
+          assert b['authored_external_resources_backed'] == (b['backing_ready_count'] > 0)
+          assert b['runtime_authorized'] is False
+          assert b['visual_approval_claimed'] is False
+          assert b['contact_verified'] is False
+          assert b['foot_slide_verified'] is False
+          print(json.dumps({'skin': d, 'backing': b}, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: civ1-authored-skin-integrity
-          path: /tmp/civ1-skin-integrity/civ1-authored-skin-integrity.json
+          path: /tmp/civ1-skin-integrity/*.json

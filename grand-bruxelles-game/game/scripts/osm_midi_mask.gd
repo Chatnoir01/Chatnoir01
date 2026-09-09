@@ -123,6 +123,37 @@ func _has_spatial_authoritative_building_support(node_3d: Node3D, authoritative_
     return true
 
 
+func _multimesh_buffer_stride(source: MultiMesh) -> int:
+    if source.transform_format != MultiMesh.TRANSFORM_3D:
+        return 0
+    var stride := 12
+    if source.use_colors:
+        stride += 4
+    if source.use_custom_data:
+        stride += 4
+    return stride
+
+
+func _multimesh_transform_from_buffer(source: MultiMesh, index: int) -> Transform3D:
+    var stride := _multimesh_buffer_stride(source)
+    var buffer := source.buffer
+    var offset := index * stride
+    if stride <= 0 or index < 0 or index >= source.instance_count or buffer.size() < offset + 12:
+        return Transform3D()
+    var basis := Basis(
+        Vector3(buffer[offset + 0], buffer[offset + 4], buffer[offset + 8]),
+        Vector3(buffer[offset + 1], buffer[offset + 5], buffer[offset + 9]),
+        Vector3(buffer[offset + 2], buffer[offset + 6], buffer[offset + 10])
+    )
+    var origin := Vector3(buffer[offset + 3], buffer[offset + 7], buffer[offset + 11])
+    return Transform3D(basis, origin)
+
+
+func _append_multimesh_instance_buffer(target: PackedFloat32Array, source: PackedFloat32Array, offset: int, stride: int) -> void:
+    for component_index: int in range(stride):
+        target.append(source[offset + component_index])
+
+
 func _multimesh_instance_world_sample(instance: MultiMeshInstance3D, transform: Transform3D) -> Vector3:
     var world_transform: Transform3D = instance.global_transform * transform
     var local_center := Vector3.ZERO
@@ -139,25 +170,38 @@ func _filter_facade_multimesh(instance: MultiMeshInstance3D, authoritative_root:
     if vertical_span.y <= vertical_span.x:
         return 0
 
-    var kept_transforms: Array[Transform3D] = []
-    var kept_colors: Array[Color] = []
-    var kept_custom_data: Array[Color] = []
+    # In headless Godot 4.7.1, per-instance getters can return identity even
+    # while the renderer-facing MultiMesh buffer contains the correct transforms.
+    # Consume and preserve that canonical packed buffer directly. If its shape is
+    # inconsistent, fail closed by preserving the fallback batch untouched.
+    var stride := _multimesh_buffer_stride(source)
+    var source_buffer := source.buffer
+    if stride <= 0 or source_buffer.size() != source.instance_count * stride:
+        return 0
+
+    var source_visible_count := source.visible_instance_count
+    var active_count := source.instance_count
+    if source_visible_count >= 0:
+        active_count = mini(source_visible_count, source.instance_count)
+
+    var kept_buffer := PackedFloat32Array()
+    var kept_visible_count := 0
     var hidden := 0
     for index: int in range(source.instance_count):
-        var transform := source.get_instance_transform(index)
+        var transform := _multimesh_transform_from_buffer(source, index)
         var world_sample := _multimesh_instance_world_sample(instance, transform)
         var supported := (
-            _inside(world_sample)
+            index < active_count
+            and _inside(world_sample)
             and _authoritative_support_between(world_sample, authoritative_root, vertical_span.y, vertical_span.x)
         )
         if supported:
             hidden += 1
             continue
-        kept_transforms.append(transform)
-        if source.use_colors:
-            kept_colors.append(source.get_instance_color(index))
-        if source.use_custom_data:
-            kept_custom_data.append(source.get_instance_custom_data(index))
+        var offset := index * stride
+        _append_multimesh_instance_buffer(kept_buffer, source_buffer, offset, stride)
+        if index < active_count:
+            kept_visible_count += 1
 
     if hidden == 0:
         return 0
@@ -167,14 +211,11 @@ func _filter_facade_multimesh(instance: MultiMeshInstance3D, authoritative_root:
     filtered.use_colors = source.use_colors
     filtered.use_custom_data = source.use_custom_data
     filtered.mesh = source.mesh
-    filtered.instance_count = kept_transforms.size()
-    for index: int in range(kept_transforms.size()):
-        filtered.set_instance_transform(index, kept_transforms[index])
-        if filtered.use_colors:
-            filtered.set_instance_color(index, kept_colors[index])
-        if filtered.use_custom_data:
-            filtered.set_instance_custom_data(index, kept_custom_data[index])
-    filtered.visible_instance_count = -1
+    filtered.custom_aabb = source.custom_aabb
+    filtered.physics_interpolation_quality = source.physics_interpolation_quality
+    filtered.instance_count = kept_buffer.size() / stride
+    filtered.buffer = kept_buffer
+    filtered.visible_instance_count = -1 if source_visible_count < 0 else kept_visible_count
     instance.multimesh = filtered
     return hidden
 

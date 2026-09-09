@@ -48,6 +48,7 @@ jobs:
             echo "phase_lowest_candidate_sample=72"
             echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v5"
             echo "required_samples=71,72,73"
+            echo "required_node_classes=npc_agent:CharacterBody3D,character_mount:Node3D,skeleton:Skeleton3D,ground:CSGBox3D"
             echo "source_repository=https://github.com/ibrews/VitruvianGodot"
             echo "source_commit=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
             echo "source_git_blob_sha1=09bcade1092e5a89b474e91e6013209d4c68c127"
@@ -86,6 +87,12 @@ jobs:
           assert r['runtime_witness']['present'] is False
           assert r['runtime_witness']['validated'] is False
           assert r['runtime_witness']['required_sample_indices'] == [71,72,73]
+          assert r['runtime_witness']['required_node_classes'] == {
+              'npc_agent':'CharacterBody3D',
+              'character_mount':'Node3D',
+              'skeleton':'Skeleton3D',
+              'ground':'CSGBox3D',
+          }
           assert r['canonical_character_placement_available'] is False
           assert r['ground_contact_classifiable'] is False
           assert r['contact_proof_claimed'] is False

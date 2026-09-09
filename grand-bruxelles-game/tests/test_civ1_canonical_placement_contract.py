@@ -53,6 +53,12 @@ def valid_runtime_witness() -> dict[str, object]:
             "skeleton": "Main/NpcPopulationDirector/NpcAgent_0/CharacterMount/Skeleton3D",
             "ground": "Main/Ground",
         },
+        "node_classes": {
+            "npc_agent": "CharacterBody3D",
+            "character_mount": "Node3D",
+            "skeleton": "Skeleton3D",
+            "ground": "CSGBox3D",
+        },
         "world_transforms_by_sample": {"71": identity_transform(0.00), "72": identity_transform(0.02), "73": identity_transform(0.04)},
         "ground_top_y_m": -0.03,
         "candidate_source_sha256": source_hash,
@@ -204,6 +210,24 @@ def test_node_paths_must_prove_one_observed_hierarchy() -> None:
         assert expected_error in combined, (key, combined)
 
 
+def test_node_classes_must_match_observed_runtime_roles() -> None:
+    cases = [
+        ("npc_agent", "Node3D", "node_classes.npc_agent:mismatch"),
+        ("character_mount", "CharacterBody3D", "node_classes.character_mount:mismatch"),
+        ("skeleton", "Node3D", "node_classes.skeleton:mismatch"),
+        ("ground", "MeshInstance3D", "node_classes.ground:mismatch"),
+    ]
+    for key, forged_class, expected_error in cases:
+        witness = valid_runtime_witness()
+        classes = witness["node_classes"]
+        assert isinstance(classes, dict)
+        classes[key] = forged_class
+        result = classify_witness(witness)
+        combined = result.stdout + result.stderr
+        assert result.returncode != 0, (key, combined)
+        assert expected_error in combined, (key, combined)
+
+
 def test_fully_bound_witness_unlocks_placement_only() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -239,6 +263,7 @@ if __name__ == "__main__":
     test_source_hash_must_match_source_evidence()
     test_source_commit_blob_size_and_license_are_pinned()
     test_node_paths_must_prove_one_observed_hierarchy()
+    test_node_classes_must_match_observed_runtime_roles()
     test_fully_bound_witness_unlocks_placement_only()
     test_no_old_grounding_shortcuts_are_reintroduced()
     print("CIV1_CANONICAL_PLACEMENT_CONTRACT_REGRESSION_GREEN")

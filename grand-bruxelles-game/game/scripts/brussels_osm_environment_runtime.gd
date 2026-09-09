@@ -122,6 +122,105 @@ func _bytes_sha256(bytes: PackedByteArray) -> String:
         return ""
     return context.finish().hex_encode()
 
+func _json_skip_whitespace(text: String, index: int) -> int:
+    while index < text.length() and text.substr(index, 1) in [" ", "\t", "\r", "\n"]:
+        index += 1
+    return index
+
+func _json_string_end(text: String, index: int) -> int:
+    if index >= text.length() or text.substr(index, 1) != "\"":
+        return -1
+    index += 1
+    while index < text.length():
+        var character := text.substr(index, 1)
+        if character == "\\":
+            index += 2
+            continue
+        if character == "\"":
+            return index + 1
+        index += 1
+    return -1
+
+func _json_value_end(text: String, index: int, state: Dictionary) -> int:
+    index = _json_skip_whitespace(text, index)
+    if index >= text.length():
+        return -1
+    var character := text.substr(index, 1)
+    if character == "\"":
+        return _json_string_end(text, index)
+    if character == "{":
+        return _json_object_end(text, index, state)
+    if character == "[":
+        return _json_array_end(text, index, state)
+    while index < text.length():
+        character = text.substr(index, 1)
+        if character in [",", "]", "}", " ", "\t", "\r", "\n"]:
+            break
+        index += 1
+    return index
+
+func _json_object_end(text: String, index: int, state: Dictionary) -> int:
+    var seen_keys: Dictionary = {}
+    index = _json_skip_whitespace(text, index + 1)
+    if index < text.length() and text.substr(index, 1) == "}":
+        return index + 1
+    while index < text.length():
+        if text.substr(index, 1) != "\"":
+            return -1
+        var key_end := _json_string_end(text, index)
+        if key_end < 0:
+            return -1
+        var key_variant: Variant = JSON.parse_string(text.substr(index, key_end - index))
+        if typeof(key_variant) != TYPE_STRING:
+            return -1
+        var key := str(key_variant)
+        if seen_keys.has(key):
+            state["duplicate"] = true
+        else:
+            seen_keys[key] = true
+        index = _json_skip_whitespace(text, key_end)
+        if index >= text.length() or text.substr(index, 1) != ":":
+            return -1
+        index = _json_value_end(text, index + 1, state)
+        if index < 0:
+            return -1
+        index = _json_skip_whitespace(text, index)
+        if index >= text.length():
+            return -1
+        var delimiter := text.substr(index, 1)
+        if delimiter == "}":
+            return index + 1
+        if delimiter != ",":
+            return -1
+        index = _json_skip_whitespace(text, index + 1)
+    return -1
+
+func _json_array_end(text: String, index: int, state: Dictionary) -> int:
+    index = _json_skip_whitespace(text, index + 1)
+    if index < text.length() and text.substr(index, 1) == "]":
+        return index + 1
+    while index < text.length():
+        index = _json_value_end(text, index, state)
+        if index < 0:
+            return -1
+        index = _json_skip_whitespace(text, index)
+        if index >= text.length():
+            return -1
+        var delimiter := text.substr(index, 1)
+        if delimiter == "]":
+            return index + 1
+        if delimiter != ",":
+            return -1
+        index = _json_skip_whitespace(text, index + 1)
+    return -1
+
+func _json_has_duplicate_object_keys(text: String) -> Variant:
+    var state := {"duplicate": false}
+    var end := _json_value_end(text, 0, state)
+    if end < 0 or _json_skip_whitespace(text, end) != text.length():
+        return null
+    return bool(state["duplicate"])
+
 func _record_retryable_source_failure() -> void:
     _last_retryable_source_signature = _source_availability_signature(data_path)
     _last_retryable_source_probe_msec = Time.get_ticks_msec()
@@ -206,6 +305,13 @@ func _load_points() -> bool:
     var parsed = JSON.parse_string(source_text)
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("OSM environment artifact invalid JSON object")
+        return false
+    var duplicate_key_scan: Variant = _json_has_duplicate_object_keys(source_text)
+    if duplicate_key_scan == null:
+        push_error("OSM environment artifact JSON object-key scan failed")
+        return false
+    if bool(duplicate_key_scan):
+        push_error("OSM environment artifact contains duplicate JSON object key")
         return false
     var document := parsed as Dictionary
     if str(document.get("format", "")) != SOURCE_FORMAT:

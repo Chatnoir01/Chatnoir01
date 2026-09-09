@@ -22,11 +22,17 @@ def main() -> None:
     require("for child: Node in tree.get_children():" in text, "cleanup does not enumerate actual children")
     require("if not _is_owned_tree_visual(child):" in text, "cleanup is not fail-closed on owner identity")
     require("_remove_owned_tree_visuals(tree)" in text, "tree rebuild does not use owner-scoped cleanup")
-    require("var enhanced_visual := TREE_ASSET.populate(tree, osm_id, _tree_materials)" in text, "enhanced Brussels tree population is not captured for ownership")
+    require(
+        "var enhanced_visual := TREE_ASSET.populate(tree, osm_id, _tree_materials, _tree_meshes)" in text,
+        "enhanced Brussels tree population is not captured for ownership with the root-owned mesh cache",
+    )
     require("_mark_owned_tree_visual(enhanced_visual)" in text, "enhanced visual is not owner-marked")
     require("_mark_owned_tree_visual(legacy)" in text, "legacy visual is not owner-marked")
+    require("var _tree_meshes: Dictionary = {}" in text, "root-owned tree mesh cache is missing")
+    require("_tree_meshes = TREE_ASSET.create_meshes(_tree_materials)" in text, "tree mesh cache is not initialized from the owned material set")
+    require("_tree_meshes.clear()" in text, "tree mesh cache is not released with the owned root")
     require("tree.get_node_or_null(child_name)" not in text, "name-only destructive lookup remains in tree visual rebuild")
-    print("SHARED_ENVIRONMENT_TREE_VISUAL_OWNERSHIP_OK: exact_owner_cleanup=locked foreign_same_name=preserved enhanced_and_legacy=owned")
+    print("SHARED_ENVIRONMENT_TREE_VISUAL_OWNERSHIP_OK: exact_owner_cleanup=locked foreign_same_name=preserved enhanced_and_legacy=owned root_owned_mesh_cache=released")
 
 
 if __name__ == "__main__":

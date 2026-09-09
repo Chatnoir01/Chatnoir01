@@ -1,5 +1,14 @@
 name: Grand Bruxelles CIV-1 Integration Readiness
 on:
+  push:
+    branches:
+      - 'character/**'
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_integration_readiness.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - 'grand-bruxelles-game/game/scripts/npc_agent.gd'
+      - 'grand-bruxelles-game/game/scripts/humanoid_visual.gd'
+      - '.github/workflows/grand-bruxelles-civ1-integration-readiness.yml'
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/civ1_integration_readiness.py'

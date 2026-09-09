@@ -48,12 +48,15 @@ func _facade_multimesh() -> MultiMeshInstance3D:
     var multimesh := MultiMesh.new()
     multimesh.transform_format = MultiMesh.TRANSFORM_3D
     multimesh.mesh = mesh
-    multimesh.instance_count = 3
+    multimesh.instance_count = 4
+    # The fourth instance is allocated but intentionally hidden. Filtering one
+    # supported visible facade must not promote this tail into the rendered set.
     multimesh.visible_instance_count = 3
     var buffer := PackedFloat32Array()
     _append_transform_3d(buffer, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(0.0, 10.0, 0.0)))
     _append_transform_3d(buffer, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(80.0, 10.0, 0.0)))
     _append_transform_3d(buffer, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(700.0, 10.0, 0.0)))
+    _append_transform_3d(buffer, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(720.0, 10.0, 0.0)))
     multimesh.buffer = buffer
     var instance := MultiMeshInstance3D.new()
     instance.name = "CorridorFacadeWindows"
@@ -102,7 +105,7 @@ func _run() -> void:
     var source_transform: Transform3D = mask.call("_multimesh_transform_from_buffer", facade_batch.multimesh, 0)
     var world_sample: Vector3 = mask.call("_multimesh_instance_world_sample", facade_batch, source_transform)
     var direct_support: bool = mask.call("_authoritative_support_between", world_sample, exact_buildings, vertical_span.y, vertical_span.x)
-    print("OSM_MIDI_MASK_FACADE_MULTIMESH_DIAGNOSTIC: sample=%s span=%s inside=%s support=%s buffer_floats=%d" % [str(world_sample), str(vertical_span), str(mask.call("_inside", world_sample)), str(direct_support), facade_batch.multimesh.buffer.size()])
+    print("OSM_MIDI_MASK_FACADE_MULTIMESH_DIAGNOSTIC: sample=%s span=%s inside=%s support=%s buffer_floats=%d visible=%d" % [str(world_sample), str(vertical_span), str(mask.call("_inside", world_sample)), str(direct_support), facade_batch.multimesh.buffer.size(), facade_batch.multimesh.visible_instance_count])
     if not direct_support:
         _fail("covered MultiMesh transform did not resolve concrete UrbIS collision support; sample=%s span=%s" % [str(world_sample), str(vertical_span)])
         return
@@ -112,26 +115,29 @@ func _run() -> void:
     if facade_batch.multimesh == null:
         _fail("CorridorFacadeWindows lost its MultiMesh resource")
         return
-    if facade_batch.multimesh.instance_count != 2:
-        _fail("expected exactly one supported Midi facade instance to be removed while unsupported/ineligible fallbacks remain; got %d instances" % facade_batch.multimesh.instance_count)
+    if facade_batch.multimesh.instance_count != 3:
+        _fail("expected one supported visible Midi facade to be removed while visible fallbacks and hidden tail remain; got %d instances" % facade_batch.multimesh.instance_count)
         return
     if facade_batch.multimesh.visible_instance_count != 2:
-        _fail("visible instance contract changed unexpectedly after filtering; got %d" % facade_batch.multimesh.visible_instance_count)
+        _fail("hidden MultiMesh tail was promoted or visible-instance contract changed; got visible_instance_count=%d" % facade_batch.multimesh.visible_instance_count)
         return
-    if facade_batch.multimesh.buffer.size() != 24:
+    if facade_batch.multimesh.buffer.size() != 36:
         _fail("filtered renderer buffer has unexpected 3D payload size: %d" % facade_batch.multimesh.buffer.size())
         return
     var first_transform: Transform3D = mask.call("_multimesh_transform_from_buffer", facade_batch.multimesh, 0)
     var second_transform: Transform3D = mask.call("_multimesh_transform_from_buffer", facade_batch.multimesh, 1)
-    var first := first_transform.origin
-    var second := second_transform.origin
+    var third_transform: Transform3D = mask.call("_multimesh_transform_from_buffer", facade_batch.multimesh, 2)
     var expected_unsupported := MIDI_WORLD + Vector3(80.0, 10.0, 0.0)
     var expected_outside := MIDI_WORLD + Vector3(700.0, 10.0, 0.0)
-    if not _origin_near(first, expected_unsupported) or not _origin_near(second, expected_outside):
-        _fail("remaining MultiMesh transforms were moved/reordered incorrectly: first=%s second=%s" % [str(first), str(second)])
+    var expected_hidden_tail := MIDI_WORLD + Vector3(720.0, 10.0, 0.0)
+    if not _origin_near(first_transform.origin, expected_unsupported) or not _origin_near(second_transform.origin, expected_outside):
+        _fail("remaining visible MultiMesh transforms were moved/reordered incorrectly: first=%s second=%s" % [str(first_transform.origin), str(second_transform.origin)])
+        return
+    if not _origin_near(third_transform.origin, expected_hidden_tail):
+        _fail("allocated hidden MultiMesh tail was not preserved byte-order-equivalently: third=%s" % str(third_transform.origin))
         return
     if not facade_batch.is_visible_in_tree() or not details.visible:
         _fail("facade batch or parent was hidden wholesale instead of filtering only supported Midi instances")
         return
-    print("OSM_MIDI_MASK_FACADE_MULTIMESH_SPATIAL_SUPPORT_OK: supported_removed=1 unsupported_preserved=1 outside_radius_preserved=1 source_positions_preserved=true renderer_buffer_preserved=true radius_unchanged=true")
+    print("OSM_MIDI_MASK_FACADE_MULTIMESH_SPATIAL_SUPPORT_OK: supported_removed=1 unsupported_preserved=1 outside_radius_preserved=1 hidden_tail_preserved=1 visible_count_preserved=true source_positions_preserved=true renderer_buffer_preserved=true radius_unchanged=true")
     quit(0)

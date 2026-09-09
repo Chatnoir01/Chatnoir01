@@ -24,7 +24,14 @@ func _authoritative_mesh(name: String) -> MeshInstance3D:
     var mesh := BoxMesh.new()
     mesh.size = Vector3(8.0, 0.2, 8.0)
     instance.mesh = mesh
+    instance.position = MIDI_WORLD + Vector3(0.0, 0.075, 0.0)
     instance.visible = true
+    instance.create_trimesh_collision()
+    for child: Node in instance.get_children():
+        if child is StaticBody3D:
+            var body := child as StaticBody3D
+            body.collision_layer = 1
+            body.collision_mask = 1
     return instance
 
 func _fixture(with_surfaces: bool, with_buildings: bool) -> Dictionary:
@@ -68,6 +75,12 @@ func _fixture(with_surfaces: bool, with_buildings: bool) -> Dictionary:
     scene.add_child(mask)
     return {"scene": scene, "road": road, "building": building, "mask": mask}
 
+func _settle_and_apply(fixture: Dictionary) -> void:
+    await process_frame
+    await physics_frame
+    (fixture["mask"] as Node).call("_apply_mask")
+    await process_frame
+
 func _destroy(fixture: Dictionary) -> void:
     var scene: Node = fixture["scene"]
     scene.queue_free()
@@ -75,16 +88,16 @@ func _destroy(fixture: Dictionary) -> void:
 
 func _run() -> void:
     var absent := _fixture(false, false)
-    (absent["mask"] as Node).call("_apply_mask")
+    await _settle_and_apply(absent)
     if not (absent["road"] as Node3D).visible or not (absent["building"] as Node3D).visible:
         _fail("OSM fallback geometry was hidden without materialized authoritative UrbIS replacement")
         return
     await _destroy(absent)
 
     var surfaces_only := _fixture(true, false)
-    (surfaces_only["mask"] as Node).call("_apply_mask")
+    await _settle_and_apply(surfaces_only)
     if (surfaces_only["road"] as Node3D).visible:
-        _fail("OSM road fallback stayed visible despite materialized authoritative UrbIS street surfaces")
+        _fail("OSM road fallback stayed visible despite spatially overlapping authoritative UrbIS street surfaces")
         return
     if not (surfaces_only["building"] as Node3D).visible:
         _fail("OSM building fallback was hidden without materialized authoritative UrbIS buildings")
@@ -92,7 +105,7 @@ func _run() -> void:
     await _destroy(surfaces_only)
 
     var buildings_only := _fixture(false, true)
-    (buildings_only["mask"] as Node).call("_apply_mask")
+    await _settle_and_apply(buildings_only)
     if not (buildings_only["road"] as Node3D).visible:
         _fail("OSM road fallback was hidden without materialized authoritative UrbIS street surfaces")
         return
@@ -101,5 +114,5 @@ func _run() -> void:
         return
     await _destroy(buildings_only)
 
-    print("OSM_MIDI_MASK_AUTHORITATIVE_AVAILABILITY_OK: absent_preserves_fallback=true surfaces_mask_roads_only=true buildings_mask_buildings_only=true")
+    print("OSM_MIDI_MASK_AUTHORITATIVE_AVAILABILITY_OK: absent_preserves_fallback=true surfaces_mask_spatially_supported_roads_only=true buildings_mask_buildings_only=true")
     quit(0)

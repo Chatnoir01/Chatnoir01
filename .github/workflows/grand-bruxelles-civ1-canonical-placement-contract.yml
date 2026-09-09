@@ -46,8 +46,9 @@ jobs:
             echo "phase_minima_artifact=10057731450"
             echo "phase_minima_digest=sha256:78b7a990856feafda5248189848f8e10a8a33694141014bed831eb74a0ec8a5f"
             echo "phase_lowest_candidate_sample=72"
-            echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v5"
+            echo "runtime_witness_schema=grand-bruxelles-civ1-runtime-placement-witness-v6"
             echo "required_samples=71,72,73"
+            echo "required_transform_roles=npc_agent,character_mount,skeleton"
             echo "required_node_classes=npc_agent:CharacterBody3D,character_mount:Node3D,skeleton:Skeleton3D,ground:CSGBox3D"
             echo "source_repository=https://github.com/ibrews/VitruvianGodot"
             echo "source_commit=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
@@ -74,7 +75,7 @@ jobs:
           import json
           from pathlib import Path
           r=json.loads(Path('/tmp/civ1placement/out/canonical-placement-contract.json').read_text())
-          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v6'
+          assert r['schema']=='grand-bruxelles-civ1-canonical-placement-contract-v7'
           assert abs(r['canonical_ground']['top_y_m'] - (-0.03)) <= 1e-12
           assert r['canonical_ground']['use_collision'] is True
           assert r['runtime']['population_director_loaded'] is True
@@ -83,16 +84,21 @@ jobs:
           assert r['runtime']['spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['pooled_spawn_y_is_copied_verbatim'] is True
           assert r['runtime']['grounding_mechanism_hits'] == []
-          assert r['runtime_witness']['schema']=='grand-bruxelles-civ1-runtime-placement-witness-v5'
+          assert r['runtime_witness']['schema']=='grand-bruxelles-civ1-runtime-placement-witness-v6'
           assert r['runtime_witness']['present'] is False
           assert r['runtime_witness']['validated'] is False
           assert r['runtime_witness']['required_sample_indices'] == [71,72,73]
+          assert r['runtime_witness']['required_transform_roles'] == ['npc_agent','character_mount','skeleton']
           assert r['runtime_witness']['required_node_classes'] == {
               'npc_agent':'CharacterBody3D',
               'character_mount':'Node3D',
               'skeleton':'Skeleton3D',
               'ground':'CSGBox3D',
           }
+          for sample in [71,72,73]:
+              for role in ['npc_agent','character_mount','skeleton']:
+                  assert f'node_world_transforms_by_sample.{sample}.{role}.origin_m' in r['runtime_witness']['required_fields']
+                  assert f'node_world_transforms_by_sample.{sample}.{role}.basis_rows' in r['runtime_witness']['required_fields']
           assert r['canonical_character_placement_available'] is False
           assert r['ground_contact_classifiable'] is False
           assert r['contact_proof_claimed'] is False

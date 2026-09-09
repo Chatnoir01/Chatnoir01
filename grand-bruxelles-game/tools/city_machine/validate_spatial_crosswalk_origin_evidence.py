@@ -11,6 +11,7 @@ PRECONDITION_PATH = ROOT / "data/source_plans/brussels_spatial_crosswalk_precond
 MIDI_CANDIDATE_PATH = ROOT / "data/qa/city_machine/midi_onboarding_candidate.json"
 
 EXPECTED_SCHEMA = "grand-bruxelles-spatial-crosswalk-origin-evidence-v1"
+EXPECTED_PRECONDITION_SCHEMA = "grand-bruxelles-spatial-crosswalk-precondition-v1"
 EXPECTED_MEASUREMENT_SCHEMA = "grand-bruxelles-road-registered-cell-overlap-measurement-v2"
 EXPECTED_MEASUREMENT_SEMANTIC_SHA256 = "2d84dbc4d6a80e10f093f8135e2fba6e9b55b813eb42c2588be7566ae6c16f95"
 EXPECTED_OWNER = {
@@ -80,6 +81,16 @@ EXPECTED_MEASURED_KEYS = {
     "road_source_provider", "road_source_license", "raw_road_count", "road_count",
     "registered_cell_count", "overlapping_road_count", "semantic_sha256",
 }
+EXPECTED_PRECONDITION_KEYS = {"schema", "source_measurement_manifest", "crosswalk", "authorization"}
+EXPECTED_REQUIRED_PROVENANCE = [
+    "target_grid_contract",
+    "target_crs",
+    "transform_source",
+    "transform_revision",
+    "transform_license",
+    "transform_sha256",
+]
+EXPECTED_CROSSWALK_KEYS = {"status", "authorized", *EXPECTED_REQUIRED_PROVENANCE, "required_before_authorization"}
 LOWER_HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 LOWER_HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 SHA256_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -109,11 +120,17 @@ def _exact(value: Any, keys: set[str], label: str) -> dict[str, Any]:
 
 def validate() -> None:
     evidence = _exact(_load(EVIDENCE_PATH, "origin evidence"), EXPECTED_TOP_KEYS, "origin evidence")
-    precondition = _load(PRECONDITION_PATH, "spatial crosswalk precondition")
+    precondition = _exact(
+        _load(PRECONDITION_PATH, "spatial crosswalk precondition"),
+        EXPECTED_PRECONDITION_KEYS,
+        "spatial crosswalk precondition",
+    )
     midi = _load(MIDI_CANDIDATE_PATH, "Midi onboarding candidate")
 
     if evidence["schema"] != EXPECTED_SCHEMA:
         raise ValueError("origin evidence schema drift")
+    if precondition["schema"] != EXPECTED_PRECONDITION_SCHEMA:
+        raise ValueError("spatial crosswalk precondition schema identity drift")
     if not isinstance(evidence["scope_note"], str) or not evidence["scope_note"] or evidence["scope_note"] != evidence["scope_note"].strip():
         raise ValueError("origin evidence scope_note must be a non-empty trimmed string")
 
@@ -165,11 +182,13 @@ def validate() -> None:
     if bridge["lambert72_formula"] != frame["formula"] or bridge["road_runtime_index"] != measured["road_runtime_index"] or bridge["road_runtime_catalog_sha256"] != measured["road_runtime_catalog_sha256"] or bridge["road_source"] != measured["road_source"] or bridge["road_source_sha256"] != measured["road_source_sha256"] or bridge["road_source_provider"] != measured["road_source_provider"] or bridge["road_source_license"] != measured["road_source_license"]:
         raise ValueError("Midi road-frame bridge does not match locked origin evidence")
 
-    crosswalk = precondition.get("crosswalk")
-    if not isinstance(crosswalk, dict) or crosswalk.get("status") != "UNRESOLVED_PROVENANCE" or crosswalk.get("authorized") is not False:
+    crosswalk = _exact(precondition["crosswalk"], EXPECTED_CROSSWALK_KEYS, "spatial crosswalk precondition crosswalk")
+    if crosswalk["status"] != "UNRESOLVED_PROVENANCE" or crosswalk["authorized"] is not False:
         raise ValueError("spatial crosswalk precondition must remain unresolved and unauthorized")
-    for key in ("target_grid_contract", "target_crs", "transform_source", "transform_revision", "transform_license", "transform_sha256"):
-        if crosswalk.get(key) is not None:
+    if crosswalk["required_before_authorization"] != EXPECTED_REQUIRED_PROVENANCE:
+        raise ValueError("spatial crosswalk precondition provenance requirement drift")
+    for key in EXPECTED_REQUIRED_PROVENANCE:
+        if crosswalk[key] is not None:
             raise ValueError(f"spatial crosswalk precondition {key} must remain unresolved")
 
 

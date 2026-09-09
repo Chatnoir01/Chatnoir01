@@ -18,6 +18,12 @@ EXPECTED_SOURCE_COMMIT = "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
 EXPECTED_SOURCE_GIT_BLOB_SHA1 = "09bcade1092e5a89b474e91e6013209d4c68c127"
 EXPECTED_SOURCE_SIZE_BYTES = 6879364
 EXPECTED_SOURCE_LICENSE = "CC0-1.0"
+EXPECTED_NODE_CLASSES = {
+    "npc_agent": "CharacterBody3D",
+    "character_mount": "Node3D",
+    "skeleton": "Skeleton3D",
+    "ground": "CSGBox3D",
+}
 REQUIRED_SAMPLE_INDICES = [71, 72, 73]
 SKELETON_ARTIFACT_ID = 9996432028
 SKELETON_ARTIFACT_DIGEST = "sha256:9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00"
@@ -130,6 +136,16 @@ def validate_runtime_witness(witness: Any, ground_top_y: float, expected_runtime
                 errors.append("node_paths.skeleton:not-descendant-of-character-mount")
         if node_paths.get("ground") != "Main/Ground":
             errors.append(f"node_paths.ground:expected:'Main/Ground':got:{node_paths.get('ground')!r}")
+    node_classes = witness.get("node_classes")
+    if not isinstance(node_classes, dict):
+        errors.append("node_classes:not-object")
+    else:
+        if set(node_classes) != set(EXPECTED_NODE_CLASSES):
+            errors.append(f"node_classes.keys:mismatch:{sorted(node_classes)!r}:{sorted(EXPECTED_NODE_CLASSES)!r}")
+        for key, expected in EXPECTED_NODE_CLASSES.items():
+            actual = node_classes.get(key)
+            if actual != expected:
+                errors.append(f"node_classes.{key}:mismatch:{actual!r}:{expected!r}")
     transforms = witness.get("world_transforms_by_sample")
     expected_keys = {str(index) for index in REQUIRED_SAMPLE_INDICES}
     if not isinstance(transforms, dict):
@@ -241,7 +257,7 @@ def main() -> int:
         "schema": "grand-bruxelles-civ1-canonical-placement-contract-v6",
         "canonical_ground": {"node": "Main/Ground", "position_y_m": ground_position[1], "size_y_m": ground_size[1], "top_y_m": ground_top_y, "use_collision": "use_collision = true" in ground_block},
         "runtime": {"population_director_loaded": 'script = ExtResource("14_npc_director")' in scene, "runtime_integration_loaded": 'script = ExtResource("15_npc_runtime")' in scene, "npc_agent_instance_authored_in_main": explicit_agent_node, "spawn_y_is_copied_verbatim": exact_spawn_copy, "pooled_spawn_y_is_copied_verbatim": pooled_spawn_copy, "grounding_mechanism_hits": grounding_hits, "input_sha256": runtime_input_hashes},
-        "runtime_witness": {"schema": WITNESS_SCHEMA, "present": witness_present, "validated": witness_validated, "validation_errors": witness_errors, "required_sample_indices": REQUIRED_SAMPLE_INDICES, "required_animation_evidence": required_animation_evidence, "required_source_evidence": required_source_evidence, "required_fields": ["schema", "evidence_kind", "engine_version", "main_scene", "candidate", "node_paths.npc_agent", "node_paths.character_mount", "node_paths.skeleton", "node_paths.ground", "world_transforms_by_sample.71.origin_m", "world_transforms_by_sample.71.basis_rows", "world_transforms_by_sample.72.origin_m", "world_transforms_by_sample.72.basis_rows", "world_transforms_by_sample.73.origin_m", "world_transforms_by_sample.73.basis_rows", "ground_top_y_m", "candidate_source_sha256", "provenance_record", "source_evidence.repository_url", "source_evidence.source_commit_sha", "source_evidence.source_git_blob_sha1", "source_evidence.source_size_bytes", "source_evidence.license_id", "source_evidence.artifact_id", "source_evidence.artifact_digest", "source_evidence.source_file_sha256", "animation_evidence.skeleton_artifact_id", "animation_evidence.skeleton_artifact_digest", "animation_evidence.skeleton_sample_count", "animation_evidence.phase_minima_artifact_id", "animation_evidence.phase_minima_artifact_digest", "animation_evidence.phase_lowest_candidate_sample_index", "animation_evidence.bound_sample_indices", "runtime_inputs.main_scene_sha256", "runtime_inputs.npc_agent_sha256", "runtime_inputs.npc_director_sha256", "mcp_ephemeral", "canonical_export_modified", "capture.loaded_scene_tree_observed", "capture.character_mount_observed", "capture.canonical_ground_observed", "capture.sample_indices"]},
+        "runtime_witness": {"schema": WITNESS_SCHEMA, "present": witness_present, "validated": witness_validated, "validation_errors": witness_errors, "required_sample_indices": REQUIRED_SAMPLE_INDICES, "required_animation_evidence": required_animation_evidence, "required_source_evidence": required_source_evidence, "required_node_classes": EXPECTED_NODE_CLASSES, "required_fields": ["schema", "evidence_kind", "engine_version", "main_scene", "candidate", "node_paths.npc_agent", "node_paths.character_mount", "node_paths.skeleton", "node_paths.ground", "node_classes.npc_agent", "node_classes.character_mount", "node_classes.skeleton", "node_classes.ground", "world_transforms_by_sample.71.origin_m", "world_transforms_by_sample.71.basis_rows", "world_transforms_by_sample.72.origin_m", "world_transforms_by_sample.72.basis_rows", "world_transforms_by_sample.73.origin_m", "world_transforms_by_sample.73.basis_rows", "ground_top_y_m", "candidate_source_sha256", "provenance_record", "source_evidence.repository_url", "source_evidence.source_commit_sha", "source_evidence.source_git_blob_sha1", "source_evidence.source_size_bytes", "source_evidence.license_id", "source_evidence.artifact_id", "source_evidence.artifact_digest", "source_evidence.source_file_sha256", "animation_evidence.skeleton_artifact_id", "animation_evidence.skeleton_artifact_digest", "animation_evidence.skeleton_sample_count", "animation_evidence.phase_minima_artifact_id", "animation_evidence.phase_minima_artifact_digest", "animation_evidence.phase_lowest_candidate_sample_index", "animation_evidence.bound_sample_indices", "runtime_inputs.main_scene_sha256", "runtime_inputs.npc_agent_sha256", "runtime_inputs.npc_director_sha256", "mcp_ephemeral", "canonical_export_modified", "capture.loaded_scene_tree_observed", "capture.character_mount_observed", "capture.canonical_ground_observed", "capture.sample_indices"]},
         "canonical_character_placement_available": witness_validated,
         "ground_contact_classifiable": False,
         "contact_proof_claimed": False,
@@ -251,7 +267,7 @@ def main() -> int:
         "runtime_change_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 mount witness whose exact pinned source identity and 71/72/73 transforms are bound to one canonical observed NPC-agent/mount/skeleton hierarchy plus the immutable 120-sample Skeleton and geometry-phase artifacts; only then replay those exact skinned samples against canonical Ground",
+        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 mount witness whose exact pinned source identity, node classes and 71/72/73 transforms are bound to one canonical observed NPC-agent/mount/skeleton hierarchy plus the immutable 120-sample Skeleton and geometry-phase artifacts; only then replay those exact skinned samples against canonical Ground",
     }
     if not main_has_runtime_owner_nodes:
         raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: NPC runtime owner nodes missing")

@@ -27,6 +27,12 @@ EXPECTED_FRAME = {
     "origin_northing_m": 169538.62414926197,
     "formula": "E=origin_easting_m+x;N=origin_northing_m-z",
 }
+EXPECTED_INDEX_BINDINGS = {
+    "registered_cell_index": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "registered_cell_index_semantic_sha256": "8dd6b8994160b7a22b83f8be4ce63cfa4b579f724d51b3896c0426782b259187",
+    "road_runtime_index": "data/runtime/road_destination_runtime_index.json",
+    "road_runtime_catalog_sha256": "7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f",
+}
 EXPECTED_ROAD_SOURCE = {
     "road_source": "data/osm/vertical_slice_01.game.json",
     "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
@@ -106,6 +112,8 @@ def validate() -> None:
     for key in ("registered_cell_index_semantic_sha256", "road_runtime_catalog_sha256", "road_source_sha256", "semantic_sha256"):
         if not isinstance(measured[key], str) or LOWER_HEX_64.fullmatch(measured[key]) is None:
             raise ValueError(f"origin evidence {key} must be lowercase SHA-256")
+    if any(measured[key] != expected for key, expected in EXPECTED_INDEX_BINDINGS.items()):
+        raise ValueError("origin evidence index immutable identity drift")
     if any(measured[key] != expected for key, expected in EXPECTED_ROAD_SOURCE.items()):
         raise ValueError("origin evidence road source immutable identity drift")
     expected_counts = {"raw_road_count": 140, "road_count": 139, "registered_cell_count": 5, "overlapping_road_count": 64}

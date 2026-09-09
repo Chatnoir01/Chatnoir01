@@ -3,6 +3,7 @@ extends SceneTree
 const MAIN_SCENE := "res://game/main.tscn"
 const ANNEESSENS_SPAWN := Vector3(-272.04, 1.05, -217.07)
 const EXPECTED_TREE_IDS := [4672009403, 4672009414, 4672009415, 4672009416, 4672009417, 11929097332, 11929097333]
+const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -39,12 +40,22 @@ func _run() -> void:
     if root == null or not root.visible:
         _fail("Anneessens OSM furniture root missing or inactive")
         return
+    if bool(root.get_meta("collision_source_backed", true)):
+        _fail("unsourced furniture root must not claim source-backed collision")
+        return
+    if bool(root.get_meta("collision_authorized", true)):
+        _fail("unsourced furniture root collision must remain unauthorized")
+        return
+    if str(root.get_meta("collision_policy", "")) != COLLISION_POLICY:
+        _fail("furniture root collision policy drifted")
+        return
 
     var found_ids: Array[int] = []
     var foliage_lobes_total := 0
+    var collision_shape_count := 0
     for node: Node in get_nodes_in_group("osm_environment_furniture"):
         if not node is StaticBody3D:
-            _fail("OSM furniture must have physical collision owner")
+            _fail("OSM furniture tree root must remain a StaticBody3D")
             return
         var tree := node as StaticBody3D
         if not tree.is_visible_in_tree():
@@ -58,10 +69,17 @@ func _run() -> void:
         if bool(tree.get_meta("source_dimensions_measured", true)):
             _fail("authored tree dimensions must not be presented as source measurements: %s" % tree.name)
             return
-        var collision := tree.get_node_or_null("CollisionShape3D") as CollisionShape3D
-        if collision == null or collision.shape == null:
-            _fail("tree collision missing: %s" % tree.name)
+        if bool(tree.get_meta("collision_source_backed", true)):
+            _fail("tree collision must not be presented as source-backed: %s" % tree.name)
             return
+        if bool(tree.get_meta("collision_authorized", true)):
+            _fail("tree collision must remain unauthorized while trunk profile is unsourced: %s" % tree.name)
+            return
+        if str(tree.get_meta("collision_policy", "")) != COLLISION_POLICY:
+            _fail("tree collision policy drifted: %s" % tree.name)
+            return
+        for child: Node in tree.find_children("*", "CollisionShape3D", true, false):
+            collision_shape_count += 1
         var visual := tree.get_node_or_null("StreetTreeVisual") as Node3D
         if visual == null:
             _fail("shared street-tree visual root missing: %s" % tree.name)
@@ -82,9 +100,12 @@ func _run() -> void:
     if found_ids != expected:
         _fail("expected seven exact OSM trees, got %s" % str(found_ids))
         return
+    if collision_shape_count != 0:
+        _fail("unsourced tree collision shapes must stay fail-closed; found %d" % collision_shape_count)
+        return
     if foliage_lobes_total < 35:
         _fail("shared tree visual coverage unexpectedly low")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=7 foliage_lobes=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % foliage_lobes_total)
+    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=0 collision_policy=%s foliage_lobes=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [COLLISION_POLICY, foliage_lobes_total])
     quit(0)

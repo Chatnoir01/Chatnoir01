@@ -1,5 +1,14 @@
 name: Grand Bruxelles CIV-1 Authored Skin Integrity
 on:
+  push:
+    branches:
+      - 'character/**'
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
+      - 'grand-bruxelles-game/tools/civ1_canonical_resource_alias.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'

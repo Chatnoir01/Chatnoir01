@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE_PATH = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
 PRECONDITION_PATH = ROOT / "data/source_plans/brussels_spatial_crosswalk_precondition.lock.json"
 MIDI_CANDIDATE_PATH = ROOT / "data/qa/city_machine/midi_onboarding_candidate.json"
+MEASUREMENTS_PATH = ROOT / "data/source_plans/brussels_locked_road_source_measurements.lock.json"
 
 EXPECTED_SCHEMA = "grand-bruxelles-spatial-crosswalk-origin-evidence-v1"
 EXPECTED_PRECONDITION_SCHEMA = "grand-bruxelles-spatial-crosswalk-precondition-v1"
@@ -116,6 +118,10 @@ LOWER_HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 SHA256_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
+def _git_blob_sha1(raw: bytes) -> str:
+    return hashlib.sha1(f"blob {len(raw)}\0".encode("ascii") + raw).hexdigest()
+
+
 def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     value: dict[str, Any] = {}
     for key, item in pairs:
@@ -205,6 +211,9 @@ def validate() -> None:
     source_manifest = precondition["source_measurement_manifest"]
     if source_manifest != EXPECTED_SOURCE_MEASUREMENT_MANIFEST:
         raise ValueError("source measurement manifest immutable identity drift")
+    measurements_raw = MEASUREMENTS_PATH.read_bytes()
+    if _git_blob_sha1(measurements_raw) != source_manifest["git_blob_sha1"]:
+        raise ValueError("source measurement manifest Git blob mismatch")
     precondition_auth = precondition["authorization"]
     if precondition_auth != EXPECTED_PRECONDITION_AUTHORIZATION:
         raise ValueError("precondition authorization rails must remain closed")

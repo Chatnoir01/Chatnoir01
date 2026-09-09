@@ -6,6 +6,7 @@ const TREE_ASSET := preload("res://game/scripts/brussels_street_tree_asset.gd")
 const VISUAL_OWNER_META := "shared_environment_visual_owner"
 const VISUAL_OWNER_ID := "anneessens_osm_furniture_runtime"
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
+const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 
 @export var activation_radius_m: float = 170.0
 
@@ -273,6 +274,9 @@ func _build_once() -> void:
     _root.set_meta("visual_dimensions_source_backed", false)
     _root.set_meta("source_height_measured", false)
     _root.set_meta("source_species_measured", false)
+    _root.set_meta("collision_source_backed", false)
+    _root.set_meta("collision_authorized", false)
+    _root.set_meta("collision_policy", "disabled_until_source_backed_trunk_profile")
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
 
@@ -284,7 +288,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0" % [tree_points.size(), TREE_ASSET.ASSET_FAMILY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):
@@ -296,12 +300,6 @@ func _apply_tree_activation(active: bool) -> void:
     _tree_active = active
     _tree_activation_initialized = true
     _root.visible = active
-    for tree: StaticBody3D in _trees:
-        if not is_instance_valid(tree):
-            continue
-        var collision := tree.get_node_or_null("CollisionShape3D") as CollisionShape3D
-        if collision != null:
-            collision.disabled = not active
 
 func _add_tree(osm_id: int, world_position: Vector3) -> void:
     var tree := StaticBody3D.new()
@@ -311,17 +309,13 @@ func _add_tree(osm_id: int, world_position: Vector3) -> void:
     tree.set_meta("osm_id", osm_id)
     tree.set_meta("source", "OpenStreetMap contributors via Overpass API")
     tree.set_meta("license", "ODbL-1.0")
+    tree.set_meta("placement_source_backed", true)
+    tree.set_meta("visual_dimensions_source_backed", false)
+    tree.set_meta("collision_source_backed", false)
+    tree.set_meta("collision_authorized", false)
+    tree.set_meta("collision_policy", "disabled_until_source_backed_trunk_profile")
     _root.add_child(tree)
     _trees.append(tree)
-
-    var collision := CollisionShape3D.new()
-    collision.name = "CollisionShape3D"
-    var shape := CylinderShape3D.new()
-    shape.radius = 0.28
-    shape.height = 2.6
-    collision.shape = shape
-    collision.position.y = 1.3
-    tree.add_child(collision)
 
     _rebuild_tree_visual(tree)
 

@@ -51,3 +51,19 @@ def test_origin_validator_rejects_shadow_precondition_top_level_key(tmp_path, mo
 
     with pytest.raises(ValueError, match="spatial crosswalk precondition schema drift"):
         _run_with_precondition(tmp_path, monkeypatch, precondition)
+
+
+def test_origin_validator_rejects_source_measurement_manifest_repin(tmp_path, monkeypatch):
+    precondition = _load(PRECONDITION)
+    precondition["source_measurement_manifest"]["git_blob_sha1"] = "0" * 40
+
+    with pytest.raises(ValueError, match="source measurement manifest immutable identity drift"):
+        _run_with_precondition(tmp_path, monkeypatch, precondition)
+
+
+def test_origin_validator_rejects_precondition_authorization_open(tmp_path, monkeypatch):
+    precondition = _load(PRECONDITION)
+    precondition["authorization"]["registration_authorized"] = True
+
+    with pytest.raises(ValueError, match="precondition authorization rails must remain closed"):
+        _run_with_precondition(tmp_path, monkeypatch, precondition)

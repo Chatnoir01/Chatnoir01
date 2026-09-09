@@ -27,6 +27,12 @@ EXPECTED_FRAME = {
     "origin_northing_m": 169538.62414926197,
     "formula": "E=origin_easting_m+x;N=origin_northing_m-z",
 }
+EXPECTED_ROAD_SOURCE = {
+    "road_source": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "road_source_provider": "OpenStreetMap contributors via Overpass API",
+    "road_source_license": "ODbL-1.0",
+}
 EXPECTED_TOP_KEYS = {"schema", "source_owner", "measured_contract", "authorization", "scope_note"}
 EXPECTED_OWNER_KEYS = {"pr", "head_sha", "workflow", "run_id", "artifact_id", "artifact_digest", "artifact_name"}
 EXPECTED_FRAME_KEYS = {"crs", "origin_easting_m", "origin_northing_m", "formula"}
@@ -100,6 +106,8 @@ def validate() -> None:
     for key in ("registered_cell_index_semantic_sha256", "road_runtime_catalog_sha256", "road_source_sha256", "semantic_sha256"):
         if not isinstance(measured[key], str) or LOWER_HEX_64.fullmatch(measured[key]) is None:
             raise ValueError(f"origin evidence {key} must be lowercase SHA-256")
+    if any(measured[key] != expected for key, expected in EXPECTED_ROAD_SOURCE.items()):
+        raise ValueError("origin evidence road source immutable identity drift")
     expected_counts = {"raw_road_count": 140, "road_count": 139, "registered_cell_count": 5, "overlapping_road_count": 64}
     for key, expected in expected_counts.items():
         if type(measured[key]) is not int or measured[key] != expected:

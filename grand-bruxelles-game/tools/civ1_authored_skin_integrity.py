@@ -104,7 +104,7 @@ def resolve_nodepath(owner_path: str, raw: str) -> str | None:
     target = match.group(1)
     if target.startswith("/"):
         return target.strip("/")
-    parts = owner_path.split("/")[:-1]
+    parts = owner_path.split("/")
     for part in target.split("/"):
         if part in ("", "."):
             continue

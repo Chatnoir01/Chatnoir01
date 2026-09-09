@@ -1,0 +1,98 @@
+name: Grand Bruxelles CIV-1 Authored Skin Integrity
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
+permissions:
+  contents: read
+jobs:
+  civ1-authored-skin-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact live main and QA-only scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "984bb93c6994e9674e5fbfe37e2c33100b7b8fce"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- \
+            grand-bruxelles-game/game/main.tscn \
+            grand-bruxelles-game/game/scripts \
+            grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reject forged authored-skin evidence
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_authored_skin_integrity.py --self-test
+      - name: Reject phantom, pointer-only, unhashed or cross-type aliased external resources
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_external_resource_backing.py --self-test
+      - name: Measure reachable authored-skin integrity
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-skin-integrity
+          python grand-bruxelles-game/tools/civ1_authored_skin_integrity.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-skin-integrity/civ1-authored-skin-integrity.json
+          python grand-bruxelles-game/tools/civ1_external_resource_backing.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-skin-integrity/civ1-external-resource-backing.json
+      - name: Assert fail-closed integrity contract
+        run: |
+          python - <<'PY'
+          import json
+          p='/tmp/civ1-skin-integrity/civ1-authored-skin-integrity.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-civ1-authored-skin-integrity-v2'
+          assert d['evidence_mode']=='reachable_tscn_plus_exact_skeleton_path_plus_declared_mesh_skin_material_resources'
+          assert d['reachable_scene_count'] >= 1
+          assert d['empty_skeleton_evidence_accepted'] is False
+          assert d['phantom_resource_evidence_accepted'] is False
+          assert d['missing_skin_resource_evidence_accepted'] is False
+          assert d['wrong_skin_type_evidence_accepted'] is False
+          assert d['wrong_skeleton_evidence_accepted'] is False
+          assert d['integrity_ready_count'] <= d['hierarchy_count']
+          assert d['authored_skin_integrity_ready'] == (d['integrity_ready_count'] > 0)
+          assert d['runtime_authorized'] is False
+          assert d['visual_approval_claimed'] is False
+          assert d['contact_verified'] is False
+          assert d['foot_slide_verified'] is False
+          q='/tmp/civ1-skin-integrity/civ1-external-resource-backing.json'
+          b=json.load(open(q, encoding='utf-8'))
+          assert b['schema']=='grand-bruxelles-civ1-external-resource-backing-v4'
+          assert b['evidence_mode']=='reachable_authored_skin_bundle_plus_materialized_in_project_external_resource_bytes_plus_sha256_plus_path_type_consistency'
+          assert b['reachable_scene_count'] >= 1
+          assert b['typed_but_missing_external_resource_evidence_accepted'] is False
+          assert b['out_of_project_external_resource_evidence_accepted'] is False
+          assert b['unhashed_external_resource_evidence_accepted'] is False
+          assert b['cross_type_same_path_evidence_accepted'] is False
+          assert b['git_lfs_pointer_evidence_accepted'] is False
+          assert b['external_path_type_consistent'] == (len(b['external_path_type_conflicts']) == 0)
+          assert b['external_resources_materialized'] == (len(b['git_lfs_pointer_paths']) == 0)
+          assert b['backing_ready_count'] <= b['hierarchy_count']
+          assert b['authored_external_resources_backed'] == (b['backing_ready_count'] > 0)
+          assert b['fingerprinted_external_resource_count'] == len(b['external_resource_fingerprints'])
+          for item in b['external_resource_fingerprints']:
+              assert item['path'].startswith('res://')
+              assert isinstance(item['declared_type'], str) and item['declared_type']
+              assert item['sha256'].startswith('sha256:') and len(item['sha256']) == 71
+          assert b['runtime_authorized'] is False
+          assert b['visual_approval_claimed'] is False
+          assert b['contact_verified'] is False
+          assert b['foot_slide_verified'] is False
+          print(json.dumps({'skin': d, 'backing': b}, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-authored-skin-integrity
+          path: /tmp/civ1-skin-integrity/*.json

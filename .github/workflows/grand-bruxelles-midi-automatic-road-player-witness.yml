@@ -1,0 +1,194 @@
+name: Grand Bruxelles Midi Automatic Road Player Witness
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/tests/midi_automatic_road_direct_spawn_witness_test.gd"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - ".github/workflows/grand-bruxelles-midi-automatic-road-player-witness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-player-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and exact checked-out head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          checked_out_head="$(git rev-parse HEAD)"
+          test "$checked_out_head" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "$PR_HEAD_SHA" origin/main)"
+          echo "live_main=$live_main"
+          echo "pr_head=$PR_HEAD_SHA"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main"
+          printf 'MIDI_VALIDATED_BASE_SHA=%s\n' "$live_main" >> "$GITHUB_ENV"
+          printf 'MIDI_VALIDATED_HEAD_SHA=%s\n' "$checked_out_head" >> "$GITHUB_ENV"
+      - name: Prove exact Midi Fonsny candidate set and deterministic index membership
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, math
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          source=root/'data/osm/vertical_slice_01.game.json'
+          index=root/'data/runtime/road_destination_runtime_index.json'
+          doc=json.loads(source.read_text()); ri=json.loads(index.read_text())
+          assert doc['source']=='OpenStreetMap contributors via Overpass API'
+          assert doc['license']=='ODbL-1.0'
+          anchor=next(a for a in doc['corridor']['anchors'] if a['id']=='midi')
+          candidates=[]
+          for road in doc['roads']:
+              if road.get('name')!='Avenue Fonsny - Fonsnylaan' or road.get('drivable') is not True:
+                  continue
+              nearest=min(math.hypot(float(p[0])-float(anchor['x']), float(p[1])-float(anchor['z'])) for p in road['points'])
+              if nearest <= 80.0:
+                  candidates.append((nearest,int(road['osm_id'])))
+          candidates.sort()
+          assert candidates, 'no exact Fonsny candidate inside Midi neighborhood'
+          desc=next(d for d in ri['documents'] if d['path']=='data/osm/vertical_slice_01.game.json')
+          indexed=set(map(int,desc['road_ids']))
+          assert all(osm_id in indexed for _,osm_id in candidates)
+          assert hashlib.sha256(source.read_bytes()).hexdigest()==desc['sha256']
+          assert ri['source_lookup_only'] is True
+          for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
+              assert ri['authorization'][key] is False
+          print('MIDI_SOURCE_CANDIDATES_GREEN count=%d ids=%s nearest_m=%.3f source_sha=%s' % (len(candidates), ','.join(str(i) for _,i in candidates), candidates[0][0], desc['sha256']))
+          PY
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install verified Godot 4.7.1
+        shell: bash
+        env:
+          GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/godot /tmp/godot.zip
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          version="$(/tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version)"
+          printf '%s\n' "$version" | grep -E '^4\.7\.1\.stable\.'
+          printf 'MIDI_GODOT_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+          printf 'MIDI_GODOT_ZIP_SHA256=%s\n' "$GODOT_ZIP_SHA256" >> "$GITHUB_ENV"
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-auto-road-import.log
+          status=${PIPESTATUS[0]}
+          test "$status" -eq 0
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-auto-road-import.log; then exit 1; fi
+      - name: Capture source-backed collision-safe Midi Fonsny player witness
+        shell: bash
+        run: |
+          set -o pipefail
+          log=/tmp/midi-auto-road-player-witness.log
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/midi_automatic_road_direct_spawn_witness_test.gd 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          test "$status" -eq 0
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AUTOMATIC_ROAD_PLAYER_WITNESS_FAIL" "$log"; then exit 1; fi
+          grep -q "MIDI_AUTOMATIC_ROAD_PLAYER_WITNESS_GREEN" "$log"
+      - name: Seal exact Midi player-view evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          png="grand-bruxelles-game/artifacts/visual/automatic_midi_road_player.png"
+          stage="/tmp/midi-auto-road-player-evidence"
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp /tmp/midi-auto-road-player-witness.log "$stage/runtime.log" 2>/dev/null || true
+          cp /tmp/midi-auto-road-import.log "$stage/import.log" 2>/dev/null || true
+          if [[ -s "$png" ]]; then cp "$png" "$stage/automatic_midi_road_player.png"; fi
+          python3 - "$png" "$stage" <<'PY'
+          import hashlib,json,math,os,pathlib,struct,sys
+          png=pathlib.Path(sys.argv[1]); stage=pathlib.Path(sys.argv[2])
+          if not png.is_file(): raise SystemExit('missing Midi player-view PNG')
+          raw=png.read_bytes()
+          if raw[:8]!=b'\x89PNG\r\n\x1a\n' or raw[12:16]!=b'IHDR': raise SystemExit('invalid PNG witness')
+          width,height=struct.unpack('>II',raw[16:24])
+          if (width,height)!=(1280,720): raise SystemExit(f'unexpected dimensions {(width,height)}')
+          log=pathlib.Path('/tmp/midi-auto-road-player-witness.log')
+          text=log.read_text(encoding='utf-8',errors='replace')
+          green=[line for line in text.splitlines() if line.startswith('MIDI_AUTOMATIC_ROAD_PLAYER_WITNESS_GREEN:')]
+          if len(green)!=1: raise SystemExit(f'expected exactly one GREEN marker, got {len(green)}')
+          fields={}
+          for token in green[0].split():
+              if '=' in token:
+                  key,value=token.split('=',1); fields[key]=value
+          required=('osm_id','source_name','candidate_count','rejected_before_success','anchor_distance_m','ground_y','independently_observed_ground_y','support_kind','support_path','road_axis_alignment','camera_unchanged','source_sha','dynamic_state_frozen','human_full_frame_review_required','destination_advertisable','visual_acceptance','jouable_authorized')
+          missing=[key for key in required if key not in fields]
+          if missing: raise SystemExit(f'missing structured witness fields: {missing}')
+          selected_id=int(fields['osm_id']); candidate_count=int(fields['candidate_count'])
+          if selected_id<=0 or candidate_count<=0: raise SystemExit('invalid selected road/candidate count')
+          if fields['source_name']!='Avenue_Fonsny_-_Fonsnylaan': raise SystemExit('structured source name drifted')
+          if fields['support_kind'] not in ('canonical_ground','source_road_support'): raise SystemExit(f'unsupported support kind {fields["support_kind"]!r}')
+          anchor_distance=float(fields['anchor_distance_m']); ground_y=float(fields['ground_y']); observed_ground_y=float(fields['independently_observed_ground_y']); alignment=float(fields['road_axis_alignment'])
+          if not all(math.isfinite(v) for v in (anchor_distance,ground_y,observed_ground_y,alignment)): raise SystemExit('non-finite structured support metric')
+          if anchor_distance>80.0: raise SystemExit(f'Midi anchor distance escaped contract: {anchor_distance}')
+          if abs(observed_ground_y-ground_y)>0.01: raise SystemExit(f'structured ground mismatch: {ground_y} vs {observed_ground_y}')
+          if alignment<0.90: raise SystemExit(f'structured road alignment below contract: {alignment}')
+          if fields['camera_unchanged']!='true' or fields['dynamic_state_frozen']!='true' or fields['human_full_frame_review_required']!='true': raise SystemExit('structured witness safety flags drifted')
+          if fields['destination_advertisable']!='false' or fields['visual_acceptance']!='false' or fields['jouable_authorized']!='false': raise SystemExit('promotion rail drifted in structured witness')
+          def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+          root=pathlib.Path('grand-bruxelles-game')
+          source_path=root/'data/osm/vertical_slice_01.game.json'; source_doc=json.loads(source_path.read_text())
+          source_sha=sha(source_path)
+          if fields['source_sha'].lower()!=source_sha: raise SystemExit('structured source digest disagrees with sealed source')
+          anchor=next(a for a in source_doc['corridor']['anchors'] if a['id']=='midi')
+          selected=next((r for r in source_doc['roads'] if int(r['osm_id'])==selected_id),None)
+          if selected is None or selected.get('name')!='Avenue Fonsny - Fonsnylaan' or selected.get('drivable') is not True: raise SystemExit('selected road is not exact source-backed Midi Fonsny road')
+          nearest=min(math.hypot(float(p[0])-float(anchor['x']),float(p[1])-float(anchor['z'])) for p in selected['points'])
+          if nearest>80.0: raise SystemExit(f'selected road source geometry escaped Midi neighborhood: {nearest}')
+          receipt={
+            'schema':'grand-bruxelles-midi-automatic-road-player-witness-v2',
+            'base_sha':os.environ.get('MIDI_VALIDATED_BASE_SHA',''),'head_sha':os.environ.get('MIDI_VALIDATED_HEAD_SHA',''),
+            'godot_version':os.environ.get('MIDI_GODOT_VERSION',''),'godot_zip_sha256':os.environ.get('MIDI_GODOT_ZIP_SHA256',''),
+            'osm_id':selected_id,'source_name':'Avenue Fonsny - Fonsnylaan','candidate_count':candidate_count,
+            'rejected_before_success':fields['rejected_before_success'],'source_nearest_anchor_point_m':nearest,
+            'source':'OpenStreetMap contributors via Overpass API','source_license':'ODbL-1.0','source_sha256':source_sha,
+            'runtime_index_sha256':sha(root/'data/runtime/road_destination_runtime_index.json'),
+            'resolver_sha256':sha(root/'game/scripts/automatic_road_direct_spawn.gd'),'test_sha256':sha(root/'game/tests/midi_automatic_road_direct_spawn_witness_test.gd'),
+            'runtime_log_sha256':sha(log),'import_log_sha256':sha(pathlib.Path('/tmp/midi-auto-road-import.log')),
+            'png_sha256':sha(png),'width':width,'height':height,'anchor_distance_m':anchor_distance,
+            'resolver_ground_y':ground_y,'independently_observed_ground_y':observed_ground_y,'support_kind':fields['support_kind'],'support_path':fields['support_path'],'road_axis_alignment':alignment,
+            'independent_support_proof':True,'camera_unchanged_required':True,'dynamic_state_frozen':True,'human_full_frame_review_required':True,
+            'destination_advertisable':False,'visual_acceptance':False,'jouable_authorized':False}
+          (stage/'manifest.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          PY
+          (cd "$stage" && find . -maxdepth 1 -type f ! -name evidence-sha256.txt -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > evidence-sha256.txt)
+      - name: Revalidate exact proof identity before success
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$MIDI_VALIDATED_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$MIDI_VALIDATED_HEAD_SHA"
+      - name: Upload exact Midi player-view evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automatic-midi-road-player-witness
+          path: /tmp/midi-auto-road-player-evidence/
+          if-no-files-found: error

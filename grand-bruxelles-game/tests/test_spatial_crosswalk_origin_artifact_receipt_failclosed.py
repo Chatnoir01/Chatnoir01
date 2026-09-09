@@ -84,6 +84,19 @@ class OriginArtifactReceiptFailClosedTests(unittest.TestCase):
         finally:
             REGISTERED_CELL_INDEX.write_bytes(original)
 
+    def test_rejects_registered_cell_index_production_base_repin(self) -> None:
+        evidence_raw = EVIDENCE.read_bytes()
+        receipt_raw = RECEIPT.read_bytes()
+        original = REGISTERED_CELL_INDEX.read_bytes()
+        registered_index = json.loads(original.decode("utf-8"))
+        registered_index["production_base_sha"] = "0" * 40
+        try:
+            REGISTERED_CELL_INDEX.write_bytes(_bytes(registered_index))
+            with self.assertRaises(ValueError):
+                validate_origin_artifact_receipt(evidence_raw, receipt_raw)
+        finally:
+            REGISTERED_CELL_INDEX.write_bytes(original)
+
 
 if __name__ == "__main__":
     unittest.main()

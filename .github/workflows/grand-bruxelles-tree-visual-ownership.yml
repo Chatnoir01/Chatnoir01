@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_street_tree_asset.gd'
       - 'grand-bruxelles-game/tests/shared_environment_tree_visual_ownership_test.py'
       - '.github/workflows/grand-bruxelles-tree-visual-ownership.yml'
   workflow_dispatch:
@@ -13,7 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact PR head
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Checkout dispatch ref
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact PR head and base ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_head="${{ github.event.pull_request.head.sha }}"
+          expected_base="${{ github.event.pull_request.base.sha }}"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$expected_head"
+          git cat-file -e "${expected_base}^{commit}"
+          git merge-base --is-ancestor "$expected_base" "$actual_head"
+          echo "TREE_VISUAL_OWNERSHIP_EXACT_HEAD_OK head=$actual_head base=$expected_base"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

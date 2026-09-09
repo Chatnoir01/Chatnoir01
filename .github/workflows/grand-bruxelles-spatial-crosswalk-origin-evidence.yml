@@ -1,0 +1,40 @@
+name: Grand Bruxelles Spatial Crosswalk Origin Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-spatial-crosswalk-origin-evidence.yml"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_precondition.lock.json"
+      - "grand-bruxelles-game/data/qa/city_machine/midi_onboarding_candidate.json"
+      - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_evidence.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  origin-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and exact checked-out head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+      - name: Validate locked origin evidence through production CLI
+        working-directory: grand-bruxelles-game
+        run: python3 tools/city_machine/validate_spatial_crosswalk_origin_evidence.py
+      - name: Prove duplicate-key and authorization regressions
+        working-directory: grand-bruxelles-game
+        run: python3 -m pytest -q tests/test_brussels_spatial_crosswalk_origin_evidence.py

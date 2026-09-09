@@ -119,14 +119,18 @@ jobs:
           assert b['source_sha256'] == h['source_sha256']
           assert b['candidate_ids'] == h['candidate_ids']
           assert b['exact_geometry_count'] == h['exact_geometry_count']
-          assert b['visible_renderable_geometry_count'] == 0
-          assert b['visible_candidate_count'] == 0
-          assert b['player_support_collision_candidate_count'] == 0
-          assert h['visible_renderable_geometry_count'] > b['visible_renderable_geometry_count']
-          assert h['visible_candidate_count'] > b['visible_candidate_count']
-          assert h['player_support_collision_candidate_count'] > b['player_support_collision_candidate_count']
+          assert b['visible_renderable_geometry_count'] == b['exact_geometry_count']
+          assert b['visible_candidate_count'] == b['candidate_count']
+          assert b['player_support_collision_candidate_count'] == b['candidate_count']
+          assert h['visible_renderable_geometry_count'] == h['exact_geometry_count']
+          assert h['visible_candidate_count'] == h['candidate_count']
+          assert h['player_support_collision_candidate_count'] == h['candidate_count']
+          assert h['visible_renderable_geometry_count'] == b['visible_renderable_geometry_count']
+          assert h['visible_candidate_count'] == b['visible_candidate_count']
+          assert h['player_support_collision_candidate_count'] == b['player_support_collision_candidate_count']
           ab={
-              'schema':'grand-bruxelles-osm-midi-mask-fonsny-ab-v1',
+              'schema':'grand-bruxelles-osm-midi-mask-fonsny-preservation-ab-v1',
+              'contract_mode':'post-2011-full-coverage-preservation',
               'base_sha':os.environ['FONSNY_BASE_SHA'],
               'head_sha':os.environ['FONSNY_HEAD_SHA'],
               'source_sha256':h['source_sha256'],

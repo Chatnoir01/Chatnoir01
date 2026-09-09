@@ -6,17 +6,20 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
-PRECONDITION = ROOT / "data/source_plans/brussels_spatial_crosswalk_precondition.lock.json"
-MIDI_CANDIDATE = ROOT / "data/qa/city_machine/midi_onboarding_candidate.json"
 
 
 def _load_validator():
-    path = ROOT / "tools/city_machine/validate_spatial_crosswalk_origin_evidence.py"
-    spec = importlib.util.spec_from_file_location("origin_evidence_validator", path)
+    path = ROOT / "tools/city_machine/validate_spatial_crosswalk_origin_measurement_semantic_identity.py"
+    spec = importlib.util.spec_from_file_location("origin_measurement_semantic_validator", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_origin_measurement_semantic_identity_is_canonical():
+    validator = _load_validator()
+    validator.validate()
 
 
 def test_origin_measurement_semantic_identity_repin_fails_closed(tmp_path, monkeypatch):
@@ -27,8 +30,6 @@ def test_origin_measurement_semantic_identity_repin_fails_closed(tmp_path, monke
     evidence_path = tmp_path / "evidence.json"
     evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
     monkeypatch.setattr(validator, "EVIDENCE_PATH", evidence_path)
-    monkeypatch.setattr(validator, "PRECONDITION_PATH", PRECONDITION)
-    monkeypatch.setattr(validator, "MIDI_CANDIDATE_PATH", MIDI_CANDIDATE)
 
     with pytest.raises(ValueError, match="measurement semantic immutable identity drift"):
         validator.validate()

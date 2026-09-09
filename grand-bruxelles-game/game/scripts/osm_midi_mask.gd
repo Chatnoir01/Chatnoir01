@@ -123,6 +123,62 @@ func _has_spatial_authoritative_building_support(node_3d: Node3D, authoritative_
     return true
 
 
+func _multimesh_instance_world_sample(instance: MultiMeshInstance3D, transform: Transform3D) -> Vector3:
+    var world_transform: Transform3D = instance.global_transform * transform
+    var local_center := Vector3.ZERO
+    if instance.multimesh != null and instance.multimesh.mesh != null:
+        var aabb := instance.multimesh.mesh.get_aabb()
+        local_center = aabb.position + aabb.size * 0.5
+    return world_transform * local_center
+
+
+func _filter_facade_multimesh(instance: MultiMeshInstance3D, authoritative_root: Node, vertical_span: Vector2) -> int:
+    var source := instance.multimesh
+    if source == null or source.mesh == null or source.instance_count <= 0:
+        return 0
+    if vertical_span.y <= vertical_span.x:
+        return 0
+
+    var kept_transforms: Array[Transform3D] = []
+    var kept_colors: Array[Color] = []
+    var kept_custom_data: Array[Color] = []
+    var hidden := 0
+    for index: int in range(source.instance_count):
+        var transform := source.get_instance_transform(index)
+        var world_sample := _multimesh_instance_world_sample(instance, transform)
+        var supported := (
+            _inside(world_sample)
+            and _authoritative_support_between(world_sample, authoritative_root, vertical_span.y, vertical_span.x)
+        )
+        if supported:
+            hidden += 1
+            continue
+        kept_transforms.append(transform)
+        if source.use_colors:
+            kept_colors.append(source.get_instance_color(index))
+        if source.use_custom_data:
+            kept_custom_data.append(source.get_instance_custom_data(index))
+
+    if hidden == 0:
+        return 0
+
+    var filtered := MultiMesh.new()
+    filtered.transform_format = source.transform_format
+    filtered.use_colors = source.use_colors
+    filtered.use_custom_data = source.use_custom_data
+    filtered.mesh = source.mesh
+    filtered.instance_count = kept_transforms.size()
+    for index: int in range(kept_transforms.size()):
+        filtered.set_instance_transform(index, kept_transforms[index])
+        if filtered.use_colors:
+            filtered.set_instance_color(index, kept_colors[index])
+        if filtered.use_custom_data:
+            filtered.set_instance_custom_data(index, kept_custom_data[index])
+    filtered.visible_instance_count = -1
+    instance.multimesh = filtered
+    return hidden
+
+
 func _mask_children(root: Node, authoritative_root: Node = null, require_spatial_support: bool = false) -> int:
     var hidden: int = 0
     for child: Node in root.get_children():
@@ -170,7 +226,9 @@ func _mask_facade_details(root: Node, authoritative_root: Node) -> int:
         stack.append(child)
     while not stack.is_empty():
         var node: Node = stack.pop_back()
-        if node is Node3D:
+        if node is MultiMeshInstance3D:
+            hidden += _filter_facade_multimesh(node as MultiMeshInstance3D, authoritative_root, vertical_span)
+        elif node is Node3D:
             var node_3d := node as Node3D
             if node_3d is GeometryInstance3D and _inside(node_3d.global_position):
                 if _has_spatial_authoritative_building_support(node_3d, authoritative_root, vertical_span):
@@ -222,9 +280,10 @@ func _apply_mask() -> void:
     if buildings != null and buildings_ready:
         hidden += _mask_buildings(buildings, exact_buildings)
 
-    # These procedural facade instances only belonged to the old Midi OSM
-    # massing. Preserve them as fallback wherever no concrete authoritative
-    # UrbIS building replacement exists at the same spatial support samples.
+    # The real corridor facade renderer batches windows and shopfronts into
+    # MultiMeshInstance3D nodes whose node transform stays at the corridor root.
+    # Filter those batches per instance so only fallback transforms with concrete
+    # UrbIS building support inside the unchanged Midi radius are removed.
     if buildings_ready:
         var details: Node = osm.get_node_or_null("GeneratedFacadeDetails")
         if details != null:

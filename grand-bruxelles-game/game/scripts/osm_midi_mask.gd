@@ -160,6 +160,28 @@ func _mask_buildings(root: Node, authoritative_root: Node) -> int:
     return hidden
 
 
+func _mask_facade_details(root: Node, authoritative_root: Node) -> int:
+    var vertical_span := _authoritative_geometry_vertical_span(authoritative_root)
+    if vertical_span.y <= vertical_span.x:
+        return 0
+    var hidden := 0
+    var stack: Array[Node] = []
+    for child: Node in root.get_children():
+        stack.append(child)
+    while not stack.is_empty():
+        var node: Node = stack.pop_back()
+        if node is Node3D:
+            var node_3d := node as Node3D
+            if node_3d is GeometryInstance3D and _inside(node_3d.global_position):
+                if _has_spatial_authoritative_building_support(node_3d, authoritative_root, vertical_span):
+                    var geometry := node_3d as GeometryInstance3D
+                    geometry.visible = false
+                    hidden += 1
+        for child: Node in node.get_children():
+            stack.append(child)
+    return hidden
+
+
 func _has_materialized_geometry(root: Node) -> bool:
     if root == null:
         return false
@@ -201,16 +223,12 @@ func _apply_mask() -> void:
         hidden += _mask_buildings(buildings, exact_buildings)
 
     # These procedural facade instances only belonged to the old Midi OSM
-    # massing. Keep them as fallback unless authoritative building geometry
-    # has actually materialized and is visible in the player scene.
+    # massing. Preserve them as fallback wherever no concrete authoritative
+    # UrbIS building replacement exists at the same spatial support samples.
     if buildings_ready:
         var details: Node = osm.get_node_or_null("GeneratedFacadeDetails")
-        if details is CanvasItem:
-            var canvas_item: CanvasItem = details as CanvasItem
-            canvas_item.visible = false
-        elif details is Node3D:
-            var details_3d: Node3D = details as Node3D
-            details_3d.visible = false
+        if details != null:
+            _mask_facade_details(details, exact_buildings)
 
     print(
         "Grand Bruxelles UrbIS mask: %d approximate OSM geometry nodes hidden near Midi with spatial official support (streets_ready=%s buildings_ready=%s)" %

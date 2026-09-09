@@ -1,0 +1,197 @@
+name: Grand Bruxelles OSM Midi Mask Facade Player View
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-midi-mask-facade-player-view.yml"
+      - "grand-bruxelles-game/game/scripts/osm_midi_mask.gd"
+      - "grand-bruxelles-game/game/tests/osm_midi_mask_facade_player_view_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/generic_osm_surface_collision_runtime.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  facade-player-view:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main base and exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+            test "$MAIN_SHA" = "${{ github.event.pull_request.base.sha }}"
+          fi
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'VIEW_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'VIEW_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+
+      - name: Install verified Godot 4.7.1 and render dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64 python3-pil
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+
+      - name: Prepare exact base worktree with identical revision-neutral player-view probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe=grand-bruxelles-game/game/tests/osm_midi_mask_facade_player_view_test.gd
+          cp "$probe" /tmp/osm_midi_mask_facade_player_view_test.gd
+          rm -rf /tmp/gbg-facade-view-base
+          git worktree add --detach /tmp/gbg-facade-view-base "$VIEW_BASE_SHA"
+          mkdir -p /tmp/gbg-facade-view-base/grand-bruxelles-game/game/tests
+          cp /tmp/osm_midi_mask_facade_player_view_test.gd /tmp/gbg-facade-view-base/$probe
+
+      - name: Import exact base and head projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path /tmp/gbg-facade-view-base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/head-import.log
+
+      - name: Capture exact base player view
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path /tmp/gbg-facade-view-base/grand-bruxelles-game --script res://game/tests/osm_midi_mask_facade_player_view_test.gd 2>&1 | tee /tmp/base-view.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|OSM_MIDI_MASK_FACADE_PLAYER_VIEW_FAIL" /tmp/base-view.log
+          test "$(grep -c 'OSM_MIDI_MASK_FACADE_PLAYER_VIEW_OK' /tmp/base-view.log)" -eq 1
+
+      - name: Capture exact head player view
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/osm_midi_mask_facade_player_view_test.gd 2>&1 | tee /tmp/head-view.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|OSM_MIDI_MASK_FACADE_PLAYER_VIEW_FAIL" /tmp/head-view.log
+          test "$(grep -c 'OSM_MIDI_MASK_FACADE_PLAYER_VIEW_OK' /tmp/head-view.log)" -eq 1
+
+      - name: Seal exact player-view A/B and full-frame diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_dir=/tmp/gbg-facade-view-base/grand-bruxelles-game/artifacts/qa/osm_midi_mask_facade_player_view
+          head_dir=grand-bruxelles-game/artifacts/qa/osm_midi_mask_facade_player_view
+          test -s "$base_dir/player-view.png" && test -s "$base_dir/receipt.json"
+          test -s "$head_dir/player-view.png" && test -s "$head_dir/receipt.json"
+          stage=/tmp/osm-midi-mask-facade-player-view
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp "$base_dir/player-view.png" "$stage/base.png"
+          cp "$head_dir/player-view.png" "$stage/head.png"
+          cp "$base_dir/receipt.json" "$stage/base-receipt.json"
+          cp "$head_dir/receipt.json" "$stage/head-receipt.json"
+          cp /tmp/base-view.log "$stage/base-view.log"
+          cp /tmp/head-view.log "$stage/head-view.log"
+          cp /tmp/base-import.log "$stage/base-import.log"
+          cp /tmp/head-import.log "$stage/head-import.log"
+          python3 - "$stage" <<'PY'
+          import hashlib, json, os, pathlib, sys
+          from PIL import Image, ImageChops
+          stage = pathlib.Path(sys.argv[1])
+          b = json.loads((stage/'base-receipt.json').read_text())
+          h = json.loads((stage/'head-receipt.json').read_text())
+          for d in (b,h):
+              assert d['schema'] == 'grand-bruxelles-osm-midi-mask-facade-player-view-v1'
+              assert d['road_osm_id'] == 35903015 and d['request'] == 'road-35903015'
+              assert d['resolution'] == [1280,720]
+              assert d['source_path'] == 'res://data/osm/vertical_slice_01.game.json'
+              assert d['source_name'] == 'Avenue Fonsny - Fonsnylaan'
+              assert d['lookup_mode'] == 'deterministic_runtime_index'
+              assert d['source_sightline_clear'] is True
+              assert d['resolver_camera_local_transform_preserved'] is True
+              assert d['resolver_camera_fov_preserved'] is True
+              assert d['source_geometry_changed'] is False
+              assert d['collision_geometry_changed'] is False
+              assert d['camera_contract_changed'] is False
+              assert d['threshold_changed'] is False
+              assert d['human_full_frame_review_required'] is True
+              assert d['visual_acceptance'] is False
+              assert d['jouable_authorized'] is False
+          assert b['source_sha256'] == h['source_sha256']
+          assert b['spawn_xz'] == h['spawn_xz']
+          assert b['target_xz'] == h['target_xz']
+          assert abs(float(b['ground_y']) - float(h['ground_y'])) <= 1e-6
+          assert abs(float(b['camera_fov']) - float(h['camera_fov'])) <= 1e-6
+          bi = Image.open(stage/'base.png').convert('RGB')
+          hi = Image.open(stage/'head.png').convert('RGB')
+          assert bi.size == (1280,720) and hi.size == (1280,720)
+          bp = bi.load(); hp = hi.load()
+          changed = 0; max_delta = 0; sum_abs = 0
+          minx=miny=10**9; maxx=maxy=-1
+          diff = Image.new('RGB', bi.size)
+          dp = diff.load()
+          for y in range(720):
+              for x in range(1280):
+                  a=bp[x,y]; c=hp[x,y]
+                  ds=(abs(a[0]-c[0]),abs(a[1]-c[1]),abs(a[2]-c[2]))
+                  m=max(ds); sum_abs += sum(ds); max_delta=max(max_delta,m)
+                  if m:
+                      changed += 1; minx=min(minx,x); miny=min(miny,y); maxx=max(maxx,x); maxy=max(maxy,y)
+                  dp[x,y]=(min(255,ds[0]*4),min(255,ds[1]*4),min(255,ds[2]*4))
+          diff.save(stage/'diff-x4.png')
+          total=1280*720
+          stats={
+              'schema':'grand-bruxelles-osm-midi-mask-facade-player-view-ab-v1',
+              'base_sha':os.environ['VIEW_BASE_SHA'],
+              'head_sha':os.environ['VIEW_HEAD_SHA'],
+              'road_osm_id':35903015,
+              'base_png_sha256':hashlib.sha256((stage/'base.png').read_bytes()).hexdigest(),
+              'head_png_sha256':hashlib.sha256((stage/'head.png').read_bytes()).hexdigest(),
+              'changed_pixels':changed,
+              'changed_fraction':changed/total,
+              'max_channel_delta':max_delta,
+              'mean_absolute_channel_delta':sum_abs/(total*3),
+              'changed_bbox':None if changed==0 else [minx,miny,maxx,maxy],
+              'camera_contract_changed':False,
+              'source_geometry_changed':False,
+              'threshold_changed':False,
+              'numeric_visual_acceptance_claimed':False,
+              'human_full_frame_review_required':True,
+              'visual_acceptance':False,
+              'jouable_authorized':False
+          }
+          (stage/'ab.json').write_text(json.dumps(stats,indent=2,sort_keys=True)+'\n')
+          PY
+          (cd "$stage" && sha256sum base.png head.png diff-x4.png base-receipt.json head-receipt.json ab.json > evidence-sha256.txt)
+
+      - name: Revalidate exact proof identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$VIEW_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$VIEW_HEAD_SHA"
+
+      - name: Upload exact Midi facade player-view A/B
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osm-midi-mask-facade-player-view
+          path: /tmp/osm-midi-mask-facade-player-view/
+          if-no-files-found: error
+          retention-days: 7

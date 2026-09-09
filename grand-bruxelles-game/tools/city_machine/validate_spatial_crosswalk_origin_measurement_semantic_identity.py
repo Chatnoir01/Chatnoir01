@@ -10,6 +10,24 @@ EXPECTED_SCHEMA = "grand-bruxelles-spatial-crosswalk-origin-evidence-v1"
 EXPECTED_MEASUREMENT_SCHEMA = "grand-bruxelles-road-registered-cell-overlap-measurement-v2"
 EXPECTED_MEASUREMENT_SEMANTIC_SHA256 = "2d84dbc4d6a80e10f093f8135e2fba6e9b55b813eb42c2588be7566ae6c16f95"
 EXPECTED_TOP_KEYS = {"schema", "source_owner", "measured_contract", "authorization", "scope_note"}
+EXPECTED_MEASURED_KEYS = {
+    "schema",
+    "cell_crs",
+    "frame",
+    "registered_cell_index",
+    "registered_cell_index_semantic_sha256",
+    "road_runtime_index",
+    "road_runtime_catalog_sha256",
+    "road_source",
+    "road_source_sha256",
+    "road_source_provider",
+    "road_source_license",
+    "raw_road_count",
+    "road_count",
+    "registered_cell_count",
+    "overlapping_road_count",
+    "semantic_sha256",
+}
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -35,11 +53,11 @@ def validate() -> None:
     if evidence["schema"] != EXPECTED_SCHEMA:
         raise ValueError("origin evidence schema drift")
     measured = evidence["measured_contract"]
-    if not isinstance(measured, dict):
-        raise ValueError("origin evidence measured_contract missing")
-    if measured.get("schema") != EXPECTED_MEASUREMENT_SCHEMA:
+    if not isinstance(measured, dict) or set(measured) != EXPECTED_MEASURED_KEYS:
+        raise ValueError("origin evidence measured_contract schema drift")
+    if measured["schema"] != EXPECTED_MEASUREMENT_SCHEMA:
         raise ValueError("origin evidence measured contract identity drift")
-    if measured.get("semantic_sha256") != EXPECTED_MEASUREMENT_SEMANTIC_SHA256:
+    if measured["semantic_sha256"] != EXPECTED_MEASUREMENT_SEMANTIC_SHA256:
         raise ValueError("measurement semantic immutable identity drift")
 
 

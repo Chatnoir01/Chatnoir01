@@ -96,10 +96,12 @@ jobs:
           bp, hp, op = map(pathlib.Path, sys.argv[1:])
           b = json.loads(bp.read_text())
           h = json.loads(hp.read_text())
+          expected_midi = [-668.5, 0.0, 627.84]
           for d in (b, h):
               assert d['schema'] == 'grand-bruxelles-osm-midi-mask-facade-effect-v1'
               assert d['fixture'] == 'same-radius-covered-and-unsupported-facade'
-              assert d['midi_world'] == [-668.5, 0.0, 627.84]
+              assert len(d['midi_world']) == 3
+              assert all(abs(float(actual) - expected) <= 1e-3 for actual, expected in zip(d['midi_world'], expected_midi))
               assert d['covered_offset_x_m'] == 0.0
               assert d['unsupported_offset_x_m'] == 80.0
               assert d['authoritative_building_count'] == 1
@@ -111,6 +113,9 @@ jobs:
               assert d['threshold_changed'] is False
               assert d['visual_acceptance'] is False
               assert d['jouable_authorized'] is False
+          # Both revisions must have measured the exact same fixture position; tolerate only
+          # Godot's serialized float representation relative to the intended constant above.
+          assert b['midi_world'] == h['midi_world']
           # Exact base demonstrates the shipped blanket-parent failure mode.
           assert b['parent_effective_visible'] is False
           assert b['covered_effective_visible'] is False

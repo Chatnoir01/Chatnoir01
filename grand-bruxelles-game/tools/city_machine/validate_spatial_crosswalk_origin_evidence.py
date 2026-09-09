@@ -63,6 +63,26 @@ EXPECTED_MIDI_BRIDGE = {
     "lambert72_formula": "E=origin_easting_m+x;N=origin_northing_m-z",
     "road_cell_mapping_authorized": False,
 }
+EXPECTED_SOURCE_MEASUREMENT_MANIFEST = {
+    "path": "data/source_plans/brussels_locked_road_source_measurements.lock.json",
+    "git_blob_sha1": "31dfeb4c83459ee6f71a80a73db2404d14898c61",
+    "source_evidence_git_blob_sha1": "785688868931d48845f1df47837feff7861399d7",
+    "source_frame": {
+        "origin_lat": 50.8419,
+        "origin_lon": 4.348,
+        "axes": "X=east, Y=up, Z=south",
+        "units": "metres",
+    },
+}
+EXPECTED_PRECONDITION_AUTHORIZATION = {
+    "road_identity_materialized": 0,
+    "cell_assignment_materialized": 0,
+    "registration_authorized": False,
+    "render_authorized": False,
+    "collision_authorized": False,
+    "runtime_ready": False,
+    "jouable": False,
+}
 EXPECTED_TOP_KEYS = {"schema", "source_owner", "measured_contract", "authorization", "scope_note"}
 EXPECTED_OWNER_KEYS = {"pr", "head_sha", "workflow", "run_id", "artifact_id", "artifact_digest", "artifact_name"}
 EXPECTED_FRAME_KEYS = {"crs", "origin_easting_m", "origin_northing_m", "formula"}
@@ -181,6 +201,13 @@ def validate() -> None:
         raise ValueError("Midi coordinate origin does not match locked origin evidence")
     if bridge["lambert72_formula"] != frame["formula"] or bridge["road_runtime_index"] != measured["road_runtime_index"] or bridge["road_runtime_catalog_sha256"] != measured["road_runtime_catalog_sha256"] or bridge["road_source"] != measured["road_source"] or bridge["road_source_sha256"] != measured["road_source_sha256"] or bridge["road_source_provider"] != measured["road_source_provider"] or bridge["road_source_license"] != measured["road_source_license"]:
         raise ValueError("Midi road-frame bridge does not match locked origin evidence")
+
+    source_manifest = precondition["source_measurement_manifest"]
+    if source_manifest != EXPECTED_SOURCE_MEASUREMENT_MANIFEST:
+        raise ValueError("source measurement manifest immutable identity drift")
+    precondition_auth = precondition["authorization"]
+    if precondition_auth != EXPECTED_PRECONDITION_AUTHORIZATION:
+        raise ValueError("precondition authorization rails must remain closed")
 
     crosswalk = _exact(precondition["crosswalk"], EXPECTED_CROSSWALK_KEYS, "spatial crosswalk precondition crosswalk")
     if crosswalk["status"] != "UNRESOLVED_PROVENANCE" or crosswalk["authorized"] is not False:

@@ -9,15 +9,37 @@ from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
 
-SCHEMA = "grand-bruxelles-civ1-resource-table-uniqueness-v2"
+SCHEMA = "grand-bruxelles-civ1-resource-table-uniqueness-v3"
 EXT_RE = re.compile(r'^\s*\[ext_resource\s+(.+?)\]\s*$')
 SUB_RE = re.compile(r'^\s*\[sub_resource\s+(.+?)\]\s*$')
-ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"')
+# Godot text headers tolerate ordinary whitespace around '='. Parse escaped quoted
+# strings too so the evidence parser cannot disagree with serialized headers merely
+# because an attribute contains an escaped quote/backslash.
+ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"((?:\\.|[^"\\])*)"')
 
 
-def resource_table_conflicts(scene_text: str) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
+    pairs: list[tuple[str, str]] = []
+    cursor = 0
+    residue: list[str] = []
+    for match in ATTR_RE.finditer(header):
+        between = header[cursor:match.start()]
+        if between.strip():
+            residue.append(between.strip())
+        pairs.append((match.group(1), match.group(2)))
+        cursor = match.end()
+    tail = header[cursor:]
+    if tail.strip():
+        residue.append(tail.strip())
+    return pairs, " ".join(residue)
+
+
+def resource_table_conflicts(
+    scene_text: str,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
     seen: dict[tuple[str, str], list[dict[str, str]]] = {}
     attribute_conflicts: list[dict[str, object]] = []
+    syntax_conflicts: list[dict[str, object]] = []
 
     for line_number, line in enumerate(scene_text.splitlines(), start=1):
         match = EXT_RE.match(line)
@@ -28,7 +50,15 @@ def resource_table_conflicts(scene_text: str) -> tuple[list[dict[str, object]], 
         if not match:
             continue
 
-        attr_pairs = ATTR_RE.findall(match.group(1))
+        attr_pairs, residue = parse_header_attributes(match.group(1))
+        if residue:
+            syntax_conflicts.append({
+                "kind": kind,
+                "line": line_number,
+                "unparsed_fragment": residue,
+                "raw_header": line.strip(),
+            })
+
         attr_counts = Counter(name for name, _ in attr_pairs)
         duplicate_attributes = sorted(name for name, count in attr_counts.items() if count > 1)
         if duplicate_attributes:
@@ -62,7 +92,7 @@ def resource_table_conflicts(scene_text: str) -> tuple[list[dict[str, object]], 
             "declaration_count": len(declarations),
             "declarations": declarations,
         })
-    return id_conflicts, attribute_conflicts
+    return id_conflicts, attribute_conflicts, syntax_conflicts
 
 
 def duplicate_resource_ids(scene_text: str) -> list[dict[str, object]]:
@@ -76,74 +106,85 @@ def self_test() -> None:
 [sub_resource type="Skin" id="Skin_body"]
 [node name="Main" type="Node3D"]
 '''
-    ids, attrs = resource_table_conflicts(normal)
-    assert ids == []
-    assert attrs == []
+    ids, attrs, syntax = resource_table_conflicts(normal)
+    assert ids == [] and attrs == [] and syntax == []
 
     duplicate_ext = normal.replace(
         '[sub_resource type="Skin" id="Skin_body"]',
         '[ext_resource type="Skin" path="res://assets/body.skin" id="Mesh_body"]\n[sub_resource type="Skin" id="Skin_body"]',
     )
-    ids, attrs = resource_table_conflicts(duplicate_ext)
-    assert len(ids) == 1
-    assert attrs == []
+    ids, attrs, syntax = resource_table_conflicts(duplicate_ext)
+    assert len(ids) == 1 and attrs == [] and syntax == []
     assert ids[0]["kind"] == "ExtResource"
     assert ids[0]["id"] == "Mesh_body"
     assert ids[0]["declaration_count"] == 2
-
     parsed = skin.parse_resource_table(duplicate_ext)
     assert parsed[("ExtResource", "Mesh_body")]["type"] == "Skin", (
-        "regression precondition: legacy dict parsing silently overwrites the first duplicate resource id"
+        "regression precondition: legacy dict parsing silently overwrites duplicate resource ids"
     )
 
     duplicate_sub = normal + '\n[sub_resource type="ArrayMesh" id="Skin_body"]\n'
-    ids, attrs = resource_table_conflicts(duplicate_sub)
-    assert len(ids) == 1
-    assert attrs == []
+    ids, attrs, syntax = resource_table_conflicts(duplicate_sub)
+    assert len(ids) == 1 and attrs == [] and syntax == []
     assert ids[0]["kind"] == "SubResource"
-    assert ids[0]["id"] == "Skin_body"
 
     cross_kind_same_id = normal + '\n[sub_resource type="ArrayMesh" id="Mesh_body"]\n'
-    ids, attrs = resource_table_conflicts(cross_kind_same_id)
-    assert ids == []
-    assert attrs == []
+    ids, attrs, syntax = resource_table_conflicts(cross_kind_same_id)
+    assert ids == [] and attrs == [] and syntax == []
 
     duplicate_id_attribute = normal.replace(
         '[ext_resource type="ArrayMesh" path="res://assets/body.mesh" id="Mesh_body"]',
         '[ext_resource type="ArrayMesh" path="res://assets/body.mesh" id="Mesh_old" id="Mesh_body"]',
     )
-    ids, attrs = resource_table_conflicts(duplicate_id_attribute)
-    assert ids == [], "a repeated id attribute inside one header is not a duplicate declaration"
-    assert len(attrs) == 1
-    assert attrs[0]["duplicate_attributes"] == ["id"]
+    ids, attrs, syntax = resource_table_conflicts(duplicate_id_attribute)
+    assert ids == [] and syntax == []
+    assert len(attrs) == 1 and attrs[0]["duplicate_attributes"] == ["id"]
     assert attrs[0]["attribute_occurrences"]["id"] == 2
-    parsed = skin.parse_resource_table(duplicate_id_attribute)
-    assert ("ExtResource", "Mesh_body") in parsed, (
-        "regression precondition: legacy dict parsing silently keeps the final repeated id attribute"
-    )
-    assert ("ExtResource", "Mesh_old") not in parsed
 
     duplicate_type_attribute = normal.replace(
         '[ext_resource type="ArrayMesh" path="res://assets/body.mesh" id="Mesh_body"]',
         '[ext_resource type="Skin" type="ArrayMesh" path="res://assets/body.mesh" id="Mesh_body"]',
     )
-    ids, attrs = resource_table_conflicts(duplicate_type_attribute)
-    assert ids == []
-    assert len(attrs) == 1
-    assert attrs[0]["duplicate_attributes"] == ["type"]
-    parsed = skin.parse_resource_table(duplicate_type_attribute)
-    assert parsed[("ExtResource", "Mesh_body")]["type"] == "ArrayMesh", (
-        "regression precondition: legacy dict parsing silently keeps the final repeated type attribute"
-    )
+    ids, attrs, syntax = resource_table_conflicts(duplicate_type_attribute)
+    assert ids == [] and syntax == []
+    assert len(attrs) == 1 and attrs[0]["duplicate_attributes"] == ["type"]
 
     duplicate_path_attribute = normal.replace(
         'path="res://assets/body.mesh"',
         'path="res://assets/forged.mesh" path="res://assets/body.mesh"',
     )
-    ids, attrs = resource_table_conflicts(duplicate_path_attribute)
-    assert ids == []
+    ids, attrs, syntax = resource_table_conflicts(duplicate_path_attribute)
+    assert ids == [] and syntax == []
+    assert len(attrs) == 1 and attrs[0]["duplicate_attributes"] == ["path"]
+
+    # v2 blind spot: spaces around '=' meant the first id was ignored by its regex.
+    spaced_duplicate = normal.replace(
+        'id="Mesh_body"',
+        'id = "Mesh_old" id="Mesh_body"',
+        1,
+    )
+    legacy_pairs = re.findall(r'\b([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"', spaced_duplicate.splitlines()[2])
+    assert [value for name, value in legacy_pairs if name == "id"] == ["Mesh_body"], (
+        "regression precondition: v2 sees only the compact id attribute"
+    )
+    ids, attrs, syntax = resource_table_conflicts(spaced_duplicate)
+    assert ids == [] and syntax == []
     assert len(attrs) == 1
-    assert attrs[0]["duplicate_attributes"] == ["path"]
+    assert attrs[0]["duplicate_attributes"] == ["id"]
+    assert attrs[0]["attribute_occurrences"]["id"] == 2
+
+    spaced_normal = normal.replace('type="ArrayMesh"', 'type = "ArrayMesh"', 1)
+    ids, attrs, syntax = resource_table_conflicts(spaced_normal)
+    assert ids == [] and attrs == [] and syntax == []
+
+    malformed = normal.replace(
+        'path="res://assets/body.mesh"',
+        'path="res://assets/body.mesh" forged_token',
+    )
+    ids, attrs, syntax = resource_table_conflicts(malformed)
+    assert ids == [] and attrs == []
+    assert len(syntax) == 1
+    assert syntax[0]["unparsed_fragment"] == "forged_token"
 
 
 def main() -> int:
@@ -161,34 +202,41 @@ def main() -> int:
     scenes = skin.reachable_scenes(main_tscn, project_root)
     id_conflicts: list[dict[str, object]] = []
     attribute_conflicts: list[dict[str, object]] = []
+    syntax_conflicts: list[dict[str, object]] = []
     for scene_path in scenes:
         rel = scene_path.relative_to(project_root).as_posix()
         text = scene_path.read_text(encoding="utf-8")
-        scene_ids, scene_attrs = resource_table_conflicts(text)
+        scene_ids, scene_attrs, scene_syntax = resource_table_conflicts(text)
         for conflict in scene_ids:
             id_conflicts.append({"scene": rel, **conflict})
         for conflict in scene_attrs:
             attribute_conflicts.append({"scene": rel, **conflict})
+        for conflict in scene_syntax:
+            syntax_conflicts.append({"scene": rel, **conflict})
 
-    identity_unambiguous = not id_conflicts and not attribute_conflicts
+    identity_unambiguous = not id_conflicts and not attribute_conflicts and not syntax_conflicts
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_unique_resource_id_namespace_plus_unambiguous_resource_header_attributes",
+        "evidence_mode": "reachable_tscn_plus_unique_resource_id_namespace_plus_whitespace_tolerant_fully_parsed_unambiguous_resource_header_attributes",
         "reachable_scene_count": len(scenes),
         "duplicate_resource_id_conflicts": id_conflicts,
         "duplicate_resource_attribute_conflicts": attribute_conflicts,
+        "unparsed_resource_header_fragments": syntax_conflicts,
         "resource_header_attributes_unambiguous": not attribute_conflicts,
+        "resource_header_syntax_fully_parsed": not syntax_conflicts,
         "resource_table_identity_unambiguous": identity_unambiguous,
         "duplicate_resource_id_evidence_accepted": False,
         "duplicate_resource_attribute_evidence_accepted": False,
+        "partially_parsed_resource_header_evidence_accepted": False,
+        "spaced_duplicate_attribute_evidence_accepted": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
         "next_action": (
-            "remove duplicate ExtResource/SubResource ids and repeated header attributes before authored Character integrity can be trusted"
+            "remove duplicate ids/attributes and unparsed resource-header fragments before authored Character integrity can be trusted"
             if not identity_unambiguous
-            else "retain unique resource-id and unambiguous-header gates before authored Character loaded-scene approval"
+            else "retain fully parsed unique resource-header gates before authored Character loaded-scene approval"
         ),
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)

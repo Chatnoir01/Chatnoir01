@@ -12,7 +12,7 @@ from typing import Any
 GROUND_NODE_RE = re.compile(r'\[node name="Ground" type="CSGBox3D" parent="\."\]\n(?P<body>.*?)(?=\n\[node |\Z)', re.S)
 VEC3_RE = re.compile(r'Vector3\(([^,]+),\s*([^,]+),\s*([^\)]+)\)')
 SHA256_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
-WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v5"
+WITNESS_SCHEMA = "grand-bruxelles-civ1-runtime-placement-witness-v6"
 EXPECTED_SOURCE_REPOSITORY = "https://github.com/ibrews/VitruvianGodot"
 EXPECTED_SOURCE_COMMIT = "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0"
 EXPECTED_SOURCE_GIT_BLOB_SHA1 = "09bcade1092e5a89b474e91e6013209d4c68c127"
@@ -24,6 +24,7 @@ EXPECTED_NODE_CLASSES = {
     "skeleton": "Skeleton3D",
     "ground": "CSGBox3D",
 }
+TRANSFORM_ROLES = ("npc_agent", "character_mount", "skeleton")
 REQUIRED_SAMPLE_INDICES = [71, 72, 73]
 SKELETON_ARTIFACT_ID = 9996432028
 SKELETON_ARTIFACT_DIGEST = "sha256:9b4dd309157ce1f3e5aae44125f5931fac409238eece1a0632b8ad07933ebb00"
@@ -146,18 +147,31 @@ def validate_runtime_witness(witness: Any, ground_top_y: float, expected_runtime
             actual = node_classes.get(key)
             if actual != expected:
                 errors.append(f"node_classes.{key}:mismatch:{actual!r}:{expected!r}")
-    transforms = witness.get("world_transforms_by_sample")
-    expected_keys = {str(index) for index in REQUIRED_SAMPLE_INDICES}
+    transforms = witness.get("node_world_transforms_by_sample")
+    expected_sample_keys = {str(index) for index in REQUIRED_SAMPLE_INDICES}
+    expected_role_keys = set(TRANSFORM_ROLES)
     if not isinstance(transforms, dict):
-        errors.append("world_transforms_by_sample:not-object")
+        errors.append("node_world_transforms_by_sample:not-object")
     else:
-        actual_keys = set(transforms)
-        if actual_keys != expected_keys:
-            errors.append(f"world_transforms_by_sample.keys:mismatch:{sorted(actual_keys)!r}:{sorted(expected_keys)!r}")
+        actual_sample_keys = set(transforms)
+        if actual_sample_keys != expected_sample_keys:
+            errors.append(f"node_world_transforms_by_sample.keys:mismatch:{sorted(actual_sample_keys)!r}:{sorted(expected_sample_keys)!r}")
         for index in REQUIRED_SAMPLE_INDICES:
-            key = str(index)
-            if key in transforms:
-                validate_transform(transforms[key], f"world_transforms_by_sample.{key}", errors)
+            sample_key = str(index)
+            if sample_key not in transforms:
+                continue
+            sample = transforms[sample_key]
+            if not isinstance(sample, dict):
+                errors.append(f"node_world_transforms_by_sample.{sample_key}:not-object")
+                continue
+            actual_role_keys = set(sample)
+            if actual_role_keys != expected_role_keys:
+                errors.append(f"node_world_transforms_by_sample.{sample_key}.keys:mismatch:{sorted(actual_role_keys)!r}:{sorted(expected_role_keys)!r}")
+            for role in TRANSFORM_ROLES:
+                if role in sample:
+                    validate_transform(sample[role], f"node_world_transforms_by_sample.{sample_key}.{role}", errors)
+    if "world_transforms_by_sample" in witness:
+        errors.append("world_transforms_by_sample:legacy-root-only-field-forbidden")
     witness_ground_top = witness.get("ground_top_y_m")
     if not isinstance(witness_ground_top, (int, float)) or isinstance(witness_ground_top, bool) or not math.isfinite(float(witness_ground_top)):
         errors.append("ground_top_y_m:not-finite-number")
@@ -253,11 +267,12 @@ def main() -> int:
         witness_validated = True
     required_animation_evidence = {"skeleton_artifact_id": SKELETON_ARTIFACT_ID, "skeleton_artifact_digest": SKELETON_ARTIFACT_DIGEST, "skeleton_sample_count": SKELETON_SAMPLE_COUNT, "phase_minima_artifact_id": PHASE_MINIMA_ARTIFACT_ID, "phase_minima_artifact_digest": PHASE_MINIMA_ARTIFACT_DIGEST, "phase_lowest_candidate_sample_index": PHASE_LOWEST_CANDIDATE_SAMPLE_INDEX, "bound_sample_indices": REQUIRED_SAMPLE_INDICES}
     required_source_evidence = {"repository_url": EXPECTED_SOURCE_REPOSITORY, "source_commit_sha": EXPECTED_SOURCE_COMMIT, "source_git_blob_sha1": EXPECTED_SOURCE_GIT_BLOB_SHA1, "source_size_bytes": EXPECTED_SOURCE_SIZE_BYTES, "license_id": EXPECTED_SOURCE_LICENSE}
+    required_transform_fields = [f"node_world_transforms_by_sample.{index}.{role}.{field}" for index in REQUIRED_SAMPLE_INDICES for role in TRANSFORM_ROLES for field in ("origin_m", "basis_rows")]
     receipt = {
-        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v6",
+        "schema": "grand-bruxelles-civ1-canonical-placement-contract-v7",
         "canonical_ground": {"node": "Main/Ground", "position_y_m": ground_position[1], "size_y_m": ground_size[1], "top_y_m": ground_top_y, "use_collision": "use_collision = true" in ground_block},
         "runtime": {"population_director_loaded": 'script = ExtResource("14_npc_director")' in scene, "runtime_integration_loaded": 'script = ExtResource("15_npc_runtime")' in scene, "npc_agent_instance_authored_in_main": explicit_agent_node, "spawn_y_is_copied_verbatim": exact_spawn_copy, "pooled_spawn_y_is_copied_verbatim": pooled_spawn_copy, "grounding_mechanism_hits": grounding_hits, "input_sha256": runtime_input_hashes},
-        "runtime_witness": {"schema": WITNESS_SCHEMA, "present": witness_present, "validated": witness_validated, "validation_errors": witness_errors, "required_sample_indices": REQUIRED_SAMPLE_INDICES, "required_animation_evidence": required_animation_evidence, "required_source_evidence": required_source_evidence, "required_node_classes": EXPECTED_NODE_CLASSES, "required_fields": ["schema", "evidence_kind", "engine_version", "main_scene", "candidate", "node_paths.npc_agent", "node_paths.character_mount", "node_paths.skeleton", "node_paths.ground", "node_classes.npc_agent", "node_classes.character_mount", "node_classes.skeleton", "node_classes.ground", "world_transforms_by_sample.71.origin_m", "world_transforms_by_sample.71.basis_rows", "world_transforms_by_sample.72.origin_m", "world_transforms_by_sample.72.basis_rows", "world_transforms_by_sample.73.origin_m", "world_transforms_by_sample.73.basis_rows", "ground_top_y_m", "candidate_source_sha256", "provenance_record", "source_evidence.repository_url", "source_evidence.source_commit_sha", "source_evidence.source_git_blob_sha1", "source_evidence.source_size_bytes", "source_evidence.license_id", "source_evidence.artifact_id", "source_evidence.artifact_digest", "source_evidence.source_file_sha256", "animation_evidence.skeleton_artifact_id", "animation_evidence.skeleton_artifact_digest", "animation_evidence.skeleton_sample_count", "animation_evidence.phase_minima_artifact_id", "animation_evidence.phase_minima_artifact_digest", "animation_evidence.phase_lowest_candidate_sample_index", "animation_evidence.bound_sample_indices", "runtime_inputs.main_scene_sha256", "runtime_inputs.npc_agent_sha256", "runtime_inputs.npc_director_sha256", "mcp_ephemeral", "canonical_export_modified", "capture.loaded_scene_tree_observed", "capture.character_mount_observed", "capture.canonical_ground_observed", "capture.sample_indices"]},
+        "runtime_witness": {"schema": WITNESS_SCHEMA, "present": witness_present, "validated": witness_validated, "validation_errors": witness_errors, "required_sample_indices": REQUIRED_SAMPLE_INDICES, "required_transform_roles": list(TRANSFORM_ROLES), "required_animation_evidence": required_animation_evidence, "required_source_evidence": required_source_evidence, "required_node_classes": EXPECTED_NODE_CLASSES, "required_fields": ["schema", "evidence_kind", "engine_version", "main_scene", "candidate", "node_paths.npc_agent", "node_paths.character_mount", "node_paths.skeleton", "node_paths.ground", "node_classes.npc_agent", "node_classes.character_mount", "node_classes.skeleton", "node_classes.ground", *required_transform_fields, "ground_top_y_m", "candidate_source_sha256", "provenance_record", "source_evidence.repository_url", "source_evidence.source_commit_sha", "source_evidence.source_git_blob_sha1", "source_evidence.source_size_bytes", "source_evidence.license_id", "source_evidence.artifact_id", "source_evidence.artifact_digest", "source_evidence.source_file_sha256", "animation_evidence.skeleton_artifact_id", "animation_evidence.skeleton_artifact_digest", "animation_evidence.skeleton_sample_count", "animation_evidence.phase_minima_artifact_id", "animation_evidence.phase_minima_artifact_digest", "animation_evidence.phase_lowest_candidate_sample_index", "animation_evidence.bound_sample_indices", "runtime_inputs.main_scene_sha256", "runtime_inputs.npc_agent_sha256", "runtime_inputs.npc_director_sha256", "mcp_ephemeral", "canonical_export_modified", "capture.loaded_scene_tree_observed", "capture.character_mount_observed", "capture.canonical_ground_observed", "capture.sample_indices"]},
         "canonical_character_placement_available": witness_validated,
         "ground_contact_classifiable": False,
         "contact_proof_claimed": False,
@@ -267,7 +282,7 @@ def main() -> int:
         "runtime_change_authorized": False,
         "visual_approval_claimed": False,
         "player_view_claimed": False,
-        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 mount witness whose exact pinned source identity, node classes and 71/72/73 transforms are bound to one canonical observed NPC-agent/mount/skeleton hierarchy plus the immutable 120-sample Skeleton and geometry-phase artifacts; only then replay those exact skinned samples against canonical Ground",
+        "required_next_evidence": "capture a Godot 4.7.1 live-loaded CIV-1 witness with separate NpcAgent, CharacterMount and Skeleton3D world transforms for samples 71/72/73, exact pinned source identity and immutable animation lineage; only then replay the exact skinned samples against canonical Ground",
     }
     if not main_has_runtime_owner_nodes:
         raise SystemExit("CIV1_CANONICAL_PLACEMENT_FAIL: NPC runtime owner nodes missing")

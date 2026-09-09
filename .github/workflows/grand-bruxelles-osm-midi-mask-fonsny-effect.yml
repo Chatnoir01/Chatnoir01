@@ -1,0 +1,107 @@
+name: Grand Bruxelles OSM Midi Mask Fonsny Effect
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-midi-mask-fonsny-effect.yml"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/osm_midi_mask.gd"
+      - "grand-bruxelles-game/game/tests/osm_midi_mask_fonsny_effect_test.gd"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fonsny-effect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and exact head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'FONSNY_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'FONSNY_HEAD_SHA=%s\n' "$PR_HEAD_SHA" >> "$GITHUB_ENV"
+      - name: Install verified Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+      - name: Import project
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log; then exit 1; fi
+      - name: Measure exact Fonsny visibility effect in real scene
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/osm_midi_mask_fonsny_effect_test.gd 2>&1 | tee /tmp/effect.log
+          if grep -E "SCRIPT ERROR|Parse Error:|OSM_MIDI_MASK_FONSNY_EFFECT_FAIL" /tmp/effect.log; then exit 1; fi
+          test "$(grep -c 'OSM_MIDI_MASK_FONSNY_EFFECT_OK' /tmp/effect.log)" -eq 1
+      - name: Seal effect evidence
+        run: |
+          set -euo pipefail
+          result=grand-bruxelles-game/artifacts/qa/osm_midi_mask_fonsny_effect.json
+          test -s "$result"
+          stage=/tmp/osm-midi-mask-fonsny-effect
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp "$result" "$stage/effect.json"
+          cp /tmp/effect.log "$stage/effect.log"
+          cp /tmp/import.log "$stage/import.log"
+          python3 - "$stage/effect.json" <<'PY'
+          import json, os, pathlib, sys
+          p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text())
+          assert d['schema']=='grand-bruxelles-osm-midi-mask-fonsny-effect-v1'
+          assert d['candidate_count']==8
+          assert len(d['candidate_ids'])==8 and len(set(d['candidate_ids']))==8
+          assert d['exact_geometry_count'] >= 8
+          assert 0 <= d['visible_renderable_geometry_count'] <= d['exact_geometry_count']
+          assert 0 <= d['visible_candidate_count'] <= 8
+          assert d['historical_pre_fix_exact_geometry_count']==29
+          assert d['historical_pre_fix_visible_renderable_geometry_count']==0
+          assert d['changed_from_historical_pre_fix_visibility'] == (d['visible_renderable_geometry_count'] > 0)
+          assert len(d['rows'])==8
+          for row in d['rows']:
+              assert row['osm_id'] in d['candidate_ids']
+              assert row['exact_geometry'] > 0
+              assert 0 <= row['visible_renderable_geometry'] <= row['exact_geometry']
+          for key in ('diagnostic_only',): assert d[key] is True
+          for key in ('osm_to_urbis_crosswalk_claimed','source_geometry_changed','collision_changed','resolver_changed','destination_advertisable','visual_acceptance','jouable_authorized'):
+              assert d[key] is False
+          d['base_sha']=os.environ.get('FONSNY_BASE_SHA','')
+          d['head_sha']=os.environ.get('FONSNY_HEAD_SHA','')
+          p.write_text(json.dumps(d,indent=2,sort_keys=True)+'\n')
+          PY
+          (cd "$stage" && sha256sum effect.json effect.log import.log > evidence-sha256.txt)
+      - name: Revalidate exact proof identity
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$FONSNY_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$FONSNY_HEAD_SHA"
+      - name: Upload Fonsny effect evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osm-midi-mask-fonsny-effect
+          path: /tmp/osm-midi-mask-fonsny-effect/
+          if-no-files-found: error
+          retention-days: 7

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
 
-SCHEMA = "grand-bruxelles-civ1-external-resource-backing-v4"
+SCHEMA = "grand-bruxelles-civ1-external-resource-backing-v5"
 LFS_VERSION = "version https://git-lfs.github.com/spec/v1"
 LFS_OID_RE = re.compile(r"^oid sha256:[0-9a-f]{64}$")
 LFS_SIZE_RE = re.compile(r"^size [0-9]+$")
@@ -62,6 +62,8 @@ def ext_resource_backed(
     resolved = skin.res_to_file(project_root, path)
     if resolved is None or not resolved.is_file():
         return False, path, None, declared_type, False
+    if resolved.stat().st_size == 0:
+        return False, path, None, declared_type, False
     lfs_pointer = is_git_lfs_pointer(resolved)
     if lfs_pointer:
         return False, path, None, declared_type, True
@@ -89,6 +91,7 @@ def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object
         all_backed = bool(hierarchy["authored_skin_integrity_ready"])
         used_external_types: dict[str, set[str]] = {}
         hierarchy_lfs_pointers: set[str] = set()
+        hierarchy_zero_byte_paths: set[str] = set()
         for mesh_path in hierarchy["complete_skin_bundle_paths"]:
             props = props_by_path.get(str(mesh_path), {})
             refs: list[tuple[str, object]] = [("mesh", props.get("mesh")), ("skin", props.get("skin"))]
@@ -99,10 +102,16 @@ def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object
             for role, raw in refs:
                 backed, path, fingerprint, declared_type, lfs_pointer = ext_resource_backed(resources, raw, project_root)
                 mesh_backed = mesh_backed and backed
+                zero_byte = False
+                if isinstance(path, str):
+                    resolved = skin.res_to_file(project_root, path)
+                    zero_byte = resolved is not None and resolved.is_file() and resolved.stat().st_size == 0
                 if isinstance(path, str) and isinstance(declared_type, str):
                     used_external_types.setdefault(path, set()).add(declared_type)
                 if lfs_pointer and isinstance(path, str):
                     hierarchy_lfs_pointers.add(path)
+                if zero_byte and isinstance(path, str):
+                    hierarchy_zero_byte_paths.add(path)
                 ref_results.append({
                     "role": role,
                     "raw": raw,
@@ -110,6 +119,7 @@ def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object
                     "declared_type": declared_type,
                     "sha256": fingerprint,
                     "git_lfs_pointer": lfs_pointer,
+                    "zero_byte": zero_byte,
                     "backed": backed,
                 })
             all_backed = all_backed and mesh_backed
@@ -120,7 +130,7 @@ def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object
             for path, types in sorted(used_external_types.items())
             if len(types) > 1
         ]
-        all_backed = all_backed and not type_conflicts and not hierarchy_lfs_pointers
+        all_backed = all_backed and not type_conflicts and not hierarchy_lfs_pointers and not hierarchy_zero_byte_paths
         out.append({
             "npc_agent_path": hierarchy["npc_agent_path"],
             "character_mount_path": hierarchy["character_mount_path"],
@@ -130,7 +140,8 @@ def scene_backing(scene_path: Path, project_root: Path) -> list[dict[str, object
             "external_path_type_conflicts": type_conflicts,
             "external_path_type_consistent": not type_conflicts,
             "git_lfs_pointer_paths": sorted(hierarchy_lfs_pointers),
-            "external_resources_materialized": not hierarchy_lfs_pointers,
+            "zero_byte_external_resource_paths": sorted(hierarchy_zero_byte_paths),
+            "external_resources_materialized": not hierarchy_lfs_pointers and not hierarchy_zero_byte_paths,
             "external_resource_backing_ready": all_backed,
         })
     return out
@@ -219,6 +230,21 @@ material_override = ExtResource("Mat_body")
         assert not r[0]["external_path_type_consistent"]
         assert r[0]["external_path_type_conflicts"] == [{"path": "res://assets/body.mesh", "declared_types": ["ArrayMesh", "Skin"]}]
 
+        (assets / "body.skin").write_bytes(b"")
+        scene.write_text(base, encoding="utf-8")
+        r = scene_backing(scene, root)
+        assert len(r) == 1 and not r[0]["external_resource_backing_ready"], "zero-byte external Skin must fail closed"
+        assert not r[0]["external_resources_materialized"]
+        assert r[0]["zero_byte_external_resource_paths"] == ["res://assets/body.skin"]
+        zero_resource = next(
+            resource
+            for mesh in r[0]["mesh_backing"]
+            for resource in mesh["resources"]
+            if resource.get("external_path") == "res://assets/body.skin"
+        )
+        assert zero_resource["zero_byte"] is True and zero_resource["sha256"] is None and zero_resource["backed"] is False
+        (assets / "body.skin").write_text("fixture", encoding="utf-8")
+
         lfs_pointer = (
             "version https://git-lfs.github.com/spec/v1\n"
             "oid sha256:" + "a" * 64 + "\n"
@@ -270,9 +296,15 @@ def main() -> int:
         for path in e.get("git_lfs_pointer_paths", [])
         if isinstance(path, str)
     })
+    zero_byte_paths = sorted({
+        str(path)
+        for e in evidence
+        for path in e.get("zero_byte_external_resource_paths", [])
+        if isinstance(path, str)
+    })
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_authored_skin_bundle_plus_materialized_in_project_external_resource_bytes_plus_sha256_plus_path_type_consistency",
+        "evidence_mode": "reachable_authored_skin_bundle_plus_nonempty_materialized_in_project_external_resource_bytes_plus_sha256_plus_path_type_consistency",
         "reachable_scene_count": len(scenes),
         "hierarchy_count": len(evidence),
         "backing_ready_count": len(ready),
@@ -282,18 +314,20 @@ def main() -> int:
         "external_path_type_conflicts": type_conflicts,
         "external_path_type_consistent": not type_conflicts,
         "git_lfs_pointer_paths": lfs_pointer_paths,
-        "external_resources_materialized": not lfs_pointer_paths,
+        "zero_byte_external_resource_paths": zero_byte_paths,
+        "external_resources_materialized": not lfs_pointer_paths and not zero_byte_paths,
         "typed_but_missing_external_resource_evidence_accepted": False,
         "out_of_project_external_resource_evidence_accepted": False,
         "unhashed_external_resource_evidence_accepted": False,
         "cross_type_same_path_evidence_accepted": False,
         "git_lfs_pointer_evidence_accepted": False,
+        "zero_byte_external_resource_evidence_accepted": False,
         "authored_external_resources_backed": bool(ready),
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
-        "next_action": "rerun Godot 4.7.1 loaded-scene probe only after structural skin integrity and resource backing both become ready; retain materialized-byte SHA-256 fingerprints and path/type consistency in the handoff" if ready else "runtime owner must provide a reachable authored skin bundle whose external mesh/Skin/material resources are materialized real in-project files (not Git LFS pointers) with one declared Godot type per path",
+        "next_action": "rerun Godot 4.7.1 loaded-scene probe only after structural skin integrity and resource backing both become ready; retain nonempty materialized-byte SHA-256 fingerprints and path/type consistency in the handoff" if ready else "runtime owner must provide a reachable authored skin bundle whose external mesh/Skin/material resources are nonempty materialized real in-project files (not Git LFS pointers) with one declared Godot type per path",
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

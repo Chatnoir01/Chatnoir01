@@ -1,0 +1,119 @@
+extends SceneTree
+
+const MASK_SCRIPT := preload("res://game/scripts/osm_midi_mask.gd")
+const MIDI_WORLD := Vector3(-668.5, 0.0, 627.84)
+
+
+func _initialize() -> void:
+    call_deferred("_run")
+
+
+func _fail(message: String) -> void:
+    push_error("OSM_MIDI_MASK_FACADE_MULTIMESH_SPATIAL_SUPPORT_FAIL: %s" % message)
+    quit(1)
+
+
+func _authoritative_building(offset_x: float) -> MeshInstance3D:
+    var instance := MeshInstance3D.new()
+    instance.name = "ExactBuilding"
+    var mesh := BoxMesh.new()
+    mesh.size = Vector3(14.0, 20.0, 14.0)
+    instance.mesh = mesh
+    instance.position = MIDI_WORLD + Vector3(offset_x, 10.0, 0.0)
+    instance.create_trimesh_collision()
+    for child: Node in instance.get_children():
+        if child is StaticBody3D:
+            var body := child as StaticBody3D
+            body.collision_layer = 1
+            body.collision_mask = 1
+    return instance
+
+
+func _facade_multimesh() -> MultiMeshInstance3D:
+    var mesh := BoxMesh.new()
+    mesh.size = Vector3.ONE
+
+    var multimesh := MultiMesh.new()
+    multimesh.transform_format = MultiMesh.TRANSFORM_3D
+    multimesh.mesh = mesh
+    multimesh.instance_count = 3
+    multimesh.set_instance_transform(0, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(0.0, 10.0, 0.0)))
+    multimesh.set_instance_transform(1, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(80.0, 10.0, 0.0)))
+    multimesh.set_instance_transform(2, Transform3D(Basis().scaled(Vector3(4.0, 4.0, 0.3)), MIDI_WORLD + Vector3(700.0, 10.0, 0.0)))
+
+    var instance := MultiMeshInstance3D.new()
+    instance.name = "CorridorFacadeWindows"
+    instance.multimesh = multimesh
+    return instance
+
+
+func _origin_near(actual: Vector3, expected: Vector3) -> bool:
+    return actual.distance_to(expected) <= 0.001
+
+
+func _run() -> void:
+    var scene := Node3D.new()
+    scene.name = "Main"
+    root.add_child(scene)
+
+    var osm := Node3D.new()
+    osm.name = "BrusselsOSM"
+    scene.add_child(osm)
+
+    var roads := Node3D.new()
+    roads.name = "GeneratedRoads"
+    osm.add_child(roads)
+
+    var buildings := Node3D.new()
+    buildings.name = "GeneratedBuildings"
+    osm.add_child(buildings)
+
+    var details := Node3D.new()
+    details.name = "GeneratedFacadeDetails"
+    osm.add_child(details)
+    var facade_batch := _facade_multimesh()
+    details.add_child(facade_batch)
+
+    var urbis := Node3D.new()
+    urbis.name = "UrbISMidiExact"
+    scene.add_child(urbis)
+
+    var street_surfaces := Node3D.new()
+    street_surfaces.name = "UrbISStreetSurfaces"
+    urbis.add_child(street_surfaces)
+
+    var exact_buildings := Node3D.new()
+    exact_buildings.name = "UrbISExactBuildings"
+    urbis.add_child(exact_buildings)
+    exact_buildings.add_child(_authoritative_building(0.0))
+
+    var mask := Node.new()
+    mask.name = "OSMMidiMask"
+    mask.set_script(MASK_SCRIPT)
+    scene.add_child(mask)
+
+    await process_frame
+    await physics_frame
+    mask.call("_apply_mask")
+    await process_frame
+
+    if facade_batch.multimesh == null:
+        _fail("CorridorFacadeWindows lost its MultiMesh resource")
+        return
+    if facade_batch.multimesh.instance_count != 2:
+        _fail("expected exactly one supported Midi facade instance to be removed while unsupported/ineligible fallbacks remain; got %d instances" % facade_batch.multimesh.instance_count)
+        return
+
+    var first := facade_batch.multimesh.get_instance_transform(0).origin
+    var second := facade_batch.multimesh.get_instance_transform(1).origin
+    var expected_unsupported := MIDI_WORLD + Vector3(80.0, 10.0, 0.0)
+    var expected_outside := MIDI_WORLD + Vector3(700.0, 10.0, 0.0)
+    if not _origin_near(first, expected_unsupported) or not _origin_near(second, expected_outside):
+        _fail("remaining MultiMesh transforms were moved/reordered incorrectly: first=%s second=%s" % [str(first), str(second)])
+        return
+    if not facade_batch.is_visible_in_tree() or not details.visible:
+        _fail("facade batch or parent was hidden wholesale instead of filtering only supported Midi instances")
+        return
+
+    print("OSM_MIDI_MASK_FACADE_MULTIMESH_SPATIAL_SUPPORT_OK: supported_removed=1 unsupported_preserved=1 outside_radius_preserved=1 source_positions_preserved=true radius_unchanged=true")
+    quit(0)

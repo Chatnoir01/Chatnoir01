@@ -7,13 +7,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-authored-skin-integrity-v1"
+SCHEMA = "grand-bruxelles-civ1-authored-skin-integrity-v2"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 EXT_RE = re.compile(r'^\s*\[ext_resource\s+(.+?)\]\s*$')
+SUB_RE = re.compile(r'^\s*\[sub_resource\s+(.+?)\]\s*$')
 ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"')
 INSTANCE_RE = re.compile(r'\binstance=ExtResource\("([^"]+)"\)')
 NODEPATH_RE = re.compile(r'^NodePath\("([^"]+)"\)$')
-RESOURCE_RE = re.compile(r'^(?:ExtResource|SubResource)\("([^"]+)"\)$')
+RESOURCE_RE = re.compile(r'^(ExtResource|SubResource)\("([^"]+)"\)$')
+MESH_TYPES = {"ArrayMesh", "PrimitiveMesh", "BoxMesh", "CapsuleMesh", "CylinderMesh", "PlaneMesh", "PrismMesh", "QuadMesh", "SphereMesh", "TextMesh", "TubeTrailMesh"}
+MATERIAL_TYPES = {"StandardMaterial3D", "ORMMaterial3D", "ShaderMaterial", "BaseMaterial3D", "Material"}
 
 
 def node_path(attrs: dict[str, str]) -> str:
@@ -46,15 +49,45 @@ def parse_node_blocks(scene: str) -> list[dict[str, object]]:
     return blocks
 
 
-def parse_packed_resources(scene: str) -> dict[str, str]:
-    out: dict[str, str] = {}
+def parse_resource_table(scene: str) -> dict[tuple[str, str], dict[str, str]]:
+    resources: dict[tuple[str, str], dict[str, str]] = {}
     for line in scene.splitlines():
         match = EXT_RE.match(line)
+        kind = "ExtResource"
+        if not match:
+            match = SUB_RE.match(line)
+            kind = "SubResource"
         if not match:
             continue
         attrs = dict(ATTR_RE.findall(match.group(1)))
-        if attrs.get("type") == "PackedScene" and attrs.get("id") and attrs.get("path"):
-            out[attrs["id"]] = attrs["path"]
+        rid = attrs.get("id")
+        if rid:
+            resources[(kind, rid)] = attrs
+    return resources
+
+
+def resource_ref(raw: object) -> tuple[str, str] | None:
+    if not isinstance(raw, str):
+        return None
+    match = RESOURCE_RE.match(raw)
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
+def declared_resource_type(resources: dict[tuple[str, str], dict[str, str]], raw: object) -> str | None:
+    ref = resource_ref(raw)
+    if ref is None:
+        return None
+    attrs = resources.get(ref)
+    return attrs.get("type") if attrs else None
+
+
+def parse_packed_resources(scene: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for (kind, rid), attrs in parse_resource_table(scene).items():
+        if kind == "ExtResource" and attrs.get("type") == "PackedScene" and attrs.get("path"):
+            out[rid] = attrs["path"]
     return out
 
 
@@ -89,11 +122,10 @@ def reachable_scenes(main_tscn: Path, project_root: Path) -> list[Path]:
             attrs = block["attrs"]
             assert isinstance(attrs, dict)
             rid = attrs.get("instance")
-            if not rid or rid not in packed:
-                continue
-            child = res_to_file(project_root, packed[rid])
-            if child is not None and child.suffix == ".tscn":
-                pending.append(child)
+            if rid and rid in packed:
+                child = res_to_file(project_root, packed[rid])
+                if child is not None and child.suffix == ".tscn":
+                    pending.append(child)
     return result
 
 
@@ -119,6 +151,7 @@ def resolve_nodepath(owner_path: str, raw: str) -> str | None:
 
 def scene_integrity(scene: str) -> list[dict[str, object]]:
     blocks = parse_node_blocks(scene)
+    resources = parse_resource_table(scene)
     nodes: dict[str, dict[str, object]] = {}
     for block in blocks:
         attrs = block["attrs"]
@@ -141,73 +174,120 @@ def scene_integrity(scene: str) -> list[dict[str, object]]:
         if agent_attrs.get("name") != "NpcAgent" or agent_attrs.get("type") != "CharacterBody3D":
             continue
         prefix = mount_path + "/"
-        skeleton_paths = [
-            p for p, block in nodes.items()
-            if p.startswith(prefix)
-            and isinstance(block["attrs"], dict)
-            and block["attrs"].get("type") == "Skeleton3D"
-        ]
+        skeleton_paths = [p for p, block in nodes.items() if p.startswith(prefix) and isinstance(block["attrs"], dict) and block["attrs"].get("type") == "Skeleton3D"]
         for skeleton_path in skeleton_paths:
             bound_meshes: list[str] = []
-            material_meshes: list[str] = []
+            complete_meshes: list[str] = []
+            mesh_details: list[dict[str, object]] = []
             for mesh_path, mesh_block in nodes.items():
                 attrs = mesh_block["attrs"]
                 props = mesh_block["props"]
                 assert isinstance(attrs, dict) and isinstance(props, dict)
                 if attrs.get("type") != "MeshInstance3D" or not mesh_path.startswith(prefix):
                     continue
-                skeleton_ref = props.get("skeleton")
-                if isinstance(skeleton_ref, str) and resolve_nodepath(mesh_path, skeleton_ref) == skeleton_path:
-                    bound_meshes.append(mesh_path)
-                    material_keys = [k for k in props if k == "material_override" or k.startswith("surface_material_override/")]
-                    if any(isinstance(props[k], str) and RESOURCE_RE.match(props[k]) for k in material_keys):
-                        material_meshes.append(mesh_path)
+                skeleton_ok = isinstance(props.get("skeleton"), str) and resolve_nodepath(mesh_path, props["skeleton"]) == skeleton_path
+                if not skeleton_ok:
+                    continue
+                bound_meshes.append(mesh_path)
+                mesh_type = declared_resource_type(resources, props.get("mesh"))
+                skin_type = declared_resource_type(resources, props.get("skin"))
+                material_keys = [k for k in props if k == "material_override" or k.startswith("surface_material_override/")]
+                material_types = [declared_resource_type(resources, props[k]) for k in material_keys]
+                mesh_resource_ok = mesh_type in MESH_TYPES
+                skin_resource_ok = skin_type == "Skin"
+                material_resource_ok = any(t in MATERIAL_TYPES for t in material_types)
+                complete = mesh_resource_ok and skin_resource_ok and material_resource_ok
+                if complete:
+                    complete_meshes.append(mesh_path)
+                mesh_details.append({
+                    "path": mesh_path,
+                    "mesh_resource_type": mesh_type,
+                    "skin_resource_type": skin_type,
+                    "material_resource_types": sorted(t for t in material_types if t),
+                    "mesh_resource_declared": mesh_resource_ok,
+                    "skin_resource_declared": skin_resource_ok,
+                    "material_resource_declared": material_resource_ok,
+                    "structural_skin_bundle_ready": complete,
+                })
             results.append({
                 "npc_agent_path": agent_path,
                 "character_mount_path": mount_path,
                 "skeleton_path": skeleton_path,
                 "skinned_mesh_paths": sorted(bound_meshes),
-                "material_bound_mesh_paths": sorted(material_meshes),
+                "complete_skin_bundle_paths": sorted(complete_meshes),
+                "mesh_details": mesh_details,
                 "skinned_mesh_binding_present": bool(bound_meshes),
-                "material_binding_present": bool(material_meshes),
-                "authored_skin_integrity_ready": bool(bound_meshes and material_meshes),
+                "authored_skin_integrity_ready": bool(complete_meshes),
             })
     return results
 
 
-def self_test() -> None:
-    empty = '''
+def fixture_base() -> str:
+    return '''
+[gd_scene load_steps=4 format=3]
+[sub_resource type="ArrayMesh" id="Mesh_body"]
+[sub_resource type="Skin" id="Skin_body"]
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
 [node name="Main" type="Node3D"]
 [node name="NpcAgent" type="CharacterBody3D" parent="."]
 [node name="CharacterMount" type="Node3D" parent="NpcAgent"]
 [node name="Skeleton3D" type="Skeleton3D" parent="NpcAgent/CharacterMount"]
 '''
+
+
+def self_test() -> None:
+    empty = fixture_base()
     r = scene_integrity(empty)
     assert len(r) == 1 and not r[0]["authored_skin_integrity_ready"], "empty skeleton must fail closed"
 
-    unbound = empty + '''
-[node name="Body" type="MeshInstance3D" parent="NpcAgent/CharacterMount"]
-skeleton = NodePath("../WrongSkeleton")
-material_override = ExtResource("1_mat")
-'''
-    r = scene_integrity(unbound)
-    assert not r[0]["skinned_mesh_binding_present"], "mesh bound to wrong skeleton must fail closed"
-
-    no_material = empty + '''
+    phantom = empty + '''
 [node name="Body" type="MeshInstance3D" parent="NpcAgent/CharacterMount"]
 skeleton = NodePath("../Skeleton3D")
+mesh = SubResource("MissingMesh")
+skin = SubResource("MissingSkin")
+material_override = SubResource("MissingMaterial")
 '''
-    r = scene_integrity(no_material)
-    assert r[0]["skinned_mesh_binding_present"] and not r[0]["material_binding_present"]
-    assert not r[0]["authored_skin_integrity_ready"], "skin without material must fail closed"
+    r = scene_integrity(phantom)
+    assert r[0]["skinned_mesh_binding_present"] and not r[0]["authored_skin_integrity_ready"], "phantom resource ids must fail closed"
+
+    no_skin = empty + '''
+[node name="Body" type="MeshInstance3D" parent="NpcAgent/CharacterMount"]
+skeleton = NodePath("../Skeleton3D")
+mesh = SubResource("Mesh_body")
+material_override = SubResource("Mat_body")
+'''
+    r = scene_integrity(no_skin)
+    assert not r[0]["authored_skin_integrity_ready"], "mesh without declared Skin resource must fail closed"
+
+    wrong_skin_type = empty + '''
+[node name="Body" type="MeshInstance3D" parent="NpcAgent/CharacterMount"]
+skeleton = NodePath("../Skeleton3D")
+mesh = SubResource("Mesh_body")
+skin = SubResource("Mat_body")
+material_override = SubResource("Mat_body")
+'''
+    r = scene_integrity(wrong_skin_type)
+    assert not r[0]["authored_skin_integrity_ready"], "non-Skin resource in skin property must fail closed"
+
+    wrong_skeleton = empty + '''
+[node name="Body" type="MeshInstance3D" parent="NpcAgent/CharacterMount"]
+skeleton = NodePath("../WrongSkeleton")
+mesh = SubResource("Mesh_body")
+skin = SubResource("Skin_body")
+material_override = SubResource("Mat_body")
+'''
+    r = scene_integrity(wrong_skeleton)
+    assert not r[0]["skinned_mesh_binding_present"], "wrong skeleton path must fail closed"
 
     valid = empty + '''
 [node name="Body" type="MeshInstance3D" parent="NpcAgent/CharacterMount"]
 skeleton = NodePath("../Skeleton3D")
-material_override = ExtResource("1_mat")
+mesh = SubResource("Mesh_body")
+skin = SubResource("Skin_body")
+material_override = SubResource("Mat_body")
 '''
     r = scene_integrity(valid)
-    assert r[0]["authored_skin_integrity_ready"], "bound skinned mesh with material should pass structural integrity"
+    assert r[0]["authored_skin_integrity_ready"], "declared mesh+Skin+material bound to expected skeleton should pass structural preflight"
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -252,24 +332,26 @@ def main() -> int:
     ready = [item for item in evidence if item["authored_skin_integrity_ready"]]
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_node_blocks_plus_explicit_skeleton_and_material_binding",
+        "evidence_mode": "reachable_tscn_plus_exact_skeleton_path_plus_declared_mesh_skin_material_resources",
         "reachable_scene_count": len(scene_names),
         "reachable_scenes": scene_names,
         "hierarchy_count": len(evidence),
         "integrity_ready_count": len(ready),
         "hierarchies": evidence,
         "empty_skeleton_evidence_accepted": False,
-        "unbound_mesh_evidence_accepted": False,
-        "materialless_mesh_evidence_accepted": False,
+        "phantom_resource_evidence_accepted": False,
+        "missing_skin_resource_evidence_accepted": False,
+        "wrong_skin_type_evidence_accepted": False,
+        "wrong_skeleton_evidence_accepted": False,
         "authored_skin_integrity_ready": bool(ready),
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
         "next_action": (
-            "rerun Godot 4.7.1 loaded-scene probe and validate imported Skin/bone/material resources"
+            "rerun Godot 4.7.1 loaded-scene probe and verify imported Skeleton3D bone count, Skin binds/weights, materials and animation state"
             if ready else
-            "runtime owner must provide a reachable authored CIV-1 hierarchy with an explicitly Skeleton3D-bound MeshInstance3D and material binding"
+            "runtime owner must provide a reachable authored CIV-1 hierarchy with MeshInstance3D bound to the expected Skeleton3D and declared mesh, Skin and material resources"
         ),
     }
     out.parent.mkdir(parents=True, exist_ok=True)

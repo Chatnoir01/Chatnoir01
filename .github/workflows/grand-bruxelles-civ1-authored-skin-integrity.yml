@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_canonical_resource_alias.py --self-test
-      - name: Reject duplicate Godot resource ids
+      - name: Reject duplicate Godot resource ids and ambiguous headers
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py --self-test
@@ -136,11 +136,17 @@ jobs:
           assert a['foot_slide_verified'] is False
           s='/tmp/civ1-skin-integrity/civ1-resource-table-uniqueness.json'
           u=json.load(open(s, encoding='utf-8'))
-          assert u['schema']=='grand-bruxelles-civ1-resource-table-uniqueness-v1'
-          assert u['evidence_mode']=='reachable_tscn_plus_unique_resource_id_namespace'
+          assert u['schema']=='grand-bruxelles-civ1-resource-table-uniqueness-v2'
+          assert u['evidence_mode']=='reachable_tscn_plus_unique_resource_id_namespace_plus_unambiguous_resource_header_attributes'
           assert u['reachable_scene_count'] >= 1
           assert u['duplicate_resource_id_evidence_accepted'] is False
-          assert u['resource_table_identity_unambiguous'] == (len(u['duplicate_resource_id_conflicts']) == 0)
+          assert u['duplicate_resource_attribute_evidence_accepted'] is False
+          assert u['resource_header_attributes_unambiguous'] == (len(u['duplicate_resource_attribute_conflicts']) == 0)
+          assert u['resource_header_attributes_unambiguous'] is True
+          assert u['resource_table_identity_unambiguous'] == (
+              len(u['duplicate_resource_id_conflicts']) == 0
+              and len(u['duplicate_resource_attribute_conflicts']) == 0
+          )
           assert u['resource_table_identity_unambiguous'] is True
           assert u['runtime_authorized'] is False
           assert u['visual_approval_claimed'] is False

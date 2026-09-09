@@ -76,20 +76,33 @@ jobs:
           python3 - "$stage/attribution.json" <<'PY'
           import json,os,pathlib,sys
           p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text())
-          assert d['schema']=='grand-bruxelles-midi-automatic-road-visibility-mask-attribution-v1'
+          assert d['schema']=='grand-bruxelles-midi-automatic-road-visibility-mask-attribution-v2'
           ids=d['candidate_ids']; assert isinstance(ids,list) and len(ids)==d['candidate_count'] and len(ids)>0
           assert len(set(ids))==len(ids) and all(isinstance(x,int) and x>0 for x in ids)
-          assert d['exact_candidate_geometry_node_count']>0
-          assert d['hidden_candidate_geometry_node_count']>0
+          exact=d['exact_candidate_geometry_node_count']; hidden=d['hidden_candidate_geometry_node_count']
+          direct=d['direct_self_hidden_geometry_node_count']
+          assert exact>0 and hidden==exact and direct==exact
           assert d['unattributed_hidden_geometry_node_count']==0
-          assert len(d['rows'])==d['exact_candidate_geometry_node_count']
+          assert d['missing_script_ancestry_geometry_node_count']==0
+          assert len(d['rows'])==exact
           for row in d['rows']:
               assert row['osm_id'] in ids
-              assert isinstance(row['visible_in_tree'],bool)
-              if not row['visible_in_tree']:
-                  assert row['first_hidden_ancestor_path']
-                  assert row['first_hidden_ancestor_name']
-                  assert row['first_hidden_ancestor_class']
+              assert row['node_visible'] is False and row['visible_in_tree'] is False
+              assert row['hidden_owner_is_self'] is True
+              assert row['first_hidden_ancestor_path']==row['node_path']
+              assert row['first_hidden_ancestor_name']==row['node_name']
+              assert row['first_hidden_ancestor_class']==row['node_class']=='CSGBox3D'
+              meta=row['node_metadata']
+              assert meta.get('osm_id')==row['osm_id']
+              assert meta.get('source')=='OpenStreetMap contributors via Overpass API'
+              assert meta.get('license')=='ODbL-1.0'
+              assert meta.get('geometry_changed_by_road_surface_runtime') is False
+              ancestry=row['script_ancestry']
+              assert isinstance(ancestry,list) and len(ancestry)>0
+              for owner in ancestry:
+                  assert isinstance(owner.get('node_path'),str) and owner['node_path']
+                  assert isinstance(owner.get('node_class'),str) and owner['node_class']
+                  assert isinstance(owner.get('script_path'),str) and owner['script_path'].startswith('res://')
           assert d['diagnostic_only'] is True
           assert d['osm_to_urbis_crosswalk_claimed'] is False
           assert d['source_geometry_changed'] is False and d['collision_changed'] is False and d['resolver_changed'] is False

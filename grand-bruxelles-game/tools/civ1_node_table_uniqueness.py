@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+import civ1_authored_skin_integrity as skin
+
+SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v1"
+NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
+NODE_PREFIX_RE = re.compile(r'^\s*\[node\b')
+ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"((?:\\.|[^"\\])*)"')
+
+
+def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
+    pairs: list[tuple[str, str]] = []
+    cursor = 0
+    residue: list[str] = []
+    for match in ATTR_RE.finditer(header):
+        between = header[cursor:match.start()]
+        if between.strip():
+            residue.append(between.strip())
+        pairs.append((match.group(1), match.group(2)))
+        cursor = match.end()
+    tail = header[cursor:]
+    if tail.strip():
+        residue.append(tail.strip())
+    return pairs, " ".join(residue)
+
+
+def declared_node_path(attrs: dict[str, str]) -> str | None:
+    name = attrs.get("name")
+    if not name:
+        return None
+    parent = attrs.get("parent", ".")
+    return name if parent in ("", ".") else f"{parent}/{name}".strip("/")
+
+
+def node_table_conflicts(scene_text: str) -> tuple[list[dict[str, object]], list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
+    seen_paths: dict[str, list[dict[str, object]]] = {}
+    attribute_conflicts: list[dict[str, object]] = []
+    syntax_conflicts: list[dict[str, object]] = []
+    malformed_header_conflicts: list[dict[str, object]] = []
+
+    for line_number, line in enumerate(scene_text.splitlines(), start=1):
+        match = NODE_RE.match(line)
+        if not match:
+            if NODE_PREFIX_RE.match(line):
+                malformed_header_conflicts.append({
+                    "line": line_number,
+                    "raw_header": line.strip(),
+                    "reason": "node_header_did_not_match_complete_bracketed_grammar",
+                })
+            continue
+
+        attr_pairs, residue = parse_header_attributes(match.group(1))
+        if residue:
+            syntax_conflicts.append({
+                "line": line_number,
+                "unparsed_fragment": residue,
+                "raw_header": line.strip(),
+            })
+
+        counts = Counter(name for name, _ in attr_pairs)
+        duplicate_attributes = sorted(name for name, count in counts.items() if count > 1)
+        if duplicate_attributes:
+            attribute_conflicts.append({
+                "line": line_number,
+                "duplicate_attributes": duplicate_attributes,
+                "attribute_occurrences": {name: counts[name] for name in duplicate_attributes},
+                "raw_header": line.strip(),
+            })
+
+        attrs = dict(attr_pairs)
+        path = declared_node_path(attrs)
+        if path:
+            seen_paths.setdefault(path, []).append({
+                "line": line_number,
+                "name": attrs.get("name", ""),
+                "parent": attrs.get("parent", "."),
+                "type": attrs.get("type", ""),
+            })
+
+    path_conflicts: list[dict[str, object]] = []
+    for path, declarations in sorted(seen_paths.items()):
+        if len(declarations) > 1:
+            path_conflicts.append({
+                "node_path": path,
+                "declaration_count": len(declarations),
+                "declarations": declarations,
+            })
+    return path_conflicts, attribute_conflicts, syntax_conflicts, malformed_header_conflicts
+
+
+def self_test() -> None:
+    normal = '''
+[gd_scene load_steps=1 format=3]
+[node name="Main" type="Node3D"]
+[node name="NpcAgent" type="CharacterBody3D" parent="."]
+[node name="CharacterMount" type="Node3D" parent="NpcAgent"]
+[node name="Skeleton3D" type="Skeleton3D" parent="NpcAgent/CharacterMount"]
+'''
+    paths, attrs, syntax, malformed = node_table_conflicts(normal)
+    assert paths == [] and attrs == [] and syntax == [] and malformed == []
+
+    duplicate_path = normal + '[node name="CharacterMount" type="Node" parent="NpcAgent"]\n'
+    legacy = skin.parse_node_blocks(duplicate_path)
+    legacy_nodes: dict[str, dict[str, object]] = {}
+    for block in legacy:
+        block_attrs = block["attrs"]
+        assert isinstance(block_attrs, dict)
+        if "name" in block_attrs:
+            legacy_nodes[skin.node_path(block_attrs)] = block
+    assert legacy_nodes["NpcAgent/CharacterMount"]["attrs"]["type"] == "Node", (
+        "regression precondition: legacy node dict silently overwrites duplicate node paths"
+    )
+    paths, attrs, syntax, malformed = node_table_conflicts(duplicate_path)
+    assert len(paths) == 1 and paths[0]["node_path"] == "NpcAgent/CharacterMount"
+    assert attrs == [] and syntax == [] and malformed == []
+
+    duplicate_name_attr = normal.replace(
+        '[node name="CharacterMount" type="Node3D" parent="NpcAgent"]',
+        '[node name="ForgedMount" name="CharacterMount" type="Node3D" parent="NpcAgent"]',
+    )
+    paths, attrs, syntax, malformed = node_table_conflicts(duplicate_name_attr)
+    assert paths == [] and syntax == [] and malformed == []
+    assert len(attrs) == 1 and attrs[0]["duplicate_attributes"] == ["name"]
+
+    partial = normal.replace(
+        '[node name="Skeleton3D" type="Skeleton3D" parent="NpcAgent/CharacterMount"]',
+        '[node name="Skeleton3D" type="Skeleton3D" parent="NpcAgent/CharacterMount" forged_token]',
+    )
+    paths, attrs, syntax, malformed = node_table_conflicts(partial)
+    assert paths == [] and attrs == [] and malformed == []
+    assert len(syntax) == 1 and syntax[0]["unparsed_fragment"] == "forged_token"
+
+    missing_close = normal.replace(
+        '[node name="CharacterMount" type="Node3D" parent="NpcAgent"]',
+        '[node name="CharacterMount" type="Node3D" parent="NpcAgent"',
+    )
+    paths, attrs, syntax, malformed = node_table_conflicts(missing_close)
+    assert paths == [] and attrs == [] and syntax == []
+    assert len(malformed) == 1
+
+
+def main() -> int:
+    if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
+        self_test()
+        print("CIV1_NODE_TABLE_UNIQUENESS_SELF_TEST_OK")
+        return 0
+    if len(sys.argv) != 3:
+        print("usage: civ1_node_table_uniqueness.py MAIN_TSCN OUT", file=sys.stderr)
+        return 2
+
+    main_tscn = Path(sys.argv[1]).resolve()
+    out_path = Path(sys.argv[2])
+    project_root = main_tscn.parent.parent
+    scenes = skin.reachable_scenes(main_tscn, project_root)
+    path_conflicts: list[dict[str, object]] = []
+    attribute_conflicts: list[dict[str, object]] = []
+    syntax_conflicts: list[dict[str, object]] = []
+    malformed_header_conflicts: list[dict[str, object]] = []
+    for scene_path in scenes:
+        rel = scene_path.relative_to(project_root).as_posix()
+        text = scene_path.read_text(encoding="utf-8")
+        p, a, s, m = node_table_conflicts(text)
+        path_conflicts.extend({"scene": rel, **item} for item in p)
+        attribute_conflicts.extend({"scene": rel, **item} for item in a)
+        syntax_conflicts.extend({"scene": rel, **item} for item in s)
+        malformed_header_conflicts.extend({"scene": rel, **item} for item in m)
+
+    unambiguous = not path_conflicts and not attribute_conflicts and not syntax_conflicts and not malformed_header_conflicts
+    result = {
+        "schema": SCHEMA,
+        "evidence_mode": "reachable_tscn_plus_unique_node_path_plus_complete_fully_parsed_unambiguous_node_headers",
+        "reachable_scene_count": len(scenes),
+        "duplicate_node_path_conflicts": path_conflicts,
+        "duplicate_node_attribute_conflicts": attribute_conflicts,
+        "unparsed_node_header_fragments": syntax_conflicts,
+        "malformed_node_header_conflicts": malformed_header_conflicts,
+        "node_paths_unique": not path_conflicts,
+        "node_header_attributes_unambiguous": not attribute_conflicts,
+        "node_header_syntax_fully_parsed": not syntax_conflicts,
+        "node_outer_header_syntax_valid": not malformed_header_conflicts,
+        "node_table_identity_unambiguous": unambiguous,
+        "duplicate_node_path_evidence_accepted": False,
+        "duplicate_node_attribute_evidence_accepted": False,
+        "partially_parsed_node_header_evidence_accepted": False,
+        "malformed_outer_node_header_evidence_accepted": False,
+        "runtime_authorized": False,
+        "visual_approval_claimed": False,
+        "contact_verified": False,
+        "foot_slide_verified": False,
+        "next_action": (
+            "remove duplicate node paths/attributes, unparsed fragments and malformed node headers before authored Character hierarchy evidence can be trusted"
+            if not unambiguous
+            else "retain unique fully parsed node-table gate before authored Character loaded-scene approval"
+        ),
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

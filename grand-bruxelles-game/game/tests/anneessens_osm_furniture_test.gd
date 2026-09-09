@@ -4,6 +4,7 @@ const MAIN_SCENE := "res://game/main.tscn"
 const ANNEESSENS_SPAWN := Vector3(-272.04, 1.05, -217.07)
 const EXPECTED_TREE_IDS := [4672009403, 4672009414, 4672009415, 4672009416, 4672009417, 11929097332, 11929097333]
 const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
+const EXPECTED_SHARED_MESH_RESOURCES := 3
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -53,6 +54,7 @@ func _run() -> void:
     var found_ids: Array[int] = []
     var foliage_lobes_total := 0
     var collision_shape_count := 0
+    var mesh_resources: Dictionary = {}
     for node: Node in get_nodes_in_group("osm_environment_furniture"):
         if not node is StaticBody3D:
             _fail("OSM furniture tree root must remain a StaticBody3D")
@@ -86,6 +88,12 @@ func _run() -> void:
             return
         var lobe_count := 0
         for child: Node in visual.get_children():
+            if child is MeshInstance3D:
+                var mesh_instance := child as MeshInstance3D
+                if mesh_instance.mesh == null:
+                    _fail("tree visual mesh missing: %s/%s" % [tree.name, child.name])
+                    return
+                mesh_resources[mesh_instance.mesh.get_instance_id()] = true
             if child.name.begins_with("FoliageLobe_") and child is MeshInstance3D:
                 lobe_count += 1
         if lobe_count < 5:
@@ -106,6 +114,9 @@ func _run() -> void:
     if foliage_lobes_total < 35:
         _fail("shared tree visual coverage unexpectedly low")
         return
+    if mesh_resources.size() != EXPECTED_SHARED_MESH_RESOURCES:
+        _fail("street-tree geometry must reuse 3 mesh resources (trunk/dark/light); found %d" % mesh_resources.size())
+        return
 
-    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=0 collision_policy=%s foliage_lobes=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [COLLISION_POLICY, foliage_lobes_total])
+    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [COLLISION_POLICY, foliage_lobes_total, mesh_resources.size()])
     quit(0)

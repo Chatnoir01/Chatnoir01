@@ -6,6 +6,9 @@ const EXPECTED_TREE_IDS := [4672009403, 4672009414, 4672009415, 4672009416, 4672
 const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 const EXPECTED_SHARED_MESH_RESOURCES := 3
 const EXPECTED_SHARED_LEGACY_MESH_RESOURCES := 2
+const EXPECTED_COVERAGE_POLICY := "preserve_existing_runtime_subset_v1"
+const EXPECTED_COVERAGE_RADIUS_M := 130.0
+const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -68,6 +71,21 @@ func _run() -> void:
         return
     if str(root.get_meta("collision_policy", "")) != COLLISION_POLICY:
         _fail("furniture root collision policy drifted")
+        return
+    if bool(root.get_meta("coverage_complete", true)):
+        _fail("partial Anneessens OSM subset must remain coverage_complete=false")
+        return
+    if bool(root.get_meta("full_environment_coverage_claimed", true)):
+        _fail("partial Anneessens OSM subset must not claim full environment coverage")
+        return
+    if str(root.get_meta("coverage_policy", "")) != EXPECTED_COVERAGE_POLICY:
+        _fail("Anneessens OSM subset coverage policy missing or drifted")
+        return
+    if abs(float(root.get_meta("coverage_radius_m", -1.0)) - EXPECTED_COVERAGE_RADIUS_M) > 0.0001:
+        _fail("Anneessens OSM subset coverage radius missing or drifted")
+        return
+    if str(root.get_meta("upstream_source_sha256", "")) != EXPECTED_UPSTREAM_SHA256:
+        _fail("Anneessens OSM upstream source digest missing or drifted")
         return
 
     var found_ids: Array[int] = []
@@ -157,5 +175,5 @@ func _run() -> void:
         _fail("enhanced tree mesh reuse must survive legacy round-trip; found %d" % restored_mesh_resources.size())
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d legacy_mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [COLLISION_POLICY, foliage_lobes_total, mesh_resources.size(), legacy_mesh_resources.size()])
+    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d legacy_mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [EXPECTED_COVERAGE_POLICY, EXPECTED_COVERAGE_RADIUS_M, COLLISION_POLICY, foliage_lobes_total, mesh_resources.size(), legacy_mesh_resources.size()])
     quit(0)

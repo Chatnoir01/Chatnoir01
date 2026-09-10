@@ -1,0 +1,43 @@
+name: Grand Bruxelles OSM Network JSON Strict
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-network-json-strict.yml"
+      - "grand-bruxelles-game/tools/fetch_osm_slice.py"
+      - "grand-bruxelles-game/tests/test_fetch_osm_slice_json_strict.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  strict-overpass-json:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main base and exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            test "$HEAD_SHA" = "$PR_HEAD_SHA"
+          else
+            PR_BASE_SHA="$(git merge-base HEAD origin/main)"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$MAIN_SHA" = "$PR_BASE_SHA"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+      - name: Prove Overpass acquisition JSON parser fails closed
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tests/test_fetch_osm_slice_json_strict.py

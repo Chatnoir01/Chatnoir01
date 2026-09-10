@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -35,10 +36,46 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_non_standard_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _parse_finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON float: {value}")
+    return parsed
+
+
+def _load_strict_json(raw: bytes, *, label: str) -> Any:
+    try:
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_non_standard_constant,
+            parse_float=_parse_finite_float,
+        )
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{label} is not valid UTF-8 JSON") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{label} is not valid UTF-8 JSON") from exc
+
+
 def _validate_bbox(query_bbox: list[float]) -> list[float]:
     if len(query_bbox) != 4:
         raise ValueError("query bbox must contain exactly four coordinates")
     bbox = [float(value) for value in query_bbox]
+    if any(not math.isfinite(value) for value in bbox):
+        raise ValueError("query bbox contains non-finite coordinate")
     min_x, min_y, max_x, max_y = bbox
     if not (min_x < max_x and min_y < max_y):
         raise ValueError("query bbox is not ordered")
@@ -58,10 +95,7 @@ def build_wfs_url(query_bbox: list[float] | None = None) -> str:
 
 
 def _parse_ssft_domain(raw: bytes) -> dict[str, dict[str, str]]:
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError("official ssft attribute domain is not valid UTF-8 JSON") from exc
+    payload = _load_strict_json(raw, label="official ssft attribute domain")
     if not isinstance(payload, list) or not payload:
         raise ValueError("official ssft attribute domain is empty or malformed")
     domain: dict[str, dict[str, str]] = {}
@@ -89,8 +123,27 @@ def _canonical_source_content_sha256(payload: dict[str, Any]) -> str:
     if any(not isinstance(feature, dict) or not str(feature.get("id", "")).strip() for feature in features):
         raise ValueError("official sidewalk response contains feature without identity")
     stable_payload["features"] = sorted(features, key=lambda feature: str(feature["id"]))
-    canonical_bytes = json.dumps(stable_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    canonical_bytes = json.dumps(
+        stable_payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
     return _sha256(canonical_bytes)
+
+
+def _validate_finite_coordinates(value: Any, *, feature_id: str) -> None:
+    if isinstance(value, list):
+        if not value:
+            raise ValueError(f"sidewalk geometry contains empty coordinate array: {feature_id}")
+        for child in value:
+            _validate_finite_coordinates(child, feature_id=feature_id)
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"sidewalk geometry contains non-numeric coordinate: {feature_id}")
+    if not math.isfinite(float(value)):
+        raise ValueError(f"sidewalk geometry contains non-finite coordinate: {feature_id}")
 
 
 def _canonical_geometry(feature: dict[str, Any]) -> dict[str, Any]:
@@ -103,16 +156,15 @@ def _canonical_geometry(feature: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"unsupported sidewalk geometry type: {geometry_type}")
     if not isinstance(coordinates, list) or not coordinates:
         raise ValueError("sidewalk geometry coordinates missing")
+    feature_id = str(feature.get("id", "")).strip() or "unknown"
+    _validate_finite_coordinates(coordinates, feature_id=feature_id)
     return {"type": geometry_type, "coordinates": coordinates}
 
 
 def canonicalize_feature_collection(raw: bytes, *, attribute_domain_raw: bytes, query_bbox: list[float] | None = None) -> dict[str, Any]:
     bbox = _validate_bbox(query_bbox or DEFAULT_BBOX)
     domain = _parse_ssft_domain(attribute_domain_raw)
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError("official sidewalk response is not valid UTF-8 GeoJSON") from exc
+    payload = _load_strict_json(raw, label="official sidewalk response")
     if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection":
         raise ValueError("official sidewalk response is not a FeatureCollection")
     source_features = payload.get("features")
@@ -254,7 +306,10 @@ def main() -> int:
     canonical = canonicalize_feature_collection(raw, attribute_domain_raw=attribute_domain_raw, query_bbox=bbox)
     canonical["source_query_url"] = source_url
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(canonical, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(canonical, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
     print(
         "OFFICIAL_SIDEWALK_EXTRACT_OK "
         f"features={canonical['feature_count']} input={canonical['input_feature_count']} "

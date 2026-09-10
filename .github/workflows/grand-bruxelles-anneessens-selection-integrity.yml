@@ -1,0 +1,46 @@
+name: Grand Bruxelles Anneessens Selection Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd'
+      - 'grand-bruxelles-game/data/osm/zones/anneessens/environment.game.json'
+      - 'grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py'
+      - '.github/workflows/grand-bruxelles-anneessens-selection-integrity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  selection-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact PR head and base ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          git fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
+          git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
+
+      - name: Prove live base is RED for missing selection-integrity contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          RUNTIME="grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
+          git checkout "$BASE_SHA" -- "$RUNTIME"
+          if python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py; then
+            echo "Expected base regression to fail, but it passed" >&2
+            exit 1
+          fi
+          git checkout "$HEAD_SHA" -- "$RUNTIME"
+
+      - name: Prove exact head is GREEN
+        run: python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py

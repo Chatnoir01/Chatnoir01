@@ -1,0 +1,83 @@
+name: Grand Bruxelles CIV-1 Authored Skin Integrity
+on:
+  push:
+    branches: ['character/**']
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_*.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_*.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-authored-skin-integrity.yml'
+permissions:
+  contents: read
+jobs:
+  civ1-authored-skin-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact live main and QA-only scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "051376358adde3577459547807346c1dfa514cec"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run Character evidence self-tests
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_authored_skin_integrity.py --self-test
+          python grand-bruxelles-game/tools/civ1_external_resource_backing.py --self-test
+          python grand-bruxelles-game/tools/civ1_canonical_resource_alias.py --self-test
+          python grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py --self-test
+          python grand-bruxelles-game/tools/civ1_node_table_uniqueness.py --self-test
+      - name: Measure reachable authored-skin integrity
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-skin-integrity
+          python grand-bruxelles-game/tools/civ1_authored_skin_integrity.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-authored-skin-integrity.json
+          python grand-bruxelles-game/tools/civ1_external_resource_backing.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-external-resource-backing.json
+          python grand-bruxelles-game/tools/civ1_canonical_resource_alias.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-canonical-resource-alias.json
+          python grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-resource-table-uniqueness.json
+          python grand-bruxelles-game/tools/civ1_node_table_uniqueness.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-node-table-uniqueness.json
+      - name: Assert fail-closed integrity contract
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('/tmp/civ1-skin-integrity')
+          skin=json.load(open(root/'civ1-authored-skin-integrity.json', encoding='utf-8'))
+          backing=json.load(open(root/'civ1-external-resource-backing.json', encoding='utf-8'))
+          alias=json.load(open(root/'civ1-canonical-resource-alias.json', encoding='utf-8'))
+          resource=json.load(open(root/'civ1-resource-table-uniqueness.json', encoding='utf-8'))
+          node=json.load(open(root/'civ1-node-table-uniqueness.json', encoding='utf-8'))
+          assert skin['schema']=='grand-bruxelles-civ1-authored-skin-integrity-v2'
+          assert backing['schema']=='grand-bruxelles-civ1-external-resource-backing-v5'
+          assert alias['schema']=='grand-bruxelles-civ1-canonical-resource-alias-v3'
+          assert resource['schema']=='grand-bruxelles-civ1-resource-table-uniqueness-v5'
+          assert node['schema']=='grand-bruxelles-civ1-node-table-uniqueness-v3'
+          assert resource['escaped_resource_identity_evidence_accepted'] is False
+          assert resource['resource_table_identity_unambiguous'] is True
+          assert node['escaped_node_identity_evidence_accepted'] is False
+          assert node['mismatched_node_header_delimiter_evidence_accepted'] is False
+          assert node['node_header_delimiters_type_matched'] is True
+          assert node['node_table_identity_unambiguous'] is True
+          for d in (skin, backing, alias, resource, node):
+              assert d['reachable_scene_count'] >= 1
+              assert d['runtime_authorized'] is False
+              assert d['visual_approval_claimed'] is False
+              assert d['contact_verified'] is False
+              assert d['foot_slide_verified'] is False
+          print(json.dumps({'skin':skin,'backing':backing,'alias':alias,'resource':resource,'node':node}, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-authored-skin-integrity
+          path: /tmp/civ1-skin-integrity/*.json

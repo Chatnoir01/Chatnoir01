@@ -9,10 +9,17 @@ from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
 
-SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v1"
+SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v2"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 NODE_PREFIX_RE = re.compile(r'^\s*\[node\b')
 NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+
+
+def decode_quoted_value(value: str) -> str:
+    decoded = json.loads(value)
+    if not isinstance(decoded, str):
+        raise ValueError("quoted node-header value did not decode to a string")
+    return decoded
 
 
 def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
@@ -92,7 +99,15 @@ def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
         if not value:
             residue.append(f"{name}=")
             break
-        pairs.append((name, value[1:-1] if value.startswith('"') and value.endswith('"') else value))
+        if value.startswith('"') and value.endswith('"'):
+            try:
+                parsed_value = decode_quoted_value(value)
+            except (json.JSONDecodeError, ValueError):
+                residue.append(header[name_match.start():i].strip())
+                break
+        else:
+            parsed_value = value
+        pairs.append((name, parsed_value))
     return pairs, " ".join(r for r in residue if r)
 
 
@@ -161,6 +176,15 @@ def self_test() -> None:
     missing_close = normal.replace('[node name="CharacterMount" type="Node3D" parent="NpcAgent"]','[node name="CharacterMount" type="Node3D" parent="NpcAgent"')
     paths, attrs, syntax, malformed = node_table_conflicts(missing_close)
     assert paths == [] and attrs == [] and syntax == [] and len(malformed) == 1
+    escaped_identity = normal + '[node name="Character\\u004dount" type="Node" parent="NpcAgent"]\n'
+    legacy_escaped = skin.parse_node_blocks(escaped_identity)
+    legacy_paths = [skin.node_path(block["attrs"]) for block in legacy_escaped if isinstance(block.get("attrs"), dict) and "name" in block["attrs"]]
+    assert "NpcAgent/CharacterMount" in legacy_paths and "NpcAgent/Character\\u004dount" in legacy_paths, "regression precondition: legacy parser treats escaped and decoded node identities as distinct"
+    paths, attrs, syntax, malformed = node_table_conflicts(escaped_identity)
+    assert len(paths) == 1 and paths[0]["node_path"] == "NpcAgent/CharacterMount" and attrs == [] and syntax == [] and malformed == []
+    malformed_escape = normal.replace('name="CharacterMount"', 'name="Character\\qMount"')
+    paths, attrs, syntax, malformed = node_table_conflicts(malformed_escape)
+    assert paths == [] and attrs == [] and malformed == [] and len(syntax) == 1, "invalid quoted escape must fail closed as unparsed syntax"
 
 
 def main() -> int:
@@ -189,7 +213,7 @@ def main() -> int:
     unambiguous = not path_conflicts and not attribute_conflicts and not syntax_conflicts and not malformed_header_conflicts
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_unique_node_path_plus_complete_fully_parsed_unambiguous_node_headers",
+        "evidence_mode": "reachable_tscn_plus_unique_decoded_node_path_plus_complete_fully_parsed_unambiguous_node_headers",
         "reachable_scene_count": len(scenes),
         "duplicate_node_path_conflicts": path_conflicts,
         "duplicate_node_attribute_conflicts": attribute_conflicts,
@@ -202,13 +226,14 @@ def main() -> int:
         "node_table_identity_unambiguous": unambiguous,
         "duplicate_node_path_evidence_accepted": False,
         "duplicate_node_attribute_evidence_accepted": False,
+        "escaped_node_identity_evidence_accepted": False,
         "partially_parsed_node_header_evidence_accepted": False,
         "malformed_outer_node_header_evidence_accepted": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
-        "next_action": "remove duplicate node paths/attributes, unparsed fragments and malformed node headers before authored Character hierarchy evidence can be trusted" if not unambiguous else "retain unique fully parsed node-table gate before authored Character loaded-scene approval",
+        "next_action": "remove duplicate decoded node paths/attributes, unparsed fragments and malformed node headers before authored Character hierarchy evidence can be trusted" if not unambiguous else "retain unique decoded fully parsed node-table gate before authored Character loaded-scene approval",
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

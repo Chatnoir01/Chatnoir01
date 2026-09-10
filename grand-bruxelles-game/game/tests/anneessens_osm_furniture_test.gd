@@ -5,6 +5,7 @@ const ANNEESSENS_SPAWN := Vector3(-272.04, 1.05, -217.07)
 const EXPECTED_TREE_IDS := [4672009403, 4672009414, 4672009415, 4672009416, 4672009417, 11929097332, 11929097333]
 const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 const EXPECTED_SHARED_MESH_RESOURCES := 3
+const EXPECTED_SHARED_LEGACY_MESH_RESOURCES := 2
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -12,6 +13,24 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     print("ANNEESSENS_OSM_FURNITURE_FAIL: %s" % message)
     quit(1)
+
+func _collect_mesh_resource_ids(root: Node, visual_name: String) -> Dictionary:
+    var resources: Dictionary = {}
+    for node: Node in get_nodes_in_group("osm_environment_furniture"):
+        if not node is StaticBody3D or not node.is_visible_in_tree():
+            continue
+        var visual := node.get_node_or_null(visual_name) as Node3D
+        if visual == null:
+            _fail("tree visual root missing while collecting resources: %s/%s" % [node.name, visual_name])
+            return {}
+        for child: Node in visual.get_children():
+            if child is MeshInstance3D:
+                var mesh_instance := child as MeshInstance3D
+                if mesh_instance.mesh == null:
+                    _fail("tree visual mesh missing: %s/%s" % [node.name, child.name])
+                    return {}
+                resources[mesh_instance.mesh.get_instance_id()] = true
+    return resources
 
 func _run() -> void:
     var selector := get_root().get_node_or_null("ZoneSelectorRuntime")
@@ -118,5 +137,25 @@ func _run() -> void:
         _fail("street-tree geometry must reuse 3 mesh resources (trunk/dark/light); found %d" % mesh_resources.size())
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [COLLISION_POLICY, foliage_lobes_total, mesh_resources.size()])
+    var runtime := get_root().get_node_or_null("AnneessensOsmFurnitureRuntime")
+    if runtime == null:
+        _fail("AnneessensOsmFurnitureRuntime missing")
+        return
+    runtime.call("set_enhanced_trees_enabled", false)
+    for _frame: int in range(3):
+        await process_frame
+    var legacy_mesh_resources := _collect_mesh_resource_ids(root, "LegacyTreeVisual")
+    if legacy_mesh_resources.size() != EXPECTED_SHARED_LEGACY_MESH_RESOURCES:
+        _fail("legacy tree fallback must reuse 2 mesh resources (trunk/crown); found %d" % legacy_mesh_resources.size())
+        return
+
+    runtime.call("set_enhanced_trees_enabled", true)
+    for _frame: int in range(3):
+        await process_frame
+    var restored_mesh_resources := _collect_mesh_resource_ids(root, "StreetTreeVisual")
+    if restored_mesh_resources.size() != EXPECTED_SHARED_MESH_RESOURCES:
+        _fail("enhanced tree mesh reuse must survive legacy round-trip; found %d" % restored_mesh_resources.size())
+        return
+
+    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d legacy_mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [COLLISION_POLICY, foliage_lobes_total, mesh_resources.size(), legacy_mesh_resources.size()])
     quit(0)

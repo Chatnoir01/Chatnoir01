@@ -8,6 +8,7 @@ const VISUAL_OWNER_ID := "anneessens_osm_furniture_runtime"
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 const EXPECTED_COVERAGE_POLICY := "preserve_existing_runtime_subset_v1"
+const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_UPSTREAM_PATH := "data/osm/vertical_slice_01.game.json"
 const EXPECTED_UPSTREAM_FORMAT := "grand-bruxelles-osm-v1"
 const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
@@ -338,6 +339,9 @@ func _validate_coverage_contract(data: Dictionary) -> Variant:
     if not is_finite(coverage_radius_m) or coverage_radius_m <= 0.0:
         push_error("Anneessens OSM furniture coverage radius must be finite and positive")
         return null
+    if coverage_radius_m != EXPECTED_COVERAGE_RADIUS_M:
+        push_error("Anneessens OSM furniture coverage radius drifted")
+        return null
     var upstream_value: Variant = data.get("upstream", null)
     if not upstream_value is Dictionary:
         push_error("Anneessens OSM furniture upstream contract missing")
@@ -355,7 +359,7 @@ func _validate_coverage_contract(data: Dictionary) -> Variant:
     return {
         "coverage_complete": false,
         "coverage_policy": EXPECTED_COVERAGE_POLICY,
-        "coverage_radius_m": coverage_radius_m,
+        "coverage_radius_m": EXPECTED_COVERAGE_RADIUS_M,
         "upstream_source_sha256": EXPECTED_UPSTREAM_SHA256,
     }
 

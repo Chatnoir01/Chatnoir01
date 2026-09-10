@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          test "$(git rev-parse origin/main)" = "020debcb22aceef09e8da8825126bdcc8d09b1fe"
+          test "$(git rev-parse origin/main)" = "1b163891fddc714154da701560fddf377f732645"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
       - uses: actions/setup-python@v5
@@ -46,6 +46,7 @@ jobs:
           python grand-bruxelles-game/tools/civ1_node_property_uniqueness.py --self-test
           python grand-bruxelles-game/tools/civ1_skeleton_nodepath_canonicality.py --self-test
           python grand-bruxelles-game/tools/civ1_material_slot_key_canonicality.py --self-test
+          python grand-bruxelles-game/tools/civ1_skinned_mesh_resource_type.py --self-test
       - name: Measure reachable authored-skin integrity
         run: |
           set -euo pipefail
@@ -62,6 +63,7 @@ jobs:
           python grand-bruxelles-game/tools/civ1_node_property_uniqueness.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-node-property-uniqueness.json
           python grand-bruxelles-game/tools/civ1_skeleton_nodepath_canonicality.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-skeleton-nodepath-canonicality.json
           python grand-bruxelles-game/tools/civ1_material_slot_key_canonicality.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-material-slot-key-canonicality.json
+          python grand-bruxelles-game/tools/civ1_skinned_mesh_resource_type.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-skinned-mesh-resource-type.json
       - name: Assert fail-closed integrity contract
         run: |
           python - <<'PY'
@@ -79,6 +81,7 @@ jobs:
           properties=json.load(open(root/'civ1-node-property-uniqueness.json', encoding='utf-8'))
           skeleton_path=json.load(open(root/'civ1-skeleton-nodepath-canonicality.json', encoding='utf-8'))
           material_slots=json.load(open(root/'civ1-material-slot-key-canonicality.json', encoding='utf-8'))
+          mesh_types=json.load(open(root/'civ1-skinned-mesh-resource-type.json', encoding='utf-8'))
           assert skin['schema']=='grand-bruxelles-civ1-authored-skin-integrity-v3'
           assert backing['schema']=='grand-bruxelles-civ1-external-resource-backing-v5'
           assert alias['schema']=='grand-bruxelles-civ1-canonical-resource-alias-v3'
@@ -91,6 +94,7 @@ jobs:
           assert properties['schema']=='grand-bruxelles-civ1-node-property-uniqueness-v1'
           assert skeleton_path['schema']=='grand-bruxelles-civ1-skeleton-nodepath-canonicality-v1'
           assert material_slots['schema']=='grand-bruxelles-civ1-material-slot-key-canonicality-v1'
+          assert mesh_types['schema']=='grand-bruxelles-civ1-skinned-mesh-resource-type-v1'
           assert skin['cross_section_property_bleed_evidence_accepted'] is False
           assert skin['node_block_boundaries_exact'] is True
           assert resource['escaped_resource_identity_evidence_accepted'] is False
@@ -130,13 +134,16 @@ jobs:
           assert material_slots['negative_material_slot_evidence_accepted'] is False
           assert material_slots['leading_zero_material_slot_evidence_accepted'] is False
           assert material_slots['material_slot_keys_canonical'] is True
-          for d in (skin, backing, alias, resource, node, separators, identity, parent, topology, properties, skeleton_path, material_slots):
+          assert mesh_types['primitive_mesh_authored_skin_evidence_accepted'] is False
+          assert mesh_types['arraymesh_required_for_skinned_authored_evidence'] is True
+          assert mesh_types['skinned_mesh_resource_types_valid'] is True
+          for d in (skin, backing, alias, resource, node, separators, identity, parent, topology, properties, skeleton_path, material_slots, mesh_types):
               assert d['reachable_scene_count'] >= 1
               assert d['runtime_authorized'] is False
               assert d['visual_approval_claimed'] is False
               assert d['contact_verified'] is False
               assert d['foot_slide_verified'] is False
-          print(json.dumps({'skin':skin,'backing':backing,'alias':alias,'resource':resource,'node':node,'separators':separators,'identity':identity,'parent':parent,'topology':topology,'properties':properties,'skeleton_path':skeleton_path,'material_slots':material_slots}, sort_keys=True))
+          print(json.dumps({'skin':skin,'backing':backing,'alias':alias,'resource':resource,'node':node,'separators':separators,'identity':identity,'parent':parent,'topology':topology,'properties':properties,'skeleton_path':skeleton_path,'material_slots':material_slots,'mesh_types':mesh_types}, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:

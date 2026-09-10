@@ -7,8 +7,9 @@ import sys
 from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
+import civ1_node_table_uniqueness as node_table
 
-SCHEMA = "grand-bruxelles-civ1-node-identity-encoding-v1"
+SCHEMA = "grand-bruxelles-civ1-node-identity-encoding-v2"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 IDENTITY_ATTRIBUTES = {"name", "parent", "type"}
@@ -91,6 +92,15 @@ def raw_header_values(header: str) -> list[tuple[str, str]]:
     return values
 
 
+def _decode_quoted(raw: str) -> str | None:
+    if not (len(raw) >= 2 and raw.startswith('"') and raw.endswith('"')):
+        return None
+    try:
+        return node_table.decode_quoted_value(raw)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
 def identity_encoding_conflicts(scene_text: str) -> list[dict[str, object]]:
     conflicts: list[dict[str, object]] = []
     for line_number, line in enumerate(scene_text.splitlines(), start=1):
@@ -98,21 +108,36 @@ def identity_encoding_conflicts(scene_text: str) -> list[dict[str, object]]:
         if not match:
             continue
         for name, raw in raw_header_values(match.group(1)):
-            if name in IDENTITY_ATTRIBUTES and not (len(raw) >= 2 and raw.startswith('"') and raw.endswith('"')):
+            if name not in IDENTITY_ATTRIBUTES:
+                continue
+            decoded = _decode_quoted(raw)
+            if decoded is None:
                 conflicts.append({
                     "line": line_number,
                     "attribute": name,
                     "raw_value": raw,
-                    "reason": "node_identity_attribute_must_be_quoted_string",
+                    "reason": "node_identity_attribute_must_be_valid_quoted_string",
+                    "raw_header": line.strip(),
+                })
+                continue
+            if name == "name" and "/" in decoded:
+                conflicts.append({
+                    "line": line_number,
+                    "attribute": name,
+                    "raw_value": raw,
+                    "decoded_value": decoded,
+                    "reason": "node_name_must_be_single_nodepath_segment",
                     "raw_header": line.strip(),
                 })
     return conflicts
 
 
-def _legacy_v4_accepts_unquoted_identity(header: str) -> bool:
-    # Reproduces the v4 grammar property: bare tokens are accepted as values.
-    attrs = dict(raw_header_values(header))
-    return attrs.get("name") == "NpcAgent" and attrs.get("type") == "CharacterBody3D"
+def _legacy_v1_accepts_path_injected_name(header: str) -> bool:
+    # v1 only required quotes; it did not constrain the decoded node name to
+    # a single NodePath segment, so a slash could forge apparent hierarchy.
+    pairs = dict(raw_header_values(header))
+    raw = pairs.get("name", "")
+    return len(raw) >= 2 and raw.startswith('"') and raw.endswith('"')
 
 
 def self_test() -> None:
@@ -126,7 +151,6 @@ def self_test() -> None:
     assert identity_encoding_conflicts(normal) == []
 
     forged_header = 'name=NpcAgent type=CharacterBody3D parent="."'
-    assert _legacy_v4_accepts_unquoted_identity(forged_header), "regression precondition: node-table v4 grammar accepts bare identity tokens"
     forged_name_type = normal.replace('name="NpcAgent" type="CharacterBody3D"', 'name=NpcAgent type=CharacterBody3D')
     conflicts = identity_encoding_conflicts(forged_name_type)
     assert [(c["attribute"], c["raw_value"]) for c in conflicts] == [("name", "NpcAgent"), ("type", "CharacterBody3D")]
@@ -134,6 +158,19 @@ def self_test() -> None:
     forged_parent = normal.replace('parent="NpcAgent"', 'parent=NpcAgent')
     conflicts = identity_encoding_conflicts(forged_parent)
     assert len(conflicts) == 1 and conflicts[0]["attribute"] == "parent" and conflicts[0]["raw_value"] == "NpcAgent"
+
+    # v1 blind spot: a quoted name containing '/' was accepted and the legacy
+    # evidence parser would concatenate it into a deeper apparent NodePath.
+    path_injected = '[node name="CharacterMount/Skeleton3D" type="Skeleton3D" parent="NpcAgent"]'
+    assert _legacy_v1_accepts_path_injected_name('name="CharacterMount/Skeleton3D" type="Skeleton3D" parent="NpcAgent"')
+    legacy_block = skin.parse_node_blocks(path_injected)[0]
+    assert skin.node_path(legacy_block["attrs"]) == "NpcAgent/CharacterMount/Skeleton3D"
+    conflicts = identity_encoding_conflicts(path_injected)
+    assert len(conflicts) == 1 and conflicts[0]["attribute"] == "name" and conflicts[0]["decoded_value"] == "CharacterMount/Skeleton3D"
+
+    escaped_path_injected = '[node name="CharacterMount\\u002fSkeleton3D" type="Skeleton3D" parent="NpcAgent"]'
+    conflicts = identity_encoding_conflicts(escaped_path_injected)
+    assert len(conflicts) == 1 and conflicts[0]["decoded_value"] == "CharacterMount/Skeleton3D", "escaped slash must not bypass single-segment identity"
 
     # Structured non-identity attributes remain legal and must not be over-rejected.
     assert identity_encoding_conflicts('[node name="Instance" parent="." instance=ExtResource("1_scene") groups=["ambient_pedestrian"]]\n') == []
@@ -158,16 +195,18 @@ def main() -> int:
             conflicts.append({"scene": rel, **item})
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_canonical_quoted_node_identity_attributes",
+        "evidence_mode": "reachable_tscn_plus_valid_quoted_identity_plus_single_segment_node_name",
         "reachable_scene_count": len(scenes),
         "node_identity_encoding_conflicts": conflicts,
-        "node_identity_attributes_canonically_quoted": not conflicts,
+        "node_identity_attributes_canonically_quoted": not any(c["reason"].startswith("node_identity_attribute") for c in conflicts),
+        "node_names_single_segment": not any(c["reason"] == "node_name_must_be_single_nodepath_segment" for c in conflicts),
         "unquoted_node_identity_evidence_accepted": False,
+        "path_injected_node_name_evidence_accepted": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
-        "next_action": "quote node name/type/parent identity attributes before Character hierarchy evidence can be trusted" if conflicts else "retain canonical quoted node identity gate before authored Character loaded-scene approval",
+        "next_action": "repair node identity encoding/path-segment conflicts before Character hierarchy evidence can be trusted" if conflicts else "retain canonical identity and single-segment node-name gate before authored Character loaded-scene approval",
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

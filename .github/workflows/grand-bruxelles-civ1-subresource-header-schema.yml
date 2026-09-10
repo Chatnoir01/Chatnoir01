@@ -6,12 +6,14 @@ on:
       - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
       - 'grand-bruxelles-game/tools/civ1_subresource_header_schema.py'
       - 'grand-bruxelles-game/tools/test_civ1_subresource_header_schema.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
       - '.github/workflows/grand-bruxelles-civ1-subresource-header-schema.yml'
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
       - 'grand-bruxelles-game/tools/civ1_subresource_header_schema.py'
       - 'grand-bruxelles-game/tools/test_civ1_subresource_header_schema.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
       - '.github/workflows/grand-bruxelles-civ1-subresource-header-schema.yml'
 permissions:
   contents: read
@@ -35,4 +37,36 @@ jobs:
           python-version: '3.12'
       - name: Prove subresource headers fail closed
         working-directory: grand-bruxelles-game/tools
-        run: python test_civ1_subresource_header_schema.py
+        run: |
+          set -euo pipefail
+          python test_civ1_subresource_header_schema.py
+          python civ1_subresource_header_schema.py --self-test
+      - name: Measure reachable subresource header schema
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-subresource-header-schema
+          python grand-bruxelles-game/tools/civ1_subresource_header_schema.py grand-bruxelles-game/game/main.tscn /tmp/civ1-subresource-header-schema/civ1-subresource-header-schema.json
+      - name: Assert fail-closed receipt
+        run: |
+          python - <<'PY'
+          import json
+          p='/tmp/civ1-subresource-header-schema/civ1-subresource-header-schema.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-civ1-subresource-header-schema-v1'
+          assert d['reachable_scene_count'] >= 1
+          assert d['subresource_header_schema_conflicts'] == []
+          assert d['subresource_header_schema_canonical'] is True
+          assert d['subresource_uid_evidence_accepted'] is False
+          assert d['subresource_path_evidence_accepted'] is False
+          assert d['subresource_missing_required_attribute_evidence_accepted'] is False
+          assert d['subresource_empty_required_attribute_evidence_accepted'] is False
+          assert d['runtime_authorized'] is False
+          assert d['visual_approval_claimed'] is False
+          assert d['contact_verified'] is False
+          assert d['foot_slide_verified'] is False
+          print(json.dumps(d, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-subresource-header-schema
+          path: /tmp/civ1-subresource-header-schema/civ1-subresource-header-schema.json

@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          test "$(git rev-parse origin/main)" = "6549eb2c5238090840a65e87c32987207f162e5f"
+          test "$(git rev-parse origin/main)" = "020debcb22aceef09e8da8825126bdcc8d09b1fe"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
       - uses: actions/setup-python@v5
@@ -81,7 +81,7 @@ jobs:
           assert separators['schema']=='grand-bruxelles-civ1-node-attribute-separators-v1'
           assert identity['schema']=='grand-bruxelles-civ1-node-identity-encoding-v2'
           assert parent['schema']=='grand-bruxelles-civ1-parent-nodepath-canonicality-v2'
-          assert topology['schema']=='grand-bruxelles-civ1-node-tree-topology-v1'
+          assert topology['schema']=='grand-bruxelles-civ1-node-tree-topology-v2'
           assert properties['schema']=='grand-bruxelles-civ1-node-property-uniqueness-v1'
           assert skin['cross_section_property_bleed_evidence_accepted'] is False
           assert skin['node_block_boundaries_exact'] is True
@@ -107,6 +107,8 @@ jobs:
           assert parent['parent_nodepaths_canonical'] is True
           assert topology['orphan_hierarchy_evidence_accepted'] is False
           assert topology['multiple_root_evidence_accepted'] is False
+          assert topology['duplicate_canonical_node_path_evidence_accepted'] is False
+          assert topology['canonical_node_paths_unique'] is True
           assert topology['node_tree_topology_valid'] is True
           assert properties['duplicate_node_property_evidence_accepted'] is False
           assert properties['node_property_assignments_unique'] is True

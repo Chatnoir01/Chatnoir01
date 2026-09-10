@@ -613,7 +613,6 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     tree.set_meta("species_claimed", false)
     var legacy := Node3D.new()
     legacy.name = "LegacyTreeVisual"
-    legacy.name = "LegacyTreeVisual"
     _mark_owned_tree_visual(legacy)
     tree.add_child(legacy)
     var trunk_mesh := MeshInstance3D.new()

@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          test "$(git rev-parse origin/main)" = "57f379cf017c62baff44748957bf629cd107c3c5"
+          test "$(git rev-parse origin/main)" = "34ecffd405cd4b090b68fff0bd862fb617c71629"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
       - uses: actions/setup-python@v5
@@ -70,7 +70,7 @@ jobs:
           assert resource['schema']=='grand-bruxelles-civ1-resource-table-uniqueness-v5'
           assert node['schema']=='grand-bruxelles-civ1-node-table-uniqueness-v4'
           assert separators['schema']=='grand-bruxelles-civ1-node-attribute-separators-v1'
-          assert identity['schema']=='grand-bruxelles-civ1-node-identity-encoding-v1'
+          assert identity['schema']=='grand-bruxelles-civ1-node-identity-encoding-v2'
           assert resource['escaped_resource_identity_evidence_accepted'] is False
           assert resource['resource_table_identity_unambiguous'] is True
           assert node['escaped_node_identity_evidence_accepted'] is False
@@ -82,7 +82,9 @@ jobs:
           assert separators['concatenated_node_attribute_evidence_accepted'] is False
           assert separators['node_header_attribute_separators_valid'] is True
           assert identity['unquoted_node_identity_evidence_accepted'] is False
+          assert identity['path_injected_node_name_evidence_accepted'] is False
           assert identity['node_identity_attributes_canonically_quoted'] is True
+          assert identity['node_names_single_segment'] is True
           for d in (skin, backing, alias, resource, node, separators, identity):
               assert d['reachable_scene_count'] >= 1
               assert d['runtime_authorized'] is False

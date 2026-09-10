@@ -30,7 +30,7 @@ jobs:
           git fetch --no-tags origin "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
 
-      - name: Prove live base is RED for missing selection-integrity contract
+      - name: Prove live base preserves selection-integrity contract
         shell: bash
         run: |
           set -euo pipefail
@@ -38,18 +38,15 @@ jobs:
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           RUNTIME="grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
 
-          # Mutate only the runtime under test to its exact live-base version.
-          # The regression itself remains the PR-head test so it can prove the
-          # missing contract against the actual predecessor implementation.
+          # Selection integrity shipped to main in #2034. For later Environment
+          # lots this workflow is a preservation gate, not a synthetic RED gate.
+          # Run the exact PR-head regression against the exact live-base runtime;
+          # it must stay GREEN or the base/contract relationship is inconsistent.
           git checkout "$BASE_SHA" -- "$RUNTIME"
-          if python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py; then
-            echo "Expected base regression to fail, but it passed" >&2
-            exit 1
-          fi
+          python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py
 
-          # A path checkout also mutates the index. Restore the entire exact PR
-          # head before the GREEN proof so no staged/base state can leak across
-          # the RED -> GREEN boundary.
+          # A path checkout mutates both worktree and index. Restore the exact
+          # raw PR head before the head proof and require a completely clean tree.
           git reset --hard "$HEAD_SHA"
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain)"

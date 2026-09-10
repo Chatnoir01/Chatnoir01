@@ -20,7 +20,8 @@ func _run() -> void:
     if not FileAccess.file_exists(DATA_PATH):
         _fail("canonical Anneessens environment artifact missing")
         return
-    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(DATA_PATH))
+    var raw_text := FileAccess.get_file_as_string(DATA_PATH)
+    var parsed: Variant = JSON.parse_string(raw_text)
     if not parsed is Dictionary:
         _fail("canonical Anneessens environment artifact invalid")
         return
@@ -40,6 +41,41 @@ func _run() -> void:
         return
 
     var runtime := RUNTIME_SCRIPT.new()
+
+    # Raw-source integrity regression: Godot's normal JSON object materialization
+    # cannot preserve evidence that an object member was declared twice. A
+    # duplicate provenance key must therefore be rejected before semantic
+    # validation can see only the surviving value. Exercise both the top-level
+    # object and a nested upstream object so valid repeated key names in separate
+    # objects (for example top-level/upstream `format`) remain legal.
+    if not runtime.has_method("_parse_strict_json_object"):
+        runtime.free()
+        _fail("runtime has no duplicate-key-aware JSON intake gate")
+        return
+    var strict_canonical: Variant = runtime.call("_parse_strict_json_object", raw_text)
+    if strict_canonical == null:
+        runtime.free()
+        _fail("strict JSON intake rejected canonical Anneessens artifact")
+        return
+    var duplicate_license := raw_text.replace("\"license\":\"ODbL-1.0\"", "\"license\":\"ODbL-1.0\",\"license\":\"ODbL-1.0\"")
+    if duplicate_license == raw_text:
+        runtime.free()
+        _fail("duplicate-license regression fixture was not constructed")
+        return
+    if runtime.call("_parse_strict_json_object", duplicate_license) != null:
+        runtime.free()
+        _fail("runtime accepted duplicate top-level license evidence")
+        return
+    var duplicate_upstream_sha := raw_text.replace("\"sha256\":\"899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398\"", "\"sha256\":\"899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398\",\"sha256\":\"899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398\"")
+    if duplicate_upstream_sha == raw_text:
+        runtime.free()
+        _fail("duplicate-upstream-sha regression fixture was not constructed")
+        return
+    if runtime.call("_parse_strict_json_object", duplicate_upstream_sha) != null:
+        runtime.free()
+        _fail("runtime accepted duplicate nested upstream digest evidence")
+        return
+
     var canonical: Variant = runtime.call("_validate_coverage_contract", data)
     if canonical == null:
         runtime.free()
@@ -152,5 +188,5 @@ func _run() -> void:
         _fail("canonical source-position identity error receipt invalid")
         return
 
-    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true source_position_drift_fail_closed=true upstream_origin_drift_fail_closed=true" % max_distance_m)
+    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true source_position_drift_fail_closed=true upstream_origin_drift_fail_closed=true duplicate_json_keys_fail_closed=true" % max_distance_m)
     quit(0)

@@ -241,6 +241,28 @@ func _collect_validated_tree_points(data: Dictionary) -> Variant:
         validated.append({"osm_id": osm_id, "position": Vector3(x, 0.0, z)})
     return validated
 
+func _validate_selection_radius_membership(tree_points: Array) -> Variant:
+    var max_distance_m := 0.0
+    for tree_point: Variant in tree_points:
+        if not tree_point is Dictionary:
+            push_error("Anneessens OSM furniture radius membership point invalid")
+            return null
+        var point := tree_point as Dictionary
+        var position_value: Variant = point.get("position", null)
+        if not position_value is Vector3:
+            push_error("Anneessens OSM furniture radius membership position invalid")
+            return null
+        var position := position_value as Vector3
+        var distance_m := Vector2(position.x - ANNEESSENS.x, position.z - ANNEESSENS.z).length()
+        if not is_finite(distance_m) or distance_m > EXPECTED_COVERAGE_RADIUS_M + 0.0001:
+            push_error("Anneessens OSM furniture tree escaped declared 130m source subset")
+            return null
+        max_distance_m = max(max_distance_m, distance_m)
+    return {
+        "radius_membership_validated": true,
+        "max_distance_m": max_distance_m,
+    }
+
 func _validate_selection_integrity(data: Dictionary, tree_points: Array) -> Variant:
     var selection_value: Variant = data.get("selection", null)
     if not selection_value is Dictionary:
@@ -398,6 +420,10 @@ func _build_once() -> void:
     if validated_tree_points == null:
         return
     var tree_points := validated_tree_points as Array
+    var radius_membership_value: Variant = _validate_selection_radius_membership(tree_points)
+    if radius_membership_value == null:
+        return
+    var radius_membership := radius_membership_value as Dictionary
     var selection_integrity_value: Variant = _validate_selection_integrity(data, tree_points)
     if selection_integrity_value == null:
         return
@@ -419,6 +445,8 @@ func _build_once() -> void:
     _root.set_meta("coverage_policy", str(coverage_contract["coverage_policy"]))
     _root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
     _root.set_meta("upstream_source_sha256", str(coverage_contract["upstream_source_sha256"]))
+    _root.set_meta("radius_membership_validated", bool(radius_membership["radius_membership_validated"]))
+    _root.set_meta("selection_max_distance_m", float(radius_membership["max_distance_m"]))
     _root.set_meta("selection_identity_validated", true)
     _root.set_meta("selection_tree_count", tree_points.size())
     _root.set_meta("selection_osm_ids", selection_integrity["selection_osm_ids"])
@@ -443,7 +471,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

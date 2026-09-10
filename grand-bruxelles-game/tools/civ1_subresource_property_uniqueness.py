@@ -67,25 +67,23 @@ def _duplicates_for_subresource(subresource: dict[str, object]) -> list[dict[str
 
 def _legacy_subresource_property_dict(scene_text: str, target_id: str) -> dict[str, str]:
     current_id: str | None = None
-    props: dict[str, str] = {}
+    target_props: dict[str, str] = {}
     for line in scene_text.splitlines():
         match = SUBRESOURCE_RE.match(line)
         if match:
             id_match = ID_RE.search(match.group(1))
             current_id = id_match.group(1) if id_match else None
-            props = {}
             continue
         if line.lstrip().startswith("["):
             current_id = None
-            props = {}
             continue
         if current_id != target_id or "=" not in line:
             continue
         key, value = line.split("=", 1)
         key = key.strip()
         if key:
-            props[key] = value.strip()
-    return props if current_id == target_id else props
+            target_props[key] = value.strip()
+    return target_props
 
 
 def self_test() -> None:

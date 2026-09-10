@@ -43,6 +43,7 @@ jobs:
           python grand-bruxelles-game/tools/civ1_node_identity_encoding.py --self-test
           python grand-bruxelles-game/tools/civ1_parent_nodepath_canonicality.py --self-test
           python grand-bruxelles-game/tools/civ1_node_tree_topology.py --self-test
+          python grand-bruxelles-game/tools/civ1_node_property_uniqueness.py --self-test
       - name: Measure reachable authored-skin integrity
         run: |
           set -euo pipefail
@@ -56,6 +57,7 @@ jobs:
           python grand-bruxelles-game/tools/civ1_node_identity_encoding.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-node-identity-encoding.json
           python grand-bruxelles-game/tools/civ1_parent_nodepath_canonicality.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-parent-nodepath-canonicality.json
           python grand-bruxelles-game/tools/civ1_node_tree_topology.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-node-tree-topology.json
+          python grand-bruxelles-game/tools/civ1_node_property_uniqueness.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-node-property-uniqueness.json
       - name: Assert fail-closed integrity contract
         run: |
           python - <<'PY'
@@ -70,6 +72,7 @@ jobs:
           identity=json.load(open(root/'civ1-node-identity-encoding.json', encoding='utf-8'))
           parent=json.load(open(root/'civ1-parent-nodepath-canonicality.json', encoding='utf-8'))
           topology=json.load(open(root/'civ1-node-tree-topology.json', encoding='utf-8'))
+          properties=json.load(open(root/'civ1-node-property-uniqueness.json', encoding='utf-8'))
           assert skin['schema']=='grand-bruxelles-civ1-authored-skin-integrity-v3'
           assert backing['schema']=='grand-bruxelles-civ1-external-resource-backing-v5'
           assert alias['schema']=='grand-bruxelles-civ1-canonical-resource-alias-v3'
@@ -79,6 +82,7 @@ jobs:
           assert identity['schema']=='grand-bruxelles-civ1-node-identity-encoding-v2'
           assert parent['schema']=='grand-bruxelles-civ1-parent-nodepath-canonicality-v2'
           assert topology['schema']=='grand-bruxelles-civ1-node-tree-topology-v1'
+          assert properties['schema']=='grand-bruxelles-civ1-node-property-uniqueness-v1'
           assert skin['cross_section_property_bleed_evidence_accepted'] is False
           assert skin['node_block_boundaries_exact'] is True
           assert resource['escaped_resource_identity_evidence_accepted'] is False
@@ -104,13 +108,15 @@ jobs:
           assert topology['orphan_hierarchy_evidence_accepted'] is False
           assert topology['multiple_root_evidence_accepted'] is False
           assert topology['node_tree_topology_valid'] is True
-          for d in (skin, backing, alias, resource, node, separators, identity, parent, topology):
+          assert properties['duplicate_node_property_evidence_accepted'] is False
+          assert properties['node_property_assignments_unique'] is True
+          for d in (skin, backing, alias, resource, node, separators, identity, parent, topology, properties):
               assert d['reachable_scene_count'] >= 1
               assert d['runtime_authorized'] is False
               assert d['visual_approval_claimed'] is False
               assert d['contact_verified'] is False
               assert d['foot_slide_verified'] is False
-          print(json.dumps({'skin':skin,'backing':backing,'alias':alias,'resource':resource,'node':node,'separators':separators,'identity':identity,'parent':parent,'topology':topology}, sort_keys=True))
+          print(json.dumps({'skin':skin,'backing':backing,'alias':alias,'resource':resource,'node':node,'separators':separators,'identity':identity,'parent':parent,'topology':topology,'properties':properties}, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:

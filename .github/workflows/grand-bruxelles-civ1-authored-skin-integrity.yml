@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          test "$(git rev-parse origin/main)" = "1b163891fddc714154da701560fddf377f732645"
+          test "$(git rev-parse origin/main)" = "0138ae5d1a22884ad58fd02e7a9457c7bf81f1ec"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
       - uses: actions/setup-python@v5
@@ -44,6 +44,7 @@ jobs:
           python grand-bruxelles-game/tools/civ1_parent_nodepath_canonicality.py --self-test
           python grand-bruxelles-game/tools/civ1_node_tree_topology.py --self-test
           python grand-bruxelles-game/tools/civ1_node_property_uniqueness.py --self-test
+          python grand-bruxelles-game/tools/civ1_subresource_property_uniqueness.py --self-test
           python grand-bruxelles-game/tools/civ1_skeleton_nodepath_canonicality.py --self-test
           python grand-bruxelles-game/tools/civ1_material_slot_key_canonicality.py --self-test
           python grand-bruxelles-game/tools/civ1_skinned_mesh_resource_type.py --self-test
@@ -61,6 +62,7 @@ jobs:
           python grand-bruxelles-game/tools/civ1_parent_nodepath_canonicality.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-parent-nodepath-canonicality.json
           python grand-bruxelles-game/tools/civ1_node_tree_topology.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-node-tree-topology.json
           python grand-bruxelles-game/tools/civ1_node_property_uniqueness.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-node-property-uniqueness.json
+          python grand-bruxelles-game/tools/civ1_subresource_property_uniqueness.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-subresource-property-uniqueness.json
           python grand-bruxelles-game/tools/civ1_skeleton_nodepath_canonicality.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-skeleton-nodepath-canonicality.json
           python grand-bruxelles-game/tools/civ1_material_slot_key_canonicality.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-material-slot-key-canonicality.json
           python grand-bruxelles-game/tools/civ1_skinned_mesh_resource_type.py grand-bruxelles-game/game/main.tscn /tmp/civ1-skin-integrity/civ1-skinned-mesh-resource-type.json
@@ -79,6 +81,7 @@ jobs:
           parent=json.load(open(root/'civ1-parent-nodepath-canonicality.json', encoding='utf-8'))
           topology=json.load(open(root/'civ1-node-tree-topology.json', encoding='utf-8'))
           properties=json.load(open(root/'civ1-node-property-uniqueness.json', encoding='utf-8'))
+          subresource_properties=json.load(open(root/'civ1-subresource-property-uniqueness.json', encoding='utf-8'))
           skeleton_path=json.load(open(root/'civ1-skeleton-nodepath-canonicality.json', encoding='utf-8'))
           material_slots=json.load(open(root/'civ1-material-slot-key-canonicality.json', encoding='utf-8'))
           mesh_types=json.load(open(root/'civ1-skinned-mesh-resource-type.json', encoding='utf-8'))
@@ -92,6 +95,7 @@ jobs:
           assert parent['schema']=='grand-bruxelles-civ1-parent-nodepath-canonicality-v2'
           assert topology['schema']=='grand-bruxelles-civ1-node-tree-topology-v2'
           assert properties['schema']=='grand-bruxelles-civ1-node-property-uniqueness-v1'
+          assert subresource_properties['schema']=='grand-bruxelles-civ1-subresource-property-uniqueness-v1'
           assert skeleton_path['schema']=='grand-bruxelles-civ1-skeleton-nodepath-canonicality-v1'
           assert material_slots['schema']=='grand-bruxelles-civ1-material-slot-key-canonicality-v1'
           assert mesh_types['schema']=='grand-bruxelles-civ1-skinned-mesh-resource-type-v1'
@@ -124,6 +128,8 @@ jobs:
           assert topology['node_tree_topology_valid'] is True
           assert properties['duplicate_node_property_evidence_accepted'] is False
           assert properties['node_property_assignments_unique'] is True
+          assert subresource_properties['duplicate_subresource_property_evidence_accepted'] is False
+          assert subresource_properties['subresource_property_assignments_unique'] is True
           assert skeleton_path['dot_segment_skeleton_alias_evidence_accepted'] is False
           assert skeleton_path['traversal_detour_skeleton_alias_evidence_accepted'] is False
           assert skeleton_path['absolute_skeleton_nodepath_evidence_accepted'] is False
@@ -137,13 +143,13 @@ jobs:
           assert mesh_types['primitive_mesh_authored_skin_evidence_accepted'] is False
           assert mesh_types['arraymesh_required_for_skinned_authored_evidence'] is True
           assert mesh_types['skinned_mesh_resource_types_valid'] is True
-          for d in (skin, backing, alias, resource, node, separators, identity, parent, topology, properties, skeleton_path, material_slots, mesh_types):
+          for d in (skin, backing, alias, resource, node, separators, identity, parent, topology, properties, subresource_properties, skeleton_path, material_slots, mesh_types):
               assert d['reachable_scene_count'] >= 1
               assert d['runtime_authorized'] is False
               assert d['visual_approval_claimed'] is False
               assert d['contact_verified'] is False
               assert d['foot_slide_verified'] is False
-          print(json.dumps({'skin':skin,'backing':backing,'alias':alias,'resource':resource,'node':node,'separators':separators,'identity':identity,'parent':parent,'topology':topology,'properties':properties,'skeleton_path':skeleton_path,'material_slots':material_slots,'mesh_types':mesh_types}, sort_keys=True))
+          print(json.dumps({'skin':skin,'backing':backing,'alias':alias,'resource':resource,'node':node,'separators':separators,'identity':identity,'parent':parent,'topology':topology,'properties':properties,'subresource_properties':subresource_properties,'skeleton_path':skeleton_path,'material_slots':material_slots,'mesh_types':mesh_types}, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:

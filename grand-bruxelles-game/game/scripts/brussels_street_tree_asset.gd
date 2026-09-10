@@ -72,6 +72,16 @@ static func create_foliage_mesh(material: Material) -> SphereMesh:
     mesh.material = material
     return mesh
 
+static func create_meshes(materials: Dictionary) -> Dictionary:
+    ## Geometry is identical for every tree. Keep the cache owned by the caller's
+    ## furniture root so teardown releases it with the scene instead of retaining
+    ## materials/resources in a process-global static cache.
+    return {
+        "trunk": create_trunk_mesh(materials["trunk"] as Material),
+        "foliage_dark": create_foliage_mesh(materials["foliage_dark"] as Material),
+        "foliage_light": create_foliage_mesh(materials["foliage_light"] as Material),
+    }
+
 static func trunk_transform(base_position: Vector3) -> Transform3D:
     return Transform3D(Basis.IDENTITY, base_position + Vector3(0.0, TRUNK_HEIGHT * 0.5, 0.0))
 
@@ -104,7 +114,7 @@ static func foliage_lobe_transform(base_position: Vector3, osm_id: int, index: i
     var basis := Basis.IDENTITY.scaled(lobe_scale)
     return Transform3D(basis, base_position + rotated)
 
-static func populate(tree: StaticBody3D, osm_id: int, materials: Dictionary) -> Node3D:
+static func populate(tree: StaticBody3D, osm_id: int, materials: Dictionary, meshes: Dictionary = {}) -> Node3D:
     var visual := Node3D.new()
     visual.name = "StreetTreeVisual"
     visual.set_meta("asset_family", ASSET_FAMILY)
@@ -120,9 +130,11 @@ static func populate(tree: StaticBody3D, osm_id: int, materials: Dictionary) -> 
     tree.set_meta("species_claimed", false)
     tree.set_meta("visual_dimensions_provenance", "authored_presentation_not_source_measurement")
 
+    var mesh_library := meshes if not meshes.is_empty() else create_meshes(materials)
+
     var trunk_mesh := MeshInstance3D.new()
     trunk_mesh.name = "Trunk"
-    trunk_mesh.mesh = create_trunk_mesh(materials["trunk"] as Material)
+    trunk_mesh.mesh = mesh_library["trunk"] as Mesh
     trunk_mesh.transform = trunk_transform(Vector3.ZERO)
     visual.add_child(trunk_mesh)
 
@@ -130,7 +142,7 @@ static func populate(tree: StaticBody3D, osm_id: int, materials: Dictionary) -> 
         var lobe := MeshInstance3D.new()
         lobe.name = "FoliageLobe_%d" % index
         var key := "foliage_light" if foliage_is_light(index) else "foliage_dark"
-        lobe.mesh = create_foliage_mesh(materials[key] as Material)
+        lobe.mesh = mesh_library[key] as Mesh
         lobe.transform = foliage_lobe_transform(Vector3.ZERO, osm_id, index)
         visual.add_child(lobe)
     return visual

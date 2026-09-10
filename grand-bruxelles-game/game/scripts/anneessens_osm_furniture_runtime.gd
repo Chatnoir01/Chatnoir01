@@ -209,6 +209,117 @@ func _reset() -> void:
     _player = null
     _manual_binding = false
 
+func _skip_json_whitespace(text: String, index: int) -> int:
+    var cursor := index
+    while cursor < text.length() and text.substr(cursor, 1) in [" ", "\t", "\r", "\n"]:
+        cursor += 1
+    return cursor
+
+func _scan_json_string_end(text: String, index: int) -> int:
+    if index >= text.length() or text.substr(index, 1) != "\"":
+        return -1
+    var cursor := index + 1
+    while cursor < text.length():
+        var ch := text.substr(cursor, 1)
+        if ch == "\"":
+            return cursor + 1
+        if ch == "\\":
+            cursor += 1
+            if cursor >= text.length():
+                return -1
+            if text.substr(cursor, 1) == "u":
+                if cursor + 4 >= text.length():
+                    return -1
+                cursor += 5
+                continue
+        cursor += 1
+    return -1
+
+func _scan_json_value(text: String, index: int) -> int:
+    var cursor := _skip_json_whitespace(text, index)
+    if cursor >= text.length():
+        return -1
+    var ch := text.substr(cursor, 1)
+    if ch == "\"":
+        return _scan_json_string_end(text, cursor)
+    if ch == "{":
+        return _scan_json_object(text, cursor)
+    if ch == "[":
+        cursor = _skip_json_whitespace(text, cursor + 1)
+        if cursor < text.length() and text.substr(cursor, 1) == "]":
+            return cursor + 1
+        while cursor < text.length():
+            cursor = _scan_json_value(text, cursor)
+            if cursor < 0:
+                return -1
+            cursor = _skip_json_whitespace(text, cursor)
+            if cursor >= text.length():
+                return -1
+            ch = text.substr(cursor, 1)
+            if ch == "]":
+                return cursor + 1
+            if ch != ",":
+                return -1
+            cursor = _skip_json_whitespace(text, cursor + 1)
+        return -1
+    while cursor < text.length():
+        ch = text.substr(cursor, 1)
+        if ch in [",", "]", "}", " ", "\t", "\r", "\n"]:
+            break
+        cursor += 1
+    return cursor if cursor > index else -1
+
+func _scan_json_object(text: String, index: int) -> int:
+    if index >= text.length() or text.substr(index, 1) != "{":
+        return -1
+    var seen: Dictionary = {}
+    var cursor := _skip_json_whitespace(text, index + 1)
+    if cursor < text.length() and text.substr(cursor, 1) == "}":
+        return cursor + 1
+    while cursor < text.length():
+        if text.substr(cursor, 1) != "\"":
+            return -1
+        var key_end := _scan_json_string_end(text, cursor)
+        if key_end < 0:
+            return -1
+        var key_literal := text.substr(cursor, key_end - cursor)
+        var decoded_key: Variant = JSON.parse_string(key_literal)
+        if typeof(decoded_key) != TYPE_STRING:
+            return -1
+        var key := str(decoded_key)
+        if seen.has(key):
+            push_error("Anneessens OSM furniture JSON object contains duplicate key: %s" % key)
+            return -1
+        seen[key] = true
+        cursor = _skip_json_whitespace(text, key_end)
+        if cursor >= text.length() or text.substr(cursor, 1) != ":":
+            return -1
+        cursor = _scan_json_value(text, cursor + 1)
+        if cursor < 0:
+            return -1
+        cursor = _skip_json_whitespace(text, cursor)
+        if cursor >= text.length():
+            return -1
+        var separator := text.substr(cursor, 1)
+        if separator == "}":
+            return cursor + 1
+        if separator != ",":
+            return -1
+        cursor = _skip_json_whitespace(text, cursor + 1)
+    return -1
+
+func _parse_strict_json_object(raw_text: String) -> Variant:
+    var start := _skip_json_whitespace(raw_text, 0)
+    if start >= raw_text.length() or raw_text.substr(start, 1) != "{":
+        return null
+    var end := _scan_json_object(raw_text, start)
+    if end < 0 or _skip_json_whitespace(raw_text, end) != raw_text.length():
+        return null
+    var parsed: Variant = JSON.parse_string(raw_text)
+    if not parsed is Dictionary:
+        return null
+    return parsed
+
 func _collect_validated_tree_points(data: Dictionary) -> Variant:
     var environment_points: Variant = data.get("environment_points", null)
     if not environment_points is Array:
@@ -466,9 +577,9 @@ func _build_once() -> void:
     if not FileAccess.file_exists(DATA_PATH):
         push_warning("Anneessens OSM furniture data missing")
         return
-    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(DATA_PATH))
+    var parsed: Variant = _parse_strict_json_object(FileAccess.get_file_as_string(DATA_PATH))
     if not parsed is Dictionary:
-        push_error("Anneessens OSM furniture JSON invalid")
+        push_error("Anneessens OSM furniture JSON invalid or ambiguous")
         return
     var data := parsed as Dictionary
     if str(data.get("format", "")) != "grand-bruxelles-osm-zone-environment-v1":
@@ -556,7 +667,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true strict_json=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

@@ -240,6 +240,84 @@ func _collect_validated_tree_points(data: Dictionary) -> Variant:
         validated.append({"osm_id": osm_id, "position": Vector3(x, 0.0, z)})
     return validated
 
+func _validate_selection_integrity(data: Dictionary, tree_points: Array) -> Variant:
+    var selection_value: Variant = data.get("selection", null)
+    if not selection_value is Dictionary:
+        push_error("Anneessens OSM furniture selection contract missing")
+        return null
+    var selection := selection_value as Dictionary
+    var anchor_value: Variant = selection.get("anchor", null)
+    if not anchor_value is Array or (anchor_value as Array).size() != 2:
+        push_error("Anneessens OSM furniture selection anchor invalid")
+        return null
+    var anchor := anchor_value as Array
+    if typeof(anchor[0]) not in [TYPE_FLOAT, TYPE_INT] or typeof(anchor[1]) not in [TYPE_FLOAT, TYPE_INT]:
+        push_error("Anneessens OSM furniture selection anchor must be numeric")
+        return null
+    var anchor_x := float(anchor[0])
+    var anchor_z := float(anchor[1])
+    if not is_finite(anchor_x) or not is_finite(anchor_z) or abs(anchor_x - ANNEESSENS.x) > 0.0001 or abs(anchor_z - ANNEESSENS.z) > 0.0001:
+        push_error("Anneessens OSM furniture selection anchor drifted")
+        return null
+
+    var selected_value: Variant = selection.get("osm_ids", null)
+    if not selected_value is Array:
+        push_error("Anneessens OSM furniture selection osm_ids invalid")
+        return null
+    var selected_ids: Array[int] = []
+    var selected_seen: Dictionary = {}
+    for raw_id: Variant in selected_value as Array:
+        if typeof(raw_id) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("Anneessens OSM furniture selection osm_id must be numeric")
+            return null
+        var selected_number := float(raw_id)
+        if not is_finite(selected_number) or selected_number <= 0.0 or selected_number > MAX_EXACT_JSON_INTEGER or floor(selected_number) != selected_number:
+            push_error("Anneessens OSM furniture selection osm_id must be a positive exact integer")
+            return null
+        var selected_id := int(selected_number)
+        if selected_seen.has(selected_id):
+            push_error("Anneessens OSM furniture selection osm_id duplicated")
+            return null
+        selected_seen[selected_id] = true
+        selected_ids.append(selected_id)
+
+    var point_ids: Array[int] = []
+    for tree_point: Variant in tree_points:
+        point_ids.append(int((tree_point as Dictionary)["osm_id"]))
+    var selected_sorted := selected_ids.duplicate()
+    var point_sorted := point_ids.duplicate()
+    selected_sorted.sort()
+    point_sorted.sort()
+    if selected_sorted != point_sorted:
+        push_error("Anneessens OSM furniture selection ids do not match mounted tree points")
+        return null
+
+    var stats_value: Variant = data.get("stats", null)
+    if not stats_value is Dictionary:
+        push_error("Anneessens OSM furniture stats contract missing")
+        return null
+    var stats := stats_value as Dictionary
+    for key: String in ["tree", "total", "bollard", "street_lamp"]:
+        var stat_value: Variant = stats.get(key, null)
+        if typeof(stat_value) not in [TYPE_FLOAT, TYPE_INT]:
+            push_error("Anneessens OSM furniture stats %s invalid" % key)
+            return null
+        var stat_number := float(stat_value)
+        if not is_finite(stat_number) or stat_number < 0.0 or floor(stat_number) != stat_number:
+            push_error("Anneessens OSM furniture stats %s must be a non-negative integer" % key)
+            return null
+    var environment_points := data.get("environment_points", []) as Array
+    if int(stats.get("tree", -1)) != tree_points.size() or int(stats.get("total", -1)) != environment_points.size():
+        push_error("Anneessens OSM furniture stats accounting drifted")
+        return null
+    if int(stats.get("bollard", -1)) != 0 or int(stats.get("street_lamp", -1)) != 0 or environment_points.size() != tree_points.size():
+        push_error("Anneessens OSM furniture preserved subset contains unsupported non-tree points")
+        return null
+    return {
+        "selection_osm_ids": selected_ids,
+        "selection_anchor": ANNEESSENS,
+    }
+
 func _validate_coverage_contract(data: Dictionary) -> Variant:
     var selection_value: Variant = data.get("selection", null)
     if not selection_value is Dictionary:
@@ -316,6 +394,10 @@ func _build_once() -> void:
     if validated_tree_points == null:
         return
     var tree_points := validated_tree_points as Array
+    var selection_integrity_value: Variant = _validate_selection_integrity(data, tree_points)
+    if selection_integrity_value == null:
+        return
+    var selection_integrity := selection_integrity_value as Dictionary
 
     _root = Node3D.new()
     _root.name = "AnneessensOsmFurniture"
@@ -333,6 +415,9 @@ func _build_once() -> void:
     _root.set_meta("coverage_policy", str(coverage_contract["coverage_policy"]))
     _root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
     _root.set_meta("upstream_source_sha256", str(coverage_contract["upstream_source_sha256"]))
+    _root.set_meta("selection_identity_validated", true)
+    _root.set_meta("selection_tree_count", tree_points.size())
+    _root.set_meta("selection_osm_ids", selection_integrity["selection_osm_ids"])
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
     _tree_meshes = TREE_ASSET.create_meshes(_tree_materials)
@@ -354,7 +439,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

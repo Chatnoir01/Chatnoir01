@@ -97,7 +97,7 @@ def _request(query: str) -> dict:
 
 
 def fetch(query: str, retries: int = 4) -> dict:
-    """Fetch Overpass data with bounded exponential retry for transient errors."""
+    """Fetch Overpass data with bounded exponential retry for transport failures."""
     if retries < 1:
         raise ValueError("retries must be at least 1")
 
@@ -114,7 +114,7 @@ def fetch(query: str, retries: int = 4) -> dict:
             delay = min(2 ** attempt, 12)
             print(f"Overpass HTTP {exc.code}; retry {attempt}/{retries} in {delay}s")
             time.sleep(delay)
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        except (urllib.error.URLError, TimeoutError) as exc:
             if attempt == retries:
                 raise
             delay = min(2 ** attempt, 12)

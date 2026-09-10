@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 import tempfile
 from pathlib import Path
+
+PROJECT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT))
 
 from tools import transform_osm_to_game
 

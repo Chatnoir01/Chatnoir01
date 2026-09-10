@@ -67,6 +67,15 @@ jobs:
           import json
           from pathlib import Path
 
+          # RED witness: Python's default loader must not be allowed to accept
+          # non-standard constants in this independent authorization seal.
+          for token in ('NaN', 'Infinity', '-Infinity'):
+              try:
+                  json.loads('{"authorization": ' + token + '}')
+              except (ValueError, json.JSONDecodeError):
+                  continue
+              raise SystemExit(f'workflow authorization parser accepted non-standard JSON constant: {token}')
+
           root = Path('.')
           paths = [
               root / 'data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json',

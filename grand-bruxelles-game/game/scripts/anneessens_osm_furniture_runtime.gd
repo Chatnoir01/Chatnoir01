@@ -12,7 +12,8 @@ const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_UPSTREAM_PATH := "data/osm/vertical_slice_01.game.json"
 const EXPECTED_UPSTREAM_FORMAT := "grand-bruxelles-osm-v1"
 const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
-const EXPECTED_UPSTREAM_ORIGIN := Vector2(50.8419, 4.348)
+const EXPECTED_UPSTREAM_LAT := 50.8419
+const EXPECTED_UPSTREAM_LON := 4.348
 const UPSTREAM_ORIGIN_EPSILON_DEGREES := 0.0000001
 const SOURCE_POSITION_EPSILON_M := 0.0001
 const EXPECTED_SOURCE_POSITIONS := {
@@ -446,7 +447,7 @@ func _validate_coverage_contract(data: Dictionary) -> Variant:
     if not is_finite(upstream_lat) or not is_finite(upstream_lon):
         push_error("Anneessens OSM furniture upstream origin must be finite")
         return null
-    if abs(upstream_lat - EXPECTED_UPSTREAM_ORIGIN.x) > UPSTREAM_ORIGIN_EPSILON_DEGREES or abs(upstream_lon - EXPECTED_UPSTREAM_ORIGIN.y) > UPSTREAM_ORIGIN_EPSILON_DEGREES:
+    if abs(upstream_lat - EXPECTED_UPSTREAM_LAT) > UPSTREAM_ORIGIN_EPSILON_DEGREES or abs(upstream_lon - EXPECTED_UPSTREAM_LON) > UPSTREAM_ORIGIN_EPSILON_DEGREES:
         push_error("Anneessens OSM furniture upstream origin drifted")
         return null
     return {
@@ -455,8 +456,8 @@ func _validate_coverage_contract(data: Dictionary) -> Variant:
         "coverage_radius_m": EXPECTED_COVERAGE_RADIUS_M,
         "upstream_source_sha256": EXPECTED_UPSTREAM_SHA256,
         "upstream_origin_validated": true,
-        "upstream_origin_lat": EXPECTED_UPSTREAM_ORIGIN.x,
-        "upstream_origin_lon": EXPECTED_UPSTREAM_ORIGIN.y,
+        "upstream_origin_lat": EXPECTED_UPSTREAM_LAT,
+        "upstream_origin_lon": EXPECTED_UPSTREAM_LON,
     }
 
 func _build_once() -> void:
@@ -611,6 +612,7 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     tree.set_meta("source_dimensions_measured", false)
     tree.set_meta("species_claimed", false)
     var legacy := Node3D.new()
+    legacy.name = "LegacyTreeVisual"
     legacy.name = "LegacyTreeVisual"
     _mark_owned_tree_visual(legacy)
     tree.add_child(legacy)

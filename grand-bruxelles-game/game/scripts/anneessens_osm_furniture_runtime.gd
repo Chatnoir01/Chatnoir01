@@ -12,6 +12,9 @@ const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_UPSTREAM_PATH := "data/osm/vertical_slice_01.game.json"
 const EXPECTED_UPSTREAM_FORMAT := "grand-bruxelles-osm-v1"
 const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+const EXPECTED_UPSTREAM_LAT := 50.8419
+const EXPECTED_UPSTREAM_LON := 4.348
+const UPSTREAM_ORIGIN_EPSILON_DEGREES := 0.0000001
 const SOURCE_POSITION_EPSILON_M := 0.0001
 const EXPECTED_SOURCE_POSITIONS := {
     4672009403: Vector2(-186.799, -120.437),
@@ -429,11 +432,32 @@ func _validate_coverage_contract(data: Dictionary) -> Variant:
     if str(upstream.get("sha256", "")) != EXPECTED_UPSTREAM_SHA256:
         push_error("Anneessens OSM furniture upstream digest invalid")
         return null
+    var origin_value: Variant = upstream.get("origin", null)
+    if not origin_value is Dictionary:
+        push_error("Anneessens OSM furniture upstream origin missing")
+        return null
+    var origin := origin_value as Dictionary
+    var lat_value: Variant = origin.get("lat", null)
+    var lon_value: Variant = origin.get("lon", null)
+    if typeof(lat_value) not in [TYPE_FLOAT, TYPE_INT] or typeof(lon_value) not in [TYPE_FLOAT, TYPE_INT]:
+        push_error("Anneessens OSM furniture upstream origin must be numeric")
+        return null
+    var upstream_lat := float(lat_value)
+    var upstream_lon := float(lon_value)
+    if not is_finite(upstream_lat) or not is_finite(upstream_lon):
+        push_error("Anneessens OSM furniture upstream origin must be finite")
+        return null
+    if abs(upstream_lat - EXPECTED_UPSTREAM_LAT) > UPSTREAM_ORIGIN_EPSILON_DEGREES or abs(upstream_lon - EXPECTED_UPSTREAM_LON) > UPSTREAM_ORIGIN_EPSILON_DEGREES:
+        push_error("Anneessens OSM furniture upstream origin drifted")
+        return null
     return {
         "coverage_complete": false,
         "coverage_policy": EXPECTED_COVERAGE_POLICY,
         "coverage_radius_m": EXPECTED_COVERAGE_RADIUS_M,
         "upstream_source_sha256": EXPECTED_UPSTREAM_SHA256,
+        "upstream_origin_validated": true,
+        "upstream_origin_lat": EXPECTED_UPSTREAM_LAT,
+        "upstream_origin_lon": EXPECTED_UPSTREAM_LON,
     }
 
 func _build_once() -> void:
@@ -500,6 +524,9 @@ func _build_once() -> void:
     _root.set_meta("coverage_policy", str(coverage_contract["coverage_policy"]))
     _root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
     _root.set_meta("upstream_source_sha256", str(coverage_contract["upstream_source_sha256"]))
+    _root.set_meta("upstream_origin_validated", bool(coverage_contract["upstream_origin_validated"]))
+    _root.set_meta("upstream_origin_lat", float(coverage_contract["upstream_origin_lat"]))
+    _root.set_meta("upstream_origin_lon", float(coverage_contract["upstream_origin_lon"]))
     _root.set_meta("radius_membership_validated", bool(radius_membership["radius_membership_validated"]))
     _root.set_meta("selection_max_distance_m", float(radius_membership["max_distance_m"]))
     _root.set_meta("selection_identity_validated", true)
@@ -529,7 +556,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

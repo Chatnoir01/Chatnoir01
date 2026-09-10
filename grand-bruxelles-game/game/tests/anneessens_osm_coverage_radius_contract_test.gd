@@ -4,7 +4,10 @@ const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
 const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_runtime.gd")
 const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_ANCHOR := Vector2(-272.04, -217.07)
+const EXPECTED_UPSTREAM_LAT := 50.8419
+const EXPECTED_UPSTREAM_LON := 4.348
 const SOURCE_POSITION_DRIFT_M := 0.25
+const UPSTREAM_ORIGIN_DRIFT_DEGREES := 0.0001
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -30,12 +33,33 @@ func _run() -> void:
     if anchor.size() != 2 or Vector2(float(anchor[0]), float(anchor[1])).distance_to(EXPECTED_ANCHOR) > 0.0001:
         _fail("canonical source subset anchor drifted")
         return
+    var upstream := data.get("upstream", {}) as Dictionary
+    var upstream_origin := upstream.get("origin", {}) as Dictionary
+    if abs(float(upstream_origin.get("lat", -999.0)) - EXPECTED_UPSTREAM_LAT) > 0.0000001 or abs(float(upstream_origin.get("lon", -999.0)) - EXPECTED_UPSTREAM_LON) > 0.0000001:
+        _fail("canonical upstream origin drifted")
+        return
 
     var runtime := RUNTIME_SCRIPT.new()
     var canonical: Variant = runtime.call("_validate_coverage_contract", data)
     if canonical == null:
         runtime.free()
         _fail("canonical 130m coverage contract rejected")
+        return
+
+    # Upstream-origin provenance regression: path/format/SHA remain pinned, but
+    # the derived artifact's declared origin is moved while all selected game
+    # positions stay untouched. Legacy coverage validation accepts this drift,
+    # allowing an internally contradictory provenance receipt to mount.
+    var origin_drifted := data.duplicate(true)
+    var drifted_upstream := (origin_drifted.get("upstream", {}) as Dictionary).duplicate(true)
+    var drifted_origin := (drifted_upstream.get("origin", {}) as Dictionary).duplicate(true)
+    drifted_origin["lat"] = EXPECTED_UPSTREAM_LAT + UPSTREAM_ORIGIN_DRIFT_DEGREES
+    drifted_upstream["origin"] = drifted_origin
+    origin_drifted["upstream"] = drifted_upstream
+    var origin_drift_result: Variant = runtime.call("_validate_coverage_contract", origin_drifted)
+    if origin_drift_result != null:
+        runtime.free()
+        _fail("runtime accepted upstream origin drift while retaining pinned source path/format/SHA")
         return
 
     var canonical_points: Variant = runtime.call("_collect_validated_tree_points", data)
@@ -128,5 +152,5 @@ func _run() -> void:
         _fail("canonical source-position identity error receipt invalid")
         return
 
-    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true source_position_drift_fail_closed=true" % max_distance_m)
+    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true source_position_drift_fail_closed=true upstream_origin_drift_fail_closed=true" % max_distance_m)
     quit(0)

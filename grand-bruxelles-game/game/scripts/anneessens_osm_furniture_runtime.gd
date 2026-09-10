@@ -12,6 +12,16 @@ const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_UPSTREAM_PATH := "data/osm/vertical_slice_01.game.json"
 const EXPECTED_UPSTREAM_FORMAT := "grand-bruxelles-osm-v1"
 const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
+const SOURCE_POSITION_EPSILON_M := 0.0001
+const EXPECTED_SOURCE_POSITIONS := {
+    4672009403: Vector2(-186.799, -120.437),
+    4672009414: Vector2(-165.05, -147.654),
+    4672009415: Vector2(-169.929, -141.509),
+    4672009416: Vector2(-175.018, -135.231),
+    4672009417: Vector2(-179.918, -128.83),
+    11929097332: Vector2(-313.793, -143.858),
+    11929097333: Vector2(-306.074, -147.576),
+}
 
 @export var activation_radius_m: float = 170.0
 
@@ -263,6 +273,47 @@ func _validate_selection_radius_membership(tree_points: Array) -> Variant:
         "max_distance_m": max_distance_m,
     }
 
+func _validate_source_position_identity(tree_points: Array) -> Variant:
+    if tree_points.size() != EXPECTED_SOURCE_POSITIONS.size():
+        push_error("Anneessens OSM furniture source-position point count drifted")
+        return null
+    var seen: Dictionary = {}
+    var max_position_error_m := 0.0
+    for tree_point: Variant in tree_points:
+        if not tree_point is Dictionary:
+            push_error("Anneessens OSM furniture source-position point invalid")
+            return null
+        var point := tree_point as Dictionary
+        var osm_id_value: Variant = point.get("osm_id", null)
+        var position_value: Variant = point.get("position", null)
+        if typeof(osm_id_value) != TYPE_INT or not position_value is Vector3:
+            push_error("Anneessens OSM furniture source-position identity shape invalid")
+            return null
+        var osm_id := int(osm_id_value)
+        if seen.has(osm_id) or not EXPECTED_SOURCE_POSITIONS.has(osm_id):
+            push_error("Anneessens OSM furniture source-position identity id invalid")
+            return null
+        var position := position_value as Vector3
+        if not is_finite(position.x) or not is_finite(position.z):
+            push_error("Anneessens OSM furniture source-position coordinate non-finite")
+            return null
+        var expected := EXPECTED_SOURCE_POSITIONS[osm_id] as Vector2
+        var position_error_m := Vector2(position.x - expected.x, position.z - expected.y).length()
+        if not is_finite(position_error_m) or position_error_m > SOURCE_POSITION_EPSILON_M:
+            push_error("Anneessens OSM furniture selected OSM position drifted from pinned upstream")
+            return null
+        seen[osm_id] = true
+        max_position_error_m = max(max_position_error_m, position_error_m)
+    if seen.size() != EXPECTED_SOURCE_POSITIONS.size():
+        push_error("Anneessens OSM furniture source-position identity incomplete")
+        return null
+    return {
+        "source_position_identity_validated": true,
+        "max_position_error_m": max_position_error_m,
+        "source_position_epsilon_m": SOURCE_POSITION_EPSILON_M,
+        "upstream_source_sha256": EXPECTED_UPSTREAM_SHA256,
+    }
+
 func _validate_selection_integrity(data: Dictionary, tree_points: Array) -> Variant:
     var selection_value: Variant = data.get("selection", null)
     if not selection_value is Dictionary:
@@ -428,6 +479,10 @@ func _build_once() -> void:
     if selection_integrity_value == null:
         return
     var selection_integrity := selection_integrity_value as Dictionary
+    var source_position_identity_value: Variant = _validate_source_position_identity(tree_points)
+    if source_position_identity_value == null:
+        return
+    var source_position_identity := source_position_identity_value as Dictionary
 
     _root = Node3D.new()
     _root.name = "AnneessensOsmFurniture"
@@ -450,6 +505,9 @@ func _build_once() -> void:
     _root.set_meta("selection_identity_validated", true)
     _root.set_meta("selection_tree_count", tree_points.size())
     _root.set_meta("selection_osm_ids", selection_integrity["selection_osm_ids"])
+    _root.set_meta("source_position_identity_validated", bool(source_position_identity["source_position_identity_validated"]))
+    _root.set_meta("source_position_max_error_m", float(source_position_identity["max_position_error_m"]))
+    _root.set_meta("source_position_epsilon_m", float(source_position_identity["source_position_epsilon_m"]))
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
     _tree_meshes = TREE_ASSET.create_meshes(_tree_materials)
@@ -471,7 +529,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

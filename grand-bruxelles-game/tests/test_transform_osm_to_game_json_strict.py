@@ -30,7 +30,7 @@ def main() -> int:
 
     require_rejected(
         '{"elements":[{"type":"way","id":1}],"elements":[]}',
-        "duplicate elements",
+        "duplicate elements key",
     )
     require_rejected(
         '{"elements":[{"type":"node","id":1,"lat":NaN,"lon":4.34}]}',
@@ -40,12 +40,39 @@ def main() -> int:
         '{"elements":[{"type":"node","id":1,"lat":1e309,"lon":4.34}]}',
         "finite-syntax float overflow",
     )
+    require_rejected(
+        '{"elements":[{"type":"way","id":17},{"type":"way","id":17}]}',
+        "duplicate OSM way identity",
+    )
+    require_rejected(
+        '{"elements":[{"type":"node","id":"17","lat":50.84,"lon":4.34}]}',
+        "string OSM id",
+    )
+    require_rejected(
+        '{"elements":[{"type":"node","id":true,"lat":50.84,"lon":4.34}]}',
+        "boolean OSM id",
+    )
+    require_rejected(
+        '{"elements":[{"type":"way","id":0}]}',
+        "non-positive OSM id",
+    )
+    require_rejected(
+        '{"elements":[{"type":"mystery","id":19}]}',
+        "unknown OSM element type",
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "ok.json"
-        path.write_text('{"version":0.6,"elements":[]}', encoding="utf-8")
+        path.write_text(
+            '{"version":0.6,"elements":['
+            '{"type":"node","id":17,"lat":50.84,"lon":4.34},'
+            '{"type":"way","id":17,"geometry":[]}'
+            ']}',
+            encoding="utf-8",
+        )
         payload = transform_osm_to_game.load_source_json(path)
-    assert payload == {"version": 0.6, "elements": []}
+    assert payload["version"] == 0.6
+    assert len(payload["elements"]) == 2
     assert math.isfinite(payload["version"])
 
     try:
@@ -55,7 +82,12 @@ def main() -> int:
     else:
         raise AssertionError("non-finite origin accepted")
 
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true finite_origin_required=true network_used=false")
+    print(
+        "TRANSFORM_OSM_JSON_STRICT_OK "
+        "duplicate_keys_rejected=true constants_rejected=true "
+        "float_overflow_rejected=true osm_identity_validated=true "
+        "duplicate_osm_identity_rejected=true finite_origin_required=true network_used=false"
+    )
     return 0
 
 

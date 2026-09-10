@@ -141,7 +141,7 @@ def self_test() -> None:
 
     # v4 blind spot: raw quoted values were compared without decoding escapes.
     escaped_alias = normal + '\n[ext_resource type="Skin" path="res://assets/body.skin" id="Mesh\\u005fbody"]\n'
-    legacy_raw_ids = [m.group(2) for line in escaped_alias.splitlines() for m in [EXT_RE.match(line)] if m for name, value in ATTR_RE.findall(m.group(1)) if name == "id"]
+    legacy_raw_ids = [value for line in escaped_alias.splitlines() for m in [EXT_RE.match(line)] if m for name, value in ATTR_RE.findall(m.group(1)) if name == "id"]
     assert "Mesh_body" in legacy_raw_ids and "Mesh\\u005fbody" in legacy_raw_ids
     assert len(set(legacy_raw_ids)) == 2, "regression precondition: v4 sees escaped and decoded ids as distinct"
     ids, attrs, syntax, malformed = resource_table_conflicts(escaped_alias)

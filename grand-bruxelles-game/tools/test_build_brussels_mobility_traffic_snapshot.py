@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -59,7 +61,32 @@ def _geometry(
     }
 
 
+def _require_source_json_rejected(raw: bytes, label: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "traffic-source.json"
+        source.write_bytes(raw)
+        try:
+            module.load_or_fetch(source, "https://invalid.example/not-used")
+        except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+            return
+    raise AssertionError(f"traffic source intake accepted ambiguous/non-finite JSON: {label}")
+
+
 def main() -> int:
+    # Provenance/intake parser must fail closed before any traffic accounting occurs.
+    _require_source_json_rejected(
+        b'{"type":"FeatureCollection","features":[],"features":[{"id":"shadow"}]}',
+        "duplicate FeatureCollection.features",
+    )
+    _require_source_json_rejected(
+        b'{"type":"FeatureCollection","features":[],"requestDate":1e309}',
+        "finite-syntax float overflow",
+    )
+    _require_source_json_rejected(
+        b'{"type":"FeatureCollection","features":[],"requestDate":NaN}',
+        "non-standard NaN constant",
+    )
+
     captured_at = datetime(2026, 8, 12, 7, 10, tzinfo=timezone.utc)
     devices = {
         "requestDate": "2026/08/12 09:10:00",
@@ -86,7 +113,6 @@ def main() -> int:
                     }
                 }
             },
-            # API has no valid count, so the builder must fall back to WFS 1m A.
             "MAD_203": {
                 "results": {
                     "1m": {
@@ -197,7 +223,7 @@ def main() -> int:
 
     second = snapshot["sensors"][1]
     assert second["game"] == [-25.0, -75.0]
-    assert second["number_of_lanes"] == 1  # devices API takes precedence over WFS num_lanes.
+    assert second["number_of_lanes"] == 1
     assert second["measurement"]["count"] == 37.0
     assert second["measurement"]["source"] == "wfs_live_geom"
     assert second["measurement"]["fresh"] is True

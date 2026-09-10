@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import civ1_resource_table_uniqueness as table
+import civ1_resource_table_uniqueness as legacy
+import civ1_subresource_header_schema as gate
 
 
 def main() -> int:
@@ -27,17 +28,17 @@ def main() -> int:
         '[sub_resource type="Skin"]',
     )
 
-    for text in (canonical,):
-        ids, attrs, syntax, malformed = table.resource_table_conflicts(text)
-        assert ids == [] and attrs == [] and syntax == [] and malformed == []
+    assert gate.subresource_header_conflicts(canonical) == []
 
-    # Causal RED against resource-table v5: all four malformed/ambiguous
-    # sub_resource headers are currently fully parsed and accepted.
+    # Preserve the causal witness: resource-table v5 fully parses these
+    # headers and reports no conflict, so the new closed-schema gate is needed.
     for text in (forged_uid, forged_path, missing_type, missing_id):
-        ids, attrs, syntax, malformed = table.resource_table_conflicts(text)
-        assert ids == [] and attrs == []
-        assert syntax or malformed, "sub_resource header schema violation was accepted"
+        ids, attrs, syntax, malformed = legacy.resource_table_conflicts(text)
+        assert ids == [] and attrs == [] and syntax == [] and malformed == []
+        conflicts = gate.subresource_header_conflicts(text)
+        assert len(conflicts) == 1
 
+    gate.self_test()
     print("CIV1_SUBRESOURCE_HEADER_SCHEMA_TEST_OK")
     return 0
 

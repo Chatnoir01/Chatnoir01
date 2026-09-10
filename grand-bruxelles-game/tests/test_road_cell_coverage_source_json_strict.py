@@ -10,6 +10,7 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
 
+from tools.brussels_mobility_sidewalk_extract import canonicalize_feature_collection
 from tools.city_machine.discover_road_cell_coverage_candidates import discover
 
 
@@ -53,6 +54,30 @@ def require_transform_rejected(raw: bytes, label: str) -> None:
     raise AssertionError(f"Overpass converter accepted ambiguous/non-finite JSON: {label}")
 
 
+def sidewalk_domain() -> bytes:
+    return b'[{"value":"SW","label_fr":"Trottoir","label_nl":"Voetpad"}]'
+
+
+def canonical_sidewalk_source() -> bytes:
+    return (
+        b'{"type":"FeatureCollection","timeStamp":"2026-09-10T00:00:00Z","features":['
+        b'{"type":"Feature","id":"urbadm_ssw.1","properties":{"gid":1,"id":10,"ssft":"SW"},'
+        b'"geometry":{"type":"Polygon","coordinates":[[[147700.0,169400.0],[147701.0,169400.0],'
+        b'[147701.0,169401.0],[147700.0,169400.0]]]}}]}'
+    )
+
+
+def require_sidewalk_rejected(raw: bytes, *, domain_raw: bytes | None = None, label: str) -> None:
+    try:
+        canonicalize_feature_collection(
+            raw,
+            attribute_domain_raw=domain_raw if domain_raw is not None else sidewalk_domain(),
+        )
+    except (ValueError, json.JSONDecodeError):
+        return
+    raise AssertionError(f"official sidewalk intake accepted ambiguous/non-finite JSON: {label}")
+
+
 def main() -> int:
     payload = canonical_source()
     canonical = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -80,7 +105,29 @@ def main() -> int:
     nonstandard_overpass = b'{"version":0.6,"elements":[{"type":"node","id":1,"lat":NaN,"lon":4.34,"tags":{"natural":"tree"}}]}'
     require_transform_rejected(nonstandard_overpass, "Overpass non-standard NaN constant")
 
-    print("ROAD_CELL_COVERAGE_SOURCE_JSON_STRICT_OK duplicate_keys_rejected=true float_overflow_rejected=true overpass_converter_strict=true")
+    sidewalk = canonical_sidewalk_source()
+    duplicate_features = sidewalk.replace(
+        b'"features":[',
+        b'"features":[],"features":[',
+        1,
+    )
+    require_sidewalk_rejected(duplicate_features, label="duplicate FeatureCollection features")
+
+    overflow_sidewalk = sidewalk.replace(b'147700.0', b'1e309', 1)
+    require_sidewalk_rejected(overflow_sidewalk, label="sidewalk coordinate finite-syntax float overflow")
+
+    duplicate_domain_value = sidewalk_domain().replace(
+        b'"value":"SW"',
+        b'"value":"OTHER","value":"SW"',
+        1,
+    )
+    require_sidewalk_rejected(sidewalk, domain_raw=duplicate_domain_value, label="duplicate attribute-domain value")
+
+    print(
+        "ROAD_CELL_COVERAGE_SOURCE_JSON_STRICT_OK "
+        "duplicate_keys_rejected=true float_overflow_rejected=true overpass_converter_strict=true "
+        "official_sidewalk_intake_strict=true"
+    )
     return 0
 
 

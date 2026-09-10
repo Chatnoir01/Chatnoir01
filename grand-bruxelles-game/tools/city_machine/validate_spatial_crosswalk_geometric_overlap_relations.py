@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -53,12 +54,20 @@ def _reject_nonstandard_constant(value: str) -> Any:
     raise ValueError(f"non-standard JSON constant: {value}")
 
 
+def _parse_finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON number: {value}")
+    return parsed
+
+
 def _load(raw: bytes, label: str) -> Any:
     try:
         return json.loads(
             raw.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_pairs,
             parse_constant=_reject_nonstandard_constant,
+            parse_float=_parse_finite_float,
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"{label} is not strict UTF-8 JSON") from exc

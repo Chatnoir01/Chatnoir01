@@ -282,6 +282,15 @@ func _build_once() -> void:
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
     _tree_meshes = TREE_ASSET.create_meshes(_tree_materials)
+    var legacy_trunk := CylinderMesh.new()
+    legacy_trunk.top_radius = 0.16
+    legacy_trunk.bottom_radius = 0.21
+    legacy_trunk.height = 2.6
+    _tree_meshes["legacy_trunk"] = legacy_trunk
+    var legacy_crown := SphereMesh.new()
+    legacy_crown.radius = 1.45
+    legacy_crown.height = 2.9
+    _tree_meshes["legacy_crown"] = legacy_crown
 
     for tree_point: Variant in tree_points:
         var validated_point := tree_point as Dictionary
@@ -352,20 +361,13 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     tree.add_child(legacy)
     var trunk_mesh := MeshInstance3D.new()
     trunk_mesh.name = "Trunk"
-    var cylinder := CylinderMesh.new()
-    cylinder.top_radius = 0.16
-    cylinder.bottom_radius = 0.21
-    cylinder.height = 2.6
-    trunk_mesh.mesh = cylinder
+    trunk_mesh.mesh = _tree_meshes["legacy_trunk"] as Mesh
     trunk_mesh.material_override = _tree_materials["trunk"] as Material
     trunk_mesh.position.y = 1.3
     legacy.add_child(trunk_mesh)
     var crown := MeshInstance3D.new()
     crown.name = "Crown"
-    var sphere := SphereMesh.new()
-    sphere.radius = 1.45
-    sphere.height = 2.9
-    crown.mesh = sphere
+    crown.mesh = _tree_meshes["legacy_crown"] as Mesh
     crown.material_override = _tree_materials["foliage_dark"] as Material
     crown.position.y = 3.15
     legacy.add_child(crown)

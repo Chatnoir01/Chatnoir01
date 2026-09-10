@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 from pathlib import Path
 import sys
@@ -41,6 +42,31 @@ def require_rejected(raw: bytes, label: str) -> None:
     raise AssertionError(f"source factory accepted ambiguous/non-finite JSON: {label}")
 
 
+def require_transform_rejected(raw: bytes, label: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        source = tmp_path / "overpass.json"
+        output = tmp_path / "game.json"
+        source.write_bytes(raw)
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(PROJECT / "tools" / "transform_osm_to_game.py"),
+                "--input",
+                str(source),
+                "--output",
+                str(output),
+            ],
+            cwd=PROJECT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return
+    raise AssertionError(f"Overpass converter accepted ambiguous/non-finite JSON: {label}")
+
+
 def main() -> int:
     payload = canonical_source()
     canonical = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -62,7 +88,25 @@ def main() -> int:
     overflow_in_anchor = canonical.replace(b'"x":0.0', b'"x":1e309', 1)
     require_rejected(overflow_in_anchor, "finite-syntax float overflow")
 
-    print("ROAD_CELL_COVERAGE_SOURCE_JSON_STRICT_OK duplicate_keys_rejected=true float_overflow_rejected=true")
+    overpass = b'{"version":0.6,"elements":[]}'
+    duplicate_elements = overpass.replace(
+        b'"elements":[]',
+        b'"elements":[{"type":"node","id":999,"lat":50.84,"lon":4.34,"tags":{"natural":"tree"}}],"elements":[]',
+        1,
+    )
+    require_transform_rejected(duplicate_elements, "duplicate root elements with canonical final value")
+
+    overflow_overpass = b'{"version":0.6,"elements":[{"type":"node","id":1,"lat":1e309,"lon":4.34,"tags":{"natural":"tree"}}]}'
+    require_transform_rejected(overflow_overpass, "Overpass coordinate finite-syntax float overflow")
+
+    nonstandard_overpass = b'{"version":0.6,"elements":[{"type":"node","id":1,"lat":NaN,"lon":4.34,"tags":{"natural":"tree"}}]}'
+    require_transform_rejected(nonstandard_overpass, "Overpass non-standard NaN constant")
+
+    print(
+        "ROAD_CELL_COVERAGE_SOURCE_JSON_STRICT_OK "
+        "duplicate_keys_rejected=true float_overflow_rejected=true "
+        "overpass_converter_strict=true"
+    )
     return 0
 
 

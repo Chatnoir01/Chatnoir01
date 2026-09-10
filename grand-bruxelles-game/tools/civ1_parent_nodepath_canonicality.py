@@ -9,7 +9,7 @@ from pathlib import Path
 import civ1_authored_skin_integrity as skin
 import civ1_node_table_uniqueness as node_table
 
-SCHEMA = "grand-bruxelles-civ1-parent-nodepath-canonicality-v1"
+SCHEMA = "grand-bruxelles-civ1-parent-nodepath-canonicality-v2"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 
 
@@ -29,6 +29,11 @@ def parent_path_reason(parent: str) -> str | None:
         return "parent_nodepath_must_not_have_current_segments"
     if any(segment == ".." for segment in segments):
         return "parent_nodepath_must_not_have_parent_traversal_segments"
+    # A TSCN node parent must identify nodes only. NodePath ':' subnames address
+    # properties/resources, so accepting them would let evidence derive a
+    # textual hierarchy from something that is not a pure parent-node path.
+    if any(":" in segment for segment in segments):
+        return "parent_nodepath_must_not_have_subnames"
     return None
 
 
@@ -101,6 +106,26 @@ def self_test() -> None:
     conflicts = parent_nodepath_conflicts(escaped_traversal)
     assert len(conflicts) == 1 and conflicts[0]["parent"] == "NpcAgent/CharacterMount/../CharacterMount"
 
+    # v1 blind spot: NodePath supports ':' subnames for resource/property access,
+    # but a scene-node parent must remain node-only. The legacy textual path
+    # derivation accepts the forged parent and produces hierarchy evidence.
+    subname = normal.replace(
+        'parent="NpcAgent/CharacterMount"]',
+        'parent="NpcAgent/CharacterMount:owner"]',
+    )
+    assert _legacy_path({"name": "Skeleton3D", "parent": "NpcAgent/CharacterMount:owner"}) == "NpcAgent/CharacterMount:owner/Skeleton3D"
+    conflicts = parent_nodepath_conflicts(subname)
+    assert len(conflicts) == 1 and conflicts[0]["reason"] == "parent_nodepath_must_not_have_subnames"
+
+    escaped_subname = normal.replace(
+        'parent="NpcAgent/CharacterMount"]',
+        'parent="NpcAgent/CharacterMount\\u003aowner"]',
+    )
+    conflicts = parent_nodepath_conflicts(escaped_subname)
+    assert len(conflicts) == 1
+    assert conflicts[0]["parent"] == "NpcAgent/CharacterMount:owner"
+    assert conflicts[0]["reason"] == "parent_nodepath_must_not_have_subnames"
+
 
 def main() -> int:
     if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
@@ -123,18 +148,20 @@ def main() -> int:
 
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_canonical_relative_parent_nodepaths",
+        "evidence_mode": "reachable_tscn_plus_canonical_relative_node_only_parent_nodepaths",
         "reachable_scene_count": len(scenes),
         "parent_nodepath_conflicts": conflicts,
         "parent_nodepaths_canonical": not conflicts,
         "parent_traversal_alias_evidence_accepted": False,
         "empty_parent_segment_alias_evidence_accepted": False,
         "absolute_parent_nodepath_evidence_accepted": False,
+        "parent_subname_evidence_accepted": False,
+        "parent_nodepaths_node_only": not any(c.get("reason") == "parent_nodepath_must_not_have_subnames" for c in conflicts),
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
-        "next_action": "repair parent NodePath alias/canonicality conflicts before Character hierarchy evidence can be trusted" if conflicts else "retain canonical parent NodePath gate before authored Character loaded-scene approval",
+        "next_action": "repair parent NodePath alias/canonicality/subname conflicts before Character hierarchy evidence can be trusted" if conflicts else "retain canonical node-only parent NodePath gate before authored Character loaded-scene approval",
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

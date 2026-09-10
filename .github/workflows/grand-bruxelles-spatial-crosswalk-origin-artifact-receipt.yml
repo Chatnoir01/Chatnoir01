@@ -67,14 +67,42 @@ jobs:
           import json
           from pathlib import Path
 
-          # RED witness: Python's default loader must not be allowed to accept
-          # non-standard constants in this independent authorization seal.
-          for token in ('NaN', 'Infinity', '-Infinity'):
+          def reject_duplicate_pairs(pairs):
+              payload = {}
+              for key, value in pairs:
+                  if key in payload:
+                      raise ValueError(f'duplicate JSON key: {key}')
+                  payload[key] = value
+              return payload
+
+          def reject_non_standard_constant(value):
+              raise ValueError(f'non-standard JSON constant: {value}')
+
+          def load_strict(raw, label):
               try:
-                  json.loads('{"authorization": ' + token + '}')
-              except (ValueError, json.JSONDecodeError):
-                  continue
-              raise SystemExit(f'workflow authorization parser accepted non-standard JSON constant: {token}')
+                  return json.loads(
+                      raw.decode('utf-8'),
+                      object_pairs_hook=reject_duplicate_pairs,
+                      parse_constant=reject_non_standard_constant,
+                  )
+              except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+                  raise SystemExit(f'{label}: not strict UTF-8 JSON: {exc}') from exc
+
+          # Guard the workflow-local parser itself so later edits cannot silently
+          # restore Python's permissive NaN/Infinity or duplicate-key behavior.
+          for token in (b'NaN', b'Infinity', b'-Infinity'):
+              try:
+                  load_strict(b'{"authorization": ' + token + b'}', 'synthetic constant')
+              except SystemExit:
+                  pass
+              else:
+                  raise SystemExit(f'workflow strict loader accepted non-standard JSON constant: {token!r}')
+          try:
+              load_strict(b'{"authorization": false, "authorization": true}', 'synthetic duplicate')
+          except SystemExit:
+              pass
+          else:
+              raise SystemExit('workflow strict loader accepted duplicate JSON key')
 
           root = Path('.')
           paths = [
@@ -92,7 +120,7 @@ jobs:
               'jouable_promotion_authorized',
           }
           for path in paths:
-              payload = json.loads(path.read_text(encoding='utf-8'))
+              payload = load_strict(path.read_bytes(), str(path))
               auth = payload.get('authorization')
               if not isinstance(auth, dict) or set(auth) != forbidden:
                   raise SystemExit(f'{path}: authorization schema drift')

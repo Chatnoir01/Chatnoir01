@@ -24,9 +24,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
-          git fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
-          git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git fetch --no-tags origin "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
 
       - name: Prove live base is RED for missing selection-integrity contract
         shell: bash
@@ -35,12 +37,28 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           RUNTIME="grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
+
+          # Mutate only the runtime under test to its exact live-base version.
+          # The regression itself remains the PR-head test so it can prove the
+          # missing contract against the actual predecessor implementation.
           git checkout "$BASE_SHA" -- "$RUNTIME"
           if python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py; then
             echo "Expected base regression to fail, but it passed" >&2
             exit 1
           fi
-          git checkout "$HEAD_SHA" -- "$RUNTIME"
+
+          # A path checkout also mutates the index. Restore the entire exact PR
+          # head before the GREEN proof so no staged/base state can leak across
+          # the RED -> GREEN boundary.
+          git reset --hard "$HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain)"
 
       - name: Prove exact head is GREEN
-        run: python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain)"
+          python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py

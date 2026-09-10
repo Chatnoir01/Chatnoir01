@@ -1,0 +1,94 @@
+name: Grand Bruxelles Spatial Crosswalk Origin Artifact Receipt
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-spatial-crosswalk-origin-artifact-receipt.yml"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_artifact_payload.lock.json"
+      - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_artifact_receipt.py"
+      - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_artifact_payload_lock.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_artifact_receipt_failclosed.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_artifact_payload_lock.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_overlap_accounting.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  origin-artifact-receipt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main base and exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            test "$HEAD_SHA" = "$PR_HEAD_SHA"
+          else
+            PR_BASE_SHA="$(git merge-base HEAD origin/main)"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$MAIN_SHA" = "$PR_BASE_SHA"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+
+      - name: Validate immutable origin artifact receipt
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tools/city_machine/validate_spatial_crosswalk_origin_artifact_receipt.py
+          python3 tools/city_machine/validate_spatial_crosswalk_origin_artifact_payload_lock.py
+
+      - name: Run fail-closed semantic regressions
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tests/test_spatial_crosswalk_origin_artifact_receipt_failclosed.py
+          python3 tests/test_spatial_crosswalk_origin_artifact_payload_lock.py
+          python3 tests/test_spatial_crosswalk_origin_overlap_accounting.py
+
+      - name: Seal non-authorizing contract
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('.')
+          paths = [
+              root / 'data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json',
+              root / 'data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json',
+              root / 'data/source_plans/brussels_spatial_crosswalk_origin_artifact_payload.lock.json',
+          ]
+          forbidden = {
+              'crosswalk_authorized',
+              'road_cell_mapping_authorized',
+              'runtime_mount_authorized',
+              'rendered_geometry_authorized',
+              'collision_authorized',
+              'safe_spawn_authorized',
+              'jouable_promotion_authorized',
+          }
+          for path in paths:
+              payload = json.loads(path.read_text(encoding='utf-8'))
+              auth = payload.get('authorization')
+              if not isinstance(auth, dict) or set(auth) != forbidden:
+                  raise SystemExit(f'{path}: authorization schema drift')
+              opened = [key for key, value in auth.items() if value is not False]
+              if opened:
+                  raise SystemExit(f'{path}: authorization unexpectedly opened: {opened}')
+          print('origin artifact receipt authorization rails: CLOSED')
+          PY

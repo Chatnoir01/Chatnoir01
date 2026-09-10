@@ -7,6 +7,10 @@ const VISUAL_OWNER_META := "shared_environment_visual_owner"
 const VISUAL_OWNER_ID := "anneessens_osm_furniture_runtime"
 const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
+const EXPECTED_COVERAGE_POLICY := "preserve_existing_runtime_subset_v1"
+const EXPECTED_UPSTREAM_PATH := "data/osm/vertical_slice_01.game.json"
+const EXPECTED_UPSTREAM_FORMAT := "grand-bruxelles-osm-v1"
+const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
 
 @export var activation_radius_m: float = 170.0
 
@@ -236,6 +240,47 @@ func _collect_validated_tree_points(data: Dictionary) -> Variant:
         validated.append({"osm_id": osm_id, "position": Vector3(x, 0.0, z)})
     return validated
 
+func _validate_coverage_contract(data: Dictionary) -> Variant:
+    var selection_value: Variant = data.get("selection", null)
+    if not selection_value is Dictionary:
+        push_error("Anneessens OSM furniture selection contract missing")
+        return null
+    var selection := selection_value as Dictionary
+    if bool(selection.get("coverage_complete", true)):
+        push_error("Anneessens OSM furniture partial subset must not claim complete coverage")
+        return null
+    if str(selection.get("policy", "")) != EXPECTED_COVERAGE_POLICY:
+        push_error("Anneessens OSM furniture coverage policy invalid")
+        return null
+    var radius_value: Variant = selection.get("radius_m", null)
+    if typeof(radius_value) not in [TYPE_FLOAT, TYPE_INT]:
+        push_error("Anneessens OSM furniture coverage radius invalid")
+        return null
+    var coverage_radius_m := float(radius_value)
+    if not is_finite(coverage_radius_m) or coverage_radius_m <= 0.0:
+        push_error("Anneessens OSM furniture coverage radius must be finite and positive")
+        return null
+    var upstream_value: Variant = data.get("upstream", null)
+    if not upstream_value is Dictionary:
+        push_error("Anneessens OSM furniture upstream contract missing")
+        return null
+    var upstream := upstream_value as Dictionary
+    if str(upstream.get("format", "")) != EXPECTED_UPSTREAM_FORMAT:
+        push_error("Anneessens OSM furniture upstream format invalid")
+        return null
+    if str(upstream.get("path", "")) != EXPECTED_UPSTREAM_PATH:
+        push_error("Anneessens OSM furniture upstream path invalid")
+        return null
+    if str(upstream.get("sha256", "")) != EXPECTED_UPSTREAM_SHA256:
+        push_error("Anneessens OSM furniture upstream digest invalid")
+        return null
+    return {
+        "coverage_complete": false,
+        "coverage_policy": EXPECTED_COVERAGE_POLICY,
+        "coverage_radius_m": coverage_radius_m,
+        "upstream_source_sha256": EXPECTED_UPSTREAM_SHA256,
+    }
+
 func _build_once() -> void:
     if _tearing_down or not is_instance_valid(_scene) or is_instance_valid(_root):
         return
@@ -263,6 +308,10 @@ func _build_once() -> void:
         push_error("Anneessens OSM furniture coordinate space invalid")
         return
 
+    var coverage_contract_value: Variant = _validate_coverage_contract(data)
+    if coverage_contract_value == null:
+        return
+    var coverage_contract := coverage_contract_value as Dictionary
     var validated_tree_points: Variant = _collect_validated_tree_points(data)
     if validated_tree_points == null:
         return
@@ -278,7 +327,12 @@ func _build_once() -> void:
     _root.set_meta("source_species_measured", false)
     _root.set_meta("collision_source_backed", false)
     _root.set_meta("collision_authorized", false)
-    _root.set_meta("collision_policy", "disabled_until_source_backed_trunk_profile")
+    _root.set_meta("collision_policy", COLLISION_POLICY)
+    _root.set_meta("coverage_complete", false)
+    _root.set_meta("full_environment_coverage_claimed", false)
+    _root.set_meta("coverage_policy", str(coverage_contract["coverage_policy"]))
+    _root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
+    _root.set_meta("upstream_source_sha256", str(coverage_contract["upstream_source_sha256"]))
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
     _tree_meshes = TREE_ASSET.create_meshes(_tree_materials)
@@ -300,7 +354,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):
@@ -325,7 +379,7 @@ func _add_tree(osm_id: int, world_position: Vector3) -> void:
     tree.set_meta("visual_dimensions_source_backed", false)
     tree.set_meta("collision_source_backed", false)
     tree.set_meta("collision_authorized", false)
-    tree.set_meta("collision_policy", "disabled_until_source_backed_trunk_profile")
+    tree.set_meta("collision_policy", COLLISION_POLICY)
     _root.add_child(tree)
     _trees.append(tree)
 

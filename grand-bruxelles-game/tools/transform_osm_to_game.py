@@ -17,6 +17,7 @@ from typing import Any
 
 EARTH_RADIUS_M = 6_378_137.0
 DEFAULT_ORIGIN = (50.8419, 4.3480)
+OSM_ELEMENT_TYPES = {"node", "way", "relation"}
 
 ROAD_WIDTHS = {
     "motorway": 12.0,
@@ -61,6 +62,17 @@ def _parse_finite_float(value: str) -> float:
     return number
 
 
+def _validate_osm_identity(element: dict[str, Any], index: int) -> tuple[str, int]:
+    element_type = element.get("type")
+    if element_type not in OSM_ELEMENT_TYPES:
+        raise ValueError(f"Overpass element {index} has invalid type: {element_type!r}")
+
+    osm_id = element.get("id")
+    if isinstance(osm_id, bool) or not isinstance(osm_id, int) or osm_id <= 0:
+        raise ValueError(f"Overpass element {index} id must be a positive integer")
+    return str(element_type), osm_id
+
+
 def load_source_json(path: Path) -> dict[str, Any]:
     """Load a locked Overpass artifact without accepting ambiguous JSON semantics."""
     raw_bytes = path.read_bytes()
@@ -76,9 +88,16 @@ def load_source_json(path: Path) -> dict[str, Any]:
     elements = payload.get("elements")
     if not isinstance(elements, list):
         raise ValueError("Overpass source JSON elements must be a list")
+
+    seen_identities: set[tuple[str, int]] = set()
     for index, element in enumerate(elements):
         if not isinstance(element, dict):
             raise ValueError(f"Overpass element {index} must be an object")
+        identity = _validate_osm_identity(element, index)
+        if identity in seen_identities:
+            raise ValueError(f"duplicate OSM element identity: {identity[0]}/{identity[1]}")
+        seen_identities.add(identity)
+
         tags = element.get("tags")
         if tags is not None and not isinstance(tags, dict):
             raise ValueError(f"Overpass element {index} tags must be an object")

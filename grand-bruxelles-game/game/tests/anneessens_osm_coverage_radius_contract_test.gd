@@ -4,6 +4,7 @@ const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
 const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_runtime.gd")
 const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_ANCHOR := Vector2(-272.04, -217.07)
+const SOURCE_POSITION_DRIFT_M := 0.25
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -75,10 +76,57 @@ func _run() -> void:
         _fail("synthetic escaped point did not reach radius-membership gate")
         return
     var escaped_membership: Variant = runtime.call("_validate_selection_radius_membership", escaped_validated as Array)
-    runtime.free()
     if escaped_membership != null:
+        runtime.free()
         _fail("runtime accepted an OSM tree 0.25m outside the declared 130m source subset")
         return
 
-    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true" % max_distance_m)
+    # Source-position identity regression: retain the selected OSM ID and every
+    # existing coverage/selection contract, but move one point 25 cm while it
+    # remains inside the 130 m subset. The legacy validation chain accepts this
+    # mutation; the new provenance gate must reject it before root creation.
+    var source_drifted := data.duplicate(true)
+    var source_drifted_points := source_drifted.get("environment_points", []) as Array
+    var source_drifted_point := (source_drifted_points[0] as Dictionary).duplicate(true)
+    var source_position := source_drifted_point.get("position", []) as Array
+    source_drifted_point["position"] = [float(source_position[0]) + SOURCE_POSITION_DRIFT_M, float(source_position[1])]
+    source_drifted_points[0] = source_drifted_point
+    source_drifted["environment_points"] = source_drifted_points
+    var source_drifted_validated: Variant = runtime.call("_collect_validated_tree_points", source_drifted)
+    if source_drifted_validated == null:
+        runtime.free()
+        _fail("synthetic source-position drift did not reach provenance identity gate")
+        return
+    if runtime.call("_validate_selection_radius_membership", source_drifted_validated as Array) == null:
+        runtime.free()
+        _fail("synthetic 0.25m source-position drift unexpectedly escaped the 130m subset")
+        return
+    if runtime.call("_validate_selection_integrity", source_drifted, source_drifted_validated as Array) == null:
+        runtime.free()
+        _fail("synthetic source-position drift unexpectedly broke selection identity")
+        return
+    if not runtime.has_method("_validate_source_position_identity"):
+        runtime.free()
+        _fail("runtime has no fail-closed OSM source-position identity gate")
+        return
+    var canonical_source_identity: Variant = runtime.call("_validate_source_position_identity", canonical_points as Array)
+    if canonical_source_identity == null:
+        runtime.free()
+        _fail("canonical selected OSM positions rejected by source-position identity gate")
+        return
+    var source_drift_result: Variant = runtime.call("_validate_source_position_identity", source_drifted_validated as Array)
+    runtime.free()
+    if source_drift_result != null:
+        _fail("runtime accepted 0.25m placement drift for an existing selected OSM ID")
+        return
+
+    var source_identity := canonical_source_identity as Dictionary
+    if not bool(source_identity.get("source_position_identity_validated", false)):
+        _fail("canonical source-position identity receipt missing")
+        return
+    if float(source_identity.get("max_position_error_m", -1.0)) < 0.0:
+        _fail("canonical source-position identity error receipt invalid")
+        return
+
+    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true source_position_drift_fail_closed=true" % max_distance_m)
     quit(0)

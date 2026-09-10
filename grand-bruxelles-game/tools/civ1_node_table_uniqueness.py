@@ -9,7 +9,7 @@ from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
 
-SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v3"
+SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v4"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 NODE_PREFIX_RE = re.compile(r'^\s*\[node\b')
 NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
@@ -72,6 +72,7 @@ def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
             stack: list[str] = []
             in_string = False
             escaped = False
+            saw_structure = False
             while i < n:
                 ch = header[i]
                 if in_string:
@@ -86,11 +87,15 @@ def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
                         in_string = True
                     elif ch in OPENERS:
                         stack.append(ch)
+                        saw_structure = True
                     elif ch in CLOSERS:
                         if not stack or stack[-1] != CLOSERS[ch]:
                             residue.append(header[name_match.start():i + 1].strip())
                             return pairs, " ".join(r for r in residue if r)
                         stack.pop()
+                        if saw_structure and not stack:
+                            i += 1
+                            break
                     elif ch.isspace() and not stack:
                         break
                 i += 1
@@ -171,6 +176,62 @@ def _legacy_depth_only_accepts(value: str) -> bool:
     return depth == 0 and not in_string
 
 
+def _v3_parser_accepts_trailing_structured_token(header: str) -> bool:
+    """Reproduce the v3 blind spot: trailing text was swallowed into the value."""
+    pairs: list[tuple[str, str]] = []
+    i = 0
+    n = len(header)
+    while i < n:
+        while i < n and header[i].isspace():
+            i += 1
+        if i >= n:
+            break
+        name_match = NAME_RE.match(header, i)
+        if not name_match:
+            return False
+        name = name_match.group(0)
+        i = name_match.end()
+        while i < n and header[i].isspace():
+            i += 1
+        if i >= n or header[i] != '=':
+            return False
+        i += 1
+        while i < n and header[i].isspace():
+            i += 1
+        value_start = i
+        stack: list[str] = []
+        in_string = False
+        escaped = False
+        while i < n:
+            ch = header[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == '\\':
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+            else:
+                if ch == '"':
+                    in_string = True
+                elif ch in OPENERS:
+                    stack.append(ch)
+                elif ch in CLOSERS:
+                    if not stack or stack[-1] != CLOSERS[ch]:
+                        return False
+                    stack.pop()
+                elif ch.isspace() and not stack:
+                    break
+            i += 1
+        if stack or in_string:
+            return False
+        value = header[value_start:i].strip()
+        if not value:
+            return False
+        pairs.append((name, value))
+    return bool(pairs)
+
+
 def self_test() -> None:
     normal = '''
 [gd_scene load_steps=1 format=3]
@@ -218,6 +279,18 @@ def self_test() -> None:
     paths, attrs, syntax, malformed = node_table_conflicts(mismatched_delimiters)
     assert paths == [] and attrs == [] and malformed == [] and len(syntax) == 1, "cross-matched node-header delimiters must fail closed"
 
+    forged_groups_header = 'name="Instance" parent="." groups=["ambient_pedestrian"]forged'
+    assert _v3_parser_accepts_trailing_structured_token(forged_groups_header), "regression precondition: v3 swallows a token adjacent to a closed structured value"
+    forged_groups = normal.replace('groups=["ambient_pedestrian"]', 'groups=["ambient_pedestrian"]forged')
+    paths, attrs, syntax, malformed = node_table_conflicts(forged_groups)
+    assert paths == [] and attrs == [] and malformed == [] and len(syntax) == 1 and "forged" in syntax[0]["unparsed_fragment"], "trailing token after array value must fail closed"
+
+    forged_instance_header = 'name="Instance" parent="." instance=ExtResource("1_scene")forged'
+    assert _v3_parser_accepts_trailing_structured_token(forged_instance_header), "regression precondition: v3 swallows a token adjacent to a closed call value"
+    forged_instance = normal.replace('instance=ExtResource("1_scene")', 'instance=ExtResource("1_scene")forged')
+    paths, attrs, syntax, malformed = node_table_conflicts(forged_instance)
+    assert paths == [] and attrs == [] and malformed == [] and len(syntax) == 1 and "forged" in syntax[0]["unparsed_fragment"], "trailing token after call value must fail closed"
+
 
 def main() -> int:
     if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
@@ -245,7 +318,7 @@ def main() -> int:
     unambiguous = not path_conflicts and not attribute_conflicts and not syntax_conflicts and not malformed_header_conflicts
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_unique_decoded_node_path_plus_complete_fully_parsed_unambiguous_node_headers_plus_type_matched_balanced_delimiters",
+        "evidence_mode": "reachable_tscn_plus_unique_decoded_node_path_plus_complete_fully_parsed_unambiguous_node_headers_plus_type_matched_balanced_delimiters_plus_exact_structured_value_boundary",
         "reachable_scene_count": len(scenes),
         "duplicate_node_path_conflicts": path_conflicts,
         "duplicate_node_attribute_conflicts": attribute_conflicts,
@@ -255,6 +328,7 @@ def main() -> int:
         "node_header_attributes_unambiguous": not attribute_conflicts,
         "node_header_syntax_fully_parsed": not syntax_conflicts,
         "node_header_delimiters_type_matched": not syntax_conflicts,
+        "node_structured_value_boundaries_exact": not syntax_conflicts,
         "node_outer_header_syntax_valid": not malformed_header_conflicts,
         "node_table_identity_unambiguous": unambiguous,
         "duplicate_node_path_evidence_accepted": False,
@@ -262,12 +336,13 @@ def main() -> int:
         "escaped_node_identity_evidence_accepted": False,
         "partially_parsed_node_header_evidence_accepted": False,
         "mismatched_node_header_delimiter_evidence_accepted": False,
+        "trailing_structured_value_token_evidence_accepted": False,
         "malformed_outer_node_header_evidence_accepted": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
-        "next_action": "remove duplicate decoded node paths/attributes, unparsed fragments, mismatched delimiters and malformed node headers before authored Character hierarchy evidence can be trusted" if not unambiguous else "retain unique decoded fully parsed type-matched node-table gate before authored Character loaded-scene approval",
+        "next_action": "remove duplicate decoded node paths/attributes, unparsed fragments, mismatched delimiters, trailing structured-value tokens and malformed node headers before authored Character hierarchy evidence can be trusted" if not unambiguous else "retain unique decoded fully parsed type-matched exact-boundary node-table gate before authored Character loaded-scene approval",
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -1,0 +1,67 @@
+name: Grand Bruxelles CIV-1 Material Resource Concreteness
+on:
+  push:
+    branches: ['character/**']
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_material_resource_concreteness.py'
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-material-resource-concreteness.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_material_resource_concreteness.py'
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-material-resource-concreteness.yml'
+permissions:
+  contents: read
+jobs:
+  civ1-material-resource-concreteness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact live main and Character QA-only scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "1b163891fddc714154da701560fddf377f732645"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproduce legacy abstract-material false positive and enforce concrete types
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tools/civ1_material_resource_concreteness.py --self-test
+      - name: Measure reachable skinned material resources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-material-resource-concreteness
+          python grand-bruxelles-game/tools/civ1_material_resource_concreteness.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-material-resource-concreteness/civ1-material-resource-concreteness.json
+      - name: Assert fail-closed concrete material contract
+        run: |
+          python - <<'PY'
+          import json
+          p='/tmp/civ1-material-resource-concreteness/civ1-material-resource-concreteness.json'
+          receipt=json.load(open(p, encoding='utf-8'))
+          assert receipt['schema']=='grand-bruxelles-civ1-material-resource-concreteness-v1'
+          assert receipt['abstract_material_evidence_accepted'] is False
+          assert receipt['concrete_renderable_material_types_required'] is True
+          assert receipt['material_resource_types_concrete'] is True
+          assert receipt['material_resource_concreteness_conflicts']==[]
+          assert receipt['accepted_concrete_material_types']==['ORMMaterial3D','ShaderMaterial','StandardMaterial3D']
+          assert receipt['rejected_abstract_material_types']==['BaseMaterial3D','Material']
+          PY
+      - name: Upload Character material concreteness receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-civ1-material-resource-concreteness-${{ github.sha }}
+          path: /tmp/civ1-material-resource-concreteness/civ1-material-resource-concreteness.json
+          if-no-files-found: error
+          retention-days: 14

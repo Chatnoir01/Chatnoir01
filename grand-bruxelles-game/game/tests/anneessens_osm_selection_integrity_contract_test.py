@@ -11,14 +11,13 @@ class AnneessensOsmSelectionIntegrityContract(unittest.TestCase):
         self.assertIn("func _validate_selection_integrity(data: Dictionary, tree_points: Array) -> Variant:", source)
         self.assertIn('selection.get("osm_ids", null)', source)
         self.assertIn('selection.get("anchor", null)', source)
-        self.assertIn('stats.get("tree", null)', source)
-        self.assertIn('stats.get("total", null)', source)
-        self.assertIn('stats.get("bollard", null)', source)
-        self.assertIn('stats.get("street_lamp", null)', source)
+        self.assertIn('for key: String in ["tree", "total", "bollard", "street_lamp"]:', source)
+        self.assertIn('stats.get(key, null)', source)
         self.assertIn('"selection_osm_ids": selected_ids', source)
         self.assertIn('"selection_anchor": ANNEESSENS', source)
         self.assertIn('_root.set_meta("selection_identity_validated", true)', source)
         self.assertIn('_root.set_meta("selection_tree_count", tree_points.size())', source)
+        self.assertIn('_root.set_meta("selection_osm_ids", selection_integrity["selection_osm_ids"])', source)
 
 
 if __name__ == "__main__":

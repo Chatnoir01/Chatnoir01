@@ -74,7 +74,7 @@ jobs:
           assert node['schema']=='grand-bruxelles-civ1-node-table-uniqueness-v4'
           assert separators['schema']=='grand-bruxelles-civ1-node-attribute-separators-v1'
           assert identity['schema']=='grand-bruxelles-civ1-node-identity-encoding-v2'
-          assert parent['schema']=='grand-bruxelles-civ1-parent-nodepath-canonicality-v1'
+          assert parent['schema']=='grand-bruxelles-civ1-parent-nodepath-canonicality-v2'
           assert resource['escaped_resource_identity_evidence_accepted'] is False
           assert resource['resource_table_identity_unambiguous'] is True
           assert node['escaped_node_identity_evidence_accepted'] is False
@@ -92,6 +92,8 @@ jobs:
           assert parent['parent_traversal_alias_evidence_accepted'] is False
           assert parent['empty_parent_segment_alias_evidence_accepted'] is False
           assert parent['absolute_parent_nodepath_evidence_accepted'] is False
+          assert parent['parent_subname_evidence_accepted'] is False
+          assert parent['parent_nodepaths_node_only'] is True
           assert parent['parent_nodepaths_canonical'] is True
           for d in (skin, backing, alias, resource, node, separators, identity, parent):
               assert d['reachable_scene_count'] >= 1

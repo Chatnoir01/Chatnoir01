@@ -4,7 +4,8 @@ const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
 const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_runtime.gd")
 const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_ANCHOR := Vector2(-272.04, -217.07)
-const EXPECTED_UPSTREAM_ORIGIN := Vector2(50.8419, 4.348)
+const EXPECTED_UPSTREAM_LAT := 50.8419
+const EXPECTED_UPSTREAM_LON := 4.348
 const SOURCE_POSITION_DRIFT_M := 0.25
 const UPSTREAM_ORIGIN_DRIFT_DEGREES := 0.0001
 
@@ -34,7 +35,7 @@ func _run() -> void:
         return
     var upstream := data.get("upstream", {}) as Dictionary
     var upstream_origin := upstream.get("origin", {}) as Dictionary
-    if abs(float(upstream_origin.get("lat", -999.0)) - EXPECTED_UPSTREAM_ORIGIN.x) > 0.0000001 or abs(float(upstream_origin.get("lon", -999.0)) - EXPECTED_UPSTREAM_ORIGIN.y) > 0.0000001:
+    if abs(float(upstream_origin.get("lat", -999.0)) - EXPECTED_UPSTREAM_LAT) > 0.0000001 or abs(float(upstream_origin.get("lon", -999.0)) - EXPECTED_UPSTREAM_LON) > 0.0000001:
         _fail("canonical upstream origin drifted")
         return
 
@@ -52,7 +53,7 @@ func _run() -> void:
     var origin_drifted := data.duplicate(true)
     var drifted_upstream := (origin_drifted.get("upstream", {}) as Dictionary).duplicate(true)
     var drifted_origin := (drifted_upstream.get("origin", {}) as Dictionary).duplicate(true)
-    drifted_origin["lat"] = EXPECTED_UPSTREAM_ORIGIN.x + UPSTREAM_ORIGIN_DRIFT_DEGREES
+    drifted_origin["lat"] = EXPECTED_UPSTREAM_LAT + UPSTREAM_ORIGIN_DRIFT_DEGREES
     drifted_upstream["origin"] = drifted_origin
     origin_drifted["upstream"] = drifted_upstream
     var origin_drift_result: Variant = runtime.call("_validate_coverage_contract", origin_drifted)

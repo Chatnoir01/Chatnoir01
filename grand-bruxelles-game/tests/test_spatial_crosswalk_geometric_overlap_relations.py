@@ -116,6 +116,12 @@ class GeometricOverlapRelationLockTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "non-standard JSON constant: NaN"):
             self._validate(ambiguous)
 
+    def test_rejects_finite_syntax_numeric_overflow_before_semantic_validation(self) -> None:
+        raw = LOCK.read_text(encoding="utf-8")
+        ambiguous = raw.replace('"overlapping_road_count": 64,', '"overlapping_road_count": 1e309,', 1).encode("utf-8")
+        with self.assertRaisesRegex(ValueError, "non-finite JSON number: 1e309"):
+            self._validate(ambiguous)
+
 
 if __name__ == "__main__":
     unittest.main()

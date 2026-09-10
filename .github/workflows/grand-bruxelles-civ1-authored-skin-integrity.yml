@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py --self-test
-      - name: Reject duplicate paths, ambiguous attributes and malformed Godot node headers
+      - name: Reject duplicate decoded paths, ambiguous attributes and malformed Godot node headers
         run: |
           set -euo pipefail
           python grand-bruxelles-game/tools/civ1_node_table_uniqueness.py --self-test
@@ -176,11 +176,12 @@ jobs:
 
           n='/tmp/civ1-skin-integrity/civ1-node-table-uniqueness.json'
           v=json.load(open(n, encoding='utf-8'))
-          assert v['schema']=='grand-bruxelles-civ1-node-table-uniqueness-v1'
-          assert v['evidence_mode']=='reachable_tscn_plus_unique_node_path_plus_complete_fully_parsed_unambiguous_node_headers'
+          assert v['schema']=='grand-bruxelles-civ1-node-table-uniqueness-v2'
+          assert v['evidence_mode']=='reachable_tscn_plus_unique_decoded_node_path_plus_complete_fully_parsed_unambiguous_node_headers'
           assert v['reachable_scene_count'] >= 1
           assert v['duplicate_node_path_evidence_accepted'] is False
           assert v['duplicate_node_attribute_evidence_accepted'] is False
+          assert v['escaped_node_identity_evidence_accepted'] is False
           assert v['partially_parsed_node_header_evidence_accepted'] is False
           assert v['malformed_outer_node_header_evidence_accepted'] is False
           assert v['node_paths_unique'] == (len(v['duplicate_node_path_conflicts']) == 0)

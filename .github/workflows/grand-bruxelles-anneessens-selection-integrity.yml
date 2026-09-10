@@ -1,0 +1,64 @@
+name: Grand Bruxelles Anneessens Selection Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd'
+      - 'grand-bruxelles-game/data/osm/zones/anneessens/environment.game.json'
+      - 'grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py'
+      - '.github/workflows/grand-bruxelles-anneessens-selection-integrity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  selection-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact PR head and base ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git fetch --no-tags origin "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Prove live base is RED for missing selection-integrity contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          RUNTIME="grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
+
+          # Mutate only the runtime under test to its exact live-base version.
+          # The regression itself remains the PR-head test so it can prove the
+          # missing contract against the actual predecessor implementation.
+          git checkout "$BASE_SHA" -- "$RUNTIME"
+          if python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py; then
+            echo "Expected base regression to fail, but it passed" >&2
+            exit 1
+          fi
+
+          # A path checkout also mutates the index. Restore the entire exact PR
+          # head before the GREEN proof so no staged/base state can leak across
+          # the RED -> GREEN boundary.
+          git reset --hard "$HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Prove exact head is GREEN
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain)"
+          python3 grand-bruxelles-game/game/tests/anneessens_osm_selection_integrity_contract_test.py

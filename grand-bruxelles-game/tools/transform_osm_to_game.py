@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -41,11 +42,52 @@ DRIVABLE = {
 }
 
 
+def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_non_standard_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _parse_finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON float: {value}")
+    return parsed
+
+
+def load_strict_overpass_json(path: Path) -> dict[str, Any]:
+    raw = path.read_bytes()
+    try:
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_non_standard_constant,
+            parse_float=_parse_finite_float,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Overpass source is not strict UTF-8 JSON") from exc
+    if not isinstance(value, dict):
+        raise ValueError("Overpass source must be a JSON object")
+    if not isinstance(value.get("elements"), list):
+        raise ValueError("Overpass source elements must be a JSON array")
+    return value
+
+
 def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -> list[float]:
     """Project WGS84 approximately to a local tangent plane in metres.
 
     Godot convention used here: +X east, -Z north.
     """
+    for label, value in (("lat", lat), ("lon", lon), ("origin_lat", origin_lat), ("origin_lon", origin_lon)):
+        if not math.isfinite(value):
+            raise ValueError(f"{label} must be finite")
     lat0 = math.radians(origin_lat)
     x = math.radians(lon - origin_lon) * EARTH_RADIUS_M * math.cos(lat0)
     north = math.radians(lat - origin_lat) * EARTH_RADIUS_M
@@ -58,9 +100,10 @@ def numeric_tag(tags: dict[str, Any], key: str) -> float | None:
         return None
     try:
         text = str(raw).strip().lower().replace("m", "").strip()
-        return float(text)
+        parsed = float(text)
     except ValueError:
         return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def truthy_osm_tag(tags: dict[str, Any], key: str) -> bool:
@@ -112,7 +155,7 @@ def building_height(tags: dict[str, Any]) -> float:
 def geometry_points(element: dict[str, Any], origin: tuple[float, float]) -> list[list[float]]:
     out: list[list[float]] = []
     for point in element.get("geometry", []) or []:
-        if "lat" not in point or "lon" not in point:
+        if not isinstance(point, dict) or "lat" not in point or "lon" not in point:
             continue
         projected = metric_point(float(point["lat"]), float(point["lon"]), *origin)
         if not out or projected != out[-1]:
@@ -146,8 +189,16 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
     railways: list[dict[str, Any]] = []
     environment_points: list[dict[str, Any]] = []
 
-    for element in data.get("elements", []):
+    elements = data.get("elements")
+    if not isinstance(elements, list):
+        raise ValueError("Overpass source elements must be a JSON array")
+
+    for element in elements:
+        if not isinstance(element, dict):
+            raise ValueError("Overpass elements must be JSON objects")
         tags = element.get("tags", {}) or {}
+        if not isinstance(tags, dict):
+            raise ValueError("OSM element tags must be a JSON object")
         if element.get("type") == "node":
             kind = environment_point_kind(tags)
             if kind and "lat" in element and "lon" in element:
@@ -237,9 +288,12 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
 
 
 def parse_origin(raw: str) -> tuple[float, float]:
-    parts = [float(part.strip()) for part in raw.split(",")]
-    if len(parts) != 2:
-        raise argparse.ArgumentTypeError("origin must be lat,lon")
+    try:
+        parts = [float(part.strip()) for part in raw.split(",")]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("origin must be finite lat,lon") from exc
+    if len(parts) != 2 or not all(math.isfinite(value) for value in parts):
+        raise argparse.ArgumentTypeError("origin must be finite lat,lon")
     return parts[0], parts[1]
 
 
@@ -250,10 +304,16 @@ def main() -> int:
     parser.add_argument("--origin", type=parse_origin, default=DEFAULT_ORIGIN)
     args = parser.parse_args()
 
-    raw = json.loads(args.input.read_text(encoding="utf-8"))
-    converted = convert(raw, args.origin)
+    try:
+        raw = load_strict_overpass_json(args.input)
+        converted = convert(raw, args.origin)
+        serialized = json.dumps(converted, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    except (OSError, TypeError, ValueError) as exc:
+        print(f"transform_osm_to_game: {exc}", file=sys.stderr)
+        return 2
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(converted, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    args.output.write_text(serialized, encoding="utf-8")
 
     stats = converted["stats"]
     print(

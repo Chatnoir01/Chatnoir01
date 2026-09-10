@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 import urllib.error
 import urllib.parse
@@ -42,6 +43,42 @@ out geom;
 """.strip()
 
 
+def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> object:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _parse_finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"non-finite JSON float: {value}")
+    return number
+
+
+def _loads_strict_json(raw: bytes) -> dict:
+    text = raw.decode("utf-8", errors="strict")
+    payload = json.loads(
+        text,
+        object_pairs_hook=_reject_duplicate_pairs,
+        parse_constant=_reject_json_constant,
+        parse_float=_parse_finite_float,
+    )
+    if not isinstance(payload, dict):
+        raise ValueError("Overpass JSON root must be an object")
+    elements = payload.get("elements")
+    if not isinstance(elements, list):
+        raise ValueError("Overpass JSON elements must be a list")
+    return payload
+
+
 def _request(query: str) -> dict:
     payload = urllib.parse.urlencode({"data": query}).encode("utf-8")
     request = urllib.request.Request(
@@ -55,11 +92,12 @@ def _request(query: str) -> dict:
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=100) as response:
-        return json.load(response)
+        raw = response.read()
+    return _loads_strict_json(raw)
 
 
 def fetch(query: str, retries: int = 4) -> dict:
-    """Fetch Overpass data with bounded exponential retry for transient errors."""
+    """Fetch Overpass data with bounded exponential retry for transport failures."""
     if retries < 1:
         raise ValueError("retries must be at least 1")
 
@@ -76,7 +114,7 @@ def fetch(query: str, retries: int = 4) -> dict:
             delay = min(2 ** attempt, 12)
             print(f"Overpass HTTP {exc.code}; retry {attempt}/{retries} in {delay}s")
             time.sleep(delay)
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        except (urllib.error.URLError, TimeoutError) as exc:
             if attempt == retries:
                 raise
             delay = min(2 ** attempt, 12)
@@ -90,6 +128,8 @@ def parse_bbox(raw: str) -> tuple[float, float, float, float]:
     values = tuple(float(part.strip()) for part in raw.split(","))
     if len(values) != 4:
         raise argparse.ArgumentTypeError("bbox must be south,west,north,east")
+    if not all(math.isfinite(value) for value in values):
+        raise argparse.ArgumentTypeError("bbox bounds must be finite")
     south, west, north, east = values
     if south >= north or west >= east:
         raise argparse.ArgumentTypeError("bbox bounds are inverted")
@@ -120,7 +160,10 @@ def main() -> int:
     query = build_query(args.bbox)
     data = fetch(query, retries=args.retries)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    args.output.write_text(
+        json.dumps(data, ensure_ascii=False, allow_nan=False),
+        encoding="utf-8",
+    )
 
     element_count = len(data.get("elements", []))
     if element_count == 0:

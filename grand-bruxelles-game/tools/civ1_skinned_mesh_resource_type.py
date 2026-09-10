@@ -74,11 +74,21 @@ def self_test() -> None:
     assert _legacy_accepts(authored)
     assert skinned_mesh_resource_conflicts(authored) == []
 
+    # Causal RED: BoxMesh is a concrete procedural cube fallback and is part of
+    # authored-skin v3's broad accepted mesh-type set. Preserve this assertion
+    # so the regression demonstrates the exact legacy false-positive rather
+    # than depending on every Godot PrimitiveMesh subclass behaving identically
+    # in the legacy parser.
+    box = fixture("BoxMesh")
+    assert _legacy_accepts(box), (
+        "regression precondition: authored-skin v3 must expose its legacy BoxMesh false-positive"
+    )
+
+    # GREEN must be exhaustive: every procedural PrimitiveMesh family member is
+    # rejected by the new resource-type gate, regardless of whether the legacy
+    # evidence parser happened to recognize that subtype.
     for mesh_type in sorted(PROCEDURAL_MESH_TYPES):
         procedural = fixture(mesh_type)
-        assert _legacy_accepts(procedural), (
-            f"regression precondition: authored-skin v3 must expose its legacy {mesh_type} false-positive"
-        )
         conflicts = skinned_mesh_resource_conflicts(procedural)
         assert len(conflicts) == 1
         assert conflicts[0]["reason"] == "skinned_authored_evidence_requires_array_mesh"

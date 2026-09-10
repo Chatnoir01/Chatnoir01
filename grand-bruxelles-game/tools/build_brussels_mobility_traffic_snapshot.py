@@ -41,8 +41,50 @@ WFS_URL = (
 )
 
 
+def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_non_standard_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _parse_finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON float: {value}")
+    return parsed
+
+
+def load_strict_json(raw: bytes, *, label: str, encoding: str = "utf-8") -> Any:
+    try:
+        text = raw.decode(encoding)
+    except (LookupError, UnicodeDecodeError) as exc:
+        raise ValueError(f"{label} is not valid {encoding} JSON") from exc
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_non_standard_constant,
+            parse_float=_parse_finite_float,
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{label} is not valid JSON") from exc
+
+
 def canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
 
 
 def sha256_json(value: Any) -> str:
@@ -64,11 +106,11 @@ def fetch_json(url: str, timeout: float = 45.0) -> Any:
             import gzip
             raw = gzip.decompress(raw)
         charset = response.headers.get_content_charset() or "utf-8"
-        return json.loads(raw.decode(charset))
+        return load_strict_json(raw, label=url, encoding=charset)
 
 
 def load_or_fetch(path: Path | None, url: str) -> Any:
-    return json.loads(path.read_text(encoding="utf-8")) if path else fetch_json(url)
+    return load_strict_json(path.read_bytes(), label=str(path)) if path else fetch_json(url)
 
 
 def as_float(value: Any) -> float | None:
@@ -381,7 +423,10 @@ def main() -> int:
     geometry = load_or_fetch(args.geometry_file, WFS_URL)
     snapshot = build_snapshot(devices, live, geometry)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(snapshot, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
     stats = snapshot["stats"]
     if int(stats["geometry_sensor_count"]) < args.min_geometry_sensors:
         raise SystemExit(f"Brussels Mobility geometry gate failed: {stats['geometry_sensor_count']} < {args.min_geometry_sensors}")

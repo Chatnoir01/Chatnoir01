@@ -37,6 +37,41 @@ def fail(message: str) -> int:
     return 2
 
 
+def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_non_standard_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _parse_finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON float: {value}")
+    return parsed
+
+
+def load_strict_source_json(raw: bytes) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_non_standard_constant,
+            parse_float=_parse_finite_float,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("road source is not strict UTF-8 JSON") from exc
+    if not isinstance(value, dict):
+        raise ValueError("road source must be a JSON object")
+    return value
+
+
 def project_point(point: list[Any]) -> tuple[float, float]:
     if not isinstance(point, list) or len(point) != 2:
         raise ValueError("road/anchor point must be a two-value list")
@@ -210,7 +245,7 @@ def discover_from_payload(payload: dict[str, Any], source_sha: str) -> dict[str,
 
 def discover(road_source: Path) -> dict[str, Any]:
     raw = road_source.read_bytes()
-    return discover_from_payload(json.loads(raw), sha256_bytes(raw))
+    return discover_from_payload(load_strict_source_json(raw), sha256_bytes(raw))
 
 
 def main() -> int:

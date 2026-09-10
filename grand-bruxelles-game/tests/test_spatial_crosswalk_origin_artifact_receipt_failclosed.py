@@ -31,6 +31,12 @@ class OriginArtifactReceiptFailClosedTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     _load_json_strict(b'{"value": ' + token + b'}', "synthetic receipt")
 
+    def test_strict_loader_rejects_finite_syntax_float_overflow(self) -> None:
+        for token in (b"1e309", b"-1e309"):
+            with self.subTest(token=token):
+                with self.assertRaises(ValueError):
+                    _load_json_strict(b'{"value": ' + token + b'}', "synthetic receipt")
+
     def test_rejects_receipt_scope_note_rewrite(self) -> None:
         evidence_raw = EVIDENCE.read_bytes()
         receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))

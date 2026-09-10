@@ -9,10 +9,12 @@ from pathlib import Path
 
 import civ1_authored_skin_integrity as skin
 
-SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v2"
+SCHEMA = "grand-bruxelles-civ1-node-table-uniqueness-v3"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 NODE_PREFIX_RE = re.compile(r'^\s*\[node\b')
 NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+OPENERS = {'(': ')', '[': ']'}
+CLOSERS = {')': '(', ']': '['}
 
 
 def decode_quoted_value(value: str) -> str:
@@ -67,7 +69,7 @@ def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
                 residue.append(header[name_match.start():].strip())
                 break
         else:
-            depth = 0
+            stack: list[str] = []
             in_string = False
             escaped = False
             while i < n:
@@ -82,17 +84,17 @@ def parse_header_attributes(header: str) -> tuple[list[tuple[str, str]], str]:
                 else:
                     if ch == '"':
                         in_string = True
-                    elif ch in '([':
-                        depth += 1
-                    elif ch in ')]':
-                        if depth == 0:
+                    elif ch in OPENERS:
+                        stack.append(ch)
+                    elif ch in CLOSERS:
+                        if not stack or stack[-1] != CLOSERS[ch]:
                             residue.append(header[name_match.start():i + 1].strip())
                             return pairs, " ".join(r for r in residue if r)
-                        depth -= 1
-                    elif ch.isspace() and depth == 0:
+                        stack.pop()
+                    elif ch.isspace() and not stack:
                         break
                 i += 1
-            if depth != 0 or in_string:
+            if stack or in_string:
                 residue.append(header[name_match.start():].strip())
                 break
         value = header[value_start:i].strip()
@@ -145,6 +147,30 @@ def node_table_conflicts(scene_text: str) -> tuple[list[dict[str, object]], list
     return path_conflicts, attribute_conflicts, syntax_conflicts, malformed_header_conflicts
 
 
+def _legacy_depth_only_accepts(value: str) -> bool:
+    depth = 0
+    in_string = False
+    escaped = False
+    for ch in value:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == '\\':
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in '([':
+            depth += 1
+        elif ch in ')]':
+            if depth == 0:
+                return False
+            depth -= 1
+    return depth == 0 and not in_string
+
+
 def self_test() -> None:
     normal = '''
 [gd_scene load_steps=1 format=3]
@@ -186,6 +212,12 @@ def self_test() -> None:
     paths, attrs, syntax, malformed = node_table_conflicts(malformed_escape)
     assert paths == [] and attrs == [] and malformed == [] and len(syntax) == 1, "invalid quoted escape must fail closed as unparsed syntax"
 
+    mismatched_value = '(["ambient_pedestrian")]'
+    assert _legacy_depth_only_accepts(mismatched_value), "regression precondition: v2 depth-only parser accepts cross-matched delimiters"
+    mismatched_delimiters = normal.replace('groups=["ambient_pedestrian"]', f'groups={mismatched_value}')
+    paths, attrs, syntax, malformed = node_table_conflicts(mismatched_delimiters)
+    assert paths == [] and attrs == [] and malformed == [] and len(syntax) == 1, "cross-matched node-header delimiters must fail closed"
+
 
 def main() -> int:
     if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
@@ -213,7 +245,7 @@ def main() -> int:
     unambiguous = not path_conflicts and not attribute_conflicts and not syntax_conflicts and not malformed_header_conflicts
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_unique_decoded_node_path_plus_complete_fully_parsed_unambiguous_node_headers",
+        "evidence_mode": "reachable_tscn_plus_unique_decoded_node_path_plus_complete_fully_parsed_unambiguous_node_headers_plus_type_matched_balanced_delimiters",
         "reachable_scene_count": len(scenes),
         "duplicate_node_path_conflicts": path_conflicts,
         "duplicate_node_attribute_conflicts": attribute_conflicts,
@@ -222,18 +254,20 @@ def main() -> int:
         "node_paths_unique": not path_conflicts,
         "node_header_attributes_unambiguous": not attribute_conflicts,
         "node_header_syntax_fully_parsed": not syntax_conflicts,
+        "node_header_delimiters_type_matched": not syntax_conflicts,
         "node_outer_header_syntax_valid": not malformed_header_conflicts,
         "node_table_identity_unambiguous": unambiguous,
         "duplicate_node_path_evidence_accepted": False,
         "duplicate_node_attribute_evidence_accepted": False,
         "escaped_node_identity_evidence_accepted": False,
         "partially_parsed_node_header_evidence_accepted": False,
+        "mismatched_node_header_delimiter_evidence_accepted": False,
         "malformed_outer_node_header_evidence_accepted": False,
         "runtime_authorized": False,
         "visual_approval_claimed": False,
         "contact_verified": False,
         "foot_slide_verified": False,
-        "next_action": "remove duplicate decoded node paths/attributes, unparsed fragments and malformed node headers before authored Character hierarchy evidence can be trusted" if not unambiguous else "retain unique decoded fully parsed node-table gate before authored Character loaded-scene approval",
+        "next_action": "remove duplicate decoded node paths/attributes, unparsed fragments, mismatched delimiters and malformed node headers before authored Character hierarchy evidence can be trusted" if not unambiguous else "retain unique decoded fully parsed type-matched node-table gate before authored Character loaded-scene approval",
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-authored-skin-integrity-v2"
+SCHEMA = "grand-bruxelles-civ1-authored-skin-integrity-v3"
 NODE_RE = re.compile(r'^\s*\[node\s+(.+?)\]\s*$')
 EXT_RE = re.compile(r'^\s*\[ext_resource\s+(.+?)\]\s*$')
 SUB_RE = re.compile(r'^\s*\[sub_resource\s+(.+?)\]\s*$')
@@ -26,6 +26,33 @@ def node_path(attrs: dict[str, str]) -> str:
 
 
 def parse_node_blocks(scene: str) -> list[dict[str, object]]:
+    blocks: list[dict[str, object]] = []
+    current: dict[str, object] | None = None
+    for line in scene.splitlines():
+        match = NODE_RE.match(line)
+        if match:
+            attrs = dict(ATTR_RE.findall(match.group(1)))
+            inst = INSTANCE_RE.search(match.group(1))
+            if inst:
+                attrs["instance"] = inst.group(1)
+            current = {"attrs": attrs, "props": {}}
+            blocks.append(current)
+            continue
+        if line.lstrip().startswith("["):
+            current = None
+            continue
+        if current is None or not line:
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        props = current["props"]
+        assert isinstance(props, dict)
+        props[key.strip()] = value.strip()
+    return blocks
+
+
+def _legacy_parse_node_blocks(scene: str) -> list[dict[str, object]]:
     blocks: list[dict[str, object]] = []
     current: dict[str, object] | None = None
     for line in scene.splitlines():
@@ -149,8 +176,7 @@ def resolve_nodepath(owner_path: str, raw: str) -> str | None:
     return "/".join(parts)
 
 
-def scene_integrity(scene: str) -> list[dict[str, object]]:
-    blocks = parse_node_blocks(scene)
+def _scene_integrity_with_blocks(scene: str, blocks: list[dict[str, object]]) -> list[dict[str, object]]:
     resources = parse_resource_table(scene)
     nodes: dict[str, dict[str, object]] = {}
     for block in blocks:
@@ -222,6 +248,14 @@ def scene_integrity(scene: str) -> list[dict[str, object]]:
     return results
 
 
+def scene_integrity(scene: str) -> list[dict[str, object]]:
+    return _scene_integrity_with_blocks(scene, parse_node_blocks(scene))
+
+
+def _legacy_scene_integrity(scene: str) -> list[dict[str, object]]:
+    return _scene_integrity_with_blocks(scene, _legacy_parse_node_blocks(scene))
+
+
 def fixture_base() -> str:
     return '''
 [gd_scene load_steps=4 format=3]
@@ -289,6 +323,19 @@ material_override = SubResource("Mat_body")
     r = scene_integrity(valid)
     assert r[0]["authored_skin_integrity_ready"], "declared mesh+Skin+material bound to expected skeleton should pass structural preflight"
 
+    cross_section_forged = empty + '''
+[node name="Body" type="MeshInstance3D" parent="NpcAgent/CharacterMount"]
+skeleton = NodePath("../Skeleton3D")
+[sub_resource type="Resource" id="Carrier"]
+mesh = SubResource("Mesh_body")
+skin = SubResource("Skin_body")
+material_override = SubResource("Mat_body")
+'''
+    legacy = _legacy_scene_integrity(cross_section_forged)
+    assert legacy[0]["authored_skin_integrity_ready"], "regression precondition: legacy parser must accept cross-section property bleed"
+    r = scene_integrity(cross_section_forged)
+    assert r[0]["skinned_mesh_binding_present"] and not r[0]["authored_skin_integrity_ready"], "properties after a non-node section header must never belong to the preceding node"
+
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         game = root / "game"
@@ -332,7 +379,7 @@ def main() -> int:
     ready = [item for item in evidence if item["authored_skin_integrity_ready"]]
     result = {
         "schema": SCHEMA,
-        "evidence_mode": "reachable_tscn_plus_exact_skeleton_path_plus_declared_mesh_skin_material_resources",
+        "evidence_mode": "reachable_tscn_plus_exact_node_block_boundaries_plus_exact_skeleton_path_plus_declared_mesh_skin_material_resources",
         "reachable_scene_count": len(scene_names),
         "reachable_scenes": scene_names,
         "hierarchy_count": len(evidence),
@@ -343,6 +390,8 @@ def main() -> int:
         "missing_skin_resource_evidence_accepted": False,
         "wrong_skin_type_evidence_accepted": False,
         "wrong_skeleton_evidence_accepted": False,
+        "cross_section_property_bleed_evidence_accepted": False,
+        "node_block_boundaries_exact": True,
         "authored_skin_integrity_ready": bool(ready),
         "runtime_authorized": False,
         "visual_approval_claimed": False,

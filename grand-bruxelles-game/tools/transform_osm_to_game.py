@@ -333,18 +333,17 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
                 "points": points,
             })
 
-        if "building" in tags and len(points) >= 4:
-            if points[0] == points[-1]:
-                points = points[:-1]
-            area = polygon_area(points)
-            if len(points) >= 3 and 8.0 <= area <= 60_000.0:
+        if "building" in tags and len(points) >= 4 and points[0] == points[-1]:
+            footprint = points[:-1]
+            area = polygon_area(footprint)
+            if len(footprint) >= 3 and 8.0 <= area <= 60_000.0:
                 buildings.append({
                     "osm_id": element.get("id"),
                     "name": tags.get("name", ""),
                     "kind": tags.get("building", "yes"),
                     "height": building_height(tags),
                     "area": round(area, 2),
-                    "footprint": points,
+                    "footprint": footprint,
                 })
 
     bounds = [0.0, 0.0, 0.0, 0.0]

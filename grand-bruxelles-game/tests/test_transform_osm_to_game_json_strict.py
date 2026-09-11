@@ -53,6 +53,31 @@ def main() -> int:
     assert len(payload["elements"]) == 2
     assert math.isfinite(payload["version"])
 
+    railway_only = {
+        "elements": [
+            {
+                "type": "way",
+                "id": 31,
+                "tags": {"railway": "rail"},
+                "geometry": [
+                    {"lat": 50.8410, "lon": 4.3470},
+                    {"lat": 50.8420, "lon": 4.3490},
+                ],
+            }
+        ]
+    }
+    railway_result = transform_osm_to_game.convert(railway_only, transform_osm_to_game.DEFAULT_ORIGIN)
+    assert railway_result["stats"]["railways"] == 1
+    railway_points = railway_result["railways"][0]["points"]
+    expected_bounds = [
+        round(min(point[0] for point in railway_points), 2),
+        round(min(point[1] for point in railway_points), 2),
+        round(max(point[0] for point in railway_points), 2),
+        round(max(point[1] for point in railway_points), 2),
+    ]
+    assert railway_result["bounds_m"] == expected_bounds
+    assert railway_result["bounds_m"] != [0.0, 0.0, 0.0, 0.0]
+
     for invalid_origin in ("nan,4.348", "90.0001,4.348", "50.84,180.0001"):
         try:
             transform_osm_to_game.parse_origin(invalid_origin)
@@ -61,7 +86,7 @@ def main() -> int:
         else:
             raise AssertionError(f"invalid WGS84 origin accepted: {invalid_origin}")
 
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true finite_origin_required=true network_used=false")
+    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true finite_origin_required=true network_used=false")
     return 0
 
 

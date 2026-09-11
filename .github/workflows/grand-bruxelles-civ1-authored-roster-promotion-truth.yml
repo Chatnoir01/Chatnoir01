@@ -54,7 +54,7 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-truth/civ1-authored-roster-promotion-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-authored-roster-promotion-truth-v5'
+          assert d['schema']=='grand-bruxelles-civ1-authored-roster-promotion-truth-v6'
           assert d['canonical_humanoid_visual_bound'] is True
           assert d['npcagent_dispatch_to_profiled_pipeline'] is True
           assert d['canonical_npc_dispatch_is_procedural'] is True
@@ -64,7 +64,9 @@ jobs:
           assert d['authored_npc_asset_load_proven'] is False
           assert d['authored_npc_scene_instantiation_proven'] is False
           assert d['correlated_authored_loaded_variables'] == []
+          assert d['correlated_authored_asset_paths'] == []
           assert d['asset_load_instantiation_correlation_required'] is True
+          assert d['identity_count_based_on_correlated_dispatch'] is True
           assert d['multiple_authored_npc_identities_statically_proven'] is False
           assert d['comment_text_excluded_from_static_evidence'] is True
           assert d['quoted_asset_path_evidence_required'] is True

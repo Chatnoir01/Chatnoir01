@@ -254,6 +254,20 @@ def geometry_points(element: dict[str, Any], origin: tuple[float, float]) -> lis
     return out
 
 
+def source_way_is_closed(element: dict[str, Any]) -> bool:
+    """Require exact source-coordinate closure before lossy metric projection."""
+    geometry = element.get("geometry", []) or []
+    if not isinstance(geometry, list) or len(geometry) < 2:
+        return False
+    first = geometry[0]
+    last = geometry[-1]
+    if not isinstance(first, dict) or not isinstance(last, dict):
+        return False
+    if "lat" not in first or "lon" not in first or "lat" not in last or "lon" not in last:
+        return False
+    return first["lat"] == last["lat"] and first["lon"] == last["lon"]
+
+
 def environment_point_kind(tags: dict[str, Any]) -> str | None:
     if tags.get("natural") == "tree":
         return "tree"
@@ -333,7 +347,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
                 "points": points,
             })
 
-        if "building" in tags and len(points) >= 4 and points[0] == points[-1]:
+        if truthy_osm_tag(tags, "building") and source_way_is_closed(element) and len(points) >= 4 and points[0] == points[-1]:
             footprint = points[:-1]
             area = polygon_area(footprint)
             if len(footprint) >= 3 and 8.0 <= area <= 60_000.0:

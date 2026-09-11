@@ -569,7 +569,11 @@ func _validate_coverage_contract(data: Dictionary) -> Variant:
         push_error("Anneessens OSM furniture selection contract missing")
         return null
     var selection := selection_value as Dictionary
-    if bool(selection.get("coverage_complete", true)):
+    var coverage_complete_value: Variant = selection.get("coverage_complete", null)
+    if typeof(coverage_complete_value) != TYPE_BOOL:
+        push_error("Anneessens OSM furniture coverage_complete must be a boolean")
+        return null
+    if bool(coverage_complete_value):
         push_error("Anneessens OSM furniture partial subset must not claim complete coverage")
         return null
     if str(selection.get("policy", "")) != EXPECTED_COVERAGE_POLICY:

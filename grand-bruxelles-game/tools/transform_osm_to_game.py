@@ -214,6 +214,8 @@ def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
 
 def building_height(tags: dict[str, Any]) -> float:
     direct = numeric_tag(tags, "height", allow_meters=True)
+    if "height" in tags and direct is None:
+        raise ValueError(f"building height must be a finite numeric value in metres: {tags.get('height')!r}")
     if direct and 2.0 <= direct <= 250.0:
         return round(direct, 2)
 

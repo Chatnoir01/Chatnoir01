@@ -126,8 +126,14 @@ def load_source_json(path: Path) -> dict[str, Any]:
             _wgs84_coordinate(element["lon"], f"Overpass node {identity[1]} longitude", latitude=False)
 
         tags = element.get("tags")
-        if tags is not None and not isinstance(tags, dict):
-            raise ValueError(f"Overpass element {index} tags must be an object")
+        if tags is not None:
+            if not isinstance(tags, dict):
+                raise ValueError(f"Overpass element {index} tags must be an object")
+            for tag_key, tag_value in tags.items():
+                if not isinstance(tag_key, str) or not isinstance(tag_value, str):
+                    raise ValueError(
+                        f"Overpass element {index} tags must map strings to strings; invalid tag {tag_key!r}"
+                    )
         geometry = element.get("geometry")
         if geometry is not None:
             if not isinstance(geometry, list):

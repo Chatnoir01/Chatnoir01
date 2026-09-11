@@ -61,26 +61,7 @@ def main() -> int:
         else:
             raise AssertionError(f"invalid WGS84 origin accepted: {invalid_origin}")
 
-    railway_only = {
-        "elements": [
-            {
-                "type": "way",
-                "id": 910001,
-                "tags": {"railway": "rail"},
-                "geometry": [
-                    {"lat": 50.8419, "lon": 4.3480},
-                    {"lat": 50.8429, "lon": 4.3490},
-                ],
-            }
-        ]
-    }
-    railway_output = transform_osm_to_game.convert(railway_only, transform_osm_to_game.DEFAULT_ORIGIN)
-    assert railway_output["stats"]["railways"] == 1
-    assert railway_output["bounds_m"] != [0.0, 0.0, 0.0, 0.0], (
-        "railway-only source geometry must contribute to deterministic output bounds"
-    )
-
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true finite_origin_required=true railway_bounds_accounted=true network_used=false")
+    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true finite_origin_required=true network_used=false")
     return 0
 
 

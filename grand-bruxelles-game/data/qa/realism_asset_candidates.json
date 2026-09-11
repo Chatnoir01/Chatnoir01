@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-20",
+  "base_main_sha": "96e26ee71f8428ff1ab4887a471c9e35d3174b20",
+  "scope": ["civilian_characters", "police_character_base", "civilian_vehicles", "police_vehicle_base", "locomotion", "pbr_materials"],
+  "production_rule": "No candidate is production-authorized by this registry. Source -> legal/provenance -> local intake/hash -> Godot import -> fixed-view 2m/5m/8m photo-match -> performance -> owner GARDER is required.",
+  "license_policy": {
+    "preferred": ["CC0", "CC-BY"],
+    "manual_review": ["CC-BY-SA", "store/proprietary runtime license"],
+    "reject_for_public_repo": ["CC-BY-NC", "CC-BY-ND", "unknown", "ripped/third-party-game-source"],
+    "noai_note": "A NoAI flag does not block normal game use when the declared content license allows it, but the asset must never be used to train or improve AI/ML systems.",
+    "public_repo_rule": "Paid/proprietary raw assets must not be committed to the public repository unless the license explicitly allows redistribution. Keep them in a private/external intake pipeline and ship only as permitted by their license."
+  },
+  "characters": [
+    {
+      "id": "renderpeople_eric_rigged_001",
+      "source_url": "https://sketchfab.com/3d-models/eric-rigged-001-rigged-3d-business-man-a46bc9f67aaa415bb4f3241eef900e7f",
+      "author": "Renderpeople",
+      "license_declared": "CC Attribution",
+      "triangles": 20500,
+      "rigged": true,
+      "textures": "8K diffuse + normal + alpha declared",
+      "provenance": "strong_original_publisher_account",
+      "role": "PRIMARY_CLOSE_CAMERA_MALE_WITNESS",
+      "status": "SHORTLIST",
+      "notes": "Best first authored male witness: scanned/photoreal intent, modest geometry, already rigged. Downsample textures for Web LODs. Preserve attribution and NoAI restriction."
+    },
+    {
+      "id": "renderpeople_carla_rigged_001",
+      "source_url": "https://sketchfab.com/3d-models/carla-rigged-001-rigged-3d-business-women-acf520f450d14dd799f98a6fede3edf5",
+      "author": "Renderpeople",
+      "license_declared": "CC Attribution",
+      "triangles": 20000,
+      "rigged": true,
+      "textures": "8K diffuse + normal + alpha declared",
+      "provenance": "strong_original_publisher_account",
+      "role": "PRIMARY_CLOSE_CAMERA_FEMALE_WITNESS",
+      "status": "SHORTLIST",
+      "notes": "Strong female counterpart to Eric on the same publisher pipeline; good candidate for common skeleton/retarget experiments. Preserve attribution and NoAI restriction."
+    },
+    {
+      "id": "renderpeople_claudia_rigged_002",
+      "source_url": "https://sketchfab.com/3d-models/claudia-rigged-002-3d-rigged-business-women-c659bd0accab47c6bbe390cf822a2b92",
+      "author": "Renderpeople",
+      "license_declared": "CC Attribution",
+      "triangles": 21500,
+      "rigged": true,
+      "textures": "8K diffuse + normal + alpha declared",
+      "provenance": "strong_original_publisher_account",
+      "role": "SECONDARY_FEMALE_IDENTITY",
+      "status": "SHORTLIST",
+      "notes": "Secondary identity once the first witness pipeline is green. Preserve attribution and NoAI restriction."
+    },
+    {
+      "id": "renderpeople_nathan_animated_003",
+      "source_url": "https://sketchfab.com/3d-models/nathan-animated-003-walking-3d-man-143a2b1ea5eb4385ae90a73657aca3bc",
+      "author": "Renderpeople",
+      "license_declared": "CC Attribution",
+      "triangles": 21500,
+      "rigged": true,
+      "animation": "30fps loopable baked walking animation",
+      "textures": "8K diffuse + normal + alpha declared",
+      "provenance": "strong_original_publisher_account",
+      "role": "LOCOMOTION_REFERENCE",
+      "status": "SHORTLIST",
+      "notes": "Use as a benchmark for foot grounding, cadence and no-slide behaviour; not necessarily the final civilian identity. Preserve attribution and NoAI restriction."
+    },
+    {
+      "id": "renderpeople_sophia_animated_003",
+      "source_url": "https://sketchfab.com/3d-models/sophia-animated-003-animated-3d-woman-dc448c3be0e74f96a55fb475a13433cf",
+      "author": "Renderpeople",
+      "license_declared": "CC Attribution",
+      "triangles": null,
+      "polycount_note": "publisher declares ~10k polycount",
+      "rigged": true,
+      "animation": "30fps loopable baked idle/waiting animation",
+      "textures": "8K diffuse + normal + alpha declared",
+      "provenance": "strong_original_publisher_account",
+      "role": "IDLE_REFERENCE",
+      "status": "SHORTLIST",
+      "notes": "Useful reference for natural idle motion and scanned-human material response. Preserve attribution and NoAI restriction."
+    },
+    {
+      "id": "joe_realistic_human",
+      "source_url": "https://sketchfab.com/3d-models/joe-realistic-human-3d-model-2a108401fe5547409a3ad666b9b7d6b3",
+      "author": "Arjun P Krishna",
+      "license_declared": "CC Attribution",
+      "triangles": 53400,
+      "rigged": false,
+      "features": ["game-ready topology", "PBR textures"],
+      "provenance": "publisher_claimed_original",
+      "role": "SECONDARY_MALE_APPEARANCE_CANDIDATE",
+      "status": "SHORTLIST_NEEDS_RIG",
+      "notes": "Good appearance/topology candidate but downloadable page states ready for rigging; do not block CIV-1 on custom rigging if Eric/Carla intake is cleaner."
+    },
+    {
+      "id": "empire_realistic_female_game_ready",
+      "source_url": "https://sketchfab.com/3d-models/realistic-female-character-game-ready-3d-model-59150883a7db4f98b541071c414bf7f7",
+      "author": "Empire's 3D",
+      "license_declared": "CC Attribution",
+      "triangles": 79300,
+      "rigged": null,
+      "features": ["PBR albedo/normal/roughness/metallic declared", "real-time topology declared", "FBX/OBJ/GLB declared"],
+      "provenance": "needs_manual_origin_review",
+      "role": "SECONDARY_FEMALE_APPEARANCE_CANDIDATE",
+      "status": "HOLD_PROVENANCE",
+      "notes": "Visually promising but provenance/original-source evidence must be stronger before any bytes enter the repository."
+    },
+    {
+      "id": "makehuman_core_and_checked_cc0_packs",
+      "source_url": "https://static.makehumancommunity.org/assets/assetpacks/index.html",
+      "author": "MakeHuman Community / listed asset authors",
+      "license_declared": "CC0 for core/system assets and selected packs; per-pack verification required",
+      "triangles": null,
+      "rigged": true,
+      "provenance": "strong_official_project",
+      "role": "CONTROLLED_GENERATOR_AND_FALLBACK_SOURCE",
+      "status": "KEEP_AS_FALLBACK_NOT_HERO_BY_DEFAULT",
+      "notes": "Core assets are CC0; contributed packs can be CC0 or CC-BY and must be checked individually. Keep for diversity/fallback and custom Belgian police clothing work, not as automatic close-camera hero quality."
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "mmc_generic_sedan_car",
+      "source_url": "https://sketchfab.com/3d-models/generic-sedan-car-58c33766470d46e7b2aed542650494e5",
+      "author": "MMC Works",
+      "license_declared": "CC Attribution",
+      "triangles": 113200,
+      "features": ["generic design", "rough interior", "separated parts", "Rigacar rig", "basic paint/mechanics/interior texture maps"],
+      "provenance": "publisher_claimed_original",
+      "role": "PRIMARY_CLOSE_CAMERA_SEDAN_CANDIDATE",
+      "status": "SHORTLIST",
+      "notes": "Strong authored-car witness. Build 2K/1K texture variants and LODs before Web use. Preserve attribution and NoAI restriction."
+    },
+    {
+      "id": "compact_modern_hatchback_valentine_crut",
+      "source_url": "https://sketchfab.com/3d-models/car-compact-modern-hatchback-3d-model-4a1d6509ee3142b7961496c3782fe8d0",
+      "author": "Valentine_crut",
+      "license_declared": "CC Attribution",
+      "triangles": 109800,
+      "features": ["modern compact hatchback", "detailed exterior", "clean topology declared", "real-time rendering declared"],
+      "provenance": "needs_manual_origin_review",
+      "role": "PRIMARY_CLOSE_CAMERA_HATCHBACK_CANDIDATE",
+      "status": "SHORTLIST_PROVENANCE_GATE",
+      "notes": "Best current modern hatchback lead from search, but source/original-work verification is required before download/import."
+    },
+    {
+      "id": "milano_95_generic_european_compact",
+      "source_url": "https://sketchfab.com/3d-models/milano-95-low-poly-model-122a22d210234596ad23623588d0d166",
+      "author": "Daniel Zhabotinsky",
+      "license_declared": "CC Attribution",
+      "triangles": 18100,
+      "features": ["generic European compact hatchback", "explicitly designed from generic period cues"],
+      "provenance": "publisher_claimed_original",
+      "role": "MID_DISTANCE_EUROPEAN_VARIETY",
+      "status": "SHORTLIST",
+      "notes": "Excellent geometry budget for Web and crowd traffic; likely not hero-photoreal at 2m, but useful as LOD/mid-distance authored variety."
+    },
+    {
+      "id": "mag80_hatchback_2000s",
+      "source_url": "https://sketchfab.com/3d-models/hatchback-d7ac4672e23c4705b6bb3050fa3a6bbe",
+      "author": "MaG80",
+      "license_declared": "CC Attribution",
+      "triangles": 17700,
+      "features": ["game ready", "low poly", "late-2000s hatchback"],
+      "provenance": "publisher_claimed_original",
+      "role": "MID_DISTANCE_VARIETY",
+      "status": "SHORTLIST_WITH_BRAND_LIKENESS_REVIEW",
+      "notes": "Author states inspiration from a 2006 Mazda 3. Remove/avoid branding and do not use as the sole close-camera hero."
+    },
+    {
+      "id": "mag80_simple_european_compact_van",
+      "source_url": "https://sketchfab.com/3d-models/simple-european-compact-van-794dd0d59d7d4eae9a15a87802546619",
+      "author": "MaG80",
+      "license_declared": "CC Attribution",
+      "triangles": 11400,
+      "features": ["European compact van", "game ready", "low poly"],
+      "provenance": "publisher_claimed_original",
+      "role": "MID_DISTANCE_VAN_VARIETY",
+      "status": "SHORTLIST_WITH_BRAND_LIKENESS_REVIEW",
+      "notes": "Inspired by Renault Kangoo and others; good runtime budget, but genericize further for production."
+    },
+    {
+      "id": "sedan_glb_with_interior_3dha",
+      "source_url": "https://sketchfab.com/3d-models/sedan-glb-format-with-interior-fe0d953112044d6893d04dbbec75ac82",
+      "author": "3DHA",
+      "license_declared": "CC Attribution",
+      "triangles": 18200,
+      "features": ["GLB", "interior", "low poly"],
+      "provenance": "needs_manual_origin_review",
+      "role": "LOW_COST_INTEGRATION_TEST",
+      "status": "HOLD_PROVENANCE",
+      "notes": "Good format/budget for a fast Godot import test, but description is too sparse for production provenance without manual verification."
+    },
+    {
+      "id": "generic_usa_eu_station_wagon_anserkon",
+      "source_url": "https://sketchfab.com/3d-models/generic-usaeu-station-wagon-c14f271c9d414b8e8d25e7cec3bb44f5",
+      "author": "Anserkon",
+      "license_declared": "CC Attribution",
+      "triangles": 18500,
+      "provenance": "ambiguous_brand_derivation",
+      "role": "NONE",
+      "status": "REJECT_FOR_NOW",
+      "notes": "Description calls it an 'un-copyrighted VW Passat 2010'; that wording is not sufficient rights/provenance assurance for our production intake."
+    },
+    {
+      "id": "rcc_compact_hatchback",
+      "source_url": "https://sketchfab.com/3d-models/compact-hatchback-abbd4e65bbf1475b866d84735088b8ff",
+      "author": "RCC Design",
+      "license_declared": "CC Attribution",
+      "triangles": 18700,
+      "provenance": "brand_specific",
+      "role": "NONE",
+      "status": "REJECT_FOR_HERO",
+      "notes": "Page/tags identify Volkswagen/Golf inspiration. Prefer genuinely generic designs for a public project."
+    }
+  ],
+  "animation_sources": [
+    {
+      "id": "adobe_mixamo",
+      "source_url": "https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html",
+      "license_declared": "Adobe states Mixamo characters and animations may be used royalty-free in personal, commercial and non-profit projects including video games",
+      "status": "APPROVED_SOURCE_CLASS_WITH_TERMS_REVIEW_PER_INTAKE",
+      "notes": "Use for biped idle/walk/run/turn/gesture retargeting. Do not use Mixamo content to train/test/improve AI/ML. Preserve any distribution restrictions from Adobe terms; do not assume raw-library redistribution rights."
+    },
+    {
+      "id": "renderpeople_baked_motion_refs",
+      "source_url": "https://sketchfab.com/renderpeople",
+      "license_declared": "CC Attribution on selected downloadable models",
+      "status": "APPROVED_REFERENCE_CLASS",
+      "notes": "Nathan walking and Sophia idle are strong motion/grounding references because the animation is already baked onto scanned/rigged humans."
+    }
+  ],
+  "material_sources": [
+    {
+      "id": "poly_haven",
+      "source_url": "https://polyhaven.com/license",
+      "license_declared": "CC0",
+      "status": "APPROVED_SOURCE_CLASS",
+      "notes": "Use for PBR textile/plastic/rubber/metal/environment material support; assets may be used commercially and redistributed under CC0."
+    },
+    {
+      "id": "makehuman_checked_cc0_material_packs",
+      "source_url": "https://static.makehumancommunity.org/assets/assetpacks/index.html",
+      "license_declared": "CC0 for listed CC0 packs; verify each pack",
+      "status": "APPROVED_SOURCE_CLASS",
+      "notes": "Natural male/female skins, system hair/eye materials and selected clothing packs can strengthen controlled fallback/custom-character workflows."
+    }
+  ],
+  "next_intake_order": [
+    "renderpeople_eric_rigged_001",
+    "renderpeople_carla_rigged_001",
+    "renderpeople_nathan_animated_003",
+    "renderpeople_sophia_animated_003",
+    "mmc_generic_sedan_car",
+    "compact_modern_hatchback_valentine_crut",
+    "milano_95_generic_european_compact",
+    "mag80_simple_european_compact_van"
+  ]
+}

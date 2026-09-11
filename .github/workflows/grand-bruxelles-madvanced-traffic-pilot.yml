@@ -1,0 +1,45 @@
+name: Grand Bruxelles MAdvanced Traffic Pilot
+
+on:
+  push:
+    branches:
+      - "tooling/madvanced-traffic-pilot-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-madvanced-traffic-pilot.yml"
+      - "grand-bruxelles-game/data/qa/madvanced_traffic_pilot_contract.json"
+      - "grand-bruxelles-game/tools/qa/run_madvanced_traffic_pilot.sh"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-madvanced-traffic-pilot.yml"
+      - "grand-bruxelles-game/data/qa/madvanced_traffic_pilot_contract.json"
+      - "grand-bruxelles-game/tools/qa/run_madvanced_traffic_pilot.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: madvanced-traffic-pilot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-traffic-smoke:
+    name: Godot 4.7.1 MAdvanced traffic donor smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Run isolated MAdvanced traffic pilot
+        shell: bash
+        run: bash grand-bruxelles-game/tools/qa/run_madvanced_traffic_pilot.sh
+
+      - name: Upload pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: madvanced-traffic-pilot-evidence
+          path: ${{ runner.temp }}/grand-bruxelles-madvanced-traffic-pilot/evidence
+          if-no-files-found: warn
+          retention-days: 7

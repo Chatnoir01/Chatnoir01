@@ -11,6 +11,7 @@ on:
       - "grand-bruxelles-game/game/scripts/brussels_street_tree_asset.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_furniture_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_coverage_radius_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_osm_position_shape_contract_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_furniture_player_loss_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_street_tree_witness_test.gd"
   workflow_dispatch:
@@ -64,6 +65,13 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_coverage_radius_contract_test.gd 2>&1 | tee /tmp/anneessens-coverage-radius.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_COVERAGE_RADIUS_FAIL" /tmp/anneessens-coverage-radius.log; then exit 1; fi
           grep -q "ANNEESSENS_OSM_COVERAGE_RADIUS_OK" /tmp/anneessens-coverage-radius.log
+      - name: Prove exact 2D source-position tuple fail-closed
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_position_shape_contract_test.gd 2>&1 | tee /tmp/anneessens-position-shape.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_POSITION_SHAPE_FAIL" /tmp/anneessens-position-shape.log; then exit 1; fi
+          grep -q "ANNEESSENS_OSM_POSITION_SHAPE_OK" /tmp/anneessens-position-shape.log
       - name: Prove fail-closed Player-anchor lifecycle
         shell: bash
         run: |

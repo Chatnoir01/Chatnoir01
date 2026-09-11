@@ -8,7 +8,7 @@ from pathlib import Path
 
 import civ1_authored_roster_promotion_truth as promotion
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v2"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v3"
 
 
 def res_path_to_file(project_root: Path, res_path: str) -> Path:
@@ -20,57 +20,95 @@ def res_path_to_file(project_root: Path, res_path: str) -> Path:
     return project_root / relative
 
 
-def _valid_godot_text_scene(backing: Path) -> bool:
+def _read_godot_text_scene(backing: Path) -> str | None:
     try:
         text = backing.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeError):
-        return False
+        return None
     first = next((line.strip() for line in text.splitlines() if line.strip()), "")
-    return first.startswith("[gd_scene") and first.endswith("]") and "format=" in first
+    if not (first.startswith("[gd_scene") and first.endswith("]") and "format=" in first):
+        return None
+    return text
 
 
-def _valid_gltf_json(backing: Path) -> bool:
+def _read_gltf_json(backing: Path) -> dict[str, object] | None:
     try:
         data = json.loads(backing.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError):
-        return False
+        return None
     if not isinstance(data, dict):
-        return False
+        return None
     asset = data.get("asset")
-    return isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")
+    if not (isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")):
+        return None
+    return data
 
 
-def _valid_glb_v2(backing: Path) -> bool:
+def _read_glb_v2(backing: Path) -> dict[str, object] | None:
     try:
         data = backing.read_bytes()
     except OSError:
-        return False
+        return None
     if len(data) < 20 or data[:4] != b"glTF":
-        return False
+        return None
     version, declared_length = struct.unpack_from("<II", data, 4)
     if version != 2 or declared_length != len(data):
-        return False
+        return None
     json_length, json_type = struct.unpack_from("<II", data, 12)
     if json_type != 0x4E4F534A or json_length <= 0 or 20 + json_length > len(data):
-        return False
+        return None
     try:
         json_chunk = data[20 : 20 + json_length].decode("utf-8").rstrip(" \t\r\n\x00")
         root = json.loads(json_chunk)
     except (UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(root, dict):
+        return None
+    asset = root.get("asset")
+    if not (isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")):
+        return None
+    return root
+
+
+def _gltf_has_instantiable_scene_payload(root: dict[str, object]) -> bool:
+    nodes = root.get("nodes")
+    scenes = root.get("scenes")
+    if not isinstance(nodes, list) or not nodes or not isinstance(scenes, list) or not scenes:
         return False
-    asset = root.get("asset") if isinstance(root, dict) else None
-    return isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        roots = scene.get("nodes")
+        if not isinstance(roots, list) or not roots:
+            continue
+        if any(isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(nodes) for index in roots):
+            return True
+    return False
+
+
+def scene_backing_inspection(backing: Path) -> tuple[str | None, bool]:
+    suffix = backing.suffix.lower()
+    if suffix == ".tscn":
+        text = _read_godot_text_scene(backing)
+        if text is None:
+            return None, False
+        payload = any(line.strip().startswith("[node ") and line.strip().endswith("]") for line in text.splitlines())
+        return "godot_text_scene", payload
+    if suffix == ".gltf":
+        root = _read_gltf_json(backing)
+        if root is None:
+            return None, False
+        return "gltf_2_json", _gltf_has_instantiable_scene_payload(root)
+    if suffix == ".glb":
+        root = _read_glb_v2(backing)
+        if root is None:
+            return None, False
+        return "glb_2", _gltf_has_instantiable_scene_payload(root)
+    return None, False
 
 
 def scene_backing_format(backing: Path) -> str | None:
-    suffix = backing.suffix.lower()
-    if suffix == ".tscn" and _valid_godot_text_scene(backing):
-        return "godot_text_scene"
-    if suffix == ".gltf" and _valid_gltf_json(backing):
-        return "gltf_2_json"
-    if suffix == ".glb" and _valid_glb_v2(backing):
-        return "glb_2"
-    return None
+    return scene_backing_inspection(backing)[0]
 
 
 def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
@@ -78,8 +116,10 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
     correlated = list(base.get("correlated_authored_asset_paths", []))
     materialized: list[str] = []
     scene_valid: list[str] = []
+    payload_valid: list[str] = []
     missing_or_empty: list[str] = []
     invalid_or_unsupported: list[str] = []
+    invalid_or_empty_payload: list[str] = []
     backing_formats: dict[str, str] = {}
 
     for res_path in correlated:
@@ -92,26 +132,33 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
             missing_or_empty.append(res_path)
             continue
         materialized.append(res_path)
-        fmt = scene_backing_format(backing)
+        fmt, has_payload = scene_backing_inspection(backing)
         if fmt is None:
             invalid_or_unsupported.append(res_path)
             continue
         scene_valid.append(res_path)
         backing_formats[res_path] = fmt
+        if not has_payload:
+            invalid_or_empty_payload.append(res_path)
+            continue
+        payload_valid.append(res_path)
 
     all_materialized = bool(correlated) and not missing_or_empty and len(materialized) == len(correlated)
     all_scene_valid = bool(correlated) and not invalid_or_unsupported and len(scene_valid) == len(correlated)
-    multiple_valid = len(scene_valid) >= 2
+    all_payload_valid = bool(correlated) and not invalid_or_empty_payload and len(payload_valid) == len(correlated)
+    multiple_valid = len(payload_valid) >= 2
     static_ready = bool(base.get("authored_civilian_police_roster_visual_ready"))
-    ready = static_ready and all_materialized and all_scene_valid and multiple_valid
+    ready = static_ready and all_materialized and all_scene_valid and all_payload_valid and multiple_valid
 
     blockers = list(base.get("blocking_reasons", []))
     if correlated and missing_or_empty:
         blockers.append("correlated_authored_npc_assets_missing_or_empty")
     if correlated and invalid_or_unsupported:
         blockers.append("correlated_authored_npc_assets_not_valid_scene_backings")
+    if correlated and invalid_or_empty_payload:
+        blockers.append("correlated_authored_npc_assets_lack_instantiable_scene_payload")
     if static_ready and not multiple_valid:
-        blockers.append("multiple_scene_valid_authored_npc_identities_not_proven")
+        blockers.append("multiple_scene_payload_authored_npc_identities_not_proven")
 
     return {
         "schema": SCHEMA,
@@ -119,14 +166,18 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
         "correlated_authored_asset_paths": correlated,
         "materialized_correlated_authored_asset_paths": sorted(materialized),
         "scene_valid_correlated_authored_asset_paths": sorted(scene_valid),
+        "scene_payload_valid_correlated_authored_asset_paths": sorted(payload_valid),
         "scene_backing_formats": dict(sorted(backing_formats.items())),
         "missing_or_empty_correlated_authored_asset_paths": sorted(missing_or_empty),
         "invalid_or_unsupported_scene_backing_paths": sorted(invalid_or_unsupported),
+        "invalid_or_empty_scene_payload_paths": sorted(invalid_or_empty_payload),
         "correlated_asset_backing_required": True,
         "scene_format_preflight_required": True,
+        "scene_payload_preflight_required": True,
         "all_correlated_authored_asset_backings_materialized": all_materialized,
         "all_correlated_authored_asset_scene_backings_valid": all_scene_valid,
-        "multiple_scene_valid_authored_npc_identities_proven": multiple_valid,
+        "all_correlated_authored_asset_scene_payloads_instantiable": all_payload_valid,
+        "multiple_scene_payload_authored_npc_identities_proven": multiple_valid,
         "static_authored_roster_ready": static_ready,
         "authored_civilian_police_roster_materialization_ready": ready,
         "promotion_blocked": not ready,

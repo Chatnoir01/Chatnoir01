@@ -13,11 +13,12 @@ def _function_body(source: str, signature: str) -> str:
 
 
 class AnneessensOsmFurnitureSourceGuardTest(unittest.TestCase):
-    def test_tree_points_are_validated_before_runtime_root_is_created(self) -> None:
+    def test_tree_points_are_validated_before_candidate_root_is_created(self) -> None:
         source = _source()
         build = _function_body(source, "func _build_once() -> void:")
         self.assertIn("_collect_validated_tree_points", build)
-        self.assertLess(build.index("_collect_validated_tree_points"), build.index("_root = Node3D.new()"))
+        self.assertIn("var candidate_root := Node3D.new()", build)
+        self.assertLess(build.index("_collect_validated_tree_points"), build.index("var candidate_root := Node3D.new()"))
 
     def test_validation_result_can_fail_closed_with_null(self) -> None:
         source = _source()
@@ -46,27 +47,49 @@ class AnneessensOsmFurnitureSourceGuardTest(unittest.TestCase):
         self.assertIn("is_finite(x)", parser)
         self.assertIn("is_finite(z)", parser)
 
-    def test_invalid_tree_source_aborts_instead_of_materializing_partial_furniture(self) -> None:
+    def test_invalid_tree_source_aborts_before_staging_or_publication(self) -> None:
         source = _source()
         build = _function_body(source, "func _build_once() -> void:")
         self.assertIn("if validated_tree_points == null:", build)
-        self.assertIn("return", build.split("if validated_tree_points == null:", 1)[1].split("_root = Node3D.new()", 1)[0])
-        self.assertNotIn("_add_tree(int(point.get(\"osm_id\", 0))", build)
+        failure_path = build.split("if validated_tree_points == null:", 1)[1].split("var candidate_root := Node3D.new()", 1)[0]
+        self.assertIn("return", failure_path)
+        self.assertNotIn("_scene.add_child(candidate_root)", failure_path)
+
+    def test_source_position_is_preserved_on_off_tree_staging_parent(self) -> None:
+        source = _source()
+        build = _function_body(source, "func _build_once() -> void:")
+        create_tree = _function_body(source, "func _create_tree(osm_id: int, world_position: Vector3, parent_root: Node3D) -> StaticBody3D:")
+        self.assertIn('var world_position: Vector3 = validated_point["position"]', build)
+        self.assertIn('_create_tree(int(validated_point["osm_id"]), world_position, candidate_root)', build)
+        self.assertIn("tree.position = world_position", create_tree)
+        self.assertIn("parent_root.add_child(tree)", create_tree)
+        self.assertNotIn("_scene.add_child(tree)", create_tree)
+
+    def test_complete_candidate_is_published_before_runtime_ownership_is_committed(self) -> None:
+        source = _source()
+        build = _function_body(source, "func _build_once() -> void:")
+        self.assertIn("candidate_trees.append(candidate_tree)", build)
+        self.assertIn("_scene.add_child(candidate_root)", build)
+        self.assertIn("_root = candidate_root", build)
+        self.assertIn("_trees = candidate_trees", build)
+        self.assertLess(build.index("candidate_trees.append(candidate_tree)"), build.index("_scene.add_child(candidate_root)"))
+        self.assertLess(build.index("_scene.add_child(candidate_root)"), build.index("_root = candidate_root"))
+        self.assertLess(build.index("_root = candidate_root"), build.index("_trees = candidate_trees"))
 
     def test_unsourced_tree_dimensions_never_authorize_player_collision(self) -> None:
         source = _source()
         build = _function_body(source, "func _build_once() -> void:")
-        add_tree = _function_body(source, "func _add_tree(osm_id: int, world_position: Vector3) -> void:")
+        create_tree = _function_body(source, "func _create_tree(osm_id: int, world_position: Vector3, parent_root: Node3D) -> StaticBody3D:")
         activation = _function_body(source, "func _apply_tree_activation(active: bool) -> void:")
         self.assertIn('const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"', source)
-        self.assertIn('_root.set_meta("collision_source_backed", false)', build)
-        self.assertIn('_root.set_meta("collision_authorized", false)', build)
-        self.assertIn('_root.set_meta("collision_policy", COLLISION_POLICY)', build)
-        self.assertIn('tree.set_meta("collision_source_backed", false)', add_tree)
-        self.assertIn('tree.set_meta("collision_authorized", false)', add_tree)
-        self.assertIn('tree.set_meta("collision_policy", COLLISION_POLICY)', add_tree)
-        self.assertNotIn("CylinderShape3D.new()", add_tree)
-        self.assertNotIn("CollisionShape3D.new()", add_tree)
+        self.assertIn('candidate_root.set_meta("collision_source_backed", false)', build)
+        self.assertIn('candidate_root.set_meta("collision_authorized", false)', build)
+        self.assertIn('candidate_root.set_meta("collision_policy", COLLISION_POLICY)', build)
+        self.assertIn('tree.set_meta("collision_source_backed", false)', create_tree)
+        self.assertIn('tree.set_meta("collision_authorized", false)', create_tree)
+        self.assertIn('tree.set_meta("collision_policy", COLLISION_POLICY)', create_tree)
+        self.assertNotIn("CylinderShape3D.new()", create_tree)
+        self.assertNotIn("CollisionShape3D.new()", create_tree)
         self.assertNotIn("collision.disabled = not active", activation)
 
 

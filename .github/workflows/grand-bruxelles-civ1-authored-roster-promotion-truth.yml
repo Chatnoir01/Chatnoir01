@@ -36,7 +36,7 @@ jobs:
           python-version: '3.12'
       - name: Reject forged promotion truth
         run: python grand-bruxelles-game/tools/civ1_authored_roster_promotion_truth.py --self-test
-      - name: Reproduce and reject placeholder and comment-only roster false positives
+      - name: Reproduce and reject v1-v3 roster false positives
         run: python grand-bruxelles-game/tools/test_civ1_authored_roster_promotion_truth.py
       - name: Measure canonical NPC visual promotion truth
         run: |
@@ -50,7 +50,7 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-truth/civ1-authored-roster-promotion-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-authored-roster-promotion-truth-v3'
+          assert d['schema']=='grand-bruxelles-civ1-authored-roster-promotion-truth-v4'
           assert d['canonical_humanoid_visual_bound'] is True
           assert d['npcagent_dispatch_to_profiled_pipeline'] is True
           assert d['canonical_npc_dispatch_is_procedural'] is True
@@ -59,6 +59,7 @@ jobs:
           assert d['authored_npc_asset_dispatch_statically_proven'] is False
           assert d['multiple_authored_npc_identities_statically_proven'] is False
           assert d['comment_text_excluded_from_static_evidence'] is True
+          assert d['quoted_asset_path_evidence_required'] is True
           assert d['authored_civilian_police_roster_visual_ready'] is False
           assert d['promotion_blocked'] is True
           assert 'npcagent_dispatch_uses_procedural_profile_body' in d['blocking_reasons']

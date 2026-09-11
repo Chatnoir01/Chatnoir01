@@ -8,6 +8,8 @@ const EXPECTED_SHARED_MESH_RESOURCES := 3
 const EXPECTED_SHARED_LEGACY_MESH_RESOURCES := 2
 const EXPECTED_COVERAGE_POLICY := "preserve_existing_runtime_subset_v1"
 const EXPECTED_COVERAGE_RADIUS_M := 130.0
+const EXPECTED_DATA_SHA256 := "df88c0af132d78f8c7252211546278b6bf26271958641434c08c0ce69d7cac5c"
+const EXPECTED_DATA_BYTES := 1157
 const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
 
 func _initialize() -> void:
@@ -83,6 +85,15 @@ func _run() -> void:
         return
     if abs(float(root.get_meta("coverage_radius_m", -1.0)) - EXPECTED_COVERAGE_RADIUS_M) > 0.0001:
         _fail("Anneessens OSM subset coverage radius missing or drifted")
+        return
+    if not bool(root.get_meta("data_artifact_identity_validated", false)):
+        _fail("Anneessens derived artifact byte identity was not validated before root construction")
+        return
+    if str(root.get_meta("data_artifact_sha256", "")) != EXPECTED_DATA_SHA256:
+        _fail("Anneessens derived artifact digest missing or drifted")
+        return
+    if int(root.get_meta("data_artifact_bytes", -1)) != EXPECTED_DATA_BYTES:
+        _fail("Anneessens derived artifact byte count missing or drifted")
         return
     if str(root.get_meta("upstream_source_sha256", "")) != EXPECTED_UPSTREAM_SHA256:
         _fail("Anneessens OSM upstream source digest missing or drifted")
@@ -175,5 +186,5 @@ func _run() -> void:
         _fail("enhanced tree mesh reuse must survive legacy round-trip; found %d" % restored_mesh_resources.size())
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d legacy_mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [EXPECTED_COVERAGE_POLICY, EXPECTED_COVERAGE_RADIUS_M, COLLISION_POLICY, foliage_lobes_total, mesh_resources.size(), legacy_mesh_resources.size()])
+    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 data_artifact_identity_validated=true data_artifact_bytes=%d coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d legacy_mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [EXPECTED_DATA_BYTES, EXPECTED_COVERAGE_POLICY, EXPECTED_COVERAGE_RADIUS_M, COLLISION_POLICY, foliage_lobes_total, mesh_resources.size(), legacy_mesh_resources.size()])
     quit(0)

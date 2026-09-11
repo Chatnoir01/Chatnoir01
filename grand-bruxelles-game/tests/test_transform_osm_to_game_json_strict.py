@@ -100,11 +100,12 @@ def main() -> int:
                     {"lat": 50.8410, "lon": 4.3480},
                     {"lat": 50.8420, "lon": 4.3480},
                     {"lat": 50.8420, "lon": 4.3470},
-                    {"lat": 50.841000001, "lon": 4.347000001},
+                    {"lat": 50.8410000001, "lon": 4.3470000001},
                 ],
             }
         ]
     }
+    assert transform_osm_to_game.metric_point(50.8410, 4.3470, *transform_osm_to_game.DEFAULT_ORIGIN) == transform_osm_to_game.metric_point(50.8410000001, 4.3470000001, *transform_osm_to_game.DEFAULT_ORIGIN), "witness must collapse only after metric rounding"
     near_closed_result = transform_osm_to_game.convert(near_closed_after_projection, transform_osm_to_game.DEFAULT_ORIGIN)
     assert near_closed_result["stats"]["buildings"] == 0, "building closure must be proven in source WGS84 coordinates before millimetre projection rounding"
 
@@ -169,7 +170,7 @@ def main() -> int:
         else:
             raise AssertionError(f"invalid WGS84 origin accepted: {invalid_origin}")
 
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true osm_tag_strings_required=true numeric_tag_units_strict=true railway_layer_ambiguity_rejected=true open_building_rejected=true source_building_closure_required=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true railway_order_deterministic=true finite_origin_required=true network_used=false")
+    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true osm_tag_strings_required=true numeric_tag_units_strict=true railway_layer_ambiguity_rejected=true open_building_rejected=true source_building_closure_required=true projection_rounding_closure_guarded=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true railway_order_deterministic=true finite_origin_required=true network_used=false")
     return 0
 
 

@@ -38,7 +38,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Reproduce and reject phantom authored roster assets
+      - name: Reproduce and reject phantom or malformed authored roster assets
         run: python grand-bruxelles-game/tools/test_civ1_authored_roster_materialization_truth.py
       - name: Measure canonical roster materialization truth
         run: |
@@ -53,14 +53,19 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-materialization/civ1-authored-roster-materialization-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-authored-roster-materialization-truth-v1'
+          assert d['schema']=='grand-bruxelles-civ1-authored-roster-materialization-truth-v2'
           assert d['promotion_truth_schema']=='grand-bruxelles-civ1-authored-roster-promotion-truth-v6'
           assert d['correlated_asset_backing_required'] is True
+          assert d['scene_format_preflight_required'] is True
           assert d['correlated_authored_asset_paths'] == []
           assert d['materialized_correlated_authored_asset_paths'] == []
+          assert d['scene_valid_correlated_authored_asset_paths'] == []
+          assert d['scene_backing_formats'] == {}
           assert d['missing_or_empty_correlated_authored_asset_paths'] == []
+          assert d['invalid_or_unsupported_scene_backing_paths'] == []
           assert d['all_correlated_authored_asset_backings_materialized'] is False
-          assert d['multiple_materialized_authored_npc_identities_proven'] is False
+          assert d['all_correlated_authored_asset_scene_backings_valid'] is False
+          assert d['multiple_scene_valid_authored_npc_identities_proven'] is False
           assert d['static_authored_roster_ready'] is False
           assert d['authored_civilian_police_roster_materialization_ready'] is False
           assert d['promotion_blocked'] is True

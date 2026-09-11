@@ -35,26 +35,34 @@ def test_invalid_scene_fallback_clears_state_and_retries_binding() -> None:
     assert 'call_deferred("_try_bind")' in invalid_scene_block
 
 
-def test_removed_furniture_root_is_rebuilt_while_scene_stays_bound() -> None:
+def test_process_delegates_build_and_activation_to_distance_gated_sync() -> None:
     source = _source()
     process_body = _function_body(source, "func _process(_delta: float) -> void:")
-    recovery_block = process_body.split("if not is_instance_valid(_player):", 1)[1]
-    assert "if not is_instance_valid(_root):" in recovery_block
-    root_block = recovery_block.split("if not is_instance_valid(_root):", 1)[1].split(
-        "\n    if is_instance_valid(_root) and is_instance_valid(_player):", 1
+    assert "_sync_build_and_activation()" in process_body
+    assert "_build_once()" not in process_body
+
+
+def test_removed_furniture_root_is_rebuilt_only_when_player_is_in_range() -> None:
+    source = _source()
+    sync_body = _function_body(source, "func _sync_build_and_activation() -> void:")
+    assert "var active :=" in sync_body
+    assert "if active and not is_instance_valid(_root):" in sync_body
+    root_block = sync_body.split("if active and not is_instance_valid(_root):", 1)[1].split(
+        "\n    if is_instance_valid(_root):", 1
     )[0]
     assert "_build_once()" in root_block
 
 
-def test_detached_furniture_root_is_released_and_rebuilt() -> None:
+def test_detached_furniture_root_is_released_before_distance_gated_rebuild() -> None:
     source = _source()
     process_body = _function_body(source, "func _process(_delta: float) -> void:")
     assert "_root.get_parent() != _scene" in process_body
     detached_block = process_body.split("_root.get_parent() != _scene", 1)[1].split(
-        "\n    if is_instance_valid(_root) and is_instance_valid(_player):", 1
+        "\n    if not is_instance_valid(_player) or not _player.is_inside_tree():", 1
     )[0]
     assert "_release_owned_root()" in detached_block
-    assert "_build_once()" in detached_block
+    assert "_build_once()" not in detached_block
+    assert "_sync_build_and_activation()" in process_body
 
 
 def test_node_removed_path_releases_owned_state_and_rearms_binding() -> None:
@@ -77,6 +85,13 @@ def test_automatic_bind_keeps_scene_removal_watcher_armed() -> None:
     automatic_block = bind_body.split("\n    else:", 1)[1]
     assert "_start_watching()" in automatic_block
     assert "_stop_watching()" not in automatic_block
+
+
+def test_bind_uses_same_distance_gated_sync_as_process() -> None:
+    source = _source()
+    bind_body = _function_body(source, "func _bind_scene(scene: Node3D, manual: bool) -> void:")
+    assert "_sync_build_and_activation()" in bind_body
+    assert "_build_once()" not in bind_body
 
 
 def test_manual_bind_disconnects_unused_scene_tree_watchers() -> None:

@@ -6,6 +6,7 @@ on:
       - ".github/workflows/grand-bruxelles-anneessens-activation-radius.yml"
       - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_activation_radius_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_osm_lazy_activation_build_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -48,3 +49,10 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_activation_radius_contract_test.gd 2>&1 | tee /tmp/anneessens-activation-radius.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_ACTIVATION_RADIUS_FAIL" /tmp/anneessens-activation-radius.log; then exit 1; fi
           grep -q "ANNEESSENS_OSM_ACTIVATION_RADIUS_OK" /tmp/anneessens-activation-radius.log
+      - name: Prove far players do not allocate Anneessens furniture
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_lazy_activation_build_test.gd 2>&1 | tee /tmp/anneessens-lazy-activation.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_LAZY_ACTIVATION_FAIL" /tmp/anneessens-lazy-activation.log; then exit 1; fi
+          grep -q "ANNEESSENS_OSM_LAZY_ACTIVATION_OK" /tmp/anneessens-lazy-activation.log

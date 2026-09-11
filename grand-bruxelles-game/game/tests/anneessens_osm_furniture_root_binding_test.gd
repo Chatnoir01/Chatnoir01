@@ -3,6 +3,7 @@ extends SceneTree
 const EXPECTED_TREE_COUNT := 7
 const EXPECTED_SOURCE := "OpenStreetMap contributors via Overpass API"
 const EXPECTED_LICENSE := "ODbL-1.0"
+const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -29,6 +30,11 @@ func _run() -> void:
     if scene.get_node_or_null("BrusselsOSM") == null or scene.get_node_or_null("UrbISMidiExact") == null:
         _fail("production scene anchors missing")
         return
+    var player := scene.get_node_or_null("Player") as Node3D
+    if player == null:
+        _fail("production Player missing")
+        return
+    player.position = ANNEESSENS
 
     var runtime := root.get_node_or_null("AnneessensOsmFurnitureRuntime")
     if runtime == null:
@@ -40,7 +46,7 @@ func _run() -> void:
 
     var count := int(runtime.call("tree_count"))
     if count != EXPECTED_TREE_COUNT:
-        _fail("runtime did not auto-discover root-instantiated production scene: trees=%d expected=%d" % [count, EXPECTED_TREE_COUNT])
+        _fail("runtime did not auto-discover in-range root-instantiated production scene: trees=%d expected=%d" % [count, EXPECTED_TREE_COUNT])
         return
 
     var furniture_root := scene.get_node_or_null("AnneessensOsmFurniture")
@@ -63,5 +69,5 @@ func _run() -> void:
         _fail("unsupported visual-dimensions source claim enabled")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_ROOT_BIND_OK: trees=%d source=OSM license=ODbL-1.0 current_scene=null" % count)
+    print("ANNEESSENS_OSM_FURNITURE_ROOT_BIND_OK: trees=%d in_range=true source=OSM license=ODbL-1.0 current_scene=null" % count)
     quit(0)

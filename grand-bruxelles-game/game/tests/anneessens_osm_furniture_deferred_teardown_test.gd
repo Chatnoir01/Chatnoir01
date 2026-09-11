@@ -2,6 +2,7 @@ extends SceneTree
 
 const RUNTIME_PATH := "res://game/scripts/anneessens_osm_furniture_runtime.gd"
 const EXPECTED_TREES := 7
+const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -53,8 +54,14 @@ func _run() -> void:
         _fail("tree count changed after pre-bind teardown")
         return
 
-    # Phase 2: once bound, teardown must remove the runtime-owned root and all
+    # Phase 2: once bound in range, teardown must remove the runtime-owned root and all
     # seven source-backed tree/collision instances from the still-live Main.
+    var player := scene.get_node_or_null("Player") as Node3D
+    if player == null:
+        _fail("production Player missing before bound teardown phase")
+        return
+    player.position = ANNEESSENS
+
     var bound_runtime := runtime_script.new() as Node
     if bound_runtime == null:
         _fail("bound runtime is not a Node")
@@ -68,7 +75,7 @@ func _run() -> void:
         await process_frame
 
     if int(bound_runtime.call("tree_count")) != EXPECTED_TREES:
-        _fail("runtime did not bind before teardown: trees=%d expected=%d" % [int(bound_runtime.call("tree_count")), EXPECTED_TREES])
+        _fail("in-range runtime did not bind before teardown: trees=%d expected=%d" % [int(bound_runtime.call("tree_count")), EXPECTED_TREES])
         return
     if scene.get_node_or_null("AnneessensOsmFurniture") == null:
         _fail("runtime-owned furniture root missing before teardown")
@@ -85,5 +92,5 @@ func _run() -> void:
         _fail("tree registry survived teardown")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true owned_root_cleanup=true trees=0")
+    print("ANNEESSENS_OSM_FURNITURE_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true in_range_bind=true owned_root_cleanup=true trees=0")
     quit(0)

@@ -20,8 +20,14 @@ func _run() -> void:
         return
 
     var runtime := RUNTIME_SCRIPT.new()
+    if not runtime.has_method("_validate_data_artifact_identity"):
+        runtime.free()
+        _fail("runtime derived-artifact identity validator missing")
+        return
+
     var canonical_identity: Variant = runtime.call("_validate_data_artifact_identity", DATA_PATH)
     if canonical_identity == null:
+        runtime.free()
         _fail("canonical Anneessens derived artifact identity rejected")
         return
 
@@ -31,6 +37,7 @@ func _run() -> void:
     mutated[mutation_index] = mutated[mutation_index] ^ 1
     var out := FileAccess.open(mutated_path, FileAccess.WRITE)
     if out == null:
+        runtime.free()
         _fail("unable to create one-byte drift witness")
         return
     out.store_buffer(mutated)

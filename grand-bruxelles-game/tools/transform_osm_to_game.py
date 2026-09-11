@@ -348,6 +348,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
 
     roads.sort(key=lambda r: (not r["drivable"], str(r["class"]), int(r["osm_id"] or 0)))
     buildings.sort(key=lambda b: (-float(b["area"]), int(b["osm_id"] or 0)))
+    railways.sort(key=lambda r: (str(r["class"]), int(r["osm_id"] or 0)))
     environment_points.sort(key=lambda p: (str(p["kind"]), int(p["osm_id"] or 0)))
 
     return {

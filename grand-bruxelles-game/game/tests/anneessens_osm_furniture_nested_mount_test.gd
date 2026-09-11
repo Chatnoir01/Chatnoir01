@@ -2,6 +2,7 @@ extends SceneTree
 
 const RUNTIME_PATH := "res://game/scripts/anneessens_osm_furniture_runtime.gd"
 const EXPECTED_TREES := 7
+const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -126,6 +127,7 @@ func _run() -> void:
 
     var player := Node3D.new()
     player.name = "Player"
+    player.position = ANNEESSENS
     main.add_child(player)
 
     for _frame: int in range(24):
@@ -133,7 +135,7 @@ func _run() -> void:
 
     var tree_count := int(runtime.call("tree_count"))
     if tree_count != EXPECTED_TREES:
-        _fail("nested production mount did not bind Anneessens furniture: trees=%d expected=%d" % [tree_count, EXPECTED_TREES])
+        _fail("nested production mount did not bind in-range Anneessens furniture: trees=%d expected=%d" % [tree_count, EXPECTED_TREES])
         return
     var furniture_root := main.get_node_or_null("AnneessensOsmFurniture")
     if furniture_root == null:
@@ -152,5 +154,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_NESTED_MOUNT_OK: trees=%d current_scene=null owner=root-viewport-main foreign_decoys_rejected=true source=OSM license=ODbL-1.0" % tree_count)
+    print("ANNEESSENS_OSM_FURNITURE_NESTED_MOUNT_OK: trees=%d current_scene=null owner=root-viewport-main foreign_decoys_rejected=true in_range=true source=OSM license=ODbL-1.0" % tree_count)
     quit(0)

@@ -6,13 +6,18 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v1"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v2"
 HUMANOID_VISUAL_PATH = "res://game/scripts/humanoid_visual.gd"
 EXT_RESOURCE_RE = re.compile(r'^\s*\[ext_resource\s+([^]]+)\]\s*$', re.M)
 ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"')
 FUNC_RE = re.compile(r'^func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', re.M)
 PROCEDURAL_HELPER_RE = re.compile(r'\b_(?:elliptic_frustum_part|custom_ellipsoid_part|custom_prism_part|build_humanoid)\s*\(')
 PLAYER_ASSET_RE = re.compile(r'res://assets/characters/player(?:/|_)[^"\']*', re.I)
+NPC_ASSET_RE = re.compile(
+    r'res://assets/characters/(?!player(?:/|_))[^"\']+\.(?:glb|gltf|fbx|tscn)', re.I
+)
+RESOURCE_LOAD_RE = re.compile(r'\b(?:ResourceLoader\.exists|load)\s*\(')
+PACKED_SCENE_INSTANTIATE_RE = re.compile(r'\bPackedScene\b|\.instantiate\s*\(')
 
 
 def function_body(script: str, function_name: str) -> str:
@@ -47,8 +52,24 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
     player_asset_hits = PLAYER_ASSET_RE.findall(npc_body)
     authored_helper_reuse = bool(re.search(r'\b_try_build_authored_character\s*\(', npc_body))
     player_reuse = bool(player_asset_hits or authored_helper_reuse)
+
+    npc_asset_hits = sorted(set(NPC_ASSET_RE.findall(npc_body)))
+    authored_resource_load = bool(RESOURCE_LOAD_RE.search(npc_body))
+    authored_scene_instantiate = bool(PACKED_SCENE_INSTANTIATE_RE.search(npc_body))
+    authored_asset_dispatch = bool(
+        npc_asset_hits and authored_resource_load and authored_scene_instantiate
+    )
+    multiple_identities = len(npc_asset_hits) >= 2
+
     canonical_procedural = bool(bound and npc_dispatch and procedural_hits)
-    authored_ready = bool(bound and npc_dispatch and not procedural_hits and not player_reuse)
+    authored_ready = bool(
+        bound
+        and npc_dispatch
+        and not procedural_hits
+        and not player_reuse
+        and authored_asset_dispatch
+        and multiple_identities
+    )
 
     blockers: list[str] = []
     if not bound:
@@ -59,6 +80,10 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
         blockers.append("npcagent_dispatch_uses_procedural_profile_body")
     if player_reuse:
         blockers.append("npcagent_dispatch_reuses_player_authored_asset_path")
+    if not authored_asset_dispatch:
+        blockers.append("npcagent_dispatch_has_no_positive_authored_asset_load_proof")
+    if not multiple_identities:
+        blockers.append("multiple_authored_npc_identities_not_statically_proven")
     if not authored_ready and not blockers:
         blockers.append("authored_npc_visual_readiness_not_proven")
 
@@ -71,6 +96,11 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
         "canonical_npc_dispatch_is_procedural": canonical_procedural,
         "player_character_reuse_in_npc_dispatch_detected": player_reuse,
         "player_character_reuse_hits": player_asset_hits,
+        "authored_npc_asset_paths": npc_asset_hits,
+        "authored_npc_asset_load_proven": authored_resource_load,
+        "authored_npc_scene_instantiation_proven": authored_scene_instantiate,
+        "authored_npc_asset_dispatch_statically_proven": authored_asset_dispatch,
+        "multiple_authored_npc_identities_statically_proven": multiple_identities,
         "authored_civilian_police_roster_visual_ready": authored_ready,
         "promotion_blocked": not authored_ready,
         "blocking_reasons": blockers,
@@ -81,7 +111,7 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
         "next_action": (
             "runtime owner #1591 must replace the canonical NpcAgent procedural profile dispatch with an authored, licensed, provenanced civilian/police roster before loaded-scene visual promotion"
             if canonical_procedural
-            else "rerun Character/NPC loaded-scene readiness after the canonical visual dispatch changes"
+            else "rerun Character/NPC loaded-scene readiness after positive authored NPC asset loading and multiple identities are statically proven"
         ),
     }
 
@@ -114,7 +144,7 @@ func _build_profiled_npc(agent):
     assert result["player_character_reuse_in_npc_dispatch_detected"] is True
     assert result["authored_civilian_police_roster_visual_ready"] is False
 
-    authored = '''extends Node3D
+    placeholder_only = '''extends Node3D
 func _ready():
     if actor is NpcAgent:
         _build_profiled_npc(actor as NpcAgent)
@@ -123,9 +153,48 @@ func _build_profiled_npc(agent):
     character_mount.name = "CharacterMount"
     add_child(character_mount)
 '''
-    result = analyze(scene, authored)
+    result = analyze(scene, placeholder_only)
+    assert result["canonical_npc_dispatch_is_procedural"] is False
+    assert result["authored_npc_asset_dispatch_statically_proven"] is False
+    assert result["multiple_authored_npc_identities_statically_proven"] is False
+    assert result["authored_civilian_police_roster_visual_ready"] is False
+    assert result["promotion_blocked"] is True
+    assert "npcagent_dispatch_has_no_positive_authored_asset_load_proof" in result["blocking_reasons"]
+
+    single_authored = '''extends Node3D
+func _ready():
+    if actor is NpcAgent:
+        _build_profiled_npc(actor as NpcAgent)
+func _build_profiled_npc(agent):
+    var candidate = "res://assets/characters/civilians/civ_a.glb"
+    if ResourceLoader.exists(candidate):
+        var resource = load(candidate)
+        if resource is PackedScene:
+            add_child(resource.instantiate())
+'''
+    result = analyze(scene, single_authored)
+    assert result["authored_npc_asset_dispatch_statically_proven"] is True
+    assert result["multiple_authored_npc_identities_statically_proven"] is False
+    assert result["authored_civilian_police_roster_visual_ready"] is False
+
+    authored_roster = '''extends Node3D
+func _ready():
+    if actor is NpcAgent:
+        _build_profiled_npc(actor as NpcAgent)
+func _build_profiled_npc(agent):
+    var civilian = "res://assets/characters/civilians/civ_a.glb"
+    var police = "res://assets/characters/police/officer_a.glb"
+    var candidate = civilian if agent.role != 1 else police
+    if ResourceLoader.exists(candidate):
+        var resource = load(candidate)
+        if resource is PackedScene:
+            add_child(resource.instantiate())
+'''
+    result = analyze(scene, authored_roster)
     assert result["canonical_npc_dispatch_is_procedural"] is False
     assert result["player_character_reuse_in_npc_dispatch_detected"] is False
+    assert result["authored_npc_asset_dispatch_statically_proven"] is True
+    assert result["multiple_authored_npc_identities_statically_proven"] is True
     assert result["authored_civilian_police_roster_visual_ready"] is True
     assert result["promotion_blocked"] is False
 

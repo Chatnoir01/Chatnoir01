@@ -23,6 +23,17 @@ def legacy_tres_type(path: Path) -> str | None:
     return None
 
 
+def legacy_v2_backing_type(path: Path) -> tuple[str | None, str]:
+    suffix = path.suffix.lower()
+    if suffix == ".gd":
+        return "Script", "gd_extension"
+    if suffix == ".tscn":
+        return "PackedScene", "tscn_extension"
+    if suffix == ".tres":
+        return legacy_tres_type(path), "tres_gd_resource_header"
+    return None, "unsupported_extension"
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -30,6 +41,8 @@ def main() -> int:
         assets.mkdir()
         script = assets / "npc.gd"
         script.write_text("extends Node\n", encoding="utf-8")
+        shader = assets / "npc.gdshader"
+        shader.write_text("shader_type spatial;\n", encoding="utf-8")
 
         resources = {
             ("ExtResource", "Npc_script"): {
@@ -55,13 +68,26 @@ def main() -> int:
         }]
         conflicts, determined = agreement.backing_type_conflicts(rows, root)
         assert determined == 1
-        assert conflicts == [{
+        assert conflicts[0]["deterministic_backing_type"] == "Script"
+
+        assert legacy_v2_backing_type(shader) == (None, "unsupported_extension"), (
+            "causal precondition: v2 left .gdshader backing type unverified"
+        )
+        shader_rows = [{
             "scene": "game/civ1.tscn",
-            "line": 2,
-            "path": "res://assets/npc.gd",
+            "line": 3,
+            "path": "res://assets/npc.gdshader",
+            "type": "Texture2D",
+        }]
+        shader_conflicts, shader_determined = agreement.backing_type_conflicts(shader_rows, root)
+        assert shader_determined == 1
+        assert shader_conflicts == [{
+            "scene": "game/civ1.tscn",
+            "line": 3,
+            "path": "res://assets/npc.gdshader",
             "declared_type": "Texture2D",
-            "deterministic_backing_type": "Script",
-            "determination_method": "gd_extension",
+            "deterministic_backing_type": "Shader",
+            "determination_method": "gdshader_extension",
             "reason": "declared_type_disagrees_with_deterministic_backing_type",
         }]
 

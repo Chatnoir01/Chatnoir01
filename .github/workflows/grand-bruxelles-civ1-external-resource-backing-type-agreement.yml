@@ -11,6 +11,7 @@ on:
       - 'grand-bruxelles-game/game/**/*.tscn'
       - 'grand-bruxelles-game/game/**/*.tres'
       - 'grand-bruxelles-game/game/**/*.gd'
+      - 'grand-bruxelles-game/game/**/*.gdshader'
       - '.github/workflows/grand-bruxelles-civ1-external-resource-backing-type-agreement.yml'
   pull_request:
     paths:
@@ -22,6 +23,7 @@ on:
       - 'grand-bruxelles-game/game/**/*.tscn'
       - 'grand-bruxelles-game/game/**/*.tres'
       - 'grand-bruxelles-game/game/**/*.gd'
+      - 'grand-bruxelles-game/game/**/*.gdshader'
       - '.github/workflows/grand-bruxelles-civ1-external-resource-backing-type-agreement.yml'
 permissions:
   contents: read
@@ -42,7 +44,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Reproduce declared type and late tres-header false positives
+      - name: Reproduce declared type, shader type, and late tres-header false positives
         working-directory: grand-bruxelles-game/tools
         run: |
           set -euo pipefail
@@ -61,12 +63,13 @@ jobs:
           import json
           p='/tmp/civ1-external-resource-backing-type-agreement/civ1-external-resource-backing-type-agreement.json'
           d=json.load(open(p, encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-external-resource-backing-type-agreement-v2'
+          assert d['schema']=='grand-bruxelles-civ1-external-resource-backing-type-agreement-v3'
           assert d['reachable_scene_count'] >= 1
           assert d['deterministically_typed_backing_count'] >= 1
           assert d['external_resource_backing_type_conflicts'] == []
           assert d['external_resource_declared_types_agree_with_deterministic_backing'] is True
           assert d['mismatched_script_type_evidence_accepted'] is False
+          assert d['mismatched_shader_type_evidence_accepted'] is False
           assert d['late_tres_header_evidence_treated_as_deterministic'] is False
           assert d['runtime_authorized'] is False
           assert d['visual_approval_claimed'] is False

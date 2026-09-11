@@ -73,6 +73,27 @@ func _validated_activation_radius_m() -> Variant:
         _activation_radius_error_reported = true
     return null
 
+func _sync_build_and_activation() -> void:
+    if _tearing_down or not is_instance_valid(_scene):
+        return
+    if not is_instance_valid(_player):
+        _player = _scene.get_node_or_null("Player") as Node3D
+    if not is_instance_valid(_player):
+        _apply_tree_activation(false)
+        return
+    var activation_radius_value: Variant = _validated_activation_radius_m()
+    if activation_radius_value == null:
+        _apply_tree_activation(false)
+        return
+    var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= float(activation_radius_value)
+    if active and not is_instance_valid(_root):
+        _build_once()
+    if is_instance_valid(_root):
+        _apply_tree_activation(active)
+    else:
+        _tree_active = false
+        _tree_activation_initialized = false
+
 func _process(_delta: float) -> void:
     if _tearing_down or not is_inside_tree():
         return
@@ -90,15 +111,7 @@ func _process(_delta: float) -> void:
     if not is_instance_valid(_player) or not _player.is_inside_tree():
         _apply_tree_activation(false)
         return
-    var activation_radius_value: Variant = _validated_activation_radius_m()
-    if activation_radius_value == null:
-        _apply_tree_activation(false)
-        return
-    if not is_instance_valid(_root):
-        _build_once()
-    if is_instance_valid(_root) and is_instance_valid(_player):
-        var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= float(activation_radius_value)
-        _apply_tree_activation(active)
+    _sync_build_and_activation()
 
 func _start_watching() -> void:
     if _tearing_down or not is_inside_tree() or _manual_binding or _watching_tree:
@@ -223,7 +236,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
         _stop_watching()
     else:
         _start_watching()
-    _build_once()
+    _sync_build_and_activation()
 
 func _reset() -> void:
     _release_owned_root()
@@ -875,3 +888,6 @@ func enhanced_trees_enabled() -> bool:
 
 func tree_count() -> int:
     return _trees.size()
+
+func is_active() -> bool:
+    return is_instance_valid(_root) and _tree_activation_initialized and _tree_active and _root.visible

@@ -12,8 +12,16 @@ const EXPECTED_DATA_SHA256 := "df88c0af132d78f8c7252211546278b6bf26271958641434c
 const EXPECTED_DATA_BYTES := 1157
 const EXPECTED_UPSTREAM_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
 
+var _published_tree_count := -1
+
 func _initialize() -> void:
+    node_added.connect(_on_node_added)
     call_deferred("_run")
+
+func _on_node_added(node: Node) -> void:
+    if str(node.name) != "AnneessensOsmFurniture":
+        return
+    _published_tree_count = node.get_child_count()
 
 func _fail(message: String) -> void:
     print("ANNEESSENS_OSM_FURNITURE_FAIL: %s" % message)
@@ -38,7 +46,7 @@ func _collect_mesh_resource_ids(root: Node, visual_name: String) -> Dictionary:
     return resources
 
 func _run() -> void:
-    var selector := get_root().get_node_or_null("ZoneSelectorRuntime")
+    var selector: Node = get_root().get_node_or_null("ZoneSelectorRuntime")
     if selector == null:
         _fail("ZoneSelectorRuntime missing")
         return
@@ -64,6 +72,9 @@ func _run() -> void:
     var root := main.get_node_or_null("AnneessensOsmFurniture") as Node3D
     if root == null or not root.visible:
         _fail("Anneessens OSM furniture root missing or inactive")
+        return
+    if _published_tree_count != EXPECTED_TREE_IDS.size():
+        _fail("Anneessens OSM furniture root was published before all seven validated trees were attached; observed %d children at node_added" % _published_tree_count)
         return
     if bool(root.get_meta("collision_source_backed", true)):
         _fail("unsourced furniture root must not claim source-backed collision")
@@ -186,5 +197,5 @@ func _run() -> void:
         _fail("enhanced tree mesh reuse must survive legacy round-trip; found %d" % restored_mesh_resources.size())
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 data_artifact_identity_validated=true data_artifact_bytes=%d coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d legacy_mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [EXPECTED_DATA_BYTES, EXPECTED_COVERAGE_POLICY, EXPECTED_COVERAGE_RADIUS_M, COLLISION_POLICY, foliage_lobes_total, mesh_resources.size(), legacy_mesh_resources.size()])
+    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 atomic_root_publish=true data_artifact_identity_validated=true data_artifact_bytes=%d coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f collisions=0 collision_policy=%s foliage_lobes=%d mesh_resources=%d legacy_mesh_resources=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % [EXPECTED_DATA_BYTES, EXPECTED_COVERAGE_POLICY, EXPECTED_COVERAGE_RADIUS_M, COLLISION_POLICY, foliage_lobes_total, mesh_resources.size(), legacy_mesh_resources.size()])
     quit(0)

@@ -339,6 +339,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
     bounds = [0.0, 0.0, 0.0, 0.0]
     all_points = [p for road in roads for p in road["points"]]
     all_points += [p for b in buildings for p in b["footprint"]]
+    all_points += [p for railway in railways for p in railway["points"]]
     all_points += [p["position"] for p in environment_points]
     if all_points:
         xs = [p[0] for p in all_points]

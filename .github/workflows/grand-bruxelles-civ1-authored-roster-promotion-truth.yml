@@ -4,12 +4,14 @@ on:
     branches: ['character/**']
     paths:
       - 'grand-bruxelles-game/tools/civ1_authored_roster_promotion_truth.py'
+      - 'grand-bruxelles-game/tools/test_civ1_authored_roster_promotion_truth.py'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/game/scripts/humanoid_visual.gd'
       - '.github/workflows/grand-bruxelles-civ1-authored-roster-promotion-truth.yml'
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/civ1_authored_roster_promotion_truth.py'
+      - 'grand-bruxelles-game/tools/test_civ1_authored_roster_promotion_truth.py'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/game/scripts/humanoid_visual.gd'
       - '.github/workflows/grand-bruxelles-civ1-authored-roster-promotion-truth.yml'
@@ -34,6 +36,8 @@ jobs:
           python-version: '3.12'
       - name: Reject forged promotion truth
         run: python grand-bruxelles-game/tools/civ1_authored_roster_promotion_truth.py --self-test
+      - name: Reproduce and reject placeholder roster false positive
+        run: python grand-bruxelles-game/tools/test_civ1_authored_roster_promotion_truth.py
       - name: Measure canonical NPC visual promotion truth
         run: |
           mkdir -p /tmp/civ1-roster-truth

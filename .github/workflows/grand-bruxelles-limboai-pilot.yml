@@ -1,0 +1,52 @@
+name: Grand Bruxelles LimboAI Pilot
+
+on:
+  push:
+    branches:
+      - "tooling/limboai-pilot-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-limboai-pilot.yml"
+      - "grand-bruxelles-game/data/qa/limboai_pilot_contract.json"
+      - "grand-bruxelles-game/tools/qa/run_limboai_pilot.sh"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-limboai-pilot.yml"
+      - "grand-bruxelles-game/data/qa/limboai_pilot_contract.json"
+      - "grand-bruxelles-game/tools/qa/run_limboai_pilot.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: limboai-pilot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-ai-smoke:
+    name: Godot 4.7.1 LimboAI PC Web smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Setup Godot 4.7.1 with export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+          include-templates: true
+
+      - name: Run isolated LimboAI pilot
+        shell: bash
+        run: bash grand-bruxelles-game/tools/qa/run_limboai_pilot.sh
+
+      - name: Upload pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: limboai-pilot-evidence
+          path: ${{ runner.temp }}/grand-bruxelles-limboai-pilot/evidence
+          if-no-files-found: warn
+          retention-days: 7

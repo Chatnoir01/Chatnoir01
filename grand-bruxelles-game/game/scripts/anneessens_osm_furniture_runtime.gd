@@ -9,6 +9,7 @@ const MAX_EXACT_JSON_INTEGER := 9007199254740991.0
 const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 const EXPECTED_COVERAGE_POLICY := "preserve_existing_runtime_subset_v1"
 const EXPECTED_COVERAGE_RADIUS_M := 130.0
+const EXPECTED_ACTIVATION_RADIUS_M := 170.0
 const EXPECTED_UPSTREAM_PATH := "data/osm/vertical_slice_01.game.json"
 const UPSTREAM_PATH := "res://data/osm/vertical_slice_01.game.json"
 const EXPECTED_UPSTREAM_FORMAT := "grand-bruxelles-osm-v1"
@@ -27,7 +28,7 @@ const EXPECTED_SOURCE_POSITIONS := {
     11929097333: Vector2(-306.074, -147.576),
 }
 
-@export var activation_radius_m: float = 170.0
+@export var activation_radius_m: float = EXPECTED_ACTIVATION_RADIUS_M
 
 var _scene: Node3D = null
 var _player: Node3D = null
@@ -41,6 +42,7 @@ var _watching_tree := false
 var _tearing_down := false
 var _tree_activation_initialized := false
 var _tree_active := false
+var _activation_radius_error_reported := false
 
 func _ready() -> void:
     _tearing_down = false
@@ -55,6 +57,20 @@ func _exit_tree() -> void:
     _scene = null
     _player = null
     _manual_binding = false
+
+func _validated_activation_radius_m() -> Variant:
+    var valid := (
+        is_finite(activation_radius_m)
+        and activation_radius_m > 0.0
+        and activation_radius_m == EXPECTED_ACTIVATION_RADIUS_M
+    )
+    if valid:
+        _activation_radius_error_reported = false
+        return EXPECTED_ACTIVATION_RADIUS_M
+    if not _activation_radius_error_reported:
+        push_error("Anneessens OSM furniture activation radius must remain exactly %.1fm" % EXPECTED_ACTIVATION_RADIUS_M)
+        _activation_radius_error_reported = true
+    return null
 
 func _process(_delta: float) -> void:
     if _tearing_down or not is_inside_tree():
@@ -73,10 +89,14 @@ func _process(_delta: float) -> void:
     if not is_instance_valid(_player) or not _player.is_inside_tree():
         _apply_tree_activation(false)
         return
+    var activation_radius_value: Variant = _validated_activation_radius_m()
+    if activation_radius_value == null:
+        _apply_tree_activation(false)
+        return
     if not is_instance_valid(_root):
         _build_once()
     if is_instance_valid(_root) and is_instance_valid(_player):
-        var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
+        var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= float(activation_radius_value)
         _apply_tree_activation(active)
 
 func _start_watching() -> void:
@@ -611,6 +631,9 @@ func _validate_coverage_contract(data: Dictionary) -> Variant:
 func _build_once() -> void:
     if _tearing_down or not is_instance_valid(_scene) or is_instance_valid(_root):
         return
+    var activation_radius_value: Variant = _validated_activation_radius_m()
+    if activation_radius_value == null:
+        return
     if not FileAccess.file_exists(DATA_PATH):
         push_warning("Anneessens OSM furniture data missing")
         return
@@ -675,6 +698,8 @@ func _build_once() -> void:
     _root.set_meta("full_environment_coverage_claimed", false)
     _root.set_meta("coverage_policy", str(coverage_contract["coverage_policy"]))
     _root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
+    _root.set_meta("activation_radius_validated", true)
+    _root.set_meta("activation_radius_m", float(activation_radius_value))
     _root.set_meta("upstream_snapshot_identity_validated", true)
     _root.set_meta("upstream_source_sha256", str(upstream_snapshot_identity["sha256"]))
     _root.set_meta("upstream_source_bytes", int(upstream_snapshot_identity["bytes"]))
@@ -708,9 +733,9 @@ func _build_once() -> void:
         _add_tree(int(validated_point["osm_id"]), world_position)
 
     _tree_activation_initialized = false
-    var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
+    var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= float(activation_radius_value)
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true upstream_snapshot_identity_validated=true strict_json=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true upstream_snapshot_identity_validated=true strict_json=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f activation_radius_m=%.1f activation_radius_validated=true asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), float(activation_radius_value), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

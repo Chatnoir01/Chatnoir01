@@ -36,6 +36,9 @@ def main() -> int:
     require_rejected('{"elements":[{"type":"node","id":true,"lat":50.84,"lon":4.34}]}', "boolean OSM id")
     require_rejected('{"elements":[{"type":"way","id":0}]}', "non-positive OSM id")
     require_rejected('{"elements":[{"type":"mystery","id":19}]}', "unknown OSM element type")
+    require_rejected('{"elements":[{"type":"way","id":20,"tags":{"highway":true}}]}', "boolean OSM tag value")
+    require_rejected('{"elements":[{"type":"way","id":21,"tags":{"highway":{"class":"primary"}}}]}', "object OSM tag value")
+    require_rejected('{"elements":[{"type":"node","id":22,"lat":50.84,"lon":4.34,"tags":{"name":17}}]}', "numeric OSM tag value")
     require_rejected('{"elements":[{"type":"way","id":23,"geometry":[{"lat":50.84,"lon":4.34},{"lat":50.85}]}]}', "geometry point missing longitude")
     require_rejected('{"elements":[{"type":"way","id":24,"geometry":[{"lat":50.84,"lon":4.34},{"lon":4.35}]}]}', "geometry point missing latitude")
     require_rejected('{"elements":[{"type":"node","id":25,"lon":4.35,"tags":{"natural":"tree"}}]}', "node missing latitude")
@@ -114,7 +117,7 @@ def main() -> int:
         else:
             raise AssertionError(f"invalid WGS84 origin accepted: {invalid_origin}")
 
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true railway_order_deterministic=true finite_origin_required=true network_used=false")
+    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true osm_tag_strings_required=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true railway_order_deterministic=true finite_origin_required=true network_used=false")
     return 0
 
 

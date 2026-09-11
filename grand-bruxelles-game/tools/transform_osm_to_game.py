@@ -85,6 +85,15 @@ def _finite_coordinate(value: object, label: str) -> float:
     return number
 
 
+def _wgs84_coordinate(value: object, label: str, *, latitude: bool) -> float:
+    number = _finite_coordinate(value, label)
+    lower, upper = (-90.0, 90.0) if latitude else (-180.0, 180.0)
+    if not lower <= number <= upper:
+        axis = "latitude" if latitude else "longitude"
+        raise ValueError(f"{label} must be within WGS84 {axis} range [{lower:g}, {upper:g}]")
+    return number
+
+
 def load_source_json(path: Path) -> dict[str, Any]:
     """Load a locked Overpass artifact without accepting ambiguous JSON semantics."""
     raw_bytes = path.read_bytes()
@@ -113,8 +122,8 @@ def load_source_json(path: Path) -> dict[str, Any]:
         if identity[0] == "node":
             if "lat" not in element or "lon" not in element:
                 raise ValueError(f"Overpass node {identity[1]} must contain both lat and lon")
-            _finite_coordinate(element["lat"], f"Overpass node {identity[1]} latitude")
-            _finite_coordinate(element["lon"], f"Overpass node {identity[1]} longitude")
+            _wgs84_coordinate(element["lat"], f"Overpass node {identity[1]} latitude", latitude=True)
+            _wgs84_coordinate(element["lon"], f"Overpass node {identity[1]} longitude", latitude=False)
 
         tags = element.get("tags")
         if tags is not None and not isinstance(tags, dict):
@@ -130,8 +139,16 @@ def load_source_json(path: Path) -> dict[str, Any]:
                     raise ValueError(
                         f"Overpass element {index} geometry point {point_index} must contain both lat and lon"
                     )
-                _finite_coordinate(point["lat"], f"Overpass element {index} geometry point {point_index} latitude")
-                _finite_coordinate(point["lon"], f"Overpass element {index} geometry point {point_index} longitude")
+                _wgs84_coordinate(
+                    point["lat"],
+                    f"Overpass element {index} geometry point {point_index} latitude",
+                    latitude=True,
+                )
+                _wgs84_coordinate(
+                    point["lon"],
+                    f"Overpass element {index} geometry point {point_index} longitude",
+                    latitude=False,
+                )
     return payload
 
 
@@ -140,10 +157,10 @@ def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -
 
     Godot convention used here: +X east, -Z north.
     """
-    lat = _finite_coordinate(lat, "latitude")
-    lon = _finite_coordinate(lon, "longitude")
-    origin_lat = _finite_coordinate(origin_lat, "origin latitude")
-    origin_lon = _finite_coordinate(origin_lon, "origin longitude")
+    lat = _wgs84_coordinate(lat, "latitude", latitude=True)
+    lon = _wgs84_coordinate(lon, "longitude", latitude=False)
+    origin_lat = _wgs84_coordinate(origin_lat, "origin latitude", latitude=True)
+    origin_lon = _wgs84_coordinate(origin_lon, "origin longitude", latitude=False)
     lat0 = math.radians(origin_lat)
     x = math.radians(lon - origin_lon) * EARTH_RADIUS_M * math.cos(lat0)
     north = math.radians(lat - origin_lat) * EARTH_RADIUS_M
@@ -359,9 +376,12 @@ def parse_origin(raw: str) -> tuple[float, float]:
         raise argparse.ArgumentTypeError("origin must be lat,lon") from exc
     if len(parts) != 2:
         raise argparse.ArgumentTypeError("origin must be lat,lon")
-    if not all(math.isfinite(value) for value in parts):
-        raise argparse.ArgumentTypeError("origin coordinates must be finite")
-    return parts[0], parts[1]
+    try:
+        latitude = _wgs84_coordinate(parts[0], "origin latitude", latitude=True)
+        longitude = _wgs84_coordinate(parts[1], "origin longitude", latitude=False)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return latitude, longitude
 
 
 def main() -> int:

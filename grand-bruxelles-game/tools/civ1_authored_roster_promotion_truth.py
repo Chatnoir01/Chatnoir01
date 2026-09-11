@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v2"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v3"
 HUMANOID_VISUAL_PATH = "res://game/scripts/humanoid_visual.gd"
 EXT_RESOURCE_RE = re.compile(r'^\s*\[ext_resource\s+([^]]+)\]\s*$', re.M)
 ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"')
@@ -30,6 +30,40 @@ def function_body(script: str, function_name: str) -> str:
     return ""
 
 
+def strip_gdscript_comments(source: str) -> str:
+    """Remove # comments while preserving # characters inside quoted strings.
+
+    Static roster evidence must come from executable-looking source, never comments.
+    This deliberately preserves line count and quoted content; it is not a full parser.
+    """
+    cleaned: list[str] = []
+    for line in source.splitlines(keepends=True):
+        quote: str | None = None
+        escaped = False
+        cut = len(line)
+        for index, char in enumerate(line):
+            if escaped:
+                escaped = False
+                continue
+            if quote is not None:
+                if char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = None
+                continue
+            if char in ('"', "'"):
+                quote = char
+                continue
+            if char == "#":
+                cut = index
+                break
+        prefix = line[:cut]
+        if line.endswith("\n") and not prefix.endswith("\n"):
+            prefix += "\n"
+        cleaned.append(prefix)
+    return "".join(cleaned)
+
+
 def main_binds_humanoid_visual(scene: str) -> bool:
     for match in EXT_RESOURCE_RE.finditer(scene):
         attrs = dict(ATTR_RE.findall(match.group(1)))
@@ -41,21 +75,22 @@ def main_binds_humanoid_visual(scene: str) -> bool:
 def analyze(scene: str, visual: str) -> dict[str, object]:
     ready_body = function_body(visual, "_ready")
     npc_body = function_body(visual, "_build_profiled_npc")
+    npc_code = strip_gdscript_comments(npc_body)
     bound = main_binds_humanoid_visual(scene)
     npc_dispatch = bool(
         re.search(r'if\s+actor\s+is\s+NpcAgent\s*:', ready_body)
         and re.search(r'_build_profiled_npc\s*\(', ready_body)
     )
     procedural_hits = [
-        line.strip() for line in npc_body.splitlines() if PROCEDURAL_HELPER_RE.search(line)
+        line.strip() for line in npc_code.splitlines() if PROCEDURAL_HELPER_RE.search(line)
     ]
-    player_asset_hits = PLAYER_ASSET_RE.findall(npc_body)
-    authored_helper_reuse = bool(re.search(r'\b_try_build_authored_character\s*\(', npc_body))
+    player_asset_hits = PLAYER_ASSET_RE.findall(npc_code)
+    authored_helper_reuse = bool(re.search(r'\b_try_build_authored_character\s*\(', npc_code))
     player_reuse = bool(player_asset_hits or authored_helper_reuse)
 
-    npc_asset_hits = sorted(set(NPC_ASSET_RE.findall(npc_body)))
-    authored_resource_load = bool(RESOURCE_LOAD_RE.search(npc_body))
-    authored_scene_instantiate = bool(PACKED_SCENE_INSTANTIATE_RE.search(npc_body))
+    npc_asset_hits = sorted(set(NPC_ASSET_RE.findall(npc_code)))
+    authored_resource_load = bool(RESOURCE_LOAD_RE.search(npc_code))
+    authored_scene_instantiate = bool(PACKED_SCENE_INSTANTIATE_RE.search(npc_code))
     authored_asset_dispatch = bool(
         npc_asset_hits and authored_resource_load and authored_scene_instantiate
     )
@@ -101,6 +136,7 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
         "authored_npc_scene_instantiation_proven": authored_scene_instantiate,
         "authored_npc_asset_dispatch_statically_proven": authored_asset_dispatch,
         "multiple_authored_npc_identities_statically_proven": multiple_identities,
+        "comment_text_excluded_from_static_evidence": True,
         "authored_civilian_police_roster_visual_ready": authored_ready,
         "promotion_blocked": not authored_ready,
         "blocking_reasons": blockers,
@@ -176,6 +212,39 @@ func _build_profiled_npc(agent):
     assert result["authored_npc_asset_dispatch_statically_proven"] is True
     assert result["multiple_authored_npc_identities_statically_proven"] is False
     assert result["authored_civilian_police_roster_visual_ready"] is False
+
+    comment_only_roster = '''extends Node3D
+func _ready():
+    if actor is NpcAgent:
+        _build_profiled_npc(actor as NpcAgent)
+func _build_profiled_npc(agent):
+    # candidate: res://assets/characters/civilians/civ_a.glb
+    # candidate: res://assets/characters/police/officer_a.glb
+    var unrelated = load("res://ui/icon.tscn")
+    if unrelated is PackedScene:
+        add_child(unrelated.instantiate())
+'''
+    result = analyze(scene, comment_only_roster)
+    assert result["authored_npc_asset_paths"] == []
+    assert result["multiple_authored_npc_identities_statically_proven"] is False
+    assert result["authored_civilian_police_roster_visual_ready"] is False
+
+    hash_in_string = '''extends Node3D
+func _ready():
+    if actor is NpcAgent:
+        _build_profiled_npc(actor as NpcAgent)
+func _build_profiled_npc(agent):
+    var civilian = "res://assets/characters/civilians/civ#one.glb"
+    var police = "res://assets/characters/police/officer#one.glb"
+    var candidate = civilian if agent.role != 1 else police
+    if ResourceLoader.exists(candidate):
+        var resource = load(candidate)
+        if resource is PackedScene:
+            add_child(resource.instantiate())
+'''
+    result = analyze(scene, hash_in_string)
+    assert len(result["authored_npc_asset_paths"]) == 2
+    assert result["authored_civilian_police_roster_visual_ready"] is True
 
     authored_roster = '''extends Node3D
 func _ready():

@@ -176,13 +176,7 @@ def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -
 
 
 def numeric_tag(tags: dict[str, Any], key: str, *, allow_meters: bool = False) -> float | None:
-    """Parse an OSM numeric tag without silently stripping arbitrary units.
-
-    Dimensionless tags must be plain finite numbers.  Only callers that
-    explicitly opt in may accept a single terminal metre suffix (``m``), which
-    matches the OSM convention used by physical height tags.  Other units such
-    as ``mm`` or ``km`` fail closed rather than being reinterpreted as metres.
-    """
+    """Parse an OSM numeric tag without silently stripping arbitrary units."""
     raw = tags.get(key)
     if raw is None or not isinstance(raw, str):
         return None
@@ -207,6 +201,8 @@ def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
     tunnel = truthy_osm_tag(tags, "tunnel")
     covered = truthy_osm_tag(tags, "covered")
     raw_layer = numeric_tag(tags, "layer")
+    if "layer" in tags and raw_layer is None:
+        raise ValueError(f"railway layer must be a finite unitless number: {tags.get('layer')!r}")
     layer = 0.0 if raw_layer is None else raw_layer
     return {
         "tunnel": tunnel,

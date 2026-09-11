@@ -6,15 +6,21 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v3"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v4"
 HUMANOID_VISUAL_PATH = "res://game/scripts/humanoid_visual.gd"
 EXT_RESOURCE_RE = re.compile(r'^\s*\[ext_resource\s+([^]]+)\]\s*$', re.M)
 ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"')
 FUNC_RE = re.compile(r'^func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', re.M)
 PROCEDURAL_HELPER_RE = re.compile(r'\b_(?:elliptic_frustum_part|custom_ellipsoid_part|custom_prism_part|build_humanoid)\s*\(')
-PLAYER_ASSET_RE = re.compile(r'res://assets/characters/player(?:/|_)[^"\']*', re.I)
+# Static asset evidence must be an actual quoted GDScript string literal.  Requiring
+# quote boundaries prevents comments/tokens that merely resemble res:// paths from
+# becoming promotion evidence, and excluding newlines prevents cross-line capture.
+PLAYER_ASSET_RE = re.compile(
+    r'(?<=["\'])res://assets/characters/player(?:/|_)[^"\'\r\n]*(?=["\'])', re.I
+)
 NPC_ASSET_RE = re.compile(
-    r'res://assets/characters/(?!player(?:/|_))[^"\']+\.(?:glb|gltf|fbx|tscn)', re.I
+    r'(?<=["\'])res://assets/characters/(?!player(?:/|_))[^"\'\r\n]+\.(?:glb|gltf|fbx|tscn)(?=["\'])',
+    re.I,
 )
 RESOURCE_LOAD_RE = re.compile(r'\b(?:ResourceLoader\.exists|load)\s*\(')
 PACKED_SCENE_INSTANTIATE_RE = re.compile(r'\bPackedScene\b|\.instantiate\s*\(')
@@ -137,6 +143,7 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
         "authored_npc_asset_dispatch_statically_proven": authored_asset_dispatch,
         "multiple_authored_npc_identities_statically_proven": multiple_identities,
         "comment_text_excluded_from_static_evidence": True,
+        "quoted_asset_path_evidence_required": True,
         "authored_civilian_police_roster_visual_ready": authored_ready,
         "promotion_blocked": not authored_ready,
         "blocking_reasons": blockers,
@@ -218,8 +225,8 @@ func _ready():
     if actor is NpcAgent:
         _build_profiled_npc(actor as NpcAgent)
 func _build_profiled_npc(agent):
-    # candidate: res://assets/characters/civilians/civ_a.glb
-    # candidate: res://assets/characters/police/officer_a.glb
+    # candidate: "res://assets/characters/civilians/civ_a.glb"
+    # candidate: "res://assets/characters/police/officer_a.glb"
     var unrelated = load("res://ui/icon.tscn")
     if unrelated is PackedScene:
         add_child(unrelated.instantiate())
@@ -227,6 +234,24 @@ func _build_profiled_npc(agent):
     result = analyze(scene, comment_only_roster)
     assert result["authored_npc_asset_paths"] == []
     assert result["multiple_authored_npc_identities_statically_proven"] is False
+    assert result["authored_civilian_police_roster_visual_ready"] is False
+
+    unquoted_pseudo_paths = '''extends Node3D
+func _ready():
+    if actor is NpcAgent:
+        _build_profiled_npc(actor as NpcAgent)
+func _build_profiled_npc(agent):
+    var fake_a = res://assets/characters/civilians/civ_a.glb
+    var marker_a = ""
+    var fake_b = res://assets/characters/police/officer_a.glb
+    var marker_b = ""
+    var unrelated = load("res://ui/icon.tscn")
+    if unrelated is PackedScene:
+        add_child(unrelated.instantiate())
+'''
+    result = analyze(scene, unquoted_pseudo_paths)
+    assert result["authored_npc_asset_paths"] == []
+    assert result["authored_npc_asset_dispatch_statically_proven"] is False
     assert result["authored_civilian_police_roster_visual_ready"] is False
 
     hash_in_string = '''extends Node3D

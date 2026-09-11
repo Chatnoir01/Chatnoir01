@@ -40,6 +40,10 @@ def main() -> int:
     require_rejected('{"elements":[{"type":"way","id":24,"geometry":[{"lat":50.84,"lon":4.34},{"lon":4.35}]}]}', "geometry point missing latitude")
     require_rejected('{"elements":[{"type":"node","id":25,"lon":4.35,"tags":{"natural":"tree"}}]}', "node missing latitude")
     require_rejected('{"elements":[{"type":"node","id":26,"lat":50.84,"tags":{"natural":"tree"}}]}', "node missing longitude")
+    require_rejected('{"elements":[{"type":"node","id":27,"lat":90.0001,"lon":4.35}]}', "node latitude outside WGS84 range")
+    require_rejected('{"elements":[{"type":"node","id":28,"lat":50.84,"lon":180.0001}]}', "node longitude outside WGS84 range")
+    require_rejected('{"elements":[{"type":"way","id":29,"geometry":[{"lat":50.84,"lon":4.34},{"lat":-90.0001,"lon":4.35}]}]}', "geometry latitude outside WGS84 range")
+    require_rejected('{"elements":[{"type":"way","id":30,"geometry":[{"lat":50.84,"lon":4.34},{"lat":50.85,"lon":-180.0001}]}]}', "geometry longitude outside WGS84 range")
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "ok.json"
@@ -49,14 +53,15 @@ def main() -> int:
     assert len(payload["elements"]) == 2
     assert math.isfinite(payload["version"])
 
-    try:
-        transform_osm_to_game.parse_origin("nan,4.348")
-    except Exception:
-        pass
-    else:
-        raise AssertionError("non-finite origin accepted")
+    for invalid_origin in ("nan,4.348", "90.0001,4.348", "50.84,180.0001"):
+        try:
+            transform_osm_to_game.parse_origin(invalid_origin)
+        except Exception:
+            pass
+        else:
+            raise AssertionError(f"invalid WGS84 origin accepted: {invalid_origin}")
 
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true finite_origin_required=true network_used=false")
+    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true finite_origin_required=true network_used=false")
     return 0
 
 

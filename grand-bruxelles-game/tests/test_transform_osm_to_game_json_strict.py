@@ -78,6 +78,34 @@ def main() -> int:
     assert railway_result["bounds_m"] == expected_bounds
     assert railway_result["bounds_m"] != [0.0, 0.0, 0.0, 0.0]
 
+    railway_order_input = {
+        "elements": [
+            {
+                "type": "way",
+                "id": 90,
+                "tags": {"railway": "tram", "name": "Zulu"},
+                "geometry": [
+                    {"lat": 50.8410, "lon": 4.3470},
+                    {"lat": 50.8415, "lon": 4.3480},
+                ],
+            },
+            {
+                "type": "way",
+                "id": 40,
+                "tags": {"railway": "rail", "name": "Alpha"},
+                "geometry": [
+                    {"lat": 50.8420, "lon": 4.3490},
+                    {"lat": 50.8425, "lon": 4.3500},
+                ],
+            },
+        ]
+    }
+    railway_order_result = transform_osm_to_game.convert(railway_order_input, transform_osm_to_game.DEFAULT_ORIGIN)
+    assert [(item["class"], item["osm_id"]) for item in railway_order_result["railways"]] == [
+        ("rail", 40),
+        ("tram", 90),
+    ], "railway output must be deterministic independently of source element order"
+
     for invalid_origin in ("nan,4.348", "90.0001,4.348", "50.84,180.0001"):
         try:
             transform_osm_to_game.parse_origin(invalid_origin)
@@ -86,7 +114,7 @@ def main() -> int:
         else:
             raise AssertionError(f"invalid WGS84 origin accepted: {invalid_origin}")
 
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true finite_origin_required=true network_used=false")
+    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true railway_order_deterministic=true finite_origin_required=true network_used=false")
     return 0
 
 

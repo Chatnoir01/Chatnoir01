@@ -347,7 +347,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
                 "points": points,
             })
 
-        if "building" in tags and source_way_is_closed(element) and len(points) >= 4 and points[0] == points[-1]:
+        if truthy_osm_tag(tags, "building") and source_way_is_closed(element) and len(points) >= 4 and points[0] == points[-1]:
             footprint = points[:-1]
             area = polygon_area(footprint)
             if len(footprint) >= 3 and 8.0 <= area <= 60_000.0:

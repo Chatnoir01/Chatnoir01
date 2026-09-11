@@ -13,6 +13,7 @@ on:
       - "grand-bruxelles-game/game/tests/anneessens_osm_coverage_radius_contract_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_coverage_complete_type_contract_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_derived_artifact_identity_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_osm_id_type_contract_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_position_shape_contract_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_furniture_player_loss_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_street_tree_witness_test.gd"
@@ -81,6 +82,13 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_derived_artifact_identity_contract_test.gd 2>&1 | tee /tmp/anneessens-derived-artifact-identity.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_DERIVED_ARTIFACT_IDENTITY_FAIL" /tmp/anneessens-derived-artifact-identity.log; then exit 1; fi
           grep -q "ANNEESSENS_OSM_DERIVED_ARTIFACT_IDENTITY_OK" /tmp/anneessens-derived-artifact-identity.log
+      - name: Prove integer-only OSM identity semantics fail-closed
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_id_type_contract_test.gd 2>&1 | tee /tmp/anneessens-osm-id-type.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_ID_TYPE_FAIL" /tmp/anneessens-osm-id-type.log; then exit 1; fi
+          grep -q "ANNEESSENS_OSM_ID_TYPE_OK" /tmp/anneessens-osm-id-type.log
       - name: Prove exact 2D source-position tuple fail-closed
         shell: bash
         run: |

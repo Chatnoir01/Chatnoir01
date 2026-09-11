@@ -42,12 +42,61 @@ player_reuse = bool(
 v1_authored_ready = bool(bound and npc_dispatch and not procedural_hits and not player_reuse)
 assert v1_authored_ready is True, "fixture must reproduce the v1 false positive"
 
-v2 = promotion_truth.analyze(SCENE, PLACEHOLDER)
-assert v2["authored_npc_asset_dispatch_statically_proven"] is False
-assert v2["multiple_authored_npc_identities_statically_proven"] is False
-assert v2["authored_civilian_police_roster_visual_ready"] is False
-assert v2["promotion_blocked"] is True
-assert "npcagent_dispatch_has_no_positive_authored_asset_load_proof" in v2["blocking_reasons"]
-assert "multiple_authored_npc_identities_not_statically_proven" in v2["blocking_reasons"]
+v3 = promotion_truth.analyze(SCENE, PLACEHOLDER)
+assert v3["authored_npc_asset_dispatch_statically_proven"] is False
+assert v3["multiple_authored_npc_identities_statically_proven"] is False
+assert v3["authored_civilian_police_roster_visual_ready"] is False
+assert v3["promotion_blocked"] is True
+assert "npcagent_dispatch_has_no_positive_authored_asset_load_proof" in v3["blocking_reasons"]
+assert "multiple_authored_npc_identities_not_statically_proven" in v3["blocking_reasons"]
 
-print("CIV1_AUTHORED_ROSTER_PLACEHOLDER_FALSE_POSITIVE_REPRODUCED_AND_REJECTED")
+COMMENT_ONLY = '''extends Node3D
+func _ready():
+    if actor is NpcAgent:
+        _build_profiled_npc(actor as NpcAgent)
+func _build_profiled_npc(agent):
+    # res://assets/characters/civilians/civ_a.glb
+    # res://assets/characters/police/officer_a.glb
+    var unrelated = load("res://ui/icon.tscn")
+    if unrelated is PackedScene:
+        add_child(unrelated.instantiate())
+'''
+
+# Reproduce the v2 false positive exactly: it scanned raw function text, so two
+# commented NPC paths plus unrelated load/instantiate signals could satisfy readiness.
+comment_ready_body = promotion_truth.function_body(COMMENT_ONLY, "_ready")
+comment_npc_body = promotion_truth.function_body(COMMENT_ONLY, "_build_profiled_npc")
+v2_bound = promotion_truth.main_binds_humanoid_visual(SCENE)
+v2_dispatch = bool(
+    promotion_truth.re.search(r'if\s+actor\s+is\s+NpcAgent\s*:', comment_ready_body)
+    and promotion_truth.re.search(r'_build_profiled_npc\s*\(', comment_ready_body)
+)
+v2_procedural = bool(promotion_truth.PROCEDURAL_HELPER_RE.search(comment_npc_body))
+v2_player_reuse = bool(
+    promotion_truth.PLAYER_ASSET_RE.findall(comment_npc_body)
+    or promotion_truth.re.search(r'\b_try_build_authored_character\s*\(', comment_npc_body)
+)
+v2_npc_assets = sorted(set(promotion_truth.NPC_ASSET_RE.findall(comment_npc_body)))
+v2_load = bool(promotion_truth.RESOURCE_LOAD_RE.search(comment_npc_body))
+v2_instantiate = bool(promotion_truth.PACKED_SCENE_INSTANTIATE_RE.search(comment_npc_body))
+v2_authored_dispatch = bool(v2_npc_assets and v2_load and v2_instantiate)
+v2_multiple = len(v2_npc_assets) >= 2
+v2_authored_ready = bool(
+    v2_bound
+    and v2_dispatch
+    and not v2_procedural
+    and not v2_player_reuse
+    and v2_authored_dispatch
+    and v2_multiple
+)
+assert v2_authored_ready is True, "fixture must reproduce the v2 comment-only false positive"
+
+v3_comment = promotion_truth.analyze(SCENE, COMMENT_ONLY)
+assert v3_comment["comment_text_excluded_from_static_evidence"] is True
+assert v3_comment["authored_npc_asset_paths"] == []
+assert v3_comment["authored_npc_asset_dispatch_statically_proven"] is False
+assert v3_comment["multiple_authored_npc_identities_statically_proven"] is False
+assert v3_comment["authored_civilian_police_roster_visual_ready"] is False
+assert v3_comment["promotion_blocked"] is True
+
+print("CIV1_AUTHORED_ROSTER_V1_PLACEHOLDER_AND_V2_COMMENT_FALSE_POSITIVES_REPRODUCED_AND_REJECTED")

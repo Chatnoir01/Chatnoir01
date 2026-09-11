@@ -14,6 +14,8 @@ func _fail(message: String) -> void:
 func _run() -> void:
     var scene := Node3D.new()
     scene.name = "LazyActivationHarness"
+    root.add_child(scene)
+
     var player := Node3D.new()
     player.name = "Player"
     player.position = ANNEESSENS + Vector3(1000.0, 0.0, 0.0)
@@ -78,5 +80,5 @@ func _run() -> void:
 
     runtime.free()
     scene.free()
-    print("ANNEESSENS_OSM_LAZY_ACTIVATION_OK: far_unbuilt=true enter_builds=7 leave_retains=true reentry_reuses=true radius_m=170.0")
+    print("ANNEESSENS_OSM_LAZY_ACTIVATION_OK: scene_tree_mounted=true far_unbuilt=true enter_builds=7 leave_retains=true reentry_reuses=true radius_m=170.0")
     quit(0)

@@ -79,10 +79,16 @@ def main() -> None:
         if required not in source:
             fail(f"Anneessens furniture provenance/collision rail missing: {required}")
 
-    add_tree = function_body(source, "_add_tree")
-    for forbidden in ("CollisionShape3D.new()", "CylinderShape3D.new()"):
-        if forbidden in add_tree:
-            fail(f"Anneessens unsourced tree collision construction returned: {forbidden}")
+    create_tree = function_body(source, "_create_tree")
+    if not create_tree:
+        fail("Anneessens staged tree construction helper missing")
+    if "tree.position = world_position" not in create_tree:
+        fail("Anneessens staged tree no longer preserves validated source position")
+    if "parent_root.add_child(tree)" not in create_tree:
+        fail("Anneessens tree is not attached to the staged owned root before publication")
+    for forbidden in ("CollisionShape3D.new()", "CylinderShape3D.new()", "_scene.add_child(tree)"):
+        if forbidden in create_tree:
+            fail(f"Anneessens staged tree ownership/collision contract regressed: {forbidden}")
 
     exit_body = function_body(source, "_exit_tree")
     if "_release_owned_root()" not in exit_body:
@@ -104,13 +110,32 @@ def main() -> None:
         fail("Anneessens distance activation no longer drives owned-root visibility")
 
     build_body = function_body(source, "_build_once")
-    if "_apply_tree_activation(" not in build_body:
-        fail("Anneessens newly built furniture does not inherit current visibility state")
+    required_build_fragments = (
+        "var candidate_root := Node3D.new()",
+        "candidate_trees.append(candidate_tree)",
+        "candidate_root.visible = active",
+        "_scene.add_child(candidate_root)",
+        "_root = candidate_root",
+        "_trees = candidate_trees",
+    )
+    for required in required_build_fragments:
+        if required not in build_body:
+            fail(f"Anneessens atomic owned-root publication rail missing: {required}")
+    if not (
+        build_body.index("candidate_trees.append(candidate_tree)")
+        < build_body.index("_scene.add_child(candidate_root)")
+        < build_body.index("_root = candidate_root")
+        < build_body.index("_trees = candidate_trees")
+    ):
+        fail("Anneessens owned-root staging/publication/ownership order drifted")
+    if "candidate_root.free()" not in build_body:
+        fail("Anneessens failed staging path does not free the unpublished candidate root")
 
     print(
         "ANNEESSENS_FURNITURE_OWNED_ROOT_CONTRACT_OK: "
         f"autoload={AUTOLOAD} root={OWNED_ROOT} source=OSM license={LICENSE} "
-        f"detach_then_free=true collision_policy={COLLISION_POLICY} proxy_collisions=0 runtime_geometry_changed=false"
+        f"atomic_stage_publish_commit=true detach_then_free=true collision_policy={COLLISION_POLICY} "
+        "proxy_collisions=0 runtime_geometry_changed=false"
     )
 
 

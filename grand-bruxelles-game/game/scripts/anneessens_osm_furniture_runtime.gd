@@ -711,41 +711,41 @@ func _build_once() -> void:
         return
     var source_position_identity := source_position_identity_value as Dictionary
 
-    _root = Node3D.new()
-    _root.name = "AnneessensOsmFurniture"
-    _root.set_meta("source", str(data.get("source", "")))
-    _root.set_meta("license", str(data.get("license", "")))
-    _root.set_meta("placement_source_backed", true)
-    _root.set_meta("visual_dimensions_source_backed", false)
-    _root.set_meta("source_height_measured", false)
-    _root.set_meta("source_species_measured", false)
-    _root.set_meta("collision_source_backed", false)
-    _root.set_meta("collision_authorized", false)
-    _root.set_meta("collision_policy", COLLISION_POLICY)
-    _root.set_meta("coverage_complete", false)
-    _root.set_meta("full_environment_coverage_claimed", false)
-    _root.set_meta("coverage_policy", str(coverage_contract["coverage_policy"]))
-    _root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
-    _root.set_meta("activation_radius_validated", true)
-    _root.set_meta("activation_radius_m", float(activation_radius_value))
-    _root.set_meta("data_artifact_identity_validated", true)
-    _root.set_meta("data_artifact_sha256", str(data_artifact_identity["sha256"]))
-    _root.set_meta("data_artifact_bytes", int(data_artifact_identity["bytes"]))
-    _root.set_meta("upstream_snapshot_identity_validated", true)
-    _root.set_meta("upstream_source_sha256", str(upstream_snapshot_identity["sha256"]))
-    _root.set_meta("upstream_source_bytes", int(upstream_snapshot_identity["bytes"]))
-    _root.set_meta("upstream_origin_validated", bool(coverage_contract["upstream_origin_validated"]))
-    _root.set_meta("upstream_origin_lat", float(coverage_contract["upstream_origin_lat"]))
-    _root.set_meta("upstream_origin_lon", float(coverage_contract["upstream_origin_lon"]))
-    _root.set_meta("radius_membership_validated", bool(radius_membership["radius_membership_validated"]))
-    _root.set_meta("selection_max_distance_m", float(radius_membership["max_distance_m"]))
-    _root.set_meta("selection_identity_validated", true)
-    _root.set_meta("selection_tree_count", tree_points.size())
-    _root.set_meta("selection_osm_ids", selection_integrity["selection_osm_ids"])
-    _root.set_meta("source_position_identity_validated", bool(source_position_identity["source_position_identity_validated"]))
-    _root.set_meta("source_position_max_error_m", float(source_position_identity["max_position_error_m"]))
-    _root.set_meta("source_position_epsilon_m", float(source_position_identity["source_position_epsilon_m"]))
-    _scene.add_child(_root)
+    var candidate_root := Node3D.new()
+    candidate_root.name = "AnneessensOsmFurniture"
+    candidate_root.set_meta("source", str(data.get("source", "")))
+    candidate_root.set_meta("license", str(data.get("license", "")))
+    candidate_root.set_meta("placement_source_backed", true)
+    candidate_root.set_meta("visual_dimensions_source_backed", false)
+    candidate_root.set_meta("source_height_measured", false)
+    candidate_root.set_meta("source_species_measured", false)
+    candidate_root.set_meta("collision_source_backed", false)
+    candidate_root.set_meta("collision_authorized", false)
+    candidate_root.set_meta("collision_policy", COLLISION_POLICY)
+    candidate_root.set_meta("coverage_complete", false)
+    candidate_root.set_meta("full_environment_coverage_claimed", false)
+    candidate_root.set_meta("coverage_policy", str(coverage_contract["coverage_policy"]))
+    candidate_root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
+    candidate_root.set_meta("activation_radius_validated", true)
+    candidate_root.set_meta("activation_radius_m", float(activation_radius_value))
+    candidate_root.set_meta("data_artifact_identity_validated", true)
+    candidate_root.set_meta("data_artifact_sha256", str(data_artifact_identity["sha256"]))
+    candidate_root.set_meta("data_artifact_bytes", int(data_artifact_identity["bytes"]))
+    candidate_root.set_meta("upstream_snapshot_identity_validated", true)
+    candidate_root.set_meta("upstream_source_sha256", str(upstream_snapshot_identity["sha256"]))
+    candidate_root.set_meta("upstream_source_bytes", int(upstream_snapshot_identity["bytes"]))
+    candidate_root.set_meta("upstream_origin_validated", bool(coverage_contract["upstream_origin_validated"]))
+    candidate_root.set_meta("upstream_origin_lat", float(coverage_contract["upstream_origin_lat"]))
+    candidate_root.set_meta("upstream_origin_lon", float(coverage_contract["upstream_origin_lon"]))
+    candidate_root.set_meta("radius_membership_validated", bool(radius_membership["radius_membership_validated"]))
+    candidate_root.set_meta("selection_max_distance_m", float(radius_membership["max_distance_m"]))
+    candidate_root.set_meta("selection_identity_validated", true)
+    candidate_root.set_meta("selection_tree_count", tree_points.size())
+    candidate_root.set_meta("selection_osm_ids", selection_integrity["selection_osm_ids"])
+    candidate_root.set_meta("source_position_identity_validated", bool(source_position_identity["source_position_identity_validated"]))
+    candidate_root.set_meta("source_position_max_error_m", float(source_position_identity["max_position_error_m"]))
+    candidate_root.set_meta("source_position_epsilon_m", float(source_position_identity["source_position_epsilon_m"]))
+
     _tree_materials = TREE_ASSET.create_materials()
     _tree_meshes = TREE_ASSET.create_meshes(_tree_materials)
     var legacy_trunk := CylinderMesh.new()
@@ -758,15 +758,40 @@ func _build_once() -> void:
     legacy_crown.height = 2.9
     _tree_meshes["legacy_crown"] = legacy_crown
 
+    var candidate_trees: Array[StaticBody3D] = []
     for tree_point: Variant in tree_points:
         var validated_point := tree_point as Dictionary
         var world_position: Vector3 = validated_point["position"]
-        _add_tree(int(validated_point["osm_id"]), world_position)
+        var candidate_tree := _create_tree(int(validated_point["osm_id"]), world_position, candidate_root)
+        if candidate_tree == null:
+            candidate_root.free()
+            _tree_materials.clear()
+            _tree_meshes.clear()
+            push_error("Anneessens OSM furniture tree construction failed before publication")
+            return
+        candidate_trees.append(candidate_tree)
 
-    _tree_activation_initialized = false
+    if candidate_trees.size() != tree_points.size() or _tearing_down or not is_instance_valid(_scene):
+        candidate_root.free()
+        _tree_materials.clear()
+        _tree_meshes.clear()
+        return
+
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= float(activation_radius_value)
-    _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true data_artifact_identity_validated=true upstream_snapshot_identity_validated=true strict_json=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f activation_radius_m=%.1f activation_radius_validated=true asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), float(activation_radius_value), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    candidate_root.visible = active
+    _scene.add_child(candidate_root)
+    if candidate_root.get_parent() != _scene:
+        candidate_root.free()
+        _tree_materials.clear()
+        _tree_meshes.clear()
+        push_error("Anneessens OSM furniture atomic root publication failed")
+        return
+
+    _root = candidate_root
+    _trees = candidate_trees
+    _tree_activation_initialized = true
+    _tree_active = active
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d atomic_root_publish=true selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true data_artifact_identity_validated=true upstream_snapshot_identity_validated=true strict_json=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f activation_radius_m=%.1f activation_radius_validated=true asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), float(activation_radius_value), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):
@@ -779,7 +804,7 @@ func _apply_tree_activation(active: bool) -> void:
     _tree_activation_initialized = true
     _root.visible = active
 
-func _add_tree(osm_id: int, world_position: Vector3) -> void:
+func _create_tree(osm_id: int, world_position: Vector3, parent_root: Node3D) -> StaticBody3D:
     var tree := StaticBody3D.new()
     tree.name = "OsmTree_%d" % osm_id
     tree.position = world_position
@@ -792,10 +817,9 @@ func _add_tree(osm_id: int, world_position: Vector3) -> void:
     tree.set_meta("collision_source_backed", false)
     tree.set_meta("collision_authorized", false)
     tree.set_meta("collision_policy", COLLISION_POLICY)
-    _root.add_child(tree)
-    _trees.append(tree)
-
+    parent_root.add_child(tree)
     _rebuild_tree_visual(tree)
+    return tree
 
 func _is_owned_tree_visual(node: Node) -> bool:
     return str(node.get_meta(VISUAL_OWNER_META, "")) == VISUAL_OWNER_ID

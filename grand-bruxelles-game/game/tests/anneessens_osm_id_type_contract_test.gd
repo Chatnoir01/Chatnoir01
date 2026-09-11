@@ -1,7 +1,7 @@
 extends SceneTree
 
 const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
-const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_runtime.gd")
+const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_strict_runtime.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -43,9 +43,7 @@ func _run() -> void:
     environment_points[0] = point
     point_mutated["environment_points"] = environment_points
 
-    # Preserve the exact numeric identity while changing only the JSON/Godot
-    # type. A provenance key must not accept 4672009403.0 as equivalent to
-    # the canonical integer 4672009403.
+    # Preserve exact numeric identity while changing only JSON/Godot type.
     var float_point_result: Variant = runtime.call("_collect_validated_tree_points", point_mutated)
     if float_point_result != null:
         runtime.free()

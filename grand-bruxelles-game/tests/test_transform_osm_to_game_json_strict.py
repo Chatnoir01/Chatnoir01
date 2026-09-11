@@ -89,6 +89,25 @@ def main() -> int:
     open_building_result = transform_osm_to_game.convert(open_building, transform_osm_to_game.DEFAULT_ORIGIN)
     assert open_building_result["stats"]["buildings"] == 0, "open OSM building way must not be implicitly closed and materialized"
 
+    near_closed_after_projection = {
+        "elements": [
+            {
+                "type": "way",
+                "id": 33,
+                "tags": {"building": "yes"},
+                "geometry": [
+                    {"lat": 50.8410, "lon": 4.3470},
+                    {"lat": 50.8410, "lon": 4.3480},
+                    {"lat": 50.8420, "lon": 4.3480},
+                    {"lat": 50.8420, "lon": 4.3470},
+                    {"lat": 50.841000001, "lon": 4.347000001},
+                ],
+            }
+        ]
+    }
+    near_closed_result = transform_osm_to_game.convert(near_closed_after_projection, transform_osm_to_game.DEFAULT_ORIGIN)
+    assert near_closed_result["stats"]["buildings"] == 0, "building closure must be proven in source WGS84 coordinates before millimetre projection rounding"
+
     railway_only = {
         "elements": [
             {
@@ -150,7 +169,7 @@ def main() -> int:
         else:
             raise AssertionError(f"invalid WGS84 origin accepted: {invalid_origin}")
 
-    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true osm_tag_strings_required=true numeric_tag_units_strict=true railway_layer_ambiguity_rejected=true open_building_rejected=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true railway_order_deterministic=true finite_origin_required=true network_used=false")
+    print("TRANSFORM_OSM_JSON_STRICT_OK duplicate_keys_rejected=true constants_rejected=true float_overflow_rejected=true osm_identity_validated=true duplicate_osm_identity_rejected=true osm_tag_strings_required=true numeric_tag_units_strict=true railway_layer_ambiguity_rejected=true open_building_rejected=true source_building_closure_required=true geometry_coordinate_pair_required=true node_coordinate_pair_required=true wgs84_ranges_required=true railway_bounds_accounted=true railway_order_deterministic=true finite_origin_required=true network_used=false")
     return 0
 
 

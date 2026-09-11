@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v5"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-promotion-truth-v6"
 HUMANOID_VISUAL_PATH = "res://game/scripts/humanoid_visual.gd"
 EXT_RESOURCE_RE = re.compile(r'^\s*\[ext_resource\s+([^]]+)\]\s*$', re.M)
 ATTR_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"')
@@ -17,6 +17,7 @@ NPC_ASSET_RE = re.compile(r'(?<=["\'])res://assets/characters/(?!player(?:/|_))[
 NPC_LITERAL_ASSIGN_RE = re.compile(r'\b(?:var\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(["\'])(res://assets/characters/(?!player(?:/|_))[^"\'\r\n]+\.(?:glb|gltf|fbx|tscn))\2', re.I)
 CHOICE_ASSIGN_RE = re.compile(r'\b(?:var\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\s+if\b[^\r\n]*\belse\s+([A-Za-z_][A-Za-z0-9_]*)')
 LOAD_ASSIGN_RE = re.compile(r'\b(?:var\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*load\s*\(\s*([A-Za-z_][A-Za-z0-9_]*|["\'][^"\'\r\n]+["\'])\s*\)')
+NPC_LITERAL_FULL_RE = re.compile(r'res://assets/characters/(?!player(?:/|_))[^"\'\r\n]+\.(?:glb|gltf|fbx|tscn)', re.I)
 
 
 def function_body(script: str, function_name: str) -> str:
@@ -66,35 +67,46 @@ def main_binds_humanoid_visual(scene: str) -> bool:
     return False
 
 
-def correlated_authored_scene_flow(npc_code: str) -> tuple[bool, list[str]]:
-    """Prove an NPC asset reaches load() and that exact loaded variable is instantiated.
+def correlated_authored_scene_flow(npc_code: str) -> tuple[bool, list[str], list[str]]:
+    """Prove which exact NPC asset paths reach load() and an instantiate() call.
 
     This is deliberately conservative static dataflow, not a GDScript parser. It supports
     direct NPC literals, variables assigned NPC literals, and one-line ternary selection
-    between already-tainted variables. Unrelated load()/instantiate() calls cannot satisfy it.
+    between already-tainted variables. Identity count is derived only from asset paths that
+    actually flow through a correlated load-to-instantiation chain.
     """
-    tainted: set[str] = {m.group(1) for m in NPC_LITERAL_ASSIGN_RE.finditer(npc_code)}
+    tainted_paths: dict[str, set[str]] = {}
+    for match in NPC_LITERAL_ASSIGN_RE.finditer(npc_code):
+        variable, _quote, path = match.groups()
+        tainted_paths.setdefault(variable, set()).add(path)
+
     changed = True
     while changed:
         changed = False
-        for m in CHOICE_ASSIGN_RE.finditer(npc_code):
-            dst, left, right = m.groups()
-            if left in tainted and right in tainted and dst not in tainted:
-                tainted.add(dst)
+        for match in CHOICE_ASSIGN_RE.finditer(npc_code):
+            dst, left, right = match.groups()
+            if left not in tainted_paths or right not in tainted_paths:
+                continue
+            combined = tainted_paths[left] | tainted_paths[right]
+            if tainted_paths.get(dst) != combined:
+                tainted_paths[dst] = set(combined)
                 changed = True
 
     loaded_vars: list[str] = []
-    for m in LOAD_ASSIGN_RE.finditer(npc_code):
-        loaded, source = m.groups()
-        source_is_npc = source in tainted
+    correlated_paths: set[str] = set()
+    for match in LOAD_ASSIGN_RE.finditer(npc_code):
+        loaded, source = match.groups()
+        source_paths: set[str] = set(tainted_paths.get(source, set()))
         if source[:1] in ('"', "'"):
             literal = source[1:-1]
-            source_is_npc = bool(re.fullmatch(r'res://assets/characters/(?!player(?:/|_))[^"\'\r\n]+\.(?:glb|gltf|fbx|tscn)', literal, re.I))
-        if not source_is_npc:
+            if NPC_LITERAL_FULL_RE.fullmatch(literal):
+                source_paths = {literal}
+        if not source_paths:
             continue
         if re.search(rf'\b{re.escape(loaded)}\s*\.\s*instantiate\s*\(', npc_code):
             loaded_vars.append(loaded)
-    return bool(loaded_vars), sorted(set(loaded_vars))
+            correlated_paths.update(source_paths)
+    return bool(loaded_vars), sorted(set(loaded_vars)), sorted(correlated_paths)
 
 
 def analyze(scene: str, visual: str) -> dict[str, object]:
@@ -109,11 +121,11 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
     player_reuse = bool(player_asset_hits or authored_helper_reuse)
 
     npc_asset_hits = sorted(set(NPC_ASSET_RE.findall(npc_code)))
-    correlated_flow, loaded_vars = correlated_authored_scene_flow(npc_code)
+    correlated_flow, loaded_vars, correlated_asset_paths = correlated_authored_scene_flow(npc_code)
     authored_resource_load = correlated_flow
     authored_scene_instantiate = correlated_flow
-    authored_asset_dispatch = bool(npc_asset_hits and correlated_flow)
-    multiple_identities = len(npc_asset_hits) >= 2
+    authored_asset_dispatch = bool(correlated_asset_paths)
+    multiple_identities = len(correlated_asset_paths) >= 2
 
     canonical_procedural = bool(bound and npc_dispatch and procedural_hits)
     authored_ready = bool(bound and npc_dispatch and not procedural_hits and not player_reuse and authored_asset_dispatch and multiple_identities)
@@ -141,7 +153,9 @@ def analyze(scene: str, visual: str) -> dict[str, object]:
         "authored_npc_scene_instantiation_proven": authored_scene_instantiate,
         "authored_npc_asset_dispatch_statically_proven": authored_asset_dispatch,
         "correlated_authored_loaded_variables": loaded_vars,
+        "correlated_authored_asset_paths": correlated_asset_paths,
         "asset_load_instantiation_correlation_required": True,
+        "identity_count_based_on_correlated_dispatch": True,
         "multiple_authored_npc_identities_statically_proven": multiple_identities,
         "comment_text_excluded_from_static_evidence": True,
         "quoted_asset_path_evidence_required": True,
@@ -238,6 +252,7 @@ func _build_profiled_npc(agent):
 '''
     result = analyze(scene, hash_in_string)
     assert len(result["authored_npc_asset_paths"]) == 2
+    assert len(result["correlated_authored_asset_paths"]) == 2
     assert result["authored_civilian_police_roster_visual_ready"] is True
 
     unrelated_load = '''extends Node3D
@@ -255,6 +270,23 @@ func _build_profiled_npc(agent):
     assert result["authored_npc_asset_dispatch_statically_proven"] is False
     assert result["authored_civilian_police_roster_visual_ready"] is False
 
+    one_correlated_one_unloaded = '''extends Node3D
+func _ready():
+    if actor is NpcAgent:
+        _build_profiled_npc(actor as NpcAgent)
+func _build_profiled_npc(agent):
+    var civilian = "res://assets/characters/civilians/civ_a.glb"
+    var police = "res://assets/characters/police/officer_a.glb"
+    var resource = load(civilian)
+    add_child(resource.instantiate())
+'''
+    result = analyze(scene, one_correlated_one_unloaded)
+    assert len(result["authored_npc_asset_paths"]) == 2
+    assert result["correlated_authored_asset_paths"] == ["res://assets/characters/civilians/civ_a.glb"]
+    assert result["authored_npc_asset_dispatch_statically_proven"] is True
+    assert result["multiple_authored_npc_identities_statically_proven"] is False
+    assert result["authored_civilian_police_roster_visual_ready"] is False
+
     authored_roster = '''extends Node3D
 func _ready():
     if actor is NpcAgent:
@@ -269,9 +301,11 @@ func _build_profiled_npc(agent):
 '''
     result = analyze(scene, authored_roster)
     assert result["authored_npc_asset_dispatch_statically_proven"] is True
+    assert result["correlated_authored_asset_paths"] == ["res://assets/characters/civilians/civ_a.glb", "res://assets/characters/police/officer_a.glb"]
     assert result["multiple_authored_npc_identities_statically_proven"] is True
     assert result["authored_civilian_police_roster_visual_ready"] is True
     assert result["asset_load_instantiation_correlation_required"] is True
+    assert result["identity_count_based_on_correlated_dispatch"] is True
 
 
 def main() -> int:

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "purpose": "Map one exact committed OSM drivable road into Road Generator RoadLane navigation metadata without replacing source geometry or the existing Grand Bruxelles traffic runtime.",
+  "source": {
+    "path": "data/osm/vertical_slice_01.game.json",
+    "format": "grand-bruxelles-osm-v1",
+    "source": "OpenStreetMap contributors via Overpass API",
+    "license": "ODbL-1.0",
+    "sha256": "a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
+  },
+  "sample_road": {
+    "osm_id": 359177328,
+    "name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan",
+    "class": "tertiary",
+    "width_m": 7.0,
+    "drivable": true,
+    "point_count": 6,
+    "polyline_length_m": 166.557826
+  },
+  "adapter": {
+    "curve_y_m": 0.0,
+    "max_point_error_m": 0.0005,
+    "max_length_error_m": 0.05,
+    "agent_probe_distance_m": 25.0,
+    "max_agent_offset_error_m": 0.10
+  },
+  "policy": {
+    "roadlane_metadata_only": true,
+    "canonical_addon_install_authorized": false,
+    "canonical_runtime_authorized": false,
+    "canonical_export_authorized": false,
+    "source_geometry_mutation_authorized": false,
+    "replace_osm_urbis_geometry_authorized": false,
+    "replace_existing_traffic_manager_authorized": false,
+    "traffic_runtime_bridge_authorized": false
+  }
+}

@@ -1,0 +1,80 @@
+name: Grand Bruxelles CIV-1 External Resource Header Schema
+on:
+  push:
+    branches: ['character/**']
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_header_schema.py'
+      - 'grand-bruxelles-game/tools/test_civ1_external_resource_header_schema.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-external-resource-header-schema.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_header_schema.py'
+      - 'grand-bruxelles-game/tools/test_civ1_external_resource_header_schema.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-external-resource-header-schema.yml'
+permissions:
+  contents: read
+jobs:
+  civ1-external-resource-header-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require current live main ancestry and Character QA-only scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproduce foreign-header malformed-UID and UID-alias false positives
+        working-directory: grand-bruxelles-game/tools
+        run: |
+          set -euo pipefail
+          python test_civ1_external_resource_header_schema.py
+          python civ1_external_resource_header_schema.py --self-test
+      - name: Measure reachable external resource header schema
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-external-resource-header-schema
+          python grand-bruxelles-game/tools/civ1_external_resource_header_schema.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-external-resource-header-schema/civ1-external-resource-header-schema.json
+      - name: Assert fail-closed receipt
+        run: |
+          python - <<'PY'
+          import json
+          p='/tmp/civ1-external-resource-header-schema/civ1-external-resource-header-schema.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-civ1-external-resource-header-schema-v3'
+          assert d['reachable_scene_count'] >= 1
+          assert d['external_resource_header_schema_conflicts'] == []
+          assert d['external_resource_header_schema_canonical'] is True
+          assert d['foreign_external_resource_header_evidence_accepted'] is False
+          assert d['external_resource_missing_required_attribute_evidence_accepted'] is False
+          assert d['external_resource_empty_required_attribute_evidence_accepted'] is False
+          assert d['external_resource_invalid_uid_evidence_accepted'] is False
+          assert d['external_resource_malformed_uid_payload_evidence_accepted'] is False
+          assert d['external_resource_noncanonical_uid_alias_evidence_accepted'] is False
+          assert d['external_resource_uid_lexemes_canonical'] is True
+          assert d['runtime_authorized'] is False
+          assert d['visual_approval_claimed'] is False
+          assert d['contact_verified'] is False
+          assert d['foot_slide_verified'] is False
+          print(json.dumps(d, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-external-resource-header-schema
+          path: /tmp/civ1-external-resource-header-schema/civ1-external-resource-header-schema.json
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,82 @@
+name: Grand Bruxelles CIV-1 External Resource Backing Type Agreement
+on:
+  push:
+    branches: ['character/**']
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_identity_type_consistency.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_backing_type_agreement.py'
+      - 'grand-bruxelles-game/tools/test_civ1_external_resource_backing_type_agreement.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - 'grand-bruxelles-game/game/**/*.tres'
+      - 'grand-bruxelles-game/game/**/*.gd'
+      - '.github/workflows/grand-bruxelles-civ1-external-resource-backing-type-agreement.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_backing.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_identity_type_consistency.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_backing_type_agreement.py'
+      - 'grand-bruxelles-game/tools/test_civ1_external_resource_backing_type_agreement.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - 'grand-bruxelles-game/game/**/*.tres'
+      - 'grand-bruxelles-game/game/**/*.gd'
+      - '.github/workflows/grand-bruxelles-civ1-external-resource-backing-type-agreement.yml'
+permissions:
+  contents: read
+jobs:
+  civ1-external-resource-backing-type-agreement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require current live main ancestry and Character QA-only scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproduce declared type and late tres-header false positives
+        working-directory: grand-bruxelles-game/tools
+        run: |
+          set -euo pipefail
+          python test_civ1_external_resource_backing_type_agreement.py
+          python civ1_external_resource_backing_type_agreement.py --self-test
+      - name: Measure reachable deterministic backing type agreement
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-external-resource-backing-type-agreement
+          python grand-bruxelles-game/tools/civ1_external_resource_backing_type_agreement.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-external-resource-backing-type-agreement/civ1-external-resource-backing-type-agreement.json
+      - name: Assert fail-closed receipt
+        run: |
+          python - <<'PY'
+          import json
+          p='/tmp/civ1-external-resource-backing-type-agreement/civ1-external-resource-backing-type-agreement.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-civ1-external-resource-backing-type-agreement-v2'
+          assert d['reachable_scene_count'] >= 1
+          assert d['deterministically_typed_backing_count'] >= 1
+          assert d['external_resource_backing_type_conflicts'] == []
+          assert d['external_resource_declared_types_agree_with_deterministic_backing'] is True
+          assert d['mismatched_script_type_evidence_accepted'] is False
+          assert d['late_tres_header_evidence_treated_as_deterministic'] is False
+          assert d['runtime_authorized'] is False
+          assert d['visual_approval_claimed'] is False
+          assert d['contact_verified'] is False
+          assert d['foot_slide_verified'] is False
+          print(json.dumps(d, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-external-resource-backing-type-agreement
+          path: /tmp/civ1-external-resource-backing-type-agreement/civ1-external-resource-backing-type-agreement.json
+          if-no-files-found: error
+          retention-days: 14

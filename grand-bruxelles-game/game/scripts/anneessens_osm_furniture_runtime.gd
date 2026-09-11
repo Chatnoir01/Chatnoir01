@@ -1,6 +1,7 @@
 extends Node
 
 const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
+const EXPECTED_DATA_SHA256 := "df88c0af132d78f8c7252211546278b6bf26271958641434c08c0ce69d7cac5c"
 const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const TREE_ASSET := preload("res://game/scripts/brussels_street_tree_asset.gd")
 const VISUAL_OWNER_META := "shared_environment_visual_owner"
@@ -341,18 +342,18 @@ func _parse_strict_json_object(raw_text: String) -> Variant:
         return null
     return parsed
 
-func _validate_upstream_snapshot_identity(path: String = UPSTREAM_PATH) -> Variant:
+func _validate_file_identity(path: String, expected_sha256: String, label: String) -> Variant:
     if not FileAccess.file_exists(path):
-        push_error("Anneessens OSM furniture pinned upstream snapshot missing")
+        push_error("Anneessens OSM furniture %s missing" % label)
         return null
     var file := FileAccess.open(path, FileAccess.READ)
     if file == null:
-        push_error("Anneessens OSM furniture pinned upstream snapshot unreadable")
+        push_error("Anneessens OSM furniture %s unreadable" % label)
         return null
     var hashing := HashingContext.new()
     if hashing.start(HashingContext.HASH_SHA256) != OK:
         file.close()
-        push_error("Anneessens OSM furniture pinned upstream SHA-256 initialization failed")
+        push_error("Anneessens OSM furniture %s SHA-256 initialization failed" % label)
         return null
     var file_length := file.get_length()
     while file.get_position() < file_length:
@@ -360,21 +361,43 @@ func _validate_upstream_snapshot_identity(path: String = UPSTREAM_PATH) -> Varia
         var chunk := file.get_buffer(min(65536, remaining))
         if chunk.is_empty() and remaining > 0:
             file.close()
-            push_error("Anneessens OSM furniture pinned upstream snapshot read stalled")
+            push_error("Anneessens OSM furniture %s read stalled" % label)
             return null
         if hashing.update(chunk) != OK:
             file.close()
-            push_error("Anneessens OSM furniture pinned upstream SHA-256 update failed")
+            push_error("Anneessens OSM furniture %s SHA-256 update failed" % label)
             return null
     file.close()
     var digest := hashing.finish().hex_encode()
-    if digest != EXPECTED_UPSTREAM_SHA256:
-        push_error("Anneessens OSM furniture pinned upstream snapshot digest drifted")
+    if digest != expected_sha256:
+        push_error("Anneessens OSM furniture %s digest drifted" % label)
         return null
     return {
-        "upstream_snapshot_identity_validated": true,
+        "identity_validated": true,
         "sha256": digest,
         "bytes": file_length,
+    }
+
+func _validate_data_artifact_identity(path: String = DATA_PATH) -> Variant:
+    var identity_value: Variant = _validate_file_identity(path, EXPECTED_DATA_SHA256, "derived artifact")
+    if identity_value == null:
+        return null
+    var identity := identity_value as Dictionary
+    return {
+        "data_artifact_identity_validated": bool(identity["identity_validated"]),
+        "sha256": str(identity["sha256"]),
+        "bytes": int(identity["bytes"]),
+    }
+
+func _validate_upstream_snapshot_identity(path: String = UPSTREAM_PATH) -> Variant:
+    var identity_value: Variant = _validate_file_identity(path, EXPECTED_UPSTREAM_SHA256, "pinned upstream snapshot")
+    if identity_value == null:
+        return null
+    var identity := identity_value as Dictionary
+    return {
+        "upstream_snapshot_identity_validated": bool(identity["identity_validated"]),
+        "sha256": str(identity["sha256"]),
+        "bytes": int(identity["bytes"]),
     }
 
 func _collect_validated_tree_points(data: Dictionary) -> Variant:
@@ -638,9 +661,10 @@ func _build_once() -> void:
     var activation_radius_value: Variant = _validated_activation_radius_m()
     if activation_radius_value == null:
         return
-    if not FileAccess.file_exists(DATA_PATH):
-        push_warning("Anneessens OSM furniture data missing")
+    var data_artifact_identity_value: Variant = _validate_data_artifact_identity()
+    if data_artifact_identity_value == null:
         return
+    var data_artifact_identity := data_artifact_identity_value as Dictionary
     var upstream_snapshot_identity_value: Variant = _validate_upstream_snapshot_identity()
     if upstream_snapshot_identity_value == null:
         return
@@ -704,6 +728,9 @@ func _build_once() -> void:
     _root.set_meta("coverage_radius_m", float(coverage_contract["coverage_radius_m"]))
     _root.set_meta("activation_radius_validated", true)
     _root.set_meta("activation_radius_m", float(activation_radius_value))
+    _root.set_meta("data_artifact_identity_validated", true)
+    _root.set_meta("data_artifact_sha256", str(data_artifact_identity["sha256"]))
+    _root.set_meta("data_artifact_bytes", int(data_artifact_identity["bytes"]))
     _root.set_meta("upstream_snapshot_identity_validated", true)
     _root.set_meta("upstream_source_sha256", str(upstream_snapshot_identity["sha256"]))
     _root.set_meta("upstream_source_bytes", int(upstream_snapshot_identity["bytes"]))
@@ -739,7 +766,7 @@ func _build_once() -> void:
     _tree_activation_initialized = false
     var active := Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= float(activation_radius_value)
     _apply_tree_activation(active)
-    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true upstream_snapshot_identity_validated=true strict_json=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f activation_radius_m=%.1f activation_radius_validated=true asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), float(activation_radius_value), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
+    print("ANNEESSENS_OSM_FURNITURE_READY: trees=%d selection_identity_validated=true radius_membership_validated=true selection_max_distance_m=%.3f source_position_identity_validated=true source_position_max_error_m=%.6f upstream_origin_validated=true data_artifact_identity_validated=true upstream_snapshot_identity_validated=true strict_json=true coverage_complete=false coverage_policy=%s coverage_radius_m=%.1f activation_radius_m=%.1f activation_radius_validated=true asset_family=%s source=OSM license=ODbL-1.0 collision_policy=%s" % [tree_points.size(), float(radius_membership["max_distance_m"]), float(source_position_identity["max_position_error_m"]), str(coverage_contract["coverage_policy"]), float(coverage_contract["coverage_radius_m"]), float(activation_radius_value), TREE_ASSET.ASSET_FAMILY, COLLISION_POLICY])
 
 func _apply_tree_activation(active: bool) -> void:
     if not is_instance_valid(_root):

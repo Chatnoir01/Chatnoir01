@@ -175,12 +175,21 @@ def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -
     return [round(x, 3), round(-north, 3)]
 
 
-def numeric_tag(tags: dict[str, Any], key: str) -> float | None:
+def numeric_tag(tags: dict[str, Any], key: str, *, allow_meters: bool = False) -> float | None:
+    """Parse an OSM numeric tag without silently stripping arbitrary units.
+
+    Dimensionless tags must be plain finite numbers.  Only callers that
+    explicitly opt in may accept a single terminal metre suffix (``m``), which
+    matches the OSM convention used by physical height tags.  Other units such
+    as ``mm`` or ``km`` fail closed rather than being reinterpreted as metres.
+    """
     raw = tags.get(key)
-    if raw is None:
+    if raw is None or not isinstance(raw, str):
         return None
+    text = raw.strip().lower()
+    if allow_meters and text.endswith("m"):
+        text = text[:-1].rstrip()
     try:
-        text = str(raw).strip().lower().replace("m", "").strip()
         number = float(text)
     except ValueError:
         return None
@@ -208,7 +217,7 @@ def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
 
 
 def building_height(tags: dict[str, Any]) -> float:
-    direct = numeric_tag(tags, "height")
+    direct = numeric_tag(tags, "height", allow_meters=True)
     if direct and 2.0 <= direct <= 250.0:
         return round(direct, 2)
 

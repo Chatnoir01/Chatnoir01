@@ -73,6 +73,18 @@ def _validate_osm_identity(element: dict[str, Any], index: int) -> tuple[str, in
     return str(element_type), osm_id
 
 
+def _finite_coordinate(value: object, label: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be numeric, not boolean")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be numeric") from exc
+    if not math.isfinite(number):
+        raise ValueError(f"{label} must be finite")
+    return number
+
+
 def load_source_json(path: Path) -> dict[str, Any]:
     """Load a locked Overpass artifact without accepting ambiguous JSON semantics."""
     raw_bytes = path.read_bytes()
@@ -108,17 +120,13 @@ def load_source_json(path: Path) -> dict[str, Any]:
             for point_index, point in enumerate(geometry):
                 if not isinstance(point, dict):
                     raise ValueError(f"Overpass element {index} geometry point {point_index} must be an object")
+                if "lat" not in point or "lon" not in point:
+                    raise ValueError(
+                        f"Overpass element {index} geometry point {point_index} must contain both lat and lon"
+                    )
+                _finite_coordinate(point["lat"], f"Overpass element {index} geometry point {point_index} latitude")
+                _finite_coordinate(point["lon"], f"Overpass element {index} geometry point {point_index} longitude")
     return payload
-
-
-def _finite_coordinate(value: object, label: str) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{label} must be numeric") from exc
-    if not math.isfinite(number):
-        raise ValueError(f"{label} must be finite")
-    return number
 
 
 def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -> list[float]:
@@ -205,7 +213,7 @@ def geometry_points(element: dict[str, Any], origin: tuple[float, float]) -> lis
         if not isinstance(point, dict):
             raise ValueError("OSM geometry point must be an object")
         if "lat" not in point or "lon" not in point:
-            continue
+            raise ValueError("OSM geometry point must contain both lat and lon")
         projected = metric_point(point["lat"], point["lon"], *origin)
         if not out or projected != out[-1]:
             out.append(projected)

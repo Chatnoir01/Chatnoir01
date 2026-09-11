@@ -1,6 +1,7 @@
 extends SceneTree
 
 const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
+const UPSTREAM_PATH := "res://data/osm/vertical_slice_01.game.json"
 const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_runtime.gd")
 const EXPECTED_COVERAGE_RADIUS_M := 130.0
 const EXPECTED_ANCHOR := Vector2(-272.04, -217.07)
@@ -41,6 +42,50 @@ func _run() -> void:
         return
 
     var runtime := RUNTIME_SCRIPT.new()
+
+    # Upstream byte-identity regression: the runtime must independently hash
+    # the pinned OSM snapshot bytes, rather than trusting only the digest string
+    # copied into the derived Anneessens manifest.
+    if not runtime.has_method("_validate_upstream_snapshot_identity"):
+        runtime.free()
+        _fail("runtime has no pinned upstream byte-identity gate")
+        return
+    var canonical_upstream_identity: Variant = runtime.call("_validate_upstream_snapshot_identity")
+    if canonical_upstream_identity == null:
+        runtime.free()
+        _fail("runtime rejected canonical pinned upstream snapshot bytes")
+        return
+    var upstream_identity := canonical_upstream_identity as Dictionary
+    if not bool(upstream_identity.get("upstream_snapshot_identity_validated", false)):
+        runtime.free()
+        _fail("canonical pinned upstream snapshot identity receipt missing")
+        return
+
+    # Behavioral byte-drift regression: copy the pinned snapshot into user://,
+    # flip exactly one byte without touching the canonical source, and require
+    # the same runtime validator to reject the mutated copy.
+    var upstream_bytes := FileAccess.get_file_as_bytes(UPSTREAM_PATH)
+    if upstream_bytes.is_empty():
+        runtime.free()
+        _fail("pinned upstream snapshot bytes unavailable for mutation regression")
+        return
+    var mutated_bytes := upstream_bytes.duplicate()
+    var mutation_index := mutated_bytes.size() - 1
+    mutated_bytes[mutation_index] = int(mutated_bytes[mutation_index]) ^ 1
+    var mutated_path := "user://anneessens_upstream_identity_mutated.game.json"
+    var mutated_file := FileAccess.open(mutated_path, FileAccess.WRITE)
+    if mutated_file == null:
+        runtime.free()
+        _fail("could not create mutated upstream regression copy")
+        return
+    mutated_file.store_buffer(mutated_bytes)
+    mutated_file.close()
+    var mutated_identity: Variant = runtime.call("_validate_upstream_snapshot_identity", mutated_path)
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(mutated_path))
+    if mutated_identity != null:
+        runtime.free()
+        _fail("runtime accepted one-byte drift in pinned upstream snapshot copy")
+        return
 
     # Raw-source integrity regression: Godot's normal JSON object materialization
     # cannot preserve evidence that an object member was declared twice. A
@@ -188,5 +233,5 @@ func _run() -> void:
         _fail("canonical source-position identity error receipt invalid")
         return
 
-    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true source_position_drift_fail_closed=true upstream_origin_drift_fail_closed=true duplicate_json_keys_fail_closed=true" % max_distance_m)
+    print("ANNEESSENS_OSM_COVERAGE_RADIUS_OK: canonical_radius_m=130.0 max_distance_m=%.6f radius_drift_fail_closed=true membership_fail_closed=true source_position_drift_fail_closed=true upstream_origin_drift_fail_closed=true duplicate_json_keys_fail_closed=true upstream_snapshot_identity_validated=true upstream_snapshot_byte_drift_fail_closed=true" % max_distance_m)
     quit(0)

@@ -144,15 +144,38 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ steps.revs.outputs.head_sha }}"
           test "$(git -C /tmp/anneessens-base rev-parse HEAD)" = "${{ steps.revs.outputs.base_sha }}"
+      - name: Seal exact evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE_DIR="grand-bruxelles-game/artifacts/visual/anneessens-player-view-ab"
+          cp /tmp/anneessens-base.log "$EVIDENCE_DIR/base-runtime.log"
+          cp /tmp/anneessens-head.log "$EVIDENCE_DIR/head-runtime.log"
+          cp /tmp/anneessens-base-import.log "$EVIDENCE_DIR/base-import.log"
+          cp /tmp/anneessens-head-import.log "$EVIDENCE_DIR/head-import.log"
+          for required in base.png head.png diff_x4.png metrics.json base-runtime.log head-runtime.log base-import.log head-import.log; do
+            test -s "$EVIDENCE_DIR/$required"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          root = Path("grand-bruxelles-game/artifacts/visual/anneessens-player-view-ab")
+          manifest = {}
+          for path in sorted(root.iterdir()):
+              if path.is_file() and path.name != "evidence-manifest.json":
+                  data = path.read_bytes()
+                  manifest[path.name] = {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+          required = {"base.png","head.png","diff_x4.png","metrics.json","base-runtime.log","head-runtime.log","base-import.log","head-import.log"}
+          if set(manifest) != required:
+              raise SystemExit(f"evidence bundle mismatch: {sorted(manifest)}")
+          (root/"evidence-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True)+"\n")
+          print("ANNEESSENS_PLAYER_VIEW_EVIDENCE_OK:", json.dumps(manifest, sort_keys=True))
+          PY
+          test -s "$EVIDENCE_DIR/evidence-manifest.json"
       - name: Upload exact base-head player-view evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: anneessens-exact-base-head-player-view
-          path: |
-            grand-bruxelles-game/artifacts/visual/anneessens-player-view-ab/
-            /tmp/anneessens-base.log
-            /tmp/anneessens-head.log
-            /tmp/anneessens-base-import.log
-            /tmp/anneessens-head-import.log
-          if-no-files-found: warn
+          path: grand-bruxelles-game/artifacts/visual/anneessens-player-view-ab/
+          if-no-files-found: error

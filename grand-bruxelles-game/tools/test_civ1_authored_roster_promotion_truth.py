@@ -18,6 +18,8 @@ LEGACY_PLAYER_ASSET_RE = re.compile(r'res://assets/characters/player(?:/|_)[^"\'
 LEGACY_NPC_ASSET_RE = re.compile(
     r'res://assets/characters/(?!player(?:/|_))[^"\']+\.(?:glb|gltf|fbx|tscn)', re.I
 )
+LEGACY_RESOURCE_LOAD_RE = re.compile(r'\b(?:ResourceLoader\.exists|load)\s*\(')
+LEGACY_PACKED_SCENE_INSTANTIATE_RE = re.compile(r'\bPackedScene\b|\.instantiate\s*\(')
 
 SCENE = '[gd_scene format=3]\n[ext_resource type="Script" path="res://game/scripts/humanoid_visual.gd" id="1_visual"]\n'
 PLACEHOLDER = '''extends Node3D
@@ -83,8 +85,8 @@ v2_player_reuse = bool(
     or promotion_truth.re.search(r'\b_try_build_authored_character\s*\(', comment_npc_body)
 )
 v2_npc_assets = sorted(set(LEGACY_NPC_ASSET_RE.findall(comment_npc_body)))
-v2_load = bool(promotion_truth.RESOURCE_LOAD_RE.search(comment_npc_body))
-v2_instantiate = bool(promotion_truth.PACKED_SCENE_INSTANTIATE_RE.search(comment_npc_body))
+v2_load = bool(LEGACY_RESOURCE_LOAD_RE.search(comment_npc_body))
+v2_instantiate = bool(LEGACY_PACKED_SCENE_INSTANTIATE_RE.search(comment_npc_body))
 v2_authored_dispatch = bool(v2_npc_assets and v2_load and v2_instantiate)
 v2_multiple = len(v2_npc_assets) >= 2
 v2_authored_ready = bool(
@@ -123,8 +125,8 @@ unquoted_code = promotion_truth.strip_gdscript_comments(unquoted_body)
 v3_assets = sorted(set(LEGACY_NPC_ASSET_RE.findall(unquoted_code)))
 v3_authored_dispatch = bool(
     v3_assets
-    and promotion_truth.RESOURCE_LOAD_RE.search(unquoted_code)
-    and promotion_truth.PACKED_SCENE_INSTANTIATE_RE.search(unquoted_code)
+    and LEGACY_RESOURCE_LOAD_RE.search(unquoted_code)
+    and LEGACY_PACKED_SCENE_INSTANTIATE_RE.search(unquoted_code)
 )
 assert len(v3_assets) >= 2, "fixture must expose at least two legacy pseudo-path identities"
 assert v3_authored_dispatch is True, "fixture must reproduce v3 unquoted-path false evidence"
@@ -137,4 +139,4 @@ assert current_unquoted["multiple_authored_npc_identities_statically_proven"] is
 assert current_unquoted["authored_civilian_police_roster_visual_ready"] is False
 assert current_unquoted["promotion_blocked"] is True
 
-print("CIV1_AUTHORED_ROSTER_V1_V2_V3_FALSE_POSITIVES_REPRODUCED_AND_V4_REJECTED")
+print("CIV1_AUTHORED_ROSTER_V1_V2_V3_FALSE_POSITIVES_REPRODUCED_AND_V5_REJECTED")

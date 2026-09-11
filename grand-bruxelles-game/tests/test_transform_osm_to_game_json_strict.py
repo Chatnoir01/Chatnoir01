@@ -60,6 +60,14 @@ def main() -> int:
         '{"elements":[{"type":"mystery","id":19}]}',
         "unknown OSM element type",
     )
+    require_rejected(
+        '{"elements":[{"type":"way","id":23,"geometry":[{"lat":50.84,"lon":4.34},{"lat":50.85}]}]}',
+        "geometry point missing longitude",
+    )
+    require_rejected(
+        '{"elements":[{"type":"way","id":24,"geometry":[{"lat":50.84,"lon":4.34},{"lon":4.35}]}]}',
+        "geometry point missing latitude",
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "ok.json"
@@ -86,7 +94,8 @@ def main() -> int:
         "TRANSFORM_OSM_JSON_STRICT_OK "
         "duplicate_keys_rejected=true constants_rejected=true "
         "float_overflow_rejected=true osm_identity_validated=true "
-        "duplicate_osm_identity_rejected=true finite_origin_required=true network_used=false"
+        "duplicate_osm_identity_rejected=true geometry_coordinate_pair_required=true "
+        "finite_origin_required=true network_used=false"
     )
     return 0
 

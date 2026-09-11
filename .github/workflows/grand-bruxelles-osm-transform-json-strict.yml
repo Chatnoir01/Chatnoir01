@@ -6,6 +6,7 @@ on:
       - ".github/workflows/grand-bruxelles-osm-transform-json-strict.yml"
       - "grand-bruxelles-game/tools/transform_osm_to_game.py"
       - "grand-bruxelles-game/tests/test_transform_osm_to_game_json_strict.py"
+      - "grand-bruxelles-game/tests/test_transform_osm_to_game_building_semantics.py"
   workflow_dispatch:
 
 permissions:
@@ -41,3 +42,4 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/test_transform_osm_to_game_json_strict.py
+          python3 tests/test_transform_osm_to_game_building_semantics.py

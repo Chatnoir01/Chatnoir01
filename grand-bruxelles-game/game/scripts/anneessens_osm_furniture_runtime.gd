@@ -404,8 +404,8 @@ func _collect_validated_tree_points(data: Dictionary) -> Variant:
             push_error("Anneessens OSM tree osm_id duplicated")
             return null
         var position_value: Variant = point.get("position", null)
-        if not position_value is Array or (position_value as Array).size() < 2:
-            push_error("Anneessens OSM tree position invalid")
+        if not position_value is Array or (position_value as Array).size() != 2:
+            push_error("Anneessens OSM tree position must be exact [x,z]")
             return null
         var position := position_value as Array
         var x_value: Variant = position[0]

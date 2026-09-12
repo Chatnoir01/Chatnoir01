@@ -1,0 +1,77 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-source-campaign-registry-v1",
+  "campaign_id": "region-lod2-C02-30000",
+  "production_base_sha": "aa7593d1b03dbc452db59194f6a94e4d984af454",
+  "contract": "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C02_30000.contract.json",
+  "selection_policy": "deterministic_from_locked_planner_artifact_after_exact_C01_exclusion",
+  "selection": {
+    "owner_count": 30000,
+    "owner_sequence_sha256": "c1e3cd3451943f0b597030d582ca4f2677d1733fe51869edcc68dc77bf66060e",
+    "municipality_counts": {
+      "Bruxelles": 17060,
+      "Uccle": 12940
+    },
+    "distribution_count": 62,
+    "cell_count": 168,
+    "planner_group_count": 240,
+    "first_sequence_owner": "1636350",
+    "last_sequence_owner": "1723694"
+  },
+  "measurement_evidence": {
+    "source_pr": 1011,
+    "workflow_run_id": 32435407439,
+    "workflow_run_attempt": 2,
+    "summary_artifact_id": 9431783445,
+    "summary_artifact_sha256": "98ad3e7f3d1fcc00f8a850d963c8ad817372b43274f3765d8721e70ee52d126f",
+    "summary_json_sha256": "56dcf794a531672b13e0481cb0d9ab3d7d53dc1be7bdff9166738466fe6e3ad9",
+    "status": "complete_first_measurement"
+  },
+  "reproduction_evidence": {
+    "source_pr": 1013,
+    "workflow_run_id": 32442555394,
+    "workflow_run_attempt": 2,
+    "summary_artifact_id": 9433795244,
+    "summary_artifact_sha256": "82d4dce57fc207d4d31a436738e7ccd30c415dab0156118164603cfb45514cc9",
+    "summary_json_sha256": "a80645b118f7a119a6f1e800831569b88ac0c880f08bf2650c75b55acb3b6480",
+    "status": "locked_exact_reproduced"
+  },
+  "latest_reproduction_evidence": {
+    "source_pr": 1075,
+    "source_base_sha": "75d924303a1120bf6cedf61554ccb80d39d0c49c",
+    "source_head_sha": "e45c728b875324ec12387b64edd133c283240d2f",
+    "workflow_run_id": 32522474015,
+    "workflow_run_attempt": 1,
+    "summary_artifact_id": 9461436270,
+    "summary_artifact_sha256": "4e36c995d34bf0cd0951e6dcaa9a96fdc4197716bcd46ac38f02d96b4b71aa7d",
+    "summary_json_sha256": "a80645b118f7a119a6f1e800831569b88ac0c880f08bf2650c75b55acb3b6480",
+    "status": "locked_exact_reproduced"
+  },
+  "source_shards": {},
+  "campaign_metrics": {
+    "owner_count": 30000,
+    "solid_count": 30531,
+    "face_count": 533372,
+    "point_count": 3259839,
+    "part_count": 535580,
+    "canonical_payload_bytes": 221190414,
+    "face_type_counts": {
+      "CLOSURE": 8,
+      "GROUNDSURFACE": 30577,
+      "OUTERCEILING": 374,
+      "OUTERFLOOR": 19,
+      "ROOFSURFACE": 128676,
+      "WALLSURFACE": 373718
+    },
+    "source_shard_count": 62,
+    "source_shards_sha256": "7893392cb6b09505a08a537c2f44018e8bfae6ed14c008297624ed89ae2d2b2a"
+  },
+  "campaign_metrics_status": "locked_exact",
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "geometry_modified": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false,
+  "note": "Second 30k immutable source-only campaign. First complete measurement plus independent locked-exact reproductions are recorded by immutable workflow artifacts. The aggregate recomputes the complete 62-shard comparable object and must match campaign_metrics.source_shards_sha256 exactly; no runtime or materialization authorization is implied."
+}

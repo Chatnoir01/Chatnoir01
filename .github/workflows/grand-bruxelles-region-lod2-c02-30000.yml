@@ -1,0 +1,309 @@
+name: Grand Bruxelles Region LoD2 C02 30k Source Campaign
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C02_30000.contract.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_campaigns/region_lod2_C02_30000.manifest.json"
+      - "grand-bruxelles-game/tools/qa/build_urbis_lod2_source_campaign_selection_c02.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c02-30000.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-selection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download locked regional planner artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9371456570/zip" \
+            > "$RUNNER_TEMP/region-lod2-cell-batch-plan.zip"
+          echo "5c45f328f06bf951631c1f71fe4360b7f503c04a2da3bcbd2093d7a7fd5c4535  $RUNNER_TEMP/region-lod2-cell-batch-plan.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/planner"
+          unzip -q "$RUNNER_TEMP/region-lod2-cell-batch-plan.zip" -d "$RUNNER_TEMP/planner"
+      - name: Rebuild exact immutable C02 30k selection
+        run: |
+          python grand-bruxelles-game/tools/qa/build_urbis_lod2_source_campaign_selection_c02.py \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C02_30000.contract.json \
+            --planner-dir "$RUNNER_TEMP/planner" \
+            --selection-out "$RUNNER_TEMP/region_lod2_C02_30000.selection.json" \
+            --matrix-out "$RUNNER_TEMP/region_lod2_C02_30000.matrix.json"
+      - name: Require selection against repository manifest
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads(Path(
+              "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_campaigns/"
+              "region_lod2_C02_30000.manifest.json"
+          ).read_text())
+          selection = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "region_lod2_C02_30000.selection.json").read_text()
+          )
+          for key in [
+              "owner_count", "owner_sequence_sha256", "municipality_counts",
+              "distribution_count", "cell_count", "planner_group_count",
+              "first_sequence_owner", "last_sequence_owner",
+          ]:
+              assert selection[key] == manifest["selection"][key], key
+          assert selection["owner_count"] == 30000
+          assert selection["predecessor_campaign_id"] == "region-lod2-C01-30000"
+          assert selection["predecessor_owner_sequence_sha256"] == "19acf5707d4daba092a41c20ca780e337d06ee4648813fb2f259cc7f77c004f6"
+          print(
+              "REGION_LOD2_C02_MANIFEST_SELECTION_OK: "
+              f"owners={selection['owner_count']} sha256={selection['owner_sequence_sha256']}"
+          )
+          PY
+      - name: Export dynamic shard matrix
+        id: matrix
+        run: echo "matrix=$(cat "$RUNNER_TEMP/region_lod2_C02_30000.matrix.json")" >> "$GITHUB_OUTPUT"
+      - name: Upload immutable generated selection
+        uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c02-30000-selection
+          path: ${{ runner.temp }}/region_lod2_C02_30000.selection.json
+          if-no-files-found: error
+
+  verify-shards:
+    needs: build-selection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix: ${{ fromJson(needs.build-selection.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download immutable generated selection
+        uses: actions/download-artifact@v4
+        with:
+          name: region-lod2-c02-30000-selection
+          path: ${{ runner.temp }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+      - name: Verify official UrbIS shard
+        env:
+          PYTHONUNBUFFERED: "1"
+          C02_TILE: ${{ matrix.tile }}
+          C02_DISTRIBUTION: ${{ matrix.distribution }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          max_attempts=2
+          if [[ "$C02_TILE" == "146163" || "$C02_TILE" == "147162" || "$C02_TILE" == "148163" || "$C02_TILE" == "148164" || "$C02_TILE" == "149174" || "$C02_TILE" == "151166" || "$C02_TILE" == "151175" || "$C02_TILE" == "151177" || "$C02_TILE" == "153174" || "$C02_TILE" == "154176" ]]; then
+            max_attempts=4
+          fi
+          log="$RUNNER_TEMP/shard-${C02_TILE}.log"
+          : > "$log"
+          ok=0
+          for attempt in $(seq 1 "$max_attempts"); do
+            {
+              echo "C02_SHARD_ATTEMPT tile=${C02_TILE} distribution=${C02_DISTRIBUTION} attempt=${attempt}/${max_attempts}"
+              date -u +"C02_SHARD_UTC %Y-%m-%dT%H:%M:%SZ"
+            } | tee -a "$log"
+            if timeout 900s python grand-bruxelles-game/tools/qa/verify_urbis_lod2_source_campaign_shard.py \
+              --repo-root "$GITHUB_WORKSPACE" \
+              --manifest grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_campaigns/region_lod2_C02_30000.manifest.json \
+              --selection "$RUNNER_TEMP/region_lod2_C02_30000.selection.json" \
+              --distribution-key "$C02_DISTRIBUTION" \
+              --report "$RUNNER_TEMP/shard-${C02_TILE}.json" 2>&1 | tee -a "$log"; then
+              ok=1
+              break
+            else
+              status=$?
+              echo "C02_SHARD_ATTEMPT_FAILED tile=${C02_TILE} status=${status}" | tee -a "$log"
+            fi
+            sleep $((attempt * 3))
+          done
+          if [[ "$ok" -ne 1 ]]; then
+            echo "C02_SHARD_FINAL_FAILURE tile=${C02_TILE} distribution=${C02_DISTRIBUTION}" | tee -a "$log"
+            exit 1
+          fi
+      - name: Upload failed shard diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c02-diagnostic-${{ matrix.tile }}
+          path: ${{ runner.temp }}/shard-${{ matrix.tile }}.log
+          if-no-files-found: warn
+      - name: Upload shard proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c02-shard-${{ matrix.tile }}
+          path: ${{ runner.temp }}/shard-${{ matrix.tile }}.json
+          if-no-files-found: error
+
+  diagnose-completeness:
+    if: always() && needs.build-selection.result == 'success'
+    needs: [build-selection, verify-shards]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download immutable generated selection
+        uses: actions/download-artifact@v4
+        with:
+          name: region-lod2-c02-30000-selection
+          path: ${{ runner.temp }}
+      - name: Download all available shard proofs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: region-lod2-c02-shard-*
+          path: ${{ runner.temp }}/shards
+          merge-multiple: true
+      - name: Report exact missing distributions
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"])
+          selection = json.loads((root / "region_lod2_C02_30000.selection.json").read_text())
+          expected = sorted({str(g["distribution_key"]) for g in selection["groups"]})
+          reports = []
+          for path in sorted((root / "shards").glob("shard-*.json")):
+              reports.append(json.loads(path.read_text()))
+          observed = [str(r["distribution_key"]) for r in reports]
+          if len(observed) != len(set(observed)):
+              raise RuntimeError("duplicate shard proof distribution keys")
+          missing = sorted(set(expected) - set(observed))
+          unexpected = sorted(set(observed) - set(expected))
+          owner_by_distribution = {}
+          for group in selection["groups"]:
+              key = str(group["distribution_key"])
+              owner_by_distribution[key] = owner_by_distribution.get(key, 0) + len(group["owner_ids"])
+          print(
+              "C02_COMPLETENESS: "
+              f"expected={len(expected)} observed={len(observed)} missing={len(missing)} unexpected={len(unexpected)}"
+          )
+          if missing:
+              for key in missing:
+                  print(f"C02_MISSING_DISTRIBUTION {key} owners={owner_by_distribution.get(key, 0)}")
+          if unexpected:
+              for key in unexpected:
+                  print(f"C02_UNEXPECTED_DISTRIBUTION {key}")
+          if missing or unexpected or len(observed) != 62:
+              raise SystemExit(1)
+          print("C02_COMPLETENESS_OK: all 62 expected distribution proofs present")
+          PY
+
+  aggregate:
+    needs: verify-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all shard proofs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: region-lod2-c02-shard-*
+          path: ${{ runner.temp }}/shards
+          merge-multiple: true
+      - name: Require complete C02 30k accounting and build summary
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          manifest = json.loads(Path(
+              "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_campaigns/"
+              "region_lod2_C02_30000.manifest.json"
+          ).read_text())
+          shard_dir = Path(os.environ["RUNNER_TEMP"]) / "shards"
+          reports = [json.loads(path.read_text()) for path in sorted(shard_dir.glob("shard-*.json"))]
+          expected_count = int(manifest["selection"]["distribution_count"])
+          assert len(reports) == expected_count, (len(reports), expected_count)
+          keys = [report["distribution_key"] for report in reports]
+          assert len(keys) == len(set(keys))
+
+          owner_count = sum(int(r["selection"]["owner_count"]) for r in reports)
+          solid_count = sum(int(r["selection"]["solid_count"]) for r in reports)
+          face_count = sum(int(r["selection"]["face_count"]) for r in reports)
+          point_count = sum(int(r["selection"]["point_count"]) for r in reports)
+          part_count = sum(int(r["selection"]["part_count"]) for r in reports)
+          payload_bytes = sum(int(r["canonical_payload"]["bytes"]) for r in reports)
+          assert owner_count == int(manifest["selection"]["owner_count"]) == 30000
+
+          face_types = Counter()
+          for report in reports:
+              face_types.update(report["selection"]["face_type_counts"])
+
+          source_shards = {
+              report["distribution_key"]: {
+                  "source": report["source"],
+                  "selection": report["selection"],
+                  "canonical_payload": report["canonical_payload"],
+              }
+              for report in sorted(reports, key=lambda value: value["distribution_key"])
+          }
+          canonical = json.dumps(
+              source_shards, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+          ).encode("utf-8")
+          metrics = {
+              "owner_count": owner_count,
+              "solid_count": solid_count,
+              "face_count": face_count,
+              "point_count": point_count,
+              "part_count": part_count,
+              "canonical_payload_bytes": payload_bytes,
+              "face_type_counts": dict(sorted(face_types.items())),
+              "source_shard_count": len(source_shards),
+              "source_shards_sha256": hashlib.sha256(canonical).hexdigest(),
+          }
+
+          locked = manifest.get("campaign_metrics")
+          if locked is not None:
+              assert manifest.get("campaign_metrics_status") == "locked_exact"
+              assert metrics == locked, (metrics, locked)
+              status = "locked-exact"
+          else:
+              status = "measurement"
+
+          summary = {
+              "schema": "grand-bruxelles-urbis-lod2-source-campaign-summary-v1",
+              "campaign_id": manifest["campaign_id"],
+              "status": status,
+              "selection": manifest["selection"],
+              "metrics": metrics,
+              "source_shards": source_shards,
+              "runtime_authorized": False,
+              "runtime_mount_authorized": False,
+              "collision_authorized": False,
+              "geometry_modified": False,
+              "game_world_transform_authorized": False,
+              "jouable_promotion_authorized": False,
+          }
+          output = Path(os.environ["RUNNER_TEMP"]) / "region_lod2_C02_30000.summary.json"
+          output.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n")
+          print(
+              "REGION_LOD2_C02_30000_OK: "
+              f"status={status} owners={owner_count} solids={solid_count} faces={face_count} "
+              f"points={point_count} parts={part_count} bytes={payload_bytes} "
+              f"shards={len(source_shards)} shard_sha256={metrics['source_shards_sha256']}"
+          )
+          PY
+      - name: Upload campaign summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c02-30000-source-campaign-summary
+          path: ${{ runner.temp }}/region_lod2_C02_30000.summary.json
+          if-no-files-found: error

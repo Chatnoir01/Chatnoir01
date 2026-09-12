@@ -1,0 +1,66 @@
+name: Grand Bruxelles Base Ground Authoritative Root Binding
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/project.godot'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_base_ground_surface_authoritative_root_binding_test.gd'
+      - '.github/workflows/grand-bruxelles-base-ground-authoritative-root-binding.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authoritative-root-binding:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Bind exact live main and candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$HEAD_SHA" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          test "$LIVE_MAIN_SHA" != "$HEAD_SHA"
+          echo "BASE_GROUND_AUTHORITY_PROVENANCE_OK live_main=$LIVE_MAIN_SHA head=$HEAD_SHA"
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            2>&1 | tee /tmp/base-ground-authority-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/base-ground-authority-import.log; then
+            exit 1
+          fi
+
+      - name: Reject non-canonical root-level Main decoys
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/brussels_base_ground_surface_authoritative_root_binding_test.gd \
+            2>&1 | tee /tmp/base-ground-authority-test.log
+          grep -q 'BRUSSELS_BASE_GROUND_AUTHORITATIVE_ROOT_BIND_OK' /tmp/base-ground-authority-test.log

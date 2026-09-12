@@ -95,6 +95,11 @@ def historical_v6_gd_scene_header_valid(text: str) -> bool:
     return re.search(r"(?:^|\s)format\s*=", attrs) is not None
 
 
+def historical_v7_gltf_asset_version_valid(root: dict[str, object]) -> bool:
+    asset = root.get("asset")
+    return isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -176,6 +181,19 @@ def main() -> None:
         assert _read_godot_text_scene(zero_format_path) is None
         assert _read_godot_text_scene(canonical_header_path) == canonical_header
 
+        spoofed_version_root = {"asset": {"version": "2beta"}, "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"name": "CharacterRoot"}]}
+        assert historical_v7_gltf_asset_version_valid(spoofed_version_root) is True
+        spoofed_version_glb = glb_fixture(spoofed_version_root)
+        civilian.write_bytes(spoofed_version_glb)
+        police.write_bytes(spoofed_version_glb)
+        spoofed_version = analyze(SCENE, VISUAL, root)
+        assert spoofed_version["all_correlated_authored_asset_backings_materialized"] is True
+        assert spoofed_version["all_correlated_authored_asset_scene_backings_valid"] is False
+        assert spoofed_version["invalid_or_unsupported_scene_backing_paths"] == [
+            "res://assets/characters/civilians/civ_a.glb",
+            "res://assets/characters/police/officer_a.glb",
+        ]
+
         contentful_glb = glb_fixture({"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"name": "CharacterRoot"}]})
         civilian.write_bytes(contentful_glb)
         police.write_bytes(contentful_glb)
@@ -184,6 +202,7 @@ def main() -> None:
         assert materialized["exact_tscn_node_attribute_tokens_required"] is True
         assert materialized["exact_tscn_scene_header_format_token_required"] is True
         assert materialized["positive_integer_tscn_scene_format_required"] is True
+        assert materialized["exact_gltf_asset_version_required"] is True
         assert materialized["all_correlated_authored_asset_backings_materialized"] is True
         assert materialized["all_correlated_authored_asset_scene_backings_valid"] is True
         assert materialized["all_correlated_authored_asset_scene_payloads_instantiable"] is True
@@ -201,7 +220,7 @@ def main() -> None:
         ]
         assert materialized["authored_civilian_police_roster_materialization_ready"] is True
 
-    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V7_GREEN")
+    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V8_GREEN")
 
 
 if __name__ == "__main__":

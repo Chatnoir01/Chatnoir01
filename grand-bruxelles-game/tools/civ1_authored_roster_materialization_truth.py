@@ -9,7 +9,7 @@ from pathlib import Path
 
 import civ1_authored_roster_promotion_truth as promotion
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v8"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v9"
 _GD_SCENE_HEADER_RE = re.compile(r"^\[gd_scene(?:\s+(.+))?\]$")
 _NODE_HEADER_RE = re.compile(r"^\[node\s+(.+)\]$")
 
@@ -75,11 +75,29 @@ def _read_glb_v2(backing: Path) -> dict[str, object] | None:
     version, declared_length = struct.unpack_from("<II", data, 4)
     if version != 2 or declared_length != len(data):
         return None
-    json_length, json_type = struct.unpack_from("<II", data, 12)
-    if json_type != 0x4E4F534A or json_length <= 0 or 20 + json_length > len(data):
+
+    chunks: list[tuple[int, bytes]] = []
+    offset = 12
+    while offset < len(data):
+        if offset + 8 > len(data):
+            return None
+        chunk_length, chunk_type = struct.unpack_from("<II", data, offset)
+        if chunk_length % 4 != 0:
+            return None
+        start = offset + 8
+        end = start + chunk_length
+        if end > len(data):
+            return None
+        chunks.append((chunk_type, data[start:end]))
+        offset = end
+    if offset != len(data) or not chunks:
+        return None
+
+    json_type, json_bytes = chunks[0]
+    if json_type != 0x4E4F534A or not json_bytes:
         return None
     try:
-        json_chunk = data[20 : 20 + json_length].decode("utf-8").rstrip(" \t\r\n\x00")
+        json_chunk = json_bytes.decode("utf-8").rstrip(" \t\r\n\x00")
         root = json.loads(json_chunk)
     except (UnicodeError, json.JSONDecodeError):
         return None
@@ -216,6 +234,7 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
         "exact_tscn_scene_header_format_token_required": True,
         "positive_integer_tscn_scene_format_required": True,
         "exact_gltf_asset_version_required": True,
+        "strict_glb_chunk_structure_required": True,
         "all_correlated_authored_asset_backings_materialized": all_materialized,
         "all_correlated_authored_asset_scene_backings_valid": all_scene_valid,
         "all_correlated_authored_asset_scene_payloads_instantiable": all_payload_valid,

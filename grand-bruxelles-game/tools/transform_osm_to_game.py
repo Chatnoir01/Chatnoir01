@@ -58,7 +58,7 @@ def _reject_json_constant(value: str) -> object:
 def _parse_finite_float(value: str) -> float:
     number = float(value)
     if not math.isfinite(number):
-        raise ValueError(f"non-standard JSON constant: {value}")
+        raise ValueError(f"non-finite JSON float: {value}")
     return number
 
 

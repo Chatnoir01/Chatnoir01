@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Reproduce GLB integrity and compatibility
+      - name: Reproduce GLB integrity and role regression
         run: python grand-bruxelles-game/tools/test_civ1_glb_container_truth.py
       - name: Measure canonical Character GLB inventory
         shell: bash
@@ -47,10 +47,11 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-glb-truth/civ1-glb-container-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-glb-container-truth-v3'
-          assert d['canonical_json_bin_order_required'] is True
-          assert d['extension_chunks_ignored'] is True
-          assert d['embedded_buffer_binding_required'] is True
+          assert d['schema']=='grand-bruxelles-civ1-glb-container-truth-v4'
+          assert d['player_reuse_as_roster_forbidden'] is True
+          assert d['role_inference_forbidden'] is True
+          assert d['civilian_police_roster_candidate_count'] == 0
+          assert d['roster_authorized'] is False
           assert d['runtime_authorized'] is False
           assert d['visual_approval_claimed'] is False
           print(json.dumps(d, sort_keys=True))

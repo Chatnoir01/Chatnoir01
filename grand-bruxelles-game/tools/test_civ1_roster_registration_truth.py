@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import hashlib, tempfile
+import hashlib, json, subprocess, sys, tempfile
 from pathlib import Path
 from civ1_roster_registration_truth import PLAYER_ASSET, build_payload, validate_entry
 
@@ -112,6 +112,24 @@ def main() -> None:
         assert payload["source_url_local_network_forbidden"] is True
         assert payload["eligible_count"] == 0
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V5_GREEN")
+        # Causal RED for v5: malformed registry syntax must not be normalized into
+        # a successful empty roster truth. Preserve the receipt, but the CLI must
+        # fail so CI cannot silently green-light corrupted provenance state.
+        malformed_registry=root/"malformed-registry.json"
+        malformed_registry.write_text('{"entries": [', encoding="utf-8")
+        malformed_receipt=root/"malformed-receipt.json"
+        tool=Path(__file__).with_name("civ1_roster_registration_truth.py")
+        proc=subprocess.run(
+            [sys.executable, str(tool), str(malformed_registry), "--repo-root", str(root), "--out", str(malformed_receipt)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert proc.returncode != 0, "v5 fail-open reproduced: malformed registry returned success"
+        malformed_payload=json.loads(malformed_receipt.read_text(encoding="utf-8"))
+        assert "registry_unreadable_or_invalid_json" in malformed_payload["blocking_reasons"]
+        assert malformed_payload["eligible_count"] == 0
+
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V6_GREEN")
 
 if __name__ == "__main__": main()

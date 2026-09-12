@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Reproduce and reject incoherent embedded GLB buffers
+      - name: Reproduce embedded-buffer defects and extension compatibility
         run: python grand-bruxelles-game/tools/test_civ1_glb_container_truth.py
       - name: Measure canonical Character GLB inventory
         shell: bash
@@ -53,8 +53,11 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-glb-truth/civ1-glb-container-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-glb-container-truth-v2'
+          assert d['schema']=='grand-bruxelles-civ1-glb-container-truth-v3'
           assert d['strict_chunk_topology_required'] is True
+          assert d['canonical_json_bin_order_required'] is True
+          assert d['extension_chunks_ignored'] is True
+          assert d['unknown_chunks_rejected'] is False
           assert d['embedded_buffer_binding_required'] is True
           assert d['embedded_buffer_length_required'] is True
           assert d['embedded_buffer_zero_padding_required'] is True

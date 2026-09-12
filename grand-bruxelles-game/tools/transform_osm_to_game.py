@@ -313,12 +313,24 @@ def source_way_is_closed(element: dict[str, Any]) -> bool:
 
 
 def environment_point_kind(tags: dict[str, Any]) -> str | None:
-    if tags.get("natural") == "tree":
-        return "tree"
-    if tags.get("highway") == "street_lamp":
-        return "street_lamp"
-    if tags.get("barrier") == "bollard":
-        return "bollard"
+    """Return only operational point furniture with unambiguous lifecycle semantics."""
+    if any(truthy_osm_tag(tags, lifecycle_key) for lifecycle_key in NON_OPERATIONAL_STATE_FLAGS):
+        return None
+
+    candidates = (
+        ("natural", "tree", "tree"),
+        ("highway", "street_lamp", "street_lamp"),
+        ("barrier", "bollard", "bollard"),
+    )
+    for semantic_key, expected_value, kind in candidates:
+        if str(tags.get(semantic_key, "")).strip().lower() != expected_value:
+            continue
+        if any(
+            truthy_osm_tag(tags, f"{lifecycle_prefix}:{semantic_key}")
+            for lifecycle_prefix in NON_OPERATIONAL_LIFECYCLE_PREFIXES
+        ):
+            return None
+        return kind
     return None
 
 

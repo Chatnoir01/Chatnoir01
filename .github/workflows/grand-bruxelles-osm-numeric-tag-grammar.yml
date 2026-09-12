@@ -1,0 +1,28 @@
+name: Grand Bruxelles OSM Numeric Tag Grammar
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py'
+      - 'grand-bruxelles-game/tools/transform_osm_to_game.py'
+      - 'grand-bruxelles-game/data/osm/**'
+      - '.github/workflows/grand-bruxelles-osm-numeric-tag-grammar.yml'
+  workflow_dispatch:
+
+jobs:
+  numeric-tag-grammar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require branch to include current main
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Compile validator
+        run: python -m py_compile grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py
+      - name: Run fail-closed self-test and validate locked OSM source
+        run: |
+          python grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py \
+            grand-bruxelles-game/data/osm/vertical_slice_01.game.json \
+            --self-test

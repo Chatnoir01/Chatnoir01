@@ -1,0 +1,68 @@
+{
+  "schema": "grand-bruxelles-central-station-identity-v1",
+  "zone": "central",
+  "target": {
+    "runtime_node": "CentralStationUrban30201",
+    "quality": "LABO_BRUT",
+    "jouable": false
+  },
+  "heritage_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Gare Centrale",
+    "urban_id": 30201,
+    "url": "https://monument.heritage.brussels/fr/buildings/30201",
+    "accessed_at": "2026-08-30",
+    "facts": [
+      "The surface station occupies the block between Carrefour de l'Europe, Putterie, Cantersteen and boulevard de l'Imperatrice.",
+      "The surface building has five levels plus a mezzanine responding to the slope toward boulevard de l'Imperatrice.",
+      "Facades are faced in white stone with a blue-stone base and crown and bronze window frames.",
+      "The main entrance at Putterie / boulevard de l'Imperatrice is concave; its ground-floor opening is carried by four columns under a canopy.",
+      "The upper main entrance elevation is organized as nine three-sided bow-window bays.",
+      "The station is a sober functional composition with classical and Art Deco reminiscences."
+    ]
+  },
+  "location_source": {
+    "provider": "Wikidata",
+    "item": "Q800588",
+    "latitude": 50.8455611111,
+    "longitude": 4.3572194444,
+    "osm_node_id": 3266203405,
+    "source_role": "station reference point only; not a building-footprint survey"
+  },
+  "review_placement": {
+    "game_anchor": [647.68, 0.0, -407.70],
+    "method": "local WGS84 delta from the existing Grand-Place game anchor",
+    "authoritative_urbis_alignment": false,
+    "source_measured_game_anchor": false,
+    "purpose": "isolated LABO_BRUT player-eye review before authoritative UrbIS geometry onboarding"
+  },
+  "presentation_contract": {
+    "source_backed_features": [
+      "five_level_reading_plus_mezzanine",
+      "white_stone_facade_family",
+      "blue_stone_base_family",
+      "bronze_frame_family",
+      "four_main_entrance_columns",
+      "main_entrance_canopy",
+      "nine_upper_bay_rhythm",
+      "bilingual_station_signage"
+    ],
+    "procedural_dimensions_are_source_measured": false,
+    "procedural_depth_is_source_measured": false,
+    "procedural_bay_widths_are_source_measured": false,
+    "procedural_column_positions_are_source_measured": false,
+    "official_urbis_footprint_active": false,
+    "official_urbis_lod2_active": false,
+    "surrounding_regional_osm_active": false,
+    "additive_review_geometry_only": true,
+    "camera_rescue_forbidden": true,
+    "realism_complete": false,
+    "promotion_allowed": false
+  },
+  "promotion_blockers": [
+    "authoritative UrbIS station footprint / LoD2 not yet materialized in the Central zone",
+    "regional Central OSM/UrbIS street context not yet mounted",
+    "player-eye photo-match evidence not yet produced",
+    "human visual promotion not yet granted"
+  ]
+}

@@ -1,0 +1,104 @@
+name: Grand Bruxelles Central Station Visual Witness
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-central-station-visual-witness.yml"
+      - "grand-bruxelles-game/game/tests/central_station_visual_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/central_station_labo_contract_test.gd"
+      - "grand-bruxelles-game/game/zones/central/central_station_labo.gd"
+      - "grand-bruxelles-game/game/zones/central/central_station_context_labo.gd"
+      - "grand-bruxelles-game/game/scripts/zone_selector_runtime.gd"
+      - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
+      - "grand-bruxelles-game/data/visual/central_station_identity.json"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: central-station-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  central-station-visual-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha }}"
+          test "$actual" = "$expected"
+          echo "CENTRAL_STATION_VISUAL_EXACT_HEAD_OK sha=$actual"
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/central-station-visual-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/central-station-visual-import.log; then exit 1; fi
+      - name: Capture Central Urban 30201 LABO_BRUT witness
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/central_station_visual_witness_test.gd 2>&1 | tee /tmp/central-station-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|CENTRAL_STATION_VISUAL_WITNESS_FAIL" /tmp/central-station-visual.log; then exit 1; fi
+          grep -F "CENTRAL_STATION_VISUAL_WITNESS_OK" /tmp/central-station-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/central_station_visual_witness/central_station_arrival.png
+          test -s grand-bruxelles-game/artifacts/qa/central_station_visual_witness/central_station_overview.png
+          test -s grand-bruxelles-game/artifacts/qa/central_station_visual_witness/central_station_change_zone_button.png
+          test -s grand-bruxelles-game/artifacts/qa/central_station_visual_witness/report.json
+      - name: Validate human-review witness contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('grand-bruxelles-game/artifacts/qa/central_station_visual_witness/report.json').read_text(encoding='utf-8'))
+          assert report['format'] == 'grand-bruxelles-central-station-visual-witness-v2'
+          assert report['zone_id'] == 'central' and report['urban_id'] == 30201
+          assert report['quality'] == 'LABO_BRUT' and report['jouable'] is False
+          assert report['human_review_required'] is True and report['promotion_performed'] is False
+          assert report['authoritative_urbis_alignment'] is False and report['production_selector_path'] is True
+          assert report['resolution'] == [1280, 720]
+          assert report['change_zone_button']['text'] == 'CHANGER DE ZONE'
+          assert report['change_zone_button']['visible_in_tree'] is True
+          assert report['change_zone_button']['panel_opened'] is True
+          assert int(report['stats'].get('buildings', 0)) == 1
+          assert int(report['stats'].get('street_surfaces', 0)) == 1
+          assert int(report['stats'].get('upper_bays', 0)) == 9
+          assert int(report['stats'].get('entrance_columns', 0)) == 4
+          print('CENTRAL_STATION_HUMAN_REVIEW_WITNESS_CONTRACT_OK promotion=false jouable=false authoritative_urbis=false captures=3 change_zone_button=true panel_opened=true')
+          PY
+      - name: Preserve logs
+        if: always()
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/central_station_visual_witness
+          test ! -f /tmp/central-station-visual.log || cp /tmp/central-station-visual.log grand-bruxelles-game/artifacts/qa/central_station_visual_witness/witness.log
+          test ! -f /tmp/central-station-visual-import.log || cp /tmp/central-station-visual-import.log grand-bruxelles-game/artifacts/qa/central_station_visual_witness/import.log
+      - name: Upload owner-visible review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-station-human-review-witness
+          path: grand-bruxelles-game/artifacts/qa/central_station_visual_witness
+          if-no-files-found: error
+          retention-days: 30

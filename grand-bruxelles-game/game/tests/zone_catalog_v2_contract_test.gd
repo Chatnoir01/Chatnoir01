@@ -38,33 +38,33 @@ func _init() -> void:
             _fail("listing contract gate missing: %s" % key)
             return
     var zones: Array = selector.call("parse_catalog_document", document)
-    if zones.size() != 8:
-        _fail("expected eight visible entries, got %d" % zones.size())
+    if zones.size() != 9:
+        _fail("expected nine visible entries, got %d" % zones.size())
         return
     var midi := _zone_by_id(zones, "midi")
     if str(midi.get("quality", "")) != "JOUABLE" or str(midi.get("mode", "")) != "fast_travel" or str(midi.get("destination", "")) != "midi":
         _fail("Midi lost canonical JOUABLE compatibility")
         return
     var midi_machine_labo := _zone_by_id(zones, "midi_machine_labo")
-    if str(midi_machine_labo.get("quality", "")) != "LABO":
-        _fail("Midi City Machine candidate entry lost LABO quality")
-        return
-    if str(midi_machine_labo.get("review_alias_of", "")) != "midi":
-        _fail("Midi City Machine candidate alias ownership missing")
+    if str(midi_machine_labo.get("quality", "")) != "LABO" or str(midi_machine_labo.get("review_alias_of", "")) != "midi":
+        _fail("Midi City Machine candidate alias contract drifted")
         return
     if str(midi_machine_labo.get("mode", "")) != "script_zone" or str(midi_machine_labo.get("script", "")) != "res://game/zones/midi/midi_city_machine_zone.gd":
         _fail("Midi City Machine candidate runtime contract drifted")
         return
+    var central := _zone_by_id(zones, "central")
+    if central.is_empty() or str(central.get("quality", "")) != "LABO_BRUT":
+        _fail("Central LABO_BRUT canonical entry missing")
+        return
+    if str(central.get("mode", "")) != "script_zone" or str(central.get("script", "")) != "res://game/zones/central/central_station_context_labo.gd":
+        _fail("Central contextual runtime contract drifted")
+        return
+    if str(central.get("review_alias_of", "")) != "":
+        _fail("Central must be canonical, not a review alias")
+        return
     var brut_doc := {
         "schema": "grand-bruxelles-playable-zone-catalog-v2",
-        "zones": [{
-            "id": "raw_lab",
-            "label": "Raw Lab",
-            "quality": "LABO_BRUT",
-            "mode": "fast_travel",
-            "destination": "midi",
-            "requires": ["res://game/main.tscn"]
-        }]
+        "zones": [{"id": "raw_lab", "label": "Raw Lab", "quality": "LABO_BRUT", "mode": "fast_travel", "destination": "midi", "requires": ["res://game/main.tscn"]}]
     }
     if (selector.call("parse_catalog_document", brut_doc) as Array).size() != 1:
         _fail("LABO_BRUT is not accepted by v2")
@@ -76,19 +76,12 @@ func _init() -> void:
         return
     var legacy_doc := {
         "schema": "grand-bruxelles-playable-zone-catalog-v1",
-        "zones": [{
-            "id": "legacy",
-            "label": "Legacy",
-            "quality": "LABO",
-            "mode": "fast_travel",
-            "destination": "midi",
-            "requires": ["res://game/main.tscn"]
-        }]
+        "zones": [{"id": "legacy", "label": "Legacy", "quality": "LABO", "mode": "fast_travel", "destination": "midi", "requires": ["res://game/main.tscn"]}]
     }
     if (selector.call("parse_catalog_document", legacy_doc) as Array).size() != 1:
         _fail("v1 backward compatibility was lost")
         return
-    print("ZONE_CATALOG_V2_OK: visible=8 canonical=7 review_aliases=1 midi=JOUABLE midi_machine_labo=LABO visual_reports=SOFT hard_blockers=BLOCKING review=POST_INTEGRATION stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
+    print("ZONE_CATALOG_V2_OK: visible=9 canonical=8 review_aliases=1 central=LABO_BRUT contextual_runtime=true midi=JOUABLE midi_machine_labo=LABO visual_reports=SOFT hard_blockers=BLOCKING review=POST_INTEGRATION stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
     selector.free()
     quit(0)
 

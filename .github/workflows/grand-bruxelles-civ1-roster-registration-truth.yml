@@ -44,13 +44,14 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-truth/civ1-roster-registration-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v11'
+          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v12'
           assert d['registry_parse_valid'] is True
           assert d['registry_schema']=='grand-bruxelles-civ1-roster-registry-v1'
           assert d['registry_schema_valid'] is True
           assert d['blocking_reasons'] == []
           assert d['strict_registry_fields_required'] is True
           assert d['strict_entry_fields_required'] is True
+          assert d['canonical_provenance_values_required'] is True
           assert d['invalid_entries_fail_closed'] is True
           assert d['invalid_entry_count'] == 0
           assert d['license_allowlist_required'] is True

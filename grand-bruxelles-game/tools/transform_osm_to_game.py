@@ -19,9 +19,9 @@ from typing import Any
 EARTH_RADIUS_M = 6_378_137.0
 DEFAULT_ORIGIN = (50.8419, 4.3480)
 OSM_ELEMENT_TYPES = {"node", "way", "relation"}
-PLAIN_OSM_NUMBER = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
+PLAIN_OSM_NUMBER = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$")
 METER_OSM_NUMBER = re.compile(
-    r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?(?:\s*m)?$",
+    r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?(?:\s*m)?$",
     re.IGNORECASE,
 )
 

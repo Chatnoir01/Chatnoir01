@@ -214,13 +214,19 @@ def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
 
 def building_height(tags: dict[str, Any]) -> float:
     direct = numeric_tag(tags, "height", allow_meters=True)
-    if "height" in tags and direct is None:
-        raise ValueError(f"building height must be a finite numeric value in metres: {tags.get('height')!r}")
-    if direct and 2.0 <= direct <= 250.0:
+    if "height" in tags:
+        if direct is None:
+            raise ValueError(f"building height must be a finite numeric value in metres: {tags.get('height')!r}")
+        if not 2.0 <= direct <= 250.0:
+            raise ValueError(f"building height must be within [2, 250] metres: {tags.get('height')!r}")
         return round(direct, 2)
 
     levels = numeric_tag(tags, "building:levels")
-    if levels and 1.0 <= levels <= 80.0:
+    if "building:levels" in tags:
+        if levels is None:
+            raise ValueError(f"building levels must be a finite unitless number: {tags.get('building:levels')!r}")
+        if not 1.0 <= levels <= 80.0:
+            raise ValueError(f"building levels must be within [1, 80]: {tags.get('building:levels')!r}")
         return round(max(3.2, levels * 3.15), 2)
 
     kind = str(tags.get("building", "yes"))

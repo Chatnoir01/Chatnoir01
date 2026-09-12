@@ -4,6 +4,7 @@ const MATERIAL_FAMILY := "brussels_base_ground_surface_v1"
 const PRESENTATION_REVISION := 6
 const TARGET_MAIN_NODE := "Main"
 const TARGET_GROUND_NODE := "Ground"
+const PRODUCTION_MAIN_SCENE_PATH := "res://game/main.tscn"
 const REQUIRED_MAIN_ANCHORS := ["BrusselsOSM", "UrbISMidiExact", "Player"]
 const EXPECTED_POSITION := Vector3(0.0, -0.23, 0.0)
 const EXPECTED_SIZE := Vector3(1800.0, 0.4, 1800.0)
@@ -150,6 +151,9 @@ func _is_production_main_candidate(main: Node) -> bool:
             return false
     return true
 
+func _is_canonical_packed_main(main: Node) -> bool:
+    return main != null and str(main.scene_file_path) == PRODUCTION_MAIN_SCENE_PATH
+
 func _is_authoritative_main(main: Node) -> bool:
     if main == null or not is_inside_tree():
         return false
@@ -158,6 +162,8 @@ func _is_authoritative_main(main: Node) -> bool:
         return false
     if tree.current_scene == main:
         return true
+    if not _is_canonical_packed_main(main):
+        return false
     var parent := main.get_parent()
     if parent == tree.root:
         return true
@@ -191,7 +197,7 @@ func _bind_existing_main() -> void:
     if tree == null:
         return
     var root_main := tree.root.get_node_or_null(TARGET_MAIN_NODE)
-    if root_main != null and _is_production_main_candidate(root_main):
+    if root_main != null and _is_production_main_candidate(root_main) and _is_authoritative_main(root_main):
         _try_bind_main(root_main)
         return
     for candidate: Node in tree.root.find_children(TARGET_MAIN_NODE, "", true, false):
@@ -243,7 +249,7 @@ func _try_bind_main(main: Node) -> void:
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
     _finish_waiting()
-    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false camera_dependent=false multidirectional=true event_driven=true production_anchors=true authority_topology=true" % [MATERIAL_FAMILY, PRESENTATION_REVISION])
+    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false camera_dependent=false multidirectional=true event_driven=true production_anchors=true authority_scene_identity=true" % [MATERIAL_FAMILY, PRESENTATION_REVISION])
 
 func _fail_binding(message: String) -> void:
     if _tearing_down:

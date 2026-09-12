@@ -21,6 +21,7 @@ RAILWAY_NON_OPERATIONAL_LIFECYCLE = (
     "dismantled",
 )
 LIFECYCLE_STATE_FLAGS = ("disused", "abandoned")
+LIFECYCLE_SHADOW_PREFIXES = ("construction", "proposed", "disused", "abandoned")
 
 
 def _way(tags: dict[str, str]) -> dict[str, object]:
@@ -100,6 +101,31 @@ def main() -> int:
             f"railway=rail + {lifecycle_flag}=yes must not materialize into the active railway catalog"
         )
 
+    for lifecycle_prefix in LIFECYCLE_SHADOW_PREFIXES:
+        converted = transform_osm_to_game.convert(
+            _way({
+                "highway": "residential",
+                f"{lifecycle_prefix}:highway": "residential",
+                "name": "Lifecycle-shadow highway witness",
+            }),
+            transform_osm_to_game.DEFAULT_ORIGIN,
+        )
+        assert converted["roads"] == [], (
+            f"conflicting active highway + {lifecycle_prefix}:highway must fail closed"
+        )
+
+        converted = transform_osm_to_game.convert(
+            _way({
+                "railway": "rail",
+                f"{lifecycle_prefix}:railway": "rail",
+                "name": "Lifecycle-shadow railway witness",
+            }),
+            transform_osm_to_game.DEFAULT_ORIGIN,
+        )
+        assert converted["railways"] == [], (
+            f"conflicting active railway + {lifecycle_prefix}:railway must fail closed"
+        )
+
     positive_road = transform_osm_to_game.convert(
         _way({"highway": "residential", "name": "Positive road control"}),
         transform_osm_to_game.DEFAULT_ORIGIN,
@@ -119,6 +145,7 @@ def main() -> int:
         "negative_highway_rejected=true negative_railway_rejected=true "
         "lifecycle_highway_rejected=true lifecycle_railway_rejected=true "
         "retired_railway_rejected=true lifecycle_state_flags_rejected=true "
+        "lifecycle_shadow_conflicts_rejected=true "
         "positive_controls_retained=true network_used=false"
     )
     return 0

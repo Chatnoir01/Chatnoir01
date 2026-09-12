@@ -51,6 +51,22 @@ def historical_v2_glb_format_valid(data: bytes) -> bool:
     return isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")
 
 
+def historical_v3_scene_payload_valid(root: dict[str, object]) -> bool:
+    nodes = root.get("nodes")
+    scenes = root.get("scenes")
+    if not isinstance(nodes, list) or not nodes or not isinstance(scenes, list) or not scenes:
+        return False
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        roots = scene.get("nodes")
+        if not isinstance(roots, list) or not roots:
+            continue
+        if any(isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(nodes) for index in roots):
+            return True
+    return False
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -85,8 +101,7 @@ def main() -> None:
         assert malformed["authored_civilian_police_roster_materialization_ready"] is False
         assert "correlated_authored_npc_assets_not_valid_scene_backings" in malformed["blocking_reasons"]
 
-        # Causal v2 regression: a GLB 2.0 container with only asset metadata passed
-        # the old format preflight even though it has no instantiable scene graph.
+        # Historical v2 accepted a GLB 2.0 container carrying only asset metadata.
         metadata_only = glb_fixture({"asset": {"version": "2.0"}})
         assert historical_v2_glb_format_valid(metadata_only) is True
         civilian.write_bytes(metadata_only)
@@ -95,19 +110,33 @@ def main() -> None:
         assert empty_payload["all_correlated_authored_asset_backings_materialized"] is True
         assert empty_payload["all_correlated_authored_asset_scene_backings_valid"] is True
         assert empty_payload["all_correlated_authored_asset_scene_payloads_instantiable"] is False
-        assert empty_payload["scene_valid_correlated_authored_asset_paths"] == [
-            "res://assets/characters/civilians/civ_a.glb",
-            "res://assets/characters/police/officer_a.glb",
-        ]
         assert empty_payload["scene_payload_valid_correlated_authored_asset_paths"] == []
-        assert empty_payload["invalid_or_empty_scene_payload_paths"] == [
-            "res://assets/characters/civilians/civ_a.glb",
-            "res://assets/characters/police/officer_a.glb",
-        ]
         assert empty_payload["authored_civilian_police_roster_materialization_ready"] is False
         assert "correlated_authored_npc_assets_lack_instantiable_scene_payload" in empty_payload["blocking_reasons"]
 
-        # Positive control: both GLBs expose a real scene root referencing a real node.
+        # Causal v3 regression: an in-range scene-root index used to count even when
+        # the indexed node entry was null rather than a concrete glTF node object.
+        null_root_json = {
+            "asset": {"version": "2.0"},
+            "scene": 0,
+            "scenes": [{"nodes": [0]}],
+            "nodes": [None],
+        }
+        assert historical_v3_scene_payload_valid(null_root_json) is True
+        null_root_glb = glb_fixture(null_root_json)
+        civilian.write_bytes(null_root_glb)
+        police.write_bytes(null_root_glb)
+        null_root = analyze(SCENE, VISUAL, root)
+        assert null_root["all_correlated_authored_asset_scene_backings_valid"] is True
+        assert null_root["all_correlated_authored_asset_scene_payloads_instantiable"] is False
+        assert null_root["scene_payload_valid_correlated_authored_asset_paths"] == []
+        assert null_root["invalid_or_empty_scene_payload_paths"] == [
+            "res://assets/characters/civilians/civ_a.glb",
+            "res://assets/characters/police/officer_a.glb",
+        ]
+        assert null_root["authored_civilian_police_roster_materialization_ready"] is False
+
+        # Positive control: both GLBs expose a scene root referencing a concrete node object.
         contentful_glb = glb_fixture(
             {
                 "asset": {"version": "2.0"},
@@ -119,6 +148,7 @@ def main() -> None:
         civilian.write_bytes(contentful_glb)
         police.write_bytes(contentful_glb)
         materialized = analyze(SCENE, VISUAL, root)
+        assert materialized["concrete_scene_root_node_required"] is True
         assert materialized["all_correlated_authored_asset_backings_materialized"] is True
         assert materialized["all_correlated_authored_asset_scene_backings_valid"] is True
         assert materialized["all_correlated_authored_asset_scene_payloads_instantiable"] is True
@@ -136,7 +166,7 @@ def main() -> None:
         ]
         assert materialized["authored_civilian_police_roster_materialization_ready"] is True
 
-    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V3_GREEN")
+    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V4_GREEN")
 
 
 if __name__ == "__main__":

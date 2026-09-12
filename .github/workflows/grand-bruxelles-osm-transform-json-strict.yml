@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/tests/test_transform_osm_to_game_building_semantics.py"
       - "grand-bruxelles-game/tests/test_transform_osm_to_game_explicit_dimensions.py"
       - "grand-bruxelles-game/tests/test_transform_osm_to_game_explicit_lanes.py"
+      - "grand-bruxelles-game/tests/test_transform_osm_to_game_explicit_way_semantics.py"
   workflow_dispatch:
 
 permissions:
@@ -47,3 +48,4 @@ jobs:
           python3 tests/test_transform_osm_to_game_building_semantics.py
           python3 tests/test_transform_osm_to_game_explicit_dimensions.py
           python3 tests/test_transform_osm_to_game_explicit_lanes.py
+          python3 tests/test_transform_osm_to_game_explicit_way_semantics.py

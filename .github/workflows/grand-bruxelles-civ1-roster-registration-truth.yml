@@ -44,9 +44,10 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-truth/civ1-roster-registration-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v1'
+          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v2'
           assert d['explicit_registration_required'] is True
           assert d['source_license_hash_required'] is True
+          assert d['canonical_character_path_confinement_required'] is True
           assert d['filename_role_inference_forbidden'] is True
           assert d['player_reuse_as_roster_forbidden'] is True
           assert d['registration_count'] == 0

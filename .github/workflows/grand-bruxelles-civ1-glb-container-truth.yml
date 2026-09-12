@@ -47,13 +47,23 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-glb-truth/civ1-glb-container-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-glb-container-truth-v4'
+          assert d['schema']=='grand-bruxelles-civ1-glb-container-truth-v5'
+          assert d['player_role_requires_valid_glb'] is True
+          assert d['content_sha256_recorded'] is True
+          assert d['player_path_claim_count'] == 1
+          assert d['player_asset_count'] == 1
+          assert d['unverified_player_count'] == 0
           assert d['player_reuse_as_roster_forbidden'] is True
           assert d['role_inference_forbidden'] is True
           assert d['civilian_police_roster_candidate_count'] == 0
           assert d['roster_authorized'] is False
           assert d['runtime_authorized'] is False
           assert d['visual_approval_claimed'] is False
+          player=[x for x in d['candidates'] if x.get('path_role_claim') == 'player']
+          assert len(player) == 1
+          assert player[0]['role'] == 'player' and player[0]['role_qualified'] is True
+          assert isinstance(player[0]['content_sha256'], str) and len(player[0]['content_sha256']) == 64
+          int(player[0]['content_sha256'], 16)
           print(json.dumps(d, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4

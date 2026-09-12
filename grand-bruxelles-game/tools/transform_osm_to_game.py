@@ -12,12 +12,18 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
 EARTH_RADIUS_M = 6_378_137.0
 DEFAULT_ORIGIN = (50.8419, 4.3480)
 OSM_ELEMENT_TYPES = {"node", "way", "relation"}
+PLAIN_OSM_NUMBER = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$")
+METER_OSM_NUMBER = re.compile(
+    r"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?(?:\s*m)?$",
+    re.IGNORECASE,
+)
 
 ROAD_WIDTHS = {
     "motorway": 12.0,
@@ -175,10 +181,18 @@ def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -
     return [round(x, 3), round(-north, 3)]
 
 
+def valid_osm_numeric_tag(raw: str, *, allow_meters: bool = False) -> bool:
+    """Accept only the explicit numeric grammar consumed by this transform."""
+    pattern = METER_OSM_NUMBER if allow_meters else PLAIN_OSM_NUMBER
+    return bool(pattern.fullmatch(raw.strip()))
+
+
 def numeric_tag(tags: dict[str, Any], key: str, *, allow_meters: bool = False) -> float | None:
-    """Parse an OSM numeric tag without silently stripping arbitrary units."""
+    """Parse an OSM numeric tag without accepting Python-only numeric syntax."""
     raw = tags.get(key)
     if raw is None or not isinstance(raw, str):
+        return None
+    if not valid_osm_numeric_tag(raw, allow_meters=allow_meters):
         return None
     text = raw.strip().lower()
     if allow_meters and text.endswith("m"):

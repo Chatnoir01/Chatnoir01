@@ -23,7 +23,15 @@ def main() -> None:
     autoload_map = dict(pairs)
     discovered = {name for name, _ in pairs if any(marker in name for marker in MARKERS)}
     lifecycle = json.loads(LIFECYCLE_PATH.read_text(encoding="utf-8"))
-    registered = {entry["autoload_name"]: entry["path"] for entry in lifecycle.get("runtimes", []) if isinstance(entry, dict)}
+    registered: dict[str, str] = {}
+    for entry in lifecycle.get("runtimes", []):
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("autoload_name")
+        runtime_path = entry.get("path")
+        autoload_path = entry.get("autoload_path", runtime_path)
+        if isinstance(name, str) and isinstance(autoload_path, str):
+            registered[name] = autoload_path
     contract = json.loads(CLASSIFICATION_PATH.read_text(encoding="utf-8"))
     if contract.get("schema") != "grand-bruxelles-shared-environment-autoload-classification-v1": fail("autoload classification schema mismatch")
     if contract.get("all_discovered_environment_autoloads_classified") is not True: fail("autoload classification completeness rail missing")

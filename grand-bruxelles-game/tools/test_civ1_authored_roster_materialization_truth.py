@@ -6,7 +6,7 @@ import struct
 import tempfile
 from pathlib import Path
 
-from civ1_authored_roster_materialization_truth import analyze, _tscn_has_instantiable_node_payload
+from civ1_authored_roster_materialization_truth import analyze, _read_godot_text_scene, _tscn_has_instantiable_node_payload
 
 SCENE = '[gd_scene format=3]\n[ext_resource type="Script" path="res://game/scripts/humanoid_visual.gd" id="1_visual"]\n'
 VISUAL = '''extends Node3D
@@ -78,6 +78,11 @@ def historical_v4_tscn_payload_valid(text: str) -> bool:
         if "type=" in attrs or "instance=" in attrs:
             return True
     return False
+
+
+def historical_v5_gd_scene_header_valid(text: str) -> bool:
+    first = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    return first.startswith("[gd_scene") and first.endswith("]") and "format=" in first
 
 
 def main() -> None:
@@ -159,6 +164,18 @@ def main() -> None:
         assert _tscn_has_instantiable_node_payload(canonical_tscn) is True
         assert _tscn_has_instantiable_node_payload(instance_tscn) is True
 
+        # Causal v5 regression: the scene header used substring matching for format=.
+        # An unrelated foo_format= token therefore impersonated the canonical format attribute.
+        spoofed_header = '[gd_scene foo_format=3]\n[node name="Civilian" type="Node3D"]\n'
+        canonical_header = '[gd_scene load_steps=2 format=3]\n[node name="Civilian" type="Node3D"]\n'
+        spoofed_header_path = root / "spoofed_header.tscn"
+        canonical_header_path = root / "canonical_header.tscn"
+        spoofed_header_path.write_text(spoofed_header, encoding="utf-8")
+        canonical_header_path.write_text(canonical_header, encoding="utf-8")
+        assert historical_v5_gd_scene_header_valid(spoofed_header) is True
+        assert _read_godot_text_scene(spoofed_header_path) is None
+        assert _read_godot_text_scene(canonical_header_path) == canonical_header
+
         # Positive control: both GLBs expose a scene root referencing a concrete node object.
         contentful_glb = glb_fixture(
             {
@@ -173,6 +190,7 @@ def main() -> None:
         materialized = analyze(SCENE, VISUAL, root)
         assert materialized["concrete_scene_root_node_required"] is True
         assert materialized["exact_tscn_node_attribute_tokens_required"] is True
+        assert materialized["exact_tscn_scene_header_format_token_required"] is True
         assert materialized["all_correlated_authored_asset_backings_materialized"] is True
         assert materialized["all_correlated_authored_asset_scene_backings_valid"] is True
         assert materialized["all_correlated_authored_asset_scene_payloads_instantiable"] is True
@@ -190,7 +208,7 @@ def main() -> None:
         ]
         assert materialized["authored_civilian_police_roster_materialization_ready"] is True
 
-    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V5_GREEN")
+    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V6_GREEN")
 
 
 if __name__ == "__main__":

@@ -425,15 +425,12 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
 
 
 def parse_origin(raw: str) -> tuple[float, float]:
+    parts = [part.strip() for part in raw.split(",")]
+    if len(parts) != 2 or any(not valid_osm_numeric_tag(part) for part in parts):
+        raise argparse.ArgumentTypeError("origin must be lat,lon using canonical decimal/scientific numbers")
     try:
-        parts = [float(part.strip()) for part in raw.split(",")]
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError("origin must be lat,lon") from exc
-    if len(parts) != 2:
-        raise argparse.ArgumentTypeError("origin must be lat,lon")
-    try:
-        latitude = _wgs84_coordinate(parts[0], "origin latitude", latitude=True)
-        longitude = _wgs84_coordinate(parts[1], "origin longitude", latitude=False)
+        latitude = _wgs84_coordinate(float(parts[0]), "origin latitude", latitude=True)
+        longitude = _wgs84_coordinate(float(parts[1]), "origin longitude", latitude=False)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
     return latitude, longitude

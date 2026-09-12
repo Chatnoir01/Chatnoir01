@@ -11,6 +11,7 @@ on:
       - "grand-bruxelles-game/tests/test_transform_osm_to_game_explicit_lanes.py"
       - "grand-bruxelles-game/tests/test_transform_osm_to_game_explicit_way_semantics.py"
       - "grand-bruxelles-game/tests/test_transform_osm_numeric_tag_grammar.py"
+      - "grand-bruxelles-game/tests/test_transform_osm_to_game_origin_grammar.py"
   workflow_dispatch:
 
 permissions:
@@ -51,3 +52,4 @@ jobs:
           python3 tests/test_transform_osm_to_game_explicit_lanes.py
           python3 tests/test_transform_osm_to_game_explicit_way_semantics.py
           python3 tests/test_transform_osm_numeric_tag_grammar.py
+          python3 tests/test_transform_osm_to_game_origin_grammar.py

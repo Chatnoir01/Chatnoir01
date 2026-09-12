@@ -46,7 +46,10 @@ DRIVABLE = {
     "motorway", "trunk", "primary", "secondary", "tertiary",
     "unclassified", "residential", "living_street", "service",
 }
-NON_OPERATIONAL_LIFECYCLE = {"construction", "proposed"}
+NON_OPERATIONAL_WAY_VALUES = {
+    "highway": {"construction", "proposed"},
+    "railway": {"construction", "proposed", "disused", "abandoned", "razed", "dismantled"},
+}
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -216,7 +219,8 @@ def active_osm_way_tag(tags: dict[str, Any], key: str) -> bool:
     """Keep explicit negative and non-operational lifecycle ways out of active catalogs."""
     if not truthy_osm_tag(tags, key):
         return False
-    return str(tags.get(key)).strip().lower() not in NON_OPERATIONAL_LIFECYCLE
+    value = str(tags.get(key)).strip().lower()
+    return value not in NON_OPERATIONAL_WAY_VALUES.get(key, set())
 
 
 def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:

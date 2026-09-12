@@ -11,6 +11,7 @@ from tools import transform_osm_to_game
 
 
 FALSE_LIKE = ("no", "false", "0", "none")
+NON_OPERATIONAL_LIFECYCLE = ("construction", "proposed")
 
 
 def _way(tags: dict[str, str]) -> dict[str, object]:
@@ -47,6 +48,23 @@ def main() -> int:
             f"explicit negative railway={raw!r} must not materialize a railway"
         )
 
+    for raw in NON_OPERATIONAL_LIFECYCLE:
+        converted = transform_osm_to_game.convert(
+            _way({"highway": raw, "construction": "residential", "name": "Lifecycle highway witness"}),
+            transform_osm_to_game.DEFAULT_ORIGIN,
+        )
+        assert converted["roads"] == [], (
+            f"non-operational highway={raw!r} must not materialize into the active road catalog"
+        )
+
+        converted = transform_osm_to_game.convert(
+            _way({"railway": raw, "construction": "rail", "name": "Lifecycle railway witness"}),
+            transform_osm_to_game.DEFAULT_ORIGIN,
+        )
+        assert converted["railways"] == [], (
+            f"non-operational railway={raw!r} must not materialize into the active railway catalog"
+        )
+
     positive_road = transform_osm_to_game.convert(
         _way({"highway": "residential", "name": "Positive road control"}),
         transform_osm_to_game.DEFAULT_ORIGIN,
@@ -64,6 +82,7 @@ def main() -> int:
     print(
         "TRANSFORM_OSM_EXPLICIT_WAY_SEMANTICS_OK "
         "negative_highway_rejected=true negative_railway_rejected=true "
+        "lifecycle_highway_rejected=true lifecycle_railway_rejected=true "
         "positive_controls_retained=true network_used=false"
     )
     return 0

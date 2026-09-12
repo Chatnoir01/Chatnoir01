@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import json
+import re
 import struct
 import sys
 from pathlib import Path
 
 import civ1_authored_roster_promotion_truth as promotion
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v3"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v4"
+_NODE_HEADER_RE = re.compile(r"^\[node\s+(.+)\]$")
 
 
 def res_path_to_file(project_root: Path, res_path: str) -> Path:
@@ -81,7 +83,27 @@ def _gltf_has_instantiable_scene_payload(root: dict[str, object]) -> bool:
         roots = scene.get("nodes")
         if not isinstance(roots, list) or not roots:
             continue
-        if any(isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(nodes) for index in roots):
+        for index in roots:
+            if (
+                isinstance(index, int)
+                and not isinstance(index, bool)
+                and 0 <= index < len(nodes)
+                and isinstance(nodes[index], dict)
+            ):
+                return True
+    return False
+
+
+def _tscn_has_instantiable_node_payload(text: str) -> bool:
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        match = _NODE_HEADER_RE.match(line)
+        if match is None:
+            continue
+        attrs = match.group(1)
+        if "name=" not in attrs:
+            continue
+        if "type=" in attrs or "instance=" in attrs:
             return True
     return False
 
@@ -92,8 +114,7 @@ def scene_backing_inspection(backing: Path) -> tuple[str | None, bool]:
         text = _read_godot_text_scene(backing)
         if text is None:
             return None, False
-        payload = any(line.strip().startswith("[node ") and line.strip().endswith("]") for line in text.splitlines())
-        return "godot_text_scene", payload
+        return "godot_text_scene", _tscn_has_instantiable_node_payload(text)
     if suffix == ".gltf":
         root = _read_gltf_json(backing)
         if root is None:
@@ -174,6 +195,7 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
         "correlated_asset_backing_required": True,
         "scene_format_preflight_required": True,
         "scene_payload_preflight_required": True,
+        "concrete_scene_root_node_required": True,
         "all_correlated_authored_asset_backings_materialized": all_materialized,
         "all_correlated_authored_asset_scene_backings_valid": all_scene_valid,
         "all_correlated_authored_asset_scene_payloads_instantiable": all_payload_valid,

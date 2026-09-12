@@ -341,6 +341,8 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
                     raise ValueError(f"road lanes must be strictly positive: {tags.get('lanes')!r}")
             if lanes is not None and lanes >= 2.0:
                 width = max(width, lanes * 3.0)
+            if not math.isfinite(width):
+                raise ValueError(f"road width derived from lanes must be finite: {tags.get('lanes')!r}")
             roads.append({
                 "osm_id": element.get("id"),
                 "name": tags.get("name", ""),

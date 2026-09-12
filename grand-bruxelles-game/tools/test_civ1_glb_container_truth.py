@@ -6,6 +6,8 @@ import struct
 
 from civ1_glb_container_truth import BIN_CHUNK, JSON_CHUNK, inspect_glb_bytes
 
+EXTENSION_CHUNK = 0x4E545845  # 'EXTN' little-endian marker for regression coverage.
+
 
 def chunk(chunk_type: int, payload: bytes) -> bytes:
     payload += b"\x00" * ((4 - len(payload) % 4) % 4)
@@ -63,8 +65,51 @@ def historical_v1_accepts(data: bytes) -> bool:
     return isinstance(asset, dict) and asset.get("version") == "2.0"
 
 
+def historical_v2_accepts(data: bytes) -> bool:
+    """Freeze v2's over-strict topology decision for causal compatibility proof."""
+    if len(data) < 20 or data[:4] != b"glTF":
+        return False
+    version, declared_length = struct.unpack_from("<II", data, 4)
+    if version != 2 or declared_length != len(data):
+        return False
+    chunks: list[tuple[int, bytes]] = []
+    offset = 12
+    while offset < len(data):
+        if offset + 8 > len(data):
+            return False
+        chunk_length, chunk_type = struct.unpack_from("<II", data, offset)
+        if chunk_length % 4 != 0:
+            return False
+        start = offset + 8
+        end = start + chunk_length
+        if end > len(data):
+            return False
+        chunks.append((chunk_type, data[start:end]))
+        offset = end
+    if offset != len(data) or not chunks:
+        return False
+    if len(chunks) > 2:
+        return False
+    if chunks[0][0] != JSON_CHUNK:
+        return False
+    if len(chunks) >= 2 and chunks[1][0] != BIN_CHUNK:
+        return False
+    if any(chunk_type not in {JSON_CHUNK, BIN_CHUNK} for chunk_type, _ in chunks):
+        return False
+    if sum(1 for chunk_type, _ in chunks if chunk_type == JSON_CHUNK) != 1:
+        return False
+    if sum(1 for chunk_type, _ in chunks if chunk_type == BIN_CHUNK) > 1:
+        return False
+    try:
+        root = json.loads(chunks[0][1].decode("utf-8").rstrip(" \t\r\n\x00"))
+    except (UnicodeError, json.JSONDecodeError):
+        return False
+    asset = root.get("asset") if isinstance(root, dict) else None
+    return isinstance(asset, dict) and asset.get("version") == "2.0"
+
+
 def main() -> None:
-    # Existing v1 topology controls remain green.
+    # Existing v1/v2 topology and embedded-buffer controls remain green.
     canonical_no_buffer = glb(chunk(JSON_CHUNK, payload()))
     assert inspect_glb_bytes(canonical_no_buffer)["valid"] is True
 
@@ -111,7 +156,21 @@ def main() -> None:
     assert rejected["valid"] is False
     assert "bin_chunk_without_embedded_buffer_binding" in rejected["blocking_reasons"]
 
-    print("CIV1_GLB_CONTAINER_TRUTH_V2_GREEN")
+    # RED 4: v2 rejected a spec-compatible, well-framed extension chunk after
+    # canonical JSON+BIN. glTF 2.0 requires clients to ignore unknown chunks so
+    # extensions can append container data without invalidating the asset.
+    extension_glb = glb(
+        chunk(JSON_CHUNK, payload(buffers=[{"byteLength": 4}])),
+        chunk(BIN_CHUNK, b"ABCD"),
+        chunk(EXTENSION_CHUNK, b"EXT0"),
+    )
+    assert historical_v2_accepts(extension_glb) is False
+    accepted = inspect_glb_bytes(extension_glb)
+    assert accepted["valid"] is True
+    assert accepted["extension_chunk_count"] == 1
+    assert accepted["extension_chunk_types"] == [EXTENSION_CHUNK]
+
+    print("CIV1_GLB_CONTAINER_TRUTH_V3_GREEN")
 
 
 if __name__ == "__main__":

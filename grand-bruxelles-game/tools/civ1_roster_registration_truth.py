@@ -5,7 +5,8 @@ import argparse, hashlib, ipaddress, json
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v6"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v7"
+REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
 CHARACTER_ROOT = PurePosixPath("grand-bruxelles-game/assets/characters")
 ALLOWED_ROLES = {"civilian", "police"}
@@ -141,6 +142,10 @@ def _invalidate(results: list[dict[str, object]], indices: list[int], reason: st
 def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
     entries = registry.get("entries", []) if isinstance(registry, dict) else []
     top_reasons: list[str] = []
+    registry_schema = registry.get("schema") if isinstance(registry, dict) else None
+    registry_schema_valid = registry_schema == REGISTRY_SCHEMA
+    if not registry_schema_valid:
+        top_reasons.append("registry_schema_invalid")
     if not isinstance(registry, dict):
         top_reasons.append("registry_not_object")
         entries = []
@@ -173,12 +178,15 @@ def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
     return {
         "schema": SCHEMA,
         "registry_parse_valid": True,
+        "registry_schema": registry_schema,
+        "registry_schema_valid": registry_schema_valid,
         "registration_count": len(results),
         "eligible_count": len(eligible),
         "civilian_count": sum(x.get("role") == "civilian" for x in eligible),
         "police_count": sum(x.get("role") == "police" for x in eligible),
         "blocking_reasons": sorted(set(top_reasons)),
         "explicit_registration_required": True,
+        "registry_schema_contract_required": True,
         "source_license_hash_required": True,
         "source_url_structural_provenance_required": True,
         "source_url_https_required": True,
@@ -204,19 +212,19 @@ def main() -> int:
     try:
         registry=json.loads(a.registry.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        registry={"entries": []}
+        registry={"schema": None, "entries": []}
         parse_error=True
     else:
         parse_error=False
     payload=build_payload(registry, a.repo_root)
     if parse_error:
         payload["registry_parse_valid"]=False
-        payload["blocking_reasons"]=[*payload["blocking_reasons"], "registry_unreadable_or_invalid_json"]
+        payload["blocking_reasons"]=sorted(set([*payload["blocking_reasons"], "registry_unreadable_or_invalid_json"]))
     text=json.dumps(payload, indent=2, sort_keys=True)+"\n"
     if a.out:
         a.out.parent.mkdir(parents=True, exist_ok=True)
         a.out.write_text(text, encoding="utf-8")
     print(json.dumps(payload, sort_keys=True))
-    return 2 if parse_error else 0
+    return 2 if parse_error or payload["registry_schema_valid"] is not True else 0
 
 if __name__ == "__main__": raise SystemExit(main())

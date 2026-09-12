@@ -32,11 +32,38 @@ def _closed_square(building_value: str, *, extra_tags: dict[str, str] | None = N
     }
 
 
+def _assert_not_materialized(payload: dict[str, object], label: str) -> None:
+    converted = transform_osm_to_game.convert(payload, transform_osm_to_game.DEFAULT_ORIGIN)
+    assert converted["stats"]["buildings"] == 0, label
+
+
 def main() -> int:
-    negative = transform_osm_to_game.convert(_closed_square("no"), transform_osm_to_game.DEFAULT_ORIGIN)
-    assert negative["stats"]["buildings"] == 0, (
-        "building=no is an explicit negative OSM semantic and must not be materialized as a building"
+    _assert_not_materialized(
+        _closed_square("no"),
+        "building=no is an explicit negative OSM semantic and must not be materialized as a building",
     )
+
+    # Lifecycle values and lifecycle-prefixed shadows describe non-operational / historical
+    # building state. They must never enter the active building catalog merely because the
+    # geometry is closed and otherwise valid.
+    _assert_not_materialized(
+        _closed_square("construction"),
+        "building=construction must not be materialized as an active building",
+    )
+    _assert_not_materialized(
+        _closed_square("proposed"),
+        "building=proposed must not be materialized as an active building",
+    )
+    for lifecycle_prefix in ("construction", "proposed", "disused", "abandoned"):
+        _assert_not_materialized(
+            _closed_square("yes", extra_tags={f"{lifecycle_prefix}:building": "house"}),
+            f"{lifecycle_prefix}:building must shadow building=yes out of the active building catalog",
+        )
+    for state_flag in ("disused", "abandoned"):
+        _assert_not_materialized(
+            _closed_square("yes", extra_tags={state_flag: "yes"}),
+            f"{state_flag}=yes must keep building=yes out of the active building catalog",
+        )
 
     positive = transform_osm_to_game.convert(_closed_square("yes"), transform_osm_to_game.DEFAULT_ORIGIN)
     assert positive["stats"]["buildings"] == 1, "building=yes must remain eligible"
@@ -53,8 +80,8 @@ def main() -> int:
 
     print(
         "TRANSFORM_OSM_BUILDING_SEMANTICS_OK "
-        "explicit_negative_building_rejected=true positive_building_retained=true "
-        "malformed_height_rejected=true network_used=false"
+        "explicit_negative_building_rejected=true lifecycle_buildings_rejected=true "
+        "positive_building_retained=true malformed_height_rejected=true network_used=false"
     )
     return 0
 

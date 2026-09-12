@@ -5,7 +5,7 @@ import argparse, hashlib, ipaddress, json, struct
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v12"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v13"
 REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
 CHARACTER_ROOT = PurePosixPath("grand-bruxelles-game/assets/characters")
@@ -18,6 +18,21 @@ ALLOWED_LICENSES = {
     "BSD-2-Clause", "BSD-3-Clause", "GPL-3.0-only", "GPL-3.0-or-later",
 }
 UNRESOLVED_LICENSE_MARKERS = {"unknown", "tbd", "todo", "n/a", "none"}
+
+
+class DuplicateJSONKeyError(ValueError):
+    def __init__(self, key: str) -> None:
+        super().__init__(f"duplicate JSON key: {key}")
+        self.key = key
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateJSONKeyError(key)
+        result[key] = value
+    return result
 
 
 def _resolve_character_asset(value: str, repo_root: Path) -> tuple[str, Path | None]:
@@ -203,7 +218,7 @@ def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
     if invalid_indices:
         top_reasons.append("invalid_entries_present")
     eligible = [x for x in results if x.get("roster_eligible") is True]
-    return {"schema": SCHEMA, "registry_parse_valid": True, "registry_schema": registry_schema, "registry_schema_valid": registry_schema_valid, "registration_count": len(results), "eligible_count": len(eligible), "invalid_entry_count": len(invalid_indices), "civilian_count": sum(x.get("role") == "civilian" for x in eligible), "police_count": sum(x.get("role") == "police" for x in eligible), "blocking_reasons": sorted(set(top_reasons)), "explicit_registration_required": True, "registry_schema_contract_required": True, "strict_registry_fields_required": True, "strict_entry_fields_required": True, "canonical_provenance_values_required": True, "invalid_entries_fail_closed": True, "source_license_hash_required": True, "license_allowlist_required": True, "allowed_licenses": sorted(ALLOWED_LICENSES), "glb_container_integrity_required": True, "glb_version_required": 2, "source_url_structural_provenance_required": True, "source_url_https_required": True, "source_url_local_network_forbidden": True, "canonical_character_path_confinement_required": True, "unique_content_identity_required": True, "filename_role_inference_forbidden": True, "player_reuse_as_roster_forbidden": True, "player_content_identity_reuse_forbidden": True, "roster_authorized": False, "runtime_authorized": False, "visual_approval_claimed": False, "entries": results}
+    return {"schema": SCHEMA, "registry_parse_valid": True, "registry_schema": registry_schema, "registry_schema_valid": registry_schema_valid, "registration_count": len(results), "eligible_count": len(eligible), "invalid_entry_count": len(invalid_indices), "civilian_count": sum(x.get("role") == "civilian" for x in eligible), "police_count": sum(x.get("role") == "police" for x in eligible), "blocking_reasons": sorted(set(top_reasons)), "explicit_registration_required": True, "registry_schema_contract_required": True, "strict_registry_fields_required": True, "strict_entry_fields_required": True, "canonical_provenance_values_required": True, "duplicate_json_keys_forbidden": True, "invalid_entries_fail_closed": True, "source_license_hash_required": True, "license_allowlist_required": True, "allowed_licenses": sorted(ALLOWED_LICENSES), "glb_container_integrity_required": True, "glb_version_required": 2, "source_url_structural_provenance_required": True, "source_url_https_required": True, "source_url_local_network_forbidden": True, "canonical_character_path_confinement_required": True, "unique_content_identity_required": True, "filename_role_inference_forbidden": True, "player_reuse_as_roster_forbidden": True, "player_content_identity_reuse_forbidden": True, "roster_authorized": False, "runtime_authorized": False, "visual_approval_claimed": False, "entries": results}
 
 
 def main() -> int:
@@ -212,8 +227,13 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path, default=Path("."))
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
+    duplicate_key: str | None = None
     try:
-        registry = json.loads(args.registry.read_text(encoding="utf-8"))
+        registry = json.loads(args.registry.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_json_keys)
+    except DuplicateJSONKeyError as exc:
+        registry = {"schema": None, "entries": []}
+        parse_error = True
+        duplicate_key = exc.key
     except (OSError, json.JSONDecodeError):
         registry = {"schema": None, "entries": []}
         parse_error = True
@@ -222,7 +242,10 @@ def main() -> int:
     payload = build_payload(registry, args.repo_root)
     if parse_error:
         payload["registry_parse_valid"] = False
-        payload["blocking_reasons"] = sorted(set([*payload["blocking_reasons"], "registry_unreadable_or_invalid_json"]))
+        parse_reasons = [*payload["blocking_reasons"], "registry_unreadable_or_invalid_json"]
+        if duplicate_key is not None:
+            parse_reasons.append(f"registry_duplicate_json_key:{duplicate_key}")
+        payload["blocking_reasons"] = sorted(set(parse_reasons))
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

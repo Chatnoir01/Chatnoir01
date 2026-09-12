@@ -50,6 +50,7 @@ NON_OPERATIONAL_WAY_VALUES = {
     "highway": {"construction", "proposed"},
     "railway": {"construction", "proposed", "disused", "abandoned", "razed", "dismantled"},
 }
+NON_OPERATIONAL_STATE_FLAGS = {"disused", "abandoned"}
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -220,7 +221,9 @@ def active_osm_way_tag(tags: dict[str, Any], key: str) -> bool:
     if not truthy_osm_tag(tags, key):
         return False
     value = str(tags.get(key)).strip().lower()
-    return value not in NON_OPERATIONAL_WAY_VALUES.get(key, set())
+    if value in NON_OPERATIONAL_WAY_VALUES.get(key, set()):
+        return False
+    return not any(truthy_osm_tag(tags, lifecycle_key) for lifecycle_key in NON_OPERATIONAL_STATE_FLAGS)
 
 
 def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:

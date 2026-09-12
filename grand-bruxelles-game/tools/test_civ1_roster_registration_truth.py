@@ -33,6 +33,16 @@ def main() -> None:
         good = validate_entry(entry(rel, sha), root)
         assert good["valid"] is True and good["roster_eligible"] is True
 
+        uppercase_sha = validate_entry(entry(rel, sha.upper()), root)
+        assert uppercase_sha["roster_eligible"] is True, "v11 precondition: uppercase digest was normalized and accepted"
+        assert "sha256_not_canonical" in uppercase_sha["blocking_reasons"], "RED: immutable digest must be canonical lowercase hex"
+
+        spaced_license = entry(rel, sha)
+        spaced_license["license"] = " CC0-1.0 "
+        spaced_license_result = validate_entry(spaced_license, root)
+        assert spaced_license_result["roster_eligible"] is True, "v11 precondition: whitespace-padded license was normalized and accepted"
+        assert "license_not_canonical" in spaced_license_result["blocking_reasons"], "RED: license identifier must be exact canonical text"
+
         overclaim = entry(rel, sha)
         overclaim["runtime_authorized"] = True
         overclaim["visual_approval_claimed"] = True

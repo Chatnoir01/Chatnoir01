@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import struct
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-glb-container-truth-v4"
+SCHEMA = "grand-bruxelles-civ1-glb-container-truth-v5"
 JSON_CHUNK = 0x4E4F534A
 BIN_CHUNK = 0x004E4942
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
@@ -15,6 +16,13 @@ PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
 def role_for_path(path: Path) -> str:
     normalized = path.as_posix().lstrip("./")
     return "player" if normalized == PLAYER_ASSET else "unclassified"
+
+
+def role_for_candidate(path: Path, *, valid: bool) -> str:
+    path_role = role_for_path(path)
+    if path_role == "player":
+        return "player" if valid else "unverified_player"
+    return "unclassified"
 
 
 def inspect_glb_bytes(data: bytes) -> dict[str, object]:
@@ -115,13 +123,32 @@ def _result(valid: bool, chunks: list[tuple[int, bytes]], reasons: list[str], ro
 
 
 def inspect_file(path: Path) -> dict[str, object]:
-    role = role_for_path(path)
+    path_role = role_for_path(path)
     try:
         data = path.read_bytes()
     except OSError:
-        return {"schema": SCHEMA, "path": path.as_posix(), "role": role, "valid": False, "blocking_reasons": ["file_unreadable"], "roster_eligible": False}
+        return {
+            "schema": SCHEMA,
+            "path": path.as_posix(),
+            "path_role_claim": path_role,
+            "role": "unverified_player" if path_role == "player" else "unclassified",
+            "role_qualified": False,
+            "content_sha256": None,
+            "valid": False,
+            "blocking_reasons": ["file_unreadable"],
+            "roster_eligible": False,
+        }
     result = inspect_glb_bytes(data)
-    result.update({"path": path.as_posix(), "role": role, "roster_eligible": False})
+    valid = result.get("valid") is True
+    role = role_for_candidate(path, valid=valid)
+    result.update({
+        "path": path.as_posix(),
+        "path_role_claim": path_role,
+        "role": role,
+        "role_qualified": role == "player" and valid,
+        "content_sha256": hashlib.sha256(data).hexdigest(),
+        "roster_eligible": False,
+    })
     return result
 
 
@@ -131,8 +158,12 @@ def build_payload(paths: list[Path]) -> dict[str, object]:
         "schema": SCHEMA,
         "candidate_count": len(results),
         "valid_candidate_count": sum(1 for x in results if x.get("valid") is True),
-        "player_asset_count": sum(1 for x in results if x.get("role") == "player"),
+        "player_path_claim_count": sum(1 for x in results if x.get("path_role_claim") == "player"),
+        "player_asset_count": sum(1 for x in results if x.get("role") == "player" and x.get("role_qualified") is True),
+        "unverified_player_count": sum(1 for x in results if x.get("role") == "unverified_player"),
         "civilian_police_roster_candidate_count": sum(1 for x in results if x.get("roster_eligible") is True),
+        "player_role_requires_valid_glb": True,
+        "content_sha256_recorded": True,
         "player_reuse_as_roster_forbidden": True,
         "role_inference_forbidden": True,
         "roster_authorized": False,

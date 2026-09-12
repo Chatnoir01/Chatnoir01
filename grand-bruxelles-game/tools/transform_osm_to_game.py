@@ -334,7 +334,12 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
         if highway:
             width = ROAD_WIDTHS.get(str(highway), 4.5)
             lanes = numeric_tag(tags, "lanes")
-            if lanes and lanes >= 2:
+            if "lanes" in tags:
+                if lanes is None:
+                    raise ValueError(f"road lanes must be a finite unitless number: {tags.get('lanes')!r}")
+                if lanes <= 0.0:
+                    raise ValueError(f"road lanes must be strictly positive: {tags.get('lanes')!r}")
+            if lanes is not None and lanes >= 2.0:
                 width = max(width, lanes * 3.0)
             roads.append({
                 "osm_id": element.get("id"),

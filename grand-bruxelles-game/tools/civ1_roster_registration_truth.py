@@ -5,12 +5,24 @@ import argparse, hashlib, ipaddress, json
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v8"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v9"
 REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
 CHARACTER_ROOT = PurePosixPath("grand-bruxelles-game/assets/characters")
 ALLOWED_ROLES = {"civilian", "police"}
 REQUIRED = {"asset_path", "role", "sha256", "source_url", "license"}
+ALLOWED_LICENSES = {
+    "CC0-1.0",
+    "CC-BY-4.0",
+    "CC-BY-SA-4.0",
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+}
+UNRESOLVED_LICENSE_MARKERS = {"unknown", "tbd", "todo", "n/a", "none"}
 
 
 def _resolve_character_asset(value: str, repo_root: Path) -> tuple[str, Path | None]:
@@ -74,6 +86,17 @@ def _source_url_reasons(value: str) -> list[str]:
     return sorted(set(reasons))
 
 
+def _license_reasons(value: str) -> list[str]:
+    license_value = value.strip()
+    if not license_value:
+        return []
+    if license_value.lower() in UNRESOLVED_LICENSE_MARKERS:
+        return ["license_not_resolved"]
+    if license_value not in ALLOWED_LICENSES:
+        return ["license_not_allowed"]
+    return []
+
+
 def validate_entry(entry: object, repo_root: Path) -> dict[str, object]:
     reasons: list[str] = []
     if not isinstance(entry, dict):
@@ -105,8 +128,7 @@ def validate_entry(entry: object, repo_root: Path) -> dict[str, object]:
     source = str(entry.get("source_url", ""))
     reasons.extend(_source_url_reasons(source))
     license_value = str(entry.get("license", "")).strip()
-    if license_value.lower() in {"unknown", "tbd", "todo", "n/a", "none"}:
-        reasons.append("license_not_resolved")
+    reasons.extend(_license_reasons(license_value))
     valid = not reasons
     return {"asset_path": asset_path, "role": role or None, "declared_sha256": sha or None, "actual_sha256": actual_sha, "source_url": source or None, "license": license_value or None, "valid": valid, "blocking_reasons": sorted(set(reasons)), "roster_eligible": valid}
 
@@ -148,7 +170,7 @@ def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
     if invalid_indices:
         top_reasons.append("invalid_entries_present")
     eligible = [x for x in results if x.get("roster_eligible") is True]
-    return {"schema": SCHEMA, "registry_parse_valid": True, "registry_schema": registry_schema, "registry_schema_valid": registry_schema_valid, "registration_count": len(results), "eligible_count": len(eligible), "invalid_entry_count": len(invalid_indices), "civilian_count": sum(x.get("role") == "civilian" for x in eligible), "police_count": sum(x.get("role") == "police" for x in eligible), "blocking_reasons": sorted(set(top_reasons)), "explicit_registration_required": True, "registry_schema_contract_required": True, "invalid_entries_fail_closed": True, "source_license_hash_required": True, "source_url_structural_provenance_required": True, "source_url_https_required": True, "source_url_local_network_forbidden": True, "canonical_character_path_confinement_required": True, "unique_content_identity_required": True, "filename_role_inference_forbidden": True, "player_reuse_as_roster_forbidden": True, "player_content_identity_reuse_forbidden": True, "roster_authorized": False, "runtime_authorized": False, "visual_approval_claimed": False, "entries": results}
+    return {"schema": SCHEMA, "registry_parse_valid": True, "registry_schema": registry_schema, "registry_schema_valid": registry_schema_valid, "registration_count": len(results), "eligible_count": len(eligible), "invalid_entry_count": len(invalid_indices), "civilian_count": sum(x.get("role") == "civilian" for x in eligible), "police_count": sum(x.get("role") == "police" for x in eligible), "blocking_reasons": sorted(set(top_reasons)), "explicit_registration_required": True, "registry_schema_contract_required": True, "invalid_entries_fail_closed": True, "source_license_hash_required": True, "license_allowlist_required": True, "allowed_licenses": sorted(ALLOWED_LICENSES), "source_url_structural_provenance_required": True, "source_url_https_required": True, "source_url_local_network_forbidden": True, "canonical_character_path_confinement_required": True, "unique_content_identity_required": True, "filename_role_inference_forbidden": True, "player_reuse_as_roster_forbidden": True, "player_content_identity_reuse_forbidden": True, "roster_authorized": False, "runtime_authorized": False, "visual_approval_claimed": False, "entries": results}
 
 
 def main() -> int:

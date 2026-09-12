@@ -9,7 +9,7 @@ from pathlib import Path
 
 import civ1_authored_roster_promotion_truth as promotion
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v4"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v5"
 _NODE_HEADER_RE = re.compile(r"^\[node\s+(.+)\]$")
 
 
@@ -94,6 +94,10 @@ def _gltf_has_instantiable_scene_payload(root: dict[str, object]) -> bool:
     return False
 
 
+def _tscn_has_exact_attribute(attrs: str, key: str) -> bool:
+    return re.search(rf"(?:^|\s){re.escape(key)}\s*=", attrs) is not None
+
+
 def _tscn_has_instantiable_node_payload(text: str) -> bool:
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -101,9 +105,9 @@ def _tscn_has_instantiable_node_payload(text: str) -> bool:
         if match is None:
             continue
         attrs = match.group(1)
-        if "name=" not in attrs:
+        if not _tscn_has_exact_attribute(attrs, "name"):
             continue
-        if "type=" in attrs or "instance=" in attrs:
+        if _tscn_has_exact_attribute(attrs, "type") or _tscn_has_exact_attribute(attrs, "instance"):
             return True
     return False
 
@@ -196,6 +200,7 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
         "scene_format_preflight_required": True,
         "scene_payload_preflight_required": True,
         "concrete_scene_root_node_required": True,
+        "exact_tscn_node_attribute_tokens_required": True,
         "all_correlated_authored_asset_backings_materialized": all_materialized,
         "all_correlated_authored_asset_scene_backings_valid": all_scene_valid,
         "all_correlated_authored_asset_scene_payloads_instantiable": all_payload_valid,

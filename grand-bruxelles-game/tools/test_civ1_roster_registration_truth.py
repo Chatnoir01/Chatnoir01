@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib, tempfile
+from pathlib import Path
+from civ1_roster_registration_truth import PLAYER_ASSET, build_payload, validate_entry
+
+
+def entry(path: str, sha: str, role: str = "civilian") -> dict[str, str]:
+    return {"asset_path": path, "role": role, "sha256": sha, "source_url": "https://example.invalid/source", "license": "CC0-1.0"}
+
+
+def main() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root=Path(td)
+        rel="grand-bruxelles-game/assets/characters/civilian_fixture.glb"
+        asset=root/rel; asset.parent.mkdir(parents=True); asset.write_bytes(b"fixture-character")
+        sha=hashlib.sha256(asset.read_bytes()).hexdigest()
+
+        good=validate_entry(entry(rel, sha), root)
+        assert good["valid"] is True and good["roster_eligible"] is True
+
+        misleading=root/"grand-bruxelles-game/assets/characters/police_candidate.glb"
+        misleading.write_bytes(b"not-registered")
+        empty=build_payload({"entries": []}, root)
+        assert empty["eligible_count"] == 0
+        assert empty["filename_role_inference_forbidden"] is True
+
+        wrong=validate_entry(entry(rel, "0"*64), root)
+        assert "sha256_mismatch" in wrong["blocking_reasons"]
+        missing=entry(rel, sha); missing["license"]="TBD"
+        assert "license_not_resolved" in validate_entry(missing, root)["blocking_reasons"]
+
+        player=root/PLAYER_ASSET; player.parent.mkdir(parents=True, exist_ok=True); player.write_bytes(b"player")
+        psha=hashlib.sha256(player.read_bytes()).hexdigest()
+        reused=validate_entry(entry(PLAYER_ASSET, psha, "police"), root)
+        assert "player_reuse_forbidden" in reused["blocking_reasons"]
+        assert reused["roster_eligible"] is False
+
+        dup=build_payload({"entries":[entry(rel, sha), entry(rel, sha, "police")]}, root)
+        assert "duplicate_asset_path" in dup["blocking_reasons"]
+        assert dup["eligible_count"] == 0
+
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V1_GREEN")
+
+if __name__ == "__main__": main()

@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse, hashlib, json
 from pathlib import Path, PurePosixPath
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v2"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v3"
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
 CHARACTER_ROOT = PurePosixPath("grand-bruxelles-game/assets/characters")
 ALLOWED_ROLES = {"civilian", "police"}
@@ -86,6 +86,14 @@ def validate_entry(entry: object, repo_root: Path) -> dict[str, object]:
     }
 
 
+def _invalidate(results: list[dict[str, object]], indices: list[int], reason: str) -> None:
+    for i in indices:
+        item = results[i]
+        item["valid"] = False
+        item["roster_eligible"] = False
+        item["blocking_reasons"] = sorted(set([*item.get("blocking_reasons", []), reason]))
+
+
 def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
     entries = registry.get("entries", []) if isinstance(registry, dict) else []
     top_reasons: list[str] = []
@@ -96,13 +104,27 @@ def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
         top_reasons.append("entries_not_array")
         entries = []
     results = [validate_entry(x, repo_root) for x in entries]
-    paths = [x.get("asset_path") for x in results if x.get("asset_path")]
-    if len(paths) != len(set(paths)):
-        top_reasons.append("duplicate_asset_path")
-        for x in results:
-            if paths.count(x.get("asset_path")) > 1:
-                x["valid"] = False; x["roster_eligible"] = False
-                x["blocking_reasons"] = sorted(set([*x.get("blocking_reasons", []), "duplicate_asset_path"]))
+
+    by_path: dict[object, list[int]] = {}
+    for i, item in enumerate(results):
+        path = item.get("asset_path")
+        if path:
+            by_path.setdefault(path, []).append(i)
+    for indices in by_path.values():
+        if len(indices) > 1:
+            top_reasons.append("duplicate_asset_path")
+            _invalidate(results, indices, "duplicate_asset_path")
+
+    by_content: dict[object, list[int]] = {}
+    for i, item in enumerate(results):
+        actual_sha = item.get("actual_sha256")
+        if actual_sha:
+            by_content.setdefault(actual_sha, []).append(i)
+    for indices in by_content.values():
+        if len(indices) > 1:
+            top_reasons.append("duplicate_content_sha256")
+            _invalidate(results, indices, "duplicate_content_sha256")
+
     eligible = [x for x in results if x.get("roster_eligible") is True]
     return {
         "schema": SCHEMA,
@@ -114,6 +136,7 @@ def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
         "explicit_registration_required": True,
         "source_license_hash_required": True,
         "canonical_character_path_confinement_required": True,
+        "unique_content_identity_required": True,
         "filename_role_inference_forbidden": True,
         "player_reuse_as_roster_forbidden": True,
         "roster_authorized": False,

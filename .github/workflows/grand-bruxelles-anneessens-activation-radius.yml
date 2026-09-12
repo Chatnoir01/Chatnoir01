@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_activation_radius_contract_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_lazy_activation_build_test.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_osm_authoritative_root_binding_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -56,3 +57,10 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_lazy_activation_build_test.gd 2>&1 | tee /tmp/anneessens-lazy-activation.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_LAZY_ACTIVATION_FAIL" /tmp/anneessens-lazy-activation.log; then exit 1; fi
           grep -q "ANNEESSENS_OSM_LAZY_ACTIVATION_OK" /tmp/anneessens-lazy-activation.log
+      - name: Reject non-authoritative root-level production lookalikes
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_authoritative_root_binding_test.gd 2>&1 | tee /tmp/anneessens-authoritative-root-binding.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_AUTHORITATIVE_ROOT_BIND_FAIL" /tmp/anneessens-authoritative-root-binding.log; then exit 1; fi
+          grep -q "ANNEESSENS_OSM_AUTHORITATIVE_ROOT_BIND_OK" /tmp/anneessens-authoritative-root-binding.log

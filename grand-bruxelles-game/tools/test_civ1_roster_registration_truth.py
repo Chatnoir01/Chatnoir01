@@ -30,6 +30,7 @@ def main() -> None:
         empty=build_payload({"entries": []}, root)
         assert empty["eligible_count"] == 0
         assert empty["filename_role_inference_forbidden"] is True
+        assert empty["canonical_character_path_confinement_required"] is True
 
         wrong=validate_entry(entry(rel, "0"*64), root)
         assert "sha256_mismatch" in wrong["blocking_reasons"]
@@ -53,7 +54,26 @@ def main() -> None:
         assert historical_v1_path_guard_accepts(traversal) is True
         escaped=validate_entry(entry(traversal, outside_sha), root)
         assert "asset_path_not_canonically_confined" in escaped["blocking_reasons"]
-        assert escaped["roster_eligible"] is False
+        assert escaped["actual_sha256"] is None and escaped["roster_eligible"] is False
+
+        noncanonical=validate_entry(entry("./"+rel, sha), root)
+        assert "asset_path_not_canonically_confined" in noncanonical["blocking_reasons"]
+
+        sibling=root/"grand-bruxelles-game/assets/characters_evil/civilian.glb"
+        sibling.parent.mkdir(parents=True); sibling.write_bytes(b"sibling")
+        sibling_sha=hashlib.sha256(sibling.read_bytes()).hexdigest()
+        sibling_result=validate_entry(entry("grand-bruxelles-game/assets/characters_evil/civilian.glb", sibling_sha), root)
+        assert "asset_path_not_canonically_confined" in sibling_result["blocking_reasons"]
+
+        link=root/"grand-bruxelles-game/assets/characters/linked_escape.glb"
+        try:
+            link.symlink_to(outside)
+        except (OSError, NotImplementedError):
+            pass
+        else:
+            linked=validate_entry(entry("grand-bruxelles-game/assets/characters/linked_escape.glb", outside_sha), root)
+            assert "asset_path_not_canonically_confined" in linked["blocking_reasons"]
+            assert linked["actual_sha256"] is None and linked["roster_eligible"] is False
 
     print("CIV1_ROSTER_REGISTRATION_TRUTH_V2_GREEN")
 

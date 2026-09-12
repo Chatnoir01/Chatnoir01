@@ -9,16 +9,34 @@ on:
       - '.github/workflows/grand-bruxelles-osm-numeric-tag-grammar.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   numeric-tag-grammar:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Require branch to include current main
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main base and exact head
         shell: bash
         run: |
-          git fetch origin main --depth=1
-          git merge-base --is-ancestor origin/main HEAD
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            test "$HEAD_SHA" = "$PR_HEAD_SHA"
+          else
+            PR_BASE_SHA="$(git merge-base HEAD origin/main)"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$MAIN_SHA" = "$PR_BASE_SHA"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
       - name: Compile validator
         run: python -m py_compile grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py
       - name: Run fail-closed self-test and validate locked OSM source

@@ -10,6 +10,11 @@ def entry(path: str, sha: str, role: str = "civilian") -> dict[str, str]:
     return {"asset_path": path, "role": role, "sha256": sha, "source_url": "https://example.invalid/source", "license": "CC0-1.0"}
 
 
+def historical_v1_path_guard_accepts(path: str) -> bool:
+    normalized = Path(path).as_posix().lstrip("./")
+    return normalized.startswith("grand-bruxelles-game/assets/characters/")
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         root=Path(td)
@@ -41,6 +46,15 @@ def main() -> None:
         assert "duplicate_asset_path" in dup["blocking_reasons"]
         assert dup["eligible_count"] == 0
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V1_GREEN")
+        outside=root/"grand-bruxelles-game/qa/escaped_character.glb"
+        outside.parent.mkdir(parents=True, exist_ok=True); outside.write_bytes(b"escaped-character")
+        outside_sha=hashlib.sha256(outside.read_bytes()).hexdigest()
+        traversal="grand-bruxelles-game/assets/characters/../../qa/escaped_character.glb"
+        assert historical_v1_path_guard_accepts(traversal) is True
+        escaped=validate_entry(entry(traversal, outside_sha), root)
+        assert "asset_path_not_canonically_confined" in escaped["blocking_reasons"]
+        assert escaped["roster_eligible"] is False
+
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V2_GREEN")
 
 if __name__ == "__main__": main()

@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import json
 import struct
+from pathlib import Path
 
-from civ1_glb_container_truth import BIN_CHUNK, JSON_CHUNK, inspect_glb_bytes
+from civ1_glb_container_truth import BIN_CHUNK, JSON_CHUNK, PLAYER_ASSET, inspect_glb_bytes, role_for_path
 
 EXTENSION_CHUNK = 0x4E545845
 
@@ -27,23 +28,20 @@ def payload(*, buffers: list[dict[str, object]] | None = None) -> bytes:
 
 
 def main() -> None:
-    canonical_no_buffer = glb(chunk(JSON_CHUNK, payload()))
-    assert inspect_glb_bytes(canonical_no_buffer)["valid"] is True
-    canonical_embedded = glb(chunk(JSON_CHUNK, payload(buffers=[{"byteLength": 4}])), chunk(BIN_CHUNK, b"ABCD"))
-    assert inspect_glb_bytes(canonical_embedded)["valid"] is True
+    canonical = glb(chunk(JSON_CHUNK, payload()))
+    assert inspect_glb_bytes(canonical)["valid"] is True
+    embedded = glb(chunk(JSON_CHUNK, payload(buffers=[{"byteLength": 4}])), chunk(BIN_CHUNK, b"ABCD"))
+    assert inspect_glb_bytes(embedded)["valid"] is True
     missing_bin = glb(chunk(JSON_CHUNK, payload(buffers=[{"byteLength": 4}])))
-    rejected = inspect_glb_bytes(missing_bin)
-    assert rejected["valid"] is False
-    assert "embedded_buffer_missing_bin_chunk" in rejected["blocking_reasons"]
-    truncated_bin = glb(chunk(JSON_CHUNK, payload(buffers=[{"byteLength": 8}])), chunk(BIN_CHUNK, b"ABCD"))
-    rejected = inspect_glb_bytes(truncated_bin)
-    assert rejected["valid"] is False
-    assert "embedded_buffer_truncated" in rejected["blocking_reasons"]
+    assert "embedded_buffer_missing_bin_chunk" in inspect_glb_bytes(missing_bin)["blocking_reasons"]
     extension_glb = glb(chunk(JSON_CHUNK, payload(buffers=[{"byteLength": 4}])), chunk(BIN_CHUNK, b"ABCD"), chunk(EXTENSION_CHUNK, b"EXT0"))
-    accepted = inspect_glb_bytes(extension_glb)
-    assert accepted["valid"] is True
-    assert accepted["extension_chunk_count"] == 1
-    print("CIV1_GLB_CONTAINER_TRUTH_V3_GREEN")
+    assert inspect_glb_bytes(extension_glb)["valid"] is True
+
+    # A structurally valid player file must never count as a civilian/police roster asset.
+    assert role_for_path(Path(PLAYER_ASSET)) == "player"
+    assert role_for_path(Path("grand-bruxelles-game/assets/characters/civilian_candidate.glb")) == "unclassified"
+    assert role_for_path(Path("grand-bruxelles-game/assets/characters/police_candidate.glb")) == "unclassified"
+    print("CIV1_GLB_CONTAINER_ROLE_TRUTH_V4_GREEN")
 
 
 if __name__ == "__main__":

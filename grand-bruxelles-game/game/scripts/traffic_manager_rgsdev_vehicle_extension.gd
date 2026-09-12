@@ -3,10 +3,30 @@ class_name TrafficManagerRgsdevVehicleExtension
 
 const RGSDEV_VEHICLE_VISUAL_SCRIPT := preload("res://game/scripts/rgsdev_vehicle_visual.gd")
 const DRIVABLE_TRAFFIC_VEHICLE_SCRIPT := preload("res://game/scripts/drivable_traffic_vehicle.gd")
+const LABO_CIVILIAN_MODEL_CYCLE := [
+    "sedan", "sedan", "sedan", "sedan", "sedan", "sedan",
+    "hatchback", "suv", "van", "pickup",
+]
 
 func _ready() -> void:
     super._ready()
     call_deferred("_upgrade_scene_vehicle_visuals")
+
+func _configure_labo_civilian_visual(visual: Node, serial: int) -> void:
+    if visual == null:
+        return
+    var model_id := str(LABO_CIVILIAN_MODEL_CYCLE[posmod(serial, LABO_CIVILIAN_MODEL_CYCLE.size())])
+    visual.call("configure_model", model_id)
+    visual.set_meta("labo_vehicle_mix", true)
+    visual.set_meta("labo_vehicle_model", model_id)
+
+func get_labo_civilian_model_cycle() -> Array:
+    return LABO_CIVILIAN_MODEL_CYCLE.duplicate()
+
+func _static_vehicle_position_respects_player_clearance(candidate_position: Vector3) -> bool:
+    var planar_delta := candidate_position - _anchor_position()
+    planar_delta.y = 0.0
+    return planar_delta.length() >= MIN_SPAWN_CLEARANCE_M
 
 func _create_vehicle_node() -> TrafficVehicleCore:
     var archetype := _choose_archetype()
@@ -44,10 +64,14 @@ func _create_vehicle_node() -> TrafficVehicleCore:
 func _add_car_visual(vehicle: Node3D) -> void:
     var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
     visual.name = "RgsdevVisual"
-    visual.call("configure_for_traffic", _spawn_serial)
+    _configure_labo_civilian_visual(visual, _spawn_serial)
     vehicle.add_child(visual)
 
 func _spawn_parked_vehicle(candidate: Dictionary) -> void:
+    var candidate_position: Vector3 = candidate.get("position", Vector3.ZERO)
+    if not _static_vehicle_position_respects_player_clearance(candidate_position):
+        return
+
     var body := DRIVABLE_TRAFFIC_VEHICLE_SCRIPT.new()
     body.name = "ParkedCar_%03d" % int(candidate.get("id", 0))
     body.collision_layer = 1
@@ -57,7 +81,7 @@ func _spawn_parked_vehicle(candidate: Dictionary) -> void:
     body.set_meta("parking_departed", false)
     body.set_meta("road_name", str(candidate.get("road_name", "")))
     body.set_meta("source_osm_id", int(candidate.get("osm_id", 0)))
-    body.position = candidate.get("position", Vector3.ZERO)
+    body.position = candidate_position
     body.rotation.y = float(candidate.get("yaw", 0.0))
     var collision := CollisionShape3D.new()
     collision.name = "CollisionShape3D"
@@ -67,18 +91,52 @@ func _spawn_parked_vehicle(candidate: Dictionary) -> void:
     body.add_child(collision)
     var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
     visual.name = "RgsdevVisual"
-    visual.call("configure_for_traffic", int(candidate.get("id", 0)))
+    _configure_labo_civilian_visual(visual, int(candidate.get("id", 0)))
     body.add_child(visual)
     body.configure_archetype("car")
     body.call("configure_as_parked")
     _parking_root.add_child(body)
 
+func _replenish_deliveries() -> void:
+    if not auto_spawn_runtime or _delivery_root == null or max_delivery_vehicles <= 0:
+        return
+    var anchor := _anchor_position()
+    var eligible: Array[Dictionary] = []
+    for candidate: Dictionary in _parking_candidates:
+        if not DELIVERY_CLASSES.has(str(candidate.get("road_class", ""))):
+            continue
+        var position: Vector3 = candidate.get("position", Vector3.ZERO)
+        if position.distance_to(anchor) > delivery_spawn_radius_m:
+            continue
+        if not _static_vehicle_position_respects_player_clearance(position):
+            continue
+        var candidate_id := int(candidate.get("id", -1))
+        if is_parking_candidate_available(candidate_id):
+            eligible.append(candidate)
+    var attempts := 0
+    while get_delivery_vehicle_count() < max_delivery_vehicles and attempts < eligible.size() * 3:
+        attempts += 1
+        var candidate: Dictionary = eligible[_delivery_rng.randi_range(0, eligible.size() - 1)]
+        var candidate_id := int(candidate.get("id", -1))
+        var owner := "delivery:%d" % _delivery_serial
+        if not reserve_parking_candidate(candidate_id, owner):
+            continue
+        _spawn_delivery_vehicle(candidate, owner)
+        eligible.erase(candidate)
+        if eligible.is_empty():
+            break
+
 func _spawn_delivery_vehicle(candidate: Dictionary, reservation_owner: String) -> void:
+    var candidate_position: Vector3 = candidate.get("position", Vector3.ZERO)
+    if not _static_vehicle_position_respects_player_clearance(candidate_position):
+        release_parking_candidate(int(candidate.get("id", -1)), reservation_owner)
+        return
+
     var van := DRIVABLE_TRAFFIC_VEHICLE_SCRIPT.new()
     van.name = "DeliveryVan_%03d" % _delivery_serial
     van.collision_layer = 1
     van.collision_mask = 1
-    van.position = candidate.get("position", Vector3.ZERO)
+    van.position = candidate_position
     van.rotation.y = float(candidate.get("yaw", 0.0))
     van.set_meta("parking_candidate_id", int(candidate.get("id", -1)))
     van.set_meta("reservation_owner", reservation_owner)
@@ -233,11 +291,13 @@ func _upgrade_scene_vehicle_visuals() -> void:
         return
     for legacy_name: String in ["Body", "Cabin", "VisualUpgrade", "ABLabel"]:
         var legacy := vehicle.get_node_or_null(legacy_name)
-        if legacy is Node3D:
-            (legacy as Node3D).visible = false
+        if legacy != null:
+            legacy.queue_free()
     if vehicle.get_node_or_null("RgsdevVisual") != null:
         return
     var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
     visual.name = "RgsdevVisual"
     visual.call("configure_model", "sedan")
+    visual.set_meta("labo_vehicle_mix", true)
+    visual.set_meta("labo_vehicle_model", "sedan")
     vehicle.add_child(visual)

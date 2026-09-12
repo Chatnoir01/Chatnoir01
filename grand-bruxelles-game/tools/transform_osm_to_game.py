@@ -331,7 +331,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             continue
 
         highway = tags.get("highway")
-        if highway:
+        if truthy_osm_tag(tags, "highway"):
             width = ROAD_WIDTHS.get(str(highway), 4.5)
             lanes = numeric_tag(tags, "lanes")
             if "lanes" in tags:
@@ -351,7 +351,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             })
 
         railway = tags.get("railway")
-        if railway:
+        if truthy_osm_tag(tags, "railway"):
             railways.append({
                 "osm_id": element.get("id"),
                 "name": tags.get("name", ""),

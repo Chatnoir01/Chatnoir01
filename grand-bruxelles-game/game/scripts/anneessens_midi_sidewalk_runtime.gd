@@ -8,6 +8,7 @@ const SIDEWALK_HEIGHT_M := 0.12
 const SIDEWALK_GAP_M := 0.10
 const SOURCE_NAME := "OpenStreetMap contributors via Overpass API"
 const SOURCE_LICENSE := "ODbL-1.0"
+const CANONICAL_PRODUCTION_SCENE := "res://game/main.tscn"
 
 var _scene: Node3D = null
 var _root: Node3D = null
@@ -87,12 +88,18 @@ func _schedule_bind() -> void:
     _bind_scheduled = true
     call_deferred("_try_bind")
 
-func _is_production_scene(candidate: Node3D) -> bool:
-    if candidate == null:
-        return false
+func _has_production_anchors(candidate: Node3D) -> bool:
     return candidate.get_node_or_null("BrusselsOSM") != null \
         and candidate.get_node_or_null("UrbISMidiExact") != null \
         and candidate.get_node_or_null("Player") is Node3D
+
+func _is_production_scene(candidate: Node3D) -> bool:
+    if candidate == null or not _has_production_anchors(candidate):
+        return false
+    var tree := get_tree()
+    if tree != null and tree.current_scene == candidate:
+        return true
+    return candidate.scene_file_path == CANONICAL_PRODUCTION_SCENE
 
 func _direct_viewport_main(viewport: Viewport) -> Node3D:
     if viewport == null:

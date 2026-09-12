@@ -5,7 +5,7 @@ on:
     paths:
       - 'grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py'
       - 'grand-bruxelles-game/tools/transform_osm_to_game.py'
-      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/tests/test_transform_osm_numeric_tag_grammar.py'
       - '.github/workflows/grand-bruxelles-osm-numeric-tag-grammar.yml'
   workflow_dispatch:
 
@@ -37,10 +37,11 @@ jobs:
           MAIN_SHA="$(git rev-parse origin/main)"
           test "$MAIN_SHA" = "$PR_BASE_SHA"
           test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
-      - name: Compile validator
-        run: python -m py_compile grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py
-      - name: Run fail-closed self-test and validate locked OSM source
+      - name: Compile shared numeric grammar tools
         run: |
-          python grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py \
-            grand-bruxelles-game/data/osm/vertical_slice_01.game.json \
-            --self-test
+          python -m py_compile grand-bruxelles-game/tools/transform_osm_to_game.py
+          python -m py_compile grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py
+      - name: Prove shared fail-closed numeric grammar
+        run: |
+          python grand-bruxelles-game/tools/validate_osm_numeric_tag_grammar.py --self-test
+          python grand-bruxelles-game/tests/test_transform_osm_numeric_tag_grammar.py

@@ -49,7 +49,7 @@ func _run() -> void:
     for _frame: int in range(4):
         await process_frame
     if bool(runtime.call("failed")) or bool(runtime.call("ready_complete")):
-        _fail("valid nested same-name Main captured shared base-ground authority before authoritative root/Main arrived")
+        _fail("valid nested same-name Main captured shared base-ground authority before authoritative scene arrived")
         return
     if foreign_ground.material != foreign_legacy_material:
         _fail("foreign nested Ground material was mutated despite lacking scene authority")
@@ -58,18 +58,23 @@ func _run() -> void:
     foreign_holder.queue_free()
     await process_frame
 
+    # This witness intentionally uses a synthetic Main to test ownership after a
+    # rejected foreign candidate. Grant that synthetic fixture authority through
+    # SceneTree.current_scene instead of the production packed-scene fallback.
     var authoritative_main := _make_main(EXPECTED_POSITION)
     root.add_child(authoritative_main)
+    current_scene = authoritative_main
+    runtime.call("_try_bind_main", authoritative_main)
     for _frame: int in range(12):
         await process_frame
         if bool(runtime.call("ready_complete")):
             break
 
     if not bool(runtime.call("ready_complete")):
-        _fail("authoritative root/Main did not bind after foreign candidate rejection")
+        _fail("explicit-authority Main did not bind after foreign candidate rejection")
         return
     if bool(runtime.call("failed")):
-        _fail("authoritative root/Main was rejected after foreign candidate")
+        _fail("explicit-authority Main was rejected after foreign candidate")
         return
     var ground := authoritative_main.get_node_or_null("Ground") as CSGBox3D
     if ground == null or not ground.material is ShaderMaterial:
@@ -78,6 +83,13 @@ func _run() -> void:
     if int((ground.material as ShaderMaterial).get_meta("presentation_revision", 0)) != 6:
         _fail("authoritative Ground presentation revision drifted")
         return
+    if not ground.position.is_equal_approx(EXPECTED_POSITION) or not ground.size.is_equal_approx(EXPECTED_SIZE):
+        _fail("authoritative Ground geometry changed during ownership binding")
+        return
+    if not ground.use_collision:
+        _fail("authoritative Ground collision changed during ownership binding")
+        return
 
-    print("BRUSSELS_BASE_GROUND_ROOT_OWNER_ISOLATION_OK: valid_foreign_nested_preserved=true authoritative_root_bound=true geometry_unchanged=true collision_unchanged=true")
+    current_scene = null
+    print("BRUSSELS_BASE_GROUND_ROOT_OWNER_ISOLATION_OK: valid_foreign_nested_preserved=true explicit_authority_bound=true geometry_unchanged=true collision_unchanged=true")
     quit(0)

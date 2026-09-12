@@ -6,7 +6,7 @@ import json
 import struct
 from pathlib import Path
 
-SCHEMA = "grand-bruxelles-civ1-glb-container-truth-v2"
+SCHEMA = "grand-bruxelles-civ1-glb-container-truth-v3"
 JSON_CHUNK = 0x4E4F534A
 BIN_CHUNK = 0x004E4942
 
@@ -71,17 +71,17 @@ def inspect_glb_bytes(data: bytes) -> dict[str, object]:
                     if not isinstance(asset, dict) or asset.get("version") != "2.0":
                         reasons.append("gltf_asset_version_not_2_0")
 
-    # glTF 2.0 GLB topology is exactly JSON, optionally followed by one BIN chunk.
-    if len(chunks) > 2:
-        reasons.append("too_many_chunks")
-    if len(chunks) >= 2 and chunks[1][0] != BIN_CHUNK:
-        reasons.append("second_chunk_not_bin")
-    if any(chunk_type not in {JSON_CHUNK, BIN_CHUNK} for chunk_type, _ in chunks):
-        reasons.append("unknown_chunk_type")
-    if sum(1 for chunk_type, _ in chunks if chunk_type == JSON_CHUNK) != 1:
-        reasons.append("json_chunk_count_not_one")
-    if sum(1 for chunk_type, _ in chunks if chunk_type == BIN_CHUNK) > 1:
+    # glTF 2.0 requires one JSON chunk first and at most one BIN chunk second.
+    # Unknown chunk types are extension points and MUST be ignored by clients;
+    # they remain structurally parsed above so malformed framing still fails.
+    json_indices = [index for index, (chunk_type, _) in enumerate(chunks) if chunk_type == JSON_CHUNK]
+    bin_indices = [index for index, (chunk_type, _) in enumerate(chunks) if chunk_type == BIN_CHUNK]
+    if json_indices != [0]:
+        reasons.append("json_chunk_count_or_position_invalid")
+    if len(bin_indices) > 1:
         reasons.append("multiple_bin_chunks")
+    if bin_indices and bin_indices[0] != 1:
+        reasons.append("bin_chunk_not_second")
 
     # A GLB BIN chunk is bound only through buffers[0] with no URI. Enforce the
     # binding, declared byte length and zero padding so a structurally framed
@@ -135,17 +135,34 @@ def _validate_embedded_buffer_binding(
         reasons.append("embedded_buffer_padding_not_zero")
 
 
+def _extension_chunk_types(chunks: list[tuple[int, bytes]]) -> list[int]:
+    result: list[int] = []
+    for index, (chunk_type, _) in enumerate(chunks):
+        if index == 0 and chunk_type == JSON_CHUNK:
+            continue
+        if index == 1 and chunk_type == BIN_CHUNK:
+            continue
+        if chunk_type not in {JSON_CHUNK, BIN_CHUNK}:
+            result.append(chunk_type)
+    return result
+
+
 def _result(valid: bool, chunks: list[tuple[int, bytes]], reasons: list[str], root: dict[str, object] | None) -> dict[str, object]:
+    extension_types = _extension_chunk_types(chunks)
     return {
         "schema": SCHEMA,
         "valid": valid,
         "strict_chunk_topology_required": True,
+        "canonical_json_bin_order_required": True,
+        "extension_chunks_ignored": True,
+        "unknown_chunks_rejected": False,
+        "extension_chunk_count": len(extension_types),
+        "extension_chunk_types": extension_types,
         "embedded_buffer_binding_required": True,
         "embedded_buffer_length_required": True,
         "embedded_buffer_zero_padding_required": True,
         "json_first_required": True,
         "optional_single_bin_second_required": True,
-        "unknown_chunks_rejected": True,
         "chunk_types": [chunk_type for chunk_type, _ in chunks],
         "blocking_reasons": sorted(set(reasons)),
         "gltf_asset_version": ((root.get("asset") or {}).get("version") if isinstance(root, dict) and isinstance(root.get("asset"), dict) else None),
@@ -184,6 +201,9 @@ def main() -> int:
         "valid_candidate_count": sum(1 for item in results if item.get("valid") is True),
         "all_candidates_valid": bool(results) and all(item.get("valid") is True for item in results),
         "strict_chunk_topology_required": True,
+        "canonical_json_bin_order_required": True,
+        "extension_chunks_ignored": True,
+        "unknown_chunks_rejected": False,
         "embedded_buffer_binding_required": True,
         "embedded_buffer_length_required": True,
         "embedded_buffer_zero_padding_required": True,

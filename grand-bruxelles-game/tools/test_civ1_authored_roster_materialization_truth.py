@@ -100,6 +100,30 @@ def historical_v7_gltf_asset_version_valid(root: dict[str, object]) -> bool:
     return isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")
 
 
+def historical_v8_glb_format_valid(data: bytes) -> bool:
+    if len(data) < 20 or data[:4] != b"glTF":
+        return False
+    version, declared_length = struct.unpack_from("<II", data, 4)
+    if version != 2 or declared_length != len(data):
+        return False
+    json_length, json_type = struct.unpack_from("<II", data, 12)
+    if json_type != 0x4E4F534A or json_length <= 0 or 20 + json_length > len(data):
+        return False
+    try:
+        root = json.loads(data[20 : 20 + json_length].decode("utf-8").rstrip(" \t\r\n\x00"))
+    except (UnicodeError, json.JSONDecodeError):
+        return False
+    asset = root.get("asset") if isinstance(root, dict) else None
+    return isinstance(asset, dict) and asset.get("version") == "2.0"
+
+
+def glb_with_unframed_tail(root: dict[str, object]) -> bytes:
+    data = bytearray(glb_fixture(root))
+    data.extend(b"JUNK")
+    struct.pack_into("<I", data, 8, len(data))
+    return bytes(data)
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -194,7 +218,20 @@ def main() -> None:
             "res://assets/characters/police/officer_a.glb",
         ]
 
-        contentful_glb = glb_fixture({"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"name": "CharacterRoot"}]})
+        canonical_root = {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"name": "CharacterRoot"}]}
+        tailed_glb = glb_with_unframed_tail(canonical_root)
+        assert historical_v8_glb_format_valid(tailed_glb) is True
+        civilian.write_bytes(tailed_glb)
+        police.write_bytes(tailed_glb)
+        unframed_tail = analyze(SCENE, VISUAL, root)
+        assert unframed_tail["all_correlated_authored_asset_backings_materialized"] is True
+        assert unframed_tail["all_correlated_authored_asset_scene_backings_valid"] is False
+        assert unframed_tail["invalid_or_unsupported_scene_backing_paths"] == [
+            "res://assets/characters/civilians/civ_a.glb",
+            "res://assets/characters/police/officer_a.glb",
+        ]
+
+        contentful_glb = glb_fixture(canonical_root)
         civilian.write_bytes(contentful_glb)
         police.write_bytes(contentful_glb)
         materialized = analyze(SCENE, VISUAL, root)
@@ -203,6 +240,7 @@ def main() -> None:
         assert materialized["exact_tscn_scene_header_format_token_required"] is True
         assert materialized["positive_integer_tscn_scene_format_required"] is True
         assert materialized["exact_gltf_asset_version_required"] is True
+        assert materialized["strict_glb_chunk_structure_required"] is True
         assert materialized["all_correlated_authored_asset_backings_materialized"] is True
         assert materialized["all_correlated_authored_asset_scene_backings_valid"] is True
         assert materialized["all_correlated_authored_asset_scene_payloads_instantiable"] is True
@@ -220,7 +258,7 @@ def main() -> None:
         ]
         assert materialized["authored_civilian_police_roster_materialization_ready"] is True
 
-    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V8_GREEN")
+    print("CIV1_AUTHORED_ROSTER_MATERIALIZATION_TRUTH_V9_GREEN")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import civ1_authored_roster_promotion_truth as promotion
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v7"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v8"
 _GD_SCENE_HEADER_RE = re.compile(r"^\[gd_scene(?:\s+(.+))?\]$")
 _NODE_HEADER_RE = re.compile(r"^\[node\s+(.+)\]$")
 
@@ -50,15 +50,17 @@ def _read_godot_text_scene(backing: Path) -> str | None:
     return text
 
 
+def _gltf_asset_version_is_2_0(root: dict[str, object]) -> bool:
+    asset = root.get("asset")
+    return isinstance(asset, dict) and asset.get("version") == "2.0"
+
+
 def _read_gltf_json(backing: Path) -> dict[str, object] | None:
     try:
         data = json.loads(backing.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
-    if not isinstance(data, dict):
-        return None
-    asset = data.get("asset")
-    if not (isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")):
+    if not isinstance(data, dict) or not _gltf_asset_version_is_2_0(data):
         return None
     return data
 
@@ -81,10 +83,7 @@ def _read_glb_v2(backing: Path) -> dict[str, object] | None:
         root = json.loads(json_chunk)
     except (UnicodeError, json.JSONDecodeError):
         return None
-    if not isinstance(root, dict):
-        return None
-    asset = root.get("asset")
-    if not (isinstance(asset, dict) and str(asset.get("version", "")).startswith("2")):
+    if not isinstance(root, dict) or not _gltf_asset_version_is_2_0(root):
         return None
     return root
 
@@ -216,6 +215,7 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
         "exact_tscn_node_attribute_tokens_required": True,
         "exact_tscn_scene_header_format_token_required": True,
         "positive_integer_tscn_scene_format_required": True,
+        "exact_gltf_asset_version_required": True,
         "all_correlated_authored_asset_backings_materialized": all_materialized,
         "all_correlated_authored_asset_scene_backings_valid": all_scene_valid,
         "all_correlated_authored_asset_scene_payloads_instantiable": all_payload_valid,

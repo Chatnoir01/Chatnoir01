@@ -31,6 +31,8 @@ EXPECTED_AUTOLOADS = {
     "BrusselsStreetLampRuntime": "game/scripts/brussels_street_lamp_runtime.gd",
     "BrusselsCorridorTreeRuntime": "game/scripts/brussels_corridor_tree_runtime.gd",
 }
+PRODUCTION_AUTOLOAD_PATHS = dict(EXPECTED_AUTOLOADS)
+PRODUCTION_AUTOLOAD_PATHS["AnneessensOsmFurnitureRuntime"] = "game/scripts/anneessens_osm_furniture_authoritative_runtime.gd"
 EXPECTED_DEFERRED_BIND_GUARDS = {
     "game/scripts/anneessens_midi_sidewalk_runtime.gd": ("_try_bind",),
     "game/scripts/anneessens_osm_furniture_runtime.gd": ("_try_bind",),
@@ -201,7 +203,7 @@ def main() -> None:
     if len(project_paths) != len(set(project_paths)):
         fail("same runtime script registered under multiple production autoload aliases")
     autoload_map = dict(project_pairs)
-    for expected_name, expected_path in EXPECTED_AUTOLOADS.items():
+    for expected_name, expected_path in PRODUCTION_AUTOLOAD_PATHS.items():
         actual_path = autoload_map.get(expected_name)
         if actual_path != expected_path:
             fail(
@@ -237,6 +239,24 @@ def main() -> None:
         seen_paths.add(rel_path)
         if EXPECTED_AUTOLOADS[autoload_name] != rel_path:
             fail(f"contract autoload/path pair drifted: {autoload_name} -> {rel_path}")
+        production_rel_path = entry.get("autoload_path", rel_path)
+        if not isinstance(production_rel_path, str) or not production_rel_path.startswith("game/scripts/"):
+            fail(f"invalid production autoload entrypoint path: {autoload_name}")
+        if production_rel_path != PRODUCTION_AUTOLOAD_PATHS[autoload_name]:
+            fail(f"production autoload entrypoint contract drifted: {autoload_name} -> {production_rel_path}")
+        if autoload_map.get(autoload_name) != production_rel_path:
+            fail(f"production autoload entrypoint no longer mounted: {autoload_name}")
+        if production_rel_path != rel_path:
+            entrypoint_path = ROOT / production_rel_path
+            if not entrypoint_path.is_file():
+                fail(f"production autoload entrypoint missing: {production_rel_path}")
+            entrypoint_source = entrypoint_path.read_text(encoding="utf-8")
+            expected_extends = f'extends "res://{rel_path}"'
+            if expected_extends not in entrypoint_source:
+                fail(
+                    f"production autoload entrypoint must directly extend lifecycle runtime: "
+                    f"{production_rel_path} expected={expected_extends}"
+                )
         if entry.get("event_signal") != "SceneTree.node_added":
             fail(f"runtime lost node_added lifecycle contract: {rel_path}")
         if entry.get("nested_mount_recovery") is not True:
@@ -307,7 +327,7 @@ def main() -> None:
 
     print(
         "SHARED_ENVIRONMENT_LIFECYCLE_CONTRACT_OK: "
-        f"runtimes={len(runtimes)} autoload_identity=locked "
+        f"runtimes={len(runtimes)} autoload_identity=locked entrypoint_identity=locked "
         f"deferred_bind_guards={len(seen_deferred_bind_guards)} "
         f"external_signal_cleanup={len(seen_external_signal_cleanup)} "
         f"owned_root_teardown={len(seen_owned_roots)} "

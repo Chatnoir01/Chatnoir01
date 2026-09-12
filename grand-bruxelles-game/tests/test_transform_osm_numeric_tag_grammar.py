@@ -30,6 +30,16 @@ def main() -> int:
     for raw in ("1_0", "1_0 m", "+1_0m", "1e1_0m"):
         _expect_rejected("height", raw, allow_meters=True)
 
+    # Python regex \d and float() both accept Unicode decimal digits. Source-tag
+    # grammar must remain ASCII so visually confusable numerals cannot normalize
+    # into game geometry while bypassing the intended canonical spelling.
+    unicode_numeric_forms = ("１２", "١٢", "१२")
+    for key in ("lanes", "layer", "building:levels"):
+        for raw in unicode_numeric_forms:
+            _expect_rejected(key, raw)
+    for raw in ("１２m", "١٢ m", "१२m"):
+        _expect_rejected("height", raw, allow_meters=True)
+
     # Preserve already-supported canonical decimal/scientific forms.
     _expect_value("lanes", "3", 3.0)
     _expect_value("layer", "-1", -1.0)
@@ -40,7 +50,8 @@ def main() -> int:
 
     print(
         "TRANSFORM_OSM_NUMERIC_TAG_GRAMMAR_OK "
-        "python_underscore_syntax_rejected=true canonical_numeric_forms_retained=true"
+        "python_underscore_syntax_rejected=true unicode_decimal_digits_rejected=true "
+        "canonical_numeric_forms_retained=true"
     )
     return 0
 

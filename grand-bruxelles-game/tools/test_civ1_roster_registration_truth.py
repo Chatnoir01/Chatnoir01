@@ -44,6 +44,16 @@ def main() -> None:
         missing_license["license"] = "TBD"
         assert "license_not_resolved" in validate_entry(missing_license, root)["blocking_reasons"]
 
+        # v8 fail-open reproduction: any non-placeholder free-form string was treated
+        # as a resolved license, so unverifiable claims such as "free" could become
+        # roster-eligible. The registration boundary must require a known license ID.
+        for unresolved_license in ("free", "custom", "royalty-free", "public domain"):
+            candidate = entry(rel, sha)
+            candidate["license"] = unresolved_license
+            result = validate_entry(candidate, root)
+            assert "license_not_allowed" in result["blocking_reasons"], (unresolved_license, result)
+            assert result["roster_eligible"] is False
+
         player = root / PLAYER_ASSET
         player.parent.mkdir(parents=True, exist_ok=True)
         player.write_bytes(b"player-authored-content")
@@ -103,7 +113,7 @@ def main() -> None:
         assert payload["registry_parse_valid"] is False
         assert "registry_unreadable_or_invalid_json" in payload["blocking_reasons"]
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V8_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V9_GREEN")
 
 
 if __name__ == "__main__":

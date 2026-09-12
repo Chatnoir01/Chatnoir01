@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import hashlib, struct, tempfile
+import hashlib, json, struct, subprocess, sys, tempfile
 from pathlib import Path
 from civ1_roster_registration_truth import PLAYER_ASSET, build_payload, validate_entry
 
@@ -115,8 +115,29 @@ def main() -> None:
         assert canonical["strict_registry_fields_required"] is True
         assert canonical["strict_entry_fields_required"] is True
         assert canonical["canonical_provenance_values_required"] is True
+        assert canonical["duplicate_json_keys_forbidden"] is True
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V12_GREEN")
+        duplicate_registry = root / "duplicate_registry.json"
+        duplicate_registry.write_text(
+            '{"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[],"entries":[{"asset_path":"x"}]}',
+            encoding="utf-8",
+        )
+        historical = json.loads(duplicate_registry.read_text(encoding="utf-8"))
+        assert historical["entries"] == [{"asset_path": "x"}], "v12 precondition: stdlib JSON silently kept the final duplicate key"
+        proc = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("civ1_roster_registration_truth.py")), str(duplicate_registry), "--repo-root", str(root)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert proc.returncode == 2
+        duplicate_payload = json.loads(proc.stdout)
+        assert duplicate_payload["registry_parse_valid"] is False
+        assert "registry_duplicate_json_key:entries" in duplicate_payload["blocking_reasons"]
+        assert duplicate_payload["registration_count"] == 0
+        assert duplicate_payload["eligible_count"] == 0
+
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V13_GREEN")
 
 
 if __name__ == "__main__":

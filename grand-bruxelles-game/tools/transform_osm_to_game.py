@@ -51,6 +51,7 @@ NON_OPERATIONAL_WAY_VALUES = {
     "railway": {"construction", "proposed", "disused", "abandoned", "razed", "dismantled"},
 }
 NON_OPERATIONAL_STATE_FLAGS = {"disused", "abandoned"}
+NON_OPERATIONAL_LIFECYCLE_PREFIXES = ("construction", "proposed", "disused", "abandoned")
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -217,11 +218,16 @@ def truthy_osm_tag(tags: dict[str, Any], key: str) -> bool:
 
 
 def active_osm_way_tag(tags: dict[str, Any], key: str) -> bool:
-    """Keep explicit negative and non-operational lifecycle ways out of active catalogs."""
+    """Keep explicit negative, lifecycle-shadowed and non-operational ways out of active catalogs."""
     if not truthy_osm_tag(tags, key):
         return False
     value = str(tags.get(key)).strip().lower()
     if value in NON_OPERATIONAL_WAY_VALUES.get(key, set()):
+        return False
+    if any(
+        truthy_osm_tag(tags, f"{lifecycle_prefix}:{key}")
+        for lifecycle_prefix in NON_OPERATIONAL_LIFECYCLE_PREFIXES
+    ):
         return False
     return not any(truthy_osm_tag(tags, lifecycle_key) for lifecycle_key in NON_OPERATIONAL_STATE_FLAGS)
 

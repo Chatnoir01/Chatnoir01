@@ -46,6 +46,12 @@ DRIVABLE = {
     "motorway", "trunk", "primary", "secondary", "tertiary",
     "unclassified", "residential", "living_street", "service",
 }
+NON_OPERATIONAL_WAY_VALUES = {
+    "highway": {"construction", "proposed"},
+    "railway": {"construction", "proposed", "disused", "abandoned", "razed", "dismantled"},
+}
+NON_OPERATIONAL_STATE_FLAGS = {"disused", "abandoned"}
+NON_OPERATIONAL_LIFECYCLE_PREFIXES = ("construction", "proposed", "disused", "abandoned")
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -211,6 +217,21 @@ def truthy_osm_tag(tags: dict[str, Any], key: str) -> bool:
     return str(raw).strip().lower() not in {"", "0", "false", "no", "none"}
 
 
+def active_osm_way_tag(tags: dict[str, Any], key: str) -> bool:
+    """Keep explicit negative, lifecycle-shadowed and non-operational ways out of active catalogs."""
+    if not truthy_osm_tag(tags, key):
+        return False
+    value = str(tags.get(key)).strip().lower()
+    if value in NON_OPERATIONAL_WAY_VALUES.get(key, set()):
+        return False
+    if any(
+        truthy_osm_tag(tags, f"{lifecycle_prefix}:{key}")
+        for lifecycle_prefix in NON_OPERATIONAL_LIFECYCLE_PREFIXES
+    ):
+        return False
+    return not any(truthy_osm_tag(tags, lifecycle_key) for lifecycle_key in NON_OPERATIONAL_STATE_FLAGS)
+
+
 def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
     tunnel = truthy_osm_tag(tags, "tunnel")
     covered = truthy_osm_tag(tags, "covered")
@@ -345,7 +366,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             continue
 
         highway = tags.get("highway")
-        if truthy_osm_tag(tags, "highway"):
+        if active_osm_way_tag(tags, "highway"):
             width = ROAD_WIDTHS.get(str(highway), 4.5)
             lanes = numeric_tag(tags, "lanes")
             if "lanes" in tags:
@@ -367,7 +388,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             })
 
         railway = tags.get("railway")
-        if truthy_osm_tag(tags, "railway"):
+        if active_osm_way_tag(tags, "railway"):
             railways.append({
                 "osm_id": element.get("id"),
                 "name": tags.get("name", ""),

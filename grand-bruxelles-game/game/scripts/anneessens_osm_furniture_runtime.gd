@@ -179,7 +179,7 @@ func _is_authoritative_production_scene(candidate: Node3D) -> bool:
         return true
     var parent := candidate.get_parent()
     if parent == tree.root:
-        return true
+        return str(candidate.name) == "Main"
     return (
         str(candidate.name) == "Main"
         and parent is Viewport

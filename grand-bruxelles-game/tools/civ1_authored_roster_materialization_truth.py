@@ -9,7 +9,7 @@ from pathlib import Path
 
 import civ1_authored_roster_promotion_truth as promotion
 
-SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v6"
+SCHEMA = "grand-bruxelles-civ1-authored-roster-materialization-truth-v7"
 _GD_SCENE_HEADER_RE = re.compile(r"^\[gd_scene(?:\s+(.+))?\]$")
 _NODE_HEADER_RE = re.compile(r"^\[node\s+(.+)\]$")
 
@@ -27,6 +27,14 @@ def _tscn_has_exact_attribute(attrs: str, key: str) -> bool:
     return re.search(rf"(?:^|\s){re.escape(key)}\s*=", attrs) is not None
 
 
+def _tscn_positive_integer_attribute(attrs: str, key: str) -> int | None:
+    match = re.search(rf"(?:^|\s){re.escape(key)}\s*=\s*([0-9]+)(?=\s|$)", attrs)
+    if match is None:
+        return None
+    value = int(match.group(1))
+    return value if value > 0 else None
+
+
 def _read_godot_text_scene(backing: Path) -> str | None:
     try:
         text = backing.read_text(encoding="utf-8-sig")
@@ -37,7 +45,7 @@ def _read_godot_text_scene(backing: Path) -> str | None:
     if match is None:
         return None
     attrs = match.group(1) or ""
-    if not _tscn_has_exact_attribute(attrs, "format"):
+    if _tscn_positive_integer_attribute(attrs, "format") is None:
         return None
     return text
 
@@ -207,6 +215,7 @@ def analyze(scene: str, visual: str, project_root: Path) -> dict[str, object]:
         "concrete_scene_root_node_required": True,
         "exact_tscn_node_attribute_tokens_required": True,
         "exact_tscn_scene_header_format_token_required": True,
+        "positive_integer_tscn_scene_format_required": True,
         "all_correlated_authored_asset_backings_materialized": all_materialized,
         "all_correlated_authored_asset_scene_backings_valid": all_scene_valid,
         "all_correlated_authored_asset_scene_payloads_instantiable": all_payload_valid,

@@ -1,0 +1,28 @@
+name: Grand Bruxelles Auderghem Road Source Acquisition
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json'
+      - 'grand-bruxelles-game/tests/test_brussels_missing_road_source_acquisition_evidence_lock.py'
+      - '.github/workflows/grand-bruxelles-auderghem-road-source-acquisition.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-locked-auderghem-evidence:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Validate immutable Auderghem acquisition evidence
+        run: python -m pytest -q tests/test_brussels_missing_road_source_acquisition_evidence_lock.py

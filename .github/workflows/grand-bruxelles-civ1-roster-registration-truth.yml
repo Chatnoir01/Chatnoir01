@@ -1,0 +1,66 @@
+name: Grand Bruxelles CIV-1 Roster Registration Truth
+on:
+  push:
+    branches: ['character/**']
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_roster_registration_truth.py'
+      - 'grand-bruxelles-game/tools/test_civ1_roster_registration_truth.py'
+      - 'grand-bruxelles-game/qa/civ1_roster_registry.json'
+      - 'grand-bruxelles-game/assets/characters/**'
+      - '.github/workflows/grand-bruxelles-civ1-roster-registration-truth.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_roster_registration_truth.py'
+      - 'grand-bruxelles-game/tools/test_civ1_roster_registration_truth.py'
+      - 'grand-bruxelles-game/qa/civ1_roster_registry.json'
+      - 'grand-bruxelles-game/assets/characters/**'
+      - '.github/workflows/grand-bruxelles-civ1-roster-registration-truth.yml'
+permissions:
+  contents: read
+jobs:
+  roster-registration-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Require live-main ancestry and Character-QA-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game grand-bruxelles-game/data grand-bruxelles-game/project.godot
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Reproduce registration trust regressions
+        run: python grand-bruxelles-game/tools/test_civ1_roster_registration_truth.py
+      - name: Measure canonical roster registration
+        run: |
+          mkdir -p /tmp/civ1-roster-truth
+          python grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root . --out /tmp/civ1-roster-truth/civ1-roster-registration-truth.json
+      - name: Assert fail-closed current production truth
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/civ1-roster-truth/civ1-roster-registration-truth.json', encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v4'
+          assert d['explicit_registration_required'] is True
+          assert d['source_license_hash_required'] is True
+          assert d['canonical_character_path_confinement_required'] is True
+          assert d['unique_content_identity_required'] is True
+          assert d['filename_role_inference_forbidden'] is True
+          assert d['player_reuse_as_roster_forbidden'] is True
+          assert d['player_content_identity_reuse_forbidden'] is True
+          assert d['registration_count'] == 0
+          assert d['eligible_count'] == 0
+          assert d['civilian_count'] == 0 and d['police_count'] == 0
+          assert d['roster_authorized'] is False
+          assert d['runtime_authorized'] is False
+          assert d['visual_approval_claimed'] is False
+          print(json.dumps(d, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-roster-registration-truth
+          path: /tmp/civ1-roster-truth/civ1-roster-registration-truth.json

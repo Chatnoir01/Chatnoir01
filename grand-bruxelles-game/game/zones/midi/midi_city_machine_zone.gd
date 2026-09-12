@@ -7,9 +7,11 @@ extends Node3D
 const DATA_ROOT := "res://data/urbis/midi"
 const OSM_ENVIRONMENT_RUNTIME := preload("res://game/scripts/brussels_osm_environment_runtime.gd")
 const OSM_ENVIRONMENT_DATA := "res://data/osm/zones/midi/environment.game.json"
+const FACADE_MATERIAL_FACTORY := preload("res://game/scripts/midi_city_machine_facade_material.gd")
 
 @export var building_fallback_height_m := 10.5
 @export var ground_y := 0.0
+@export var facade_labo_enabled := true
 
 var last_stats: Dictionary = {
     "buildings": 0,
@@ -21,6 +23,8 @@ var last_stats: Dictionary = {
 
 var _road_material: StandardMaterial3D
 var _building_material: StandardMaterial3D
+var _building_facade_material: ShaderMaterial
+var _building_instance: MeshInstance3D
 var _rail_material: StandardMaterial3D
 var _tram_material: StandardMaterial3D
 
@@ -29,8 +33,9 @@ func _ready() -> void:
     _make_materials()
     _build_ground_reference()
     _build_official_geometry()
+    _install_facade_labo_contract()
     _build_osm_environment()
-    print("MIDI_CITY_MACHINE_LABO_READY: %s promotion=false" % JSON.stringify(last_stats))
+    print("MIDI_CITY_MACHINE_LABO_READY: %s facade=%s promotion=false" % [JSON.stringify(last_stats), str(facade_labo_enabled).to_lower()])
 
 
 func _material(color: Color, roughness: float, metallic: float = 0.0) -> StandardMaterial3D:
@@ -45,8 +50,75 @@ func _material(color: Color, roughness: float, metallic: float = 0.0) -> Standar
 func _make_materials() -> void:
     _road_material = _material(Color(0.16, 0.17, 0.18, 1.0), 0.96)
     _building_material = _material(Color(0.58, 0.56, 0.53, 1.0), 0.92)
+    _building_facade_material = FACADE_MATERIAL_FACTORY.create_material(_building_material.albedo_color)
     _rail_material = _material(Color(0.15, 0.16, 0.17, 1.0), 0.42, 0.50)
     _tram_material = _material(Color(0.25, 0.25, 0.25, 1.0), 0.55, 0.28)
+
+
+func _install_facade_labo_contract() -> void:
+    _building_instance = get_node_or_null("MidiCityMachineBuildings") as MeshInstance3D
+    if _building_instance == null:
+        push_warning("Midi City Machine facade LABO contract has no building mesh to bind")
+        return
+    _building_instance.set_meta("facade_contract", FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY)
+    _building_instance.set_meta("facade_geometry_changed", false)
+    _building_instance.set_meta("facade_semantic_windows_claimed", false)
+    _building_instance.set_meta("facade_semantic_doors_claimed", false)
+    _building_instance.set_meta("facade_material_identity_claimed", false)
+    _building_instance.set_meta("facade_jouable_authorized", false)
+    _building_instance.set_meta("facade_promotion_performed", false)
+    _apply_facade_state()
+
+
+func _apply_facade_state() -> void:
+    if _building_instance == null:
+        return
+    _building_instance.material_override = _building_facade_material if facade_labo_enabled else null
+
+
+func set_facade_enabled(enabled: bool) -> void:
+    facade_labo_enabled = enabled
+    _apply_facade_state()
+
+
+func facade_enabled() -> bool:
+    return facade_labo_enabled
+
+
+func facade_material_family() -> String:
+    return FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY
+
+
+func facade_geometry_changed() -> bool:
+    return false
+
+
+func facade_semantic_claims() -> bool:
+    return false
+
+
+func facade_material_identity_claimed() -> bool:
+    return false
+
+
+func facade_jouable_authorized() -> bool:
+    return false
+
+
+func facade_contract() -> Dictionary:
+    return {
+        "family": FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY,
+        "scope": "midi_machine_labo",
+        "geometry_source": FACADE_MATERIAL_FACTORY.GEOMETRY_SOURCE,
+        "visual_provenance": FACADE_MATERIAL_FACTORY.VISUAL_PROVENANCE,
+        "geometry_changed": false,
+        "semantic_windows_claimed": false,
+        "semantic_doors_claimed": false,
+        "material_identity_claimed": false,
+        "jouable_authorized": false,
+        "promotion_performed": false,
+        "ab_toggle": true,
+    }
 
 
 func _build_ground_reference() -> void:

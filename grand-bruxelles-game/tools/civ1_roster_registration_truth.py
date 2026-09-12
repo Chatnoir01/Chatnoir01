@@ -2,16 +2,39 @@
 from __future__ import annotations
 
 import argparse, hashlib, json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v1"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v2"
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
+CHARACTER_ROOT = PurePosixPath("grand-bruxelles-game/assets/characters")
 ALLOWED_ROLES = {"civilian", "police"}
 REQUIRED = {"asset_path", "role", "sha256", "source_url", "license"}
 
 
-def _norm(value: str) -> str:
-    return Path(value).as_posix().lstrip("./")
+def _resolve_character_asset(value: str, repo_root: Path) -> tuple[str, Path | None]:
+    raw = value.strip()
+    posix_raw = raw.replace("\\", "/")
+    pure = PurePosixPath(posix_raw)
+    normalized = pure.as_posix()
+    root_parts = CHARACTER_ROOT.parts
+    canonically_spelled = bool(raw) and raw == posix_raw == normalized
+    lexically_confined = (
+        not pure.is_absolute()
+        and ".." not in pure.parts
+        and len(pure.parts) > len(root_parts)
+        and pure.parts[:len(root_parts)] == root_parts
+    )
+    if not canonically_spelled or not lexically_confined:
+        return normalized, None
+
+    resolved_repo = repo_root.resolve()
+    resolved_root = (resolved_repo / Path(*root_parts)).resolve()
+    candidate = (resolved_repo / Path(*pure.parts)).resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError:
+        return normalized, None
+    return normalized, candidate
 
 
 def validate_entry(entry: object, repo_root: Path) -> dict[str, object]:
@@ -21,25 +44,28 @@ def validate_entry(entry: object, repo_root: Path) -> dict[str, object]:
     missing = sorted(k for k in REQUIRED if not isinstance(entry.get(k), str) or not entry.get(k, "").strip())
     if missing:
         reasons += [f"missing_or_empty_{k}" for k in missing]
-    asset_path = _norm(str(entry.get("asset_path", "")))
+
+    asset_path, path = _resolve_character_asset(str(entry.get("asset_path", "")), repo_root)
     role = str(entry.get("role", ""))
     if role not in ALLOWED_ROLES:
         reasons.append("role_not_explicit_civilian_or_police")
     if asset_path == PLAYER_ASSET:
         reasons.append("player_reuse_forbidden")
-    if asset_path and not asset_path.startswith("grand-bruxelles-game/assets/characters/"):
-        reasons.append("asset_path_outside_character_root")
+    if path is None:
+        reasons.append("asset_path_not_canonically_confined")
+
     sha = str(entry.get("sha256", "")).lower()
     if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha):
         reasons.append("sha256_invalid")
-    path = repo_root / asset_path if asset_path else None
     actual_sha = None
-    if path is None or not path.is_file():
-        reasons.append("asset_missing")
-    else:
-        actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
-        if sha != actual_sha:
-            reasons.append("sha256_mismatch")
+    if path is not None:
+        if not path.is_file():
+            reasons.append("asset_missing")
+        else:
+            actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+            if sha != actual_sha:
+                reasons.append("sha256_mismatch")
+
     source = str(entry.get("source_url", ""))
     if source and not source.startswith(("https://", "http://")):
         reasons.append("source_url_not_http")
@@ -87,6 +113,7 @@ def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
         "blocking_reasons": sorted(set(top_reasons)),
         "explicit_registration_required": True,
         "source_license_hash_required": True,
+        "canonical_character_path_confinement_required": True,
         "filename_role_inference_forbidden": True,
         "player_reuse_as_roster_forbidden": True,
         "roster_authorized": False,

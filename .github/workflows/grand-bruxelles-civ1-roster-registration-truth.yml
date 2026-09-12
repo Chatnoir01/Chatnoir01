@@ -44,7 +44,9 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-truth/civ1-roster-registration-truth.json', encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v5'
+          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v6'
+          assert d['registry_parse_valid'] is True
+          assert d['blocking_reasons'] == []
           assert d['explicit_registration_required'] is True
           assert d['source_license_hash_required'] is True
           assert d['source_url_structural_provenance_required'] is True

@@ -52,8 +52,12 @@ func _mount_case(label: String) -> Dictionary:
     var main := fixture["main"] as Node3D
     var runtime := RUNTIME_SCRIPT.new() as Node
     root.add_child(main)
+    # This lifecycle witness intentionally uses a synthetic Main. Grant authority
+    # explicitly through SceneTree.current_scene instead of relying on fallback
+    # topology that production now reserves for res://game/main.tscn.
+    current_scene = main
     root.add_child(runtime)
-    print("BRUSSELS_BASE_GROUND_MATERIAL_TEARDOWN_PHASE: case=%s phase=bind" % label)
+    print("BRUSSELS_BASE_GROUND_MATERIAL_TEARDOWN_PHASE: case=%s phase=bind authority=current_scene" % label)
     runtime.call("_try_bind_main", main)
     fixture["runtime"] = runtime
     fixture["owned_material"] = (fixture["ground"] as CSGBox3D).material
@@ -66,7 +70,7 @@ func _assert_bound(case: Dictionary) -> bool:
         _fail("test fixture missing runtime or Ground")
         return false
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
-        _fail("base-ground runtime did not bind deterministic production-shaped fixture")
+        _fail("base-ground runtime did not bind explicit-authority fixture")
         return false
     var owned := case["owned_material"] as Material
     if owned == null or ground.material != owned:
@@ -80,6 +84,8 @@ func _assert_bound(case: Dictionary) -> bool:
 func _cleanup_case(case: Dictionary) -> void:
     var runtime := case["runtime"] as Node
     var main := case["main"] as Node3D
+    if current_scene == main:
+        current_scene = null
     if runtime != null and is_instance_valid(runtime):
         if runtime.get_parent() != null:
             runtime.get_parent().remove_child(runtime)
@@ -141,5 +147,5 @@ func _run() -> void:
         return
     _cleanup_case(preserve_case)
 
-    print("BRUSSELS_BASE_GROUND_MATERIAL_TEARDOWN_OK: legacy_restored=true newer_owner_preserved=true geometry_changed=false collision_changed=false family=%s" % MATERIAL_FAMILY)
+    print("BRUSSELS_BASE_GROUND_MATERIAL_TEARDOWN_OK: explicit_authority=true legacy_restored=true newer_owner_preserved=true geometry_changed=false collision_changed=false family=%s" % MATERIAL_FAMILY)
     quit(0)

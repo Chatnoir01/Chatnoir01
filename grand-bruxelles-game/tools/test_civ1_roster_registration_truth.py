@@ -21,6 +21,14 @@ def historical_v10_ignored_unknown_fields(candidate: dict[str, object]) -> bool:
     return required.issubset(candidate) and candidate.get("role") in {"civilian", "police"}
 
 
+def historical_v11_normalized_sha(value: str) -> str:
+    return value.lower()
+
+
+def historical_v11_normalized_license(value: str) -> str:
+    return value.strip()
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -33,15 +41,17 @@ def main() -> None:
         good = validate_entry(entry(rel, sha), root)
         assert good["valid"] is True and good["roster_eligible"] is True
 
+        assert historical_v11_normalized_sha(sha.upper()) == sha, "v11 precondition: uppercase digest normalized to canonical bytes"
         uppercase_sha = validate_entry(entry(rel, sha.upper()), root)
-        assert uppercase_sha["roster_eligible"] is True, "v11 precondition: uppercase digest was normalized and accepted"
-        assert "sha256_not_canonical" in uppercase_sha["blocking_reasons"], "RED: immutable digest must be canonical lowercase hex"
+        assert "sha256_not_canonical" in uppercase_sha["blocking_reasons"]
+        assert uppercase_sha["roster_eligible"] is False
 
+        assert historical_v11_normalized_license(" CC0-1.0 ") == "CC0-1.0", "v11 precondition: padded license normalized to an allowlisted identifier"
         spaced_license = entry(rel, sha)
         spaced_license["license"] = " CC0-1.0 "
         spaced_license_result = validate_entry(spaced_license, root)
-        assert spaced_license_result["roster_eligible"] is True, "v11 precondition: whitespace-padded license was normalized and accepted"
-        assert "license_not_canonical" in spaced_license_result["blocking_reasons"], "RED: license identifier must be exact canonical text"
+        assert "license_not_canonical" in spaced_license_result["blocking_reasons"]
+        assert spaced_license_result["roster_eligible"] is False
 
         overclaim = entry(rel, sha)
         overclaim["runtime_authorized"] = True
@@ -104,8 +114,9 @@ def main() -> None:
         assert canonical["blocking_reasons"] == []
         assert canonical["strict_registry_fields_required"] is True
         assert canonical["strict_entry_fields_required"] is True
+        assert canonical["canonical_provenance_values_required"] is True
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V11_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V12_GREEN")
 
 
 if __name__ == "__main__":

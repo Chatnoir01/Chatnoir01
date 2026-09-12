@@ -112,13 +112,35 @@ def main() -> None:
         assert payload["source_url_local_network_forbidden"] is True
         assert payload["eligible_count"] == 0
 
+        tool=Path(__file__).with_name("civ1_roster_registration_truth.py")
+
+        # Causal RED for v6: syntactically valid JSON with the wrong registry
+        # contract must not be accepted as canonical provenance merely because
+        # its entries array is otherwise valid/empty.
+        wrong_schema_registry=root/"wrong-schema-registry.json"
+        wrong_schema_registry.write_text(
+            json.dumps({"schema":"grand-bruxelles-civ1-roster-registry-v0", "entries":[]}),
+            encoding="utf-8",
+        )
+        wrong_schema_receipt=root/"wrong-schema-receipt.json"
+        wrong_schema_proc=subprocess.run(
+            [sys.executable, str(tool), str(wrong_schema_registry), "--repo-root", str(root), "--out", str(wrong_schema_receipt)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert wrong_schema_proc.returncode != 0, "v6 fail-open reproduced: wrong registry schema returned success"
+        wrong_schema_payload=json.loads(wrong_schema_receipt.read_text(encoding="utf-8"))
+        assert wrong_schema_payload["registry_schema_valid"] is False
+        assert "registry_schema_invalid" in wrong_schema_payload["blocking_reasons"]
+        assert wrong_schema_payload["eligible_count"] == 0
+
         # Causal RED for v5: malformed registry syntax must not be normalized into
         # a successful empty roster truth. Preserve the receipt, but the CLI must
         # fail so CI cannot silently green-light corrupted provenance state.
         malformed_registry=root/"malformed-registry.json"
         malformed_registry.write_text('{"entries": [', encoding="utf-8")
         malformed_receipt=root/"malformed-receipt.json"
-        tool=Path(__file__).with_name("civ1_roster_registration_truth.py")
         proc=subprocess.run(
             [sys.executable, str(tool), str(malformed_registry), "--repo-root", str(root), "--out", str(malformed_receipt)],
             capture_output=True,
@@ -130,6 +152,6 @@ def main() -> None:
         assert "registry_unreadable_or_invalid_json" in malformed_payload["blocking_reasons"]
         assert malformed_payload["eligible_count"] == 0
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V6_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V7_GREEN")
 
 if __name__ == "__main__": main()

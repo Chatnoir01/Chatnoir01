@@ -46,6 +46,7 @@ DRIVABLE = {
     "motorway", "trunk", "primary", "secondary", "tertiary",
     "unclassified", "residential", "living_street", "service",
 }
+NON_OPERATIONAL_LIFECYCLE = {"construction", "proposed"}
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -211,6 +212,13 @@ def truthy_osm_tag(tags: dict[str, Any], key: str) -> bool:
     return str(raw).strip().lower() not in {"", "0", "false", "no", "none"}
 
 
+def active_osm_way_tag(tags: dict[str, Any], key: str) -> bool:
+    """Keep explicit negative and non-operational lifecycle ways out of active catalogs."""
+    if not truthy_osm_tag(tags, key):
+        return False
+    return str(tags.get(key)).strip().lower() not in NON_OPERATIONAL_LIFECYCLE
+
+
 def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
     tunnel = truthy_osm_tag(tags, "tunnel")
     covered = truthy_osm_tag(tags, "covered")
@@ -345,7 +353,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             continue
 
         highway = tags.get("highway")
-        if truthy_osm_tag(tags, "highway"):
+        if active_osm_way_tag(tags, "highway"):
             width = ROAD_WIDTHS.get(str(highway), 4.5)
             lanes = numeric_tag(tags, "lanes")
             if "lanes" in tags:
@@ -367,7 +375,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             })
 
         railway = tags.get("railway")
-        if truthy_osm_tag(tags, "railway"):
+        if active_osm_way_tag(tags, "railway"):
             railways.append({
                 "osm_id": element.get("id"),
                 "name": tags.get("name", ""),

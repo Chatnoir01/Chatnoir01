@@ -5,13 +5,17 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-atomium-arrival-occluder.yml"
       - "grand-bruxelles-game/data/runtime/modules/atomium_arrival_presentation.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime/**"
       - "grand-bruxelles-game/game/scripts/atomium_arrival_presentation_runtime.gd"
       - "grand-bruxelles-game/game/tests/atomium_arrival_occluder_player_ab_test.gd"
+      - "grand-bruxelles-game/game/tests/atomium_heysel_district_player_visual_test.gd"
       - "grand-bruxelles-game/game/scripts/grand_brussels_runtime_bootstrap.gd"
       - "grand-bruxelles-game/game/scripts/player_controller.gd"
       - "grand-bruxelles-game/game/zones/laeken_jette/atomium_dtm_terrain.gd"
       - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
       - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_reflection_environment.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_heysel_district_runtime.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_heysel_direct_spawn_bootstrap.gd"
   workflow_dispatch:
 
 permissions:
@@ -111,11 +115,32 @@ jobs:
           PY
           cp /tmp/atomium-arrival-occluder-player-ab.log grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/player-ab.log
           cp /tmp/atomium-arrival-occluder-import.log grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/import.log
+      - name: Capture full Heysel district player witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/atomium_heysel_district_player_visual_test.gd \
+            2>&1 | tee /tmp/atomium-heysel-district-player.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_HEYSEL_DISTRICT_PLAYER_FAIL" /tmp/atomium-heysel-district-player.log; then exit 1; fi
+          grep -F "ATOMIUM_HEYSEL_DISTRICT_PLAYER_OK" /tmp/atomium-heysel-district-player.log
+          test -s grand-bruxelles-game/artifacts/qa/atomium_heysel_district/player.png
+          cp /tmp/atomium-heysel-district-player.log grand-bruxelles-game/artifacts/qa/atomium_heysel_district/player.log
       - name: Upload full-frame player A-B evidence
         uses: actions/upload-artifact@v4
         with:
           name: atomium-arrival-occluder-player-ab
           path: grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder
+          if-no-files-found: error
+      - name: Upload full Heysel district player evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-heysel-district-player
+          path: grand-bruxelles-game/artifacts/qa/atomium_heysel_district
           if-no-files-found: error
       - name: Enforce frozen numerical gate
         run: grep -F "numerical_gate=PASS" grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/metrics.log

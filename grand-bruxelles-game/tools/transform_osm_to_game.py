@@ -53,6 +53,7 @@ NON_OPERATIONAL_WAY_VALUES = {
 }
 NON_OPERATIONAL_STATE_FLAGS = {"disused", "abandoned"}
 NON_OPERATIONAL_LIFECYCLE_PREFIXES = ("construction", "proposed", "disused", "abandoned")
+MOTOR_VEHICLE_ACCESS_HIERARCHY = ("motorcar", "motor_vehicle", "vehicle", "access")
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -233,6 +234,21 @@ def active_osm_way_tag(tags: dict[str, Any], key: str) -> bool:
     return not any(truthy_osm_tag(tags, lifecycle_key) for lifecycle_key in NON_OPERATIONAL_STATE_FLAGS)
 
 
+def motor_vehicle_access_denied(tags: dict[str, Any]) -> bool:
+    """Resolve explicit OSM motor-vehicle access using most-specific-tag precedence.
+
+    Only the unambiguous value ``no`` makes an otherwise supported road non-drivable.
+    Values such as private/destination are retained because they describe restricted
+    access rather than absence of motor-vehicle traversal; policy can be applied later.
+    """
+    for key in MOTOR_VEHICLE_ACCESS_HIERARCHY:
+        raw = tags.get(key)
+        if raw is None:
+            continue
+        return str(raw).strip().lower() == "no"
+    return False
+
+
 def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
     tunnel = truthy_osm_tag(tags, "tunnel")
     covered = truthy_osm_tag(tags, "covered")
@@ -396,7 +412,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
                 "name": tags.get("name", ""),
                 "class": highway,
                 "width": round(width, 2),
-                "drivable": highway in DRIVABLE,
+                "drivable": highway in DRIVABLE and not motor_vehicle_access_denied(tags),
                 "points": points,
             })
 

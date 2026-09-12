@@ -49,6 +49,7 @@ DRIVABLE = {
 NON_OPERATIONAL_WAY_VALUES = {
     "highway": {"construction", "proposed"},
     "railway": {"construction", "proposed", "disused", "abandoned", "razed", "dismantled"},
+    "building": {"construction", "proposed"},
 }
 NON_OPERATIONAL_STATE_FLAGS = {"disused", "abandoned"}
 NON_OPERATIONAL_LIFECYCLE_PREFIXES = ("construction", "proposed", "disused", "abandoned")
@@ -397,7 +398,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
                 "points": points,
             })
 
-        if truthy_osm_tag(tags, "building") and source_way_is_closed(element) and len(points) >= 4 and points[0] == points[-1]:
+        if active_osm_way_tag(tags, "building") and source_way_is_closed(element) and len(points) >= 4 and points[0] == points[-1]:
             footprint = points[:-1]
             area = polygon_area(footprint)
             if len(footprint) >= 3 and 8.0 <= area <= 60_000.0:

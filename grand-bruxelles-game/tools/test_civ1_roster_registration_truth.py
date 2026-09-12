@@ -15,6 +15,12 @@ def historical_v1_path_guard_accepts(path: str) -> bool:
     return normalized.startswith("grand-bruxelles-game/assets/characters/")
 
 
+def historical_v2_distinct_path_guard_accepts(registry: dict[str, object], root: Path) -> bool:
+    results = [validate_entry(x, root) for x in registry.get("entries", [])]
+    paths = [x.get("asset_path") for x in results if x.get("asset_path")]
+    return len(paths) == len(set(paths)) and all(x.get("roster_eligible") is True for x in results)
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         root=Path(td)
@@ -47,6 +53,16 @@ def main() -> None:
         assert "duplicate_asset_path" in dup["blocking_reasons"]
         assert dup["eligible_count"] == 0
 
+        clone_rel="grand-bruxelles-game/assets/characters/police_clone.glb"
+        clone=root/clone_rel; clone.write_bytes(asset.read_bytes())
+        clone_registry={"entries":[entry(rel, sha), entry(clone_rel, sha, "police")]}
+        assert historical_v2_distinct_path_guard_accepts(clone_registry, root) is True
+        duplicate_content=build_payload(clone_registry, root)
+        assert "duplicate_content_sha256" in duplicate_content["blocking_reasons"]
+        assert duplicate_content["eligible_count"] == 0
+        assert all("duplicate_content_sha256" in x["blocking_reasons"] for x in duplicate_content["entries"])
+        assert duplicate_content["unique_content_identity_required"] is True
+
         outside=root/"grand-bruxelles-game/qa/escaped_character.glb"
         outside.parent.mkdir(parents=True, exist_ok=True); outside.write_bytes(b"escaped-character")
         outside_sha=hashlib.sha256(outside.read_bytes()).hexdigest()
@@ -75,6 +91,6 @@ def main() -> None:
             assert "asset_path_not_canonically_confined" in linked["blocking_reasons"]
             assert linked["actual_sha256"] is None and linked["roster_eligible"] is False
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V2_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V3_GREEN")
 
 if __name__ == "__main__": main()

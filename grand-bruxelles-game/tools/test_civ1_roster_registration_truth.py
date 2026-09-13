@@ -57,6 +57,10 @@ def main():
             assert "source_url_not_canonical" in encoded["blocking_reasons"]
             assert encoded["roster_eligible"] is False
         assert validate_entry(candidate(rel,sha,"https://example.invalid/source/%2Fcivilian.glb"),root)["roster_eligible"] is True
+        for source in ("https://example.invalid/source/%2Fcivilian.glb","https://example.invalid/source/%5Ccivilian.glb"):
+            separator=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_not_canonical" in separator["blocking_reasons"]
+            assert separator["roster_eligible"] is False
         for source in ("https://example.invalid/source/./civilian.glb","https://example.invalid/source/../civilian.glb"):
             dotted=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in dotted["blocking_reasons"]

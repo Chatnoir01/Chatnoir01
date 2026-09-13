@@ -1,0 +1,33 @@
+name: Grand Bruxelles Road Destination Source Lock
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/road_destination_sources.lock.json"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/tools/validate_road_destination_source_lock.py"
+      - "grand-bruxelles-game/tests/test_validate_road_destination_source_lock.py"
+      - ".github/workflows/grand-bruxelles-road-destination-source-lock.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Require exact current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "${{ github.event.pull_request.base.sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Validate deterministic source lock
+        working-directory: grand-bruxelles-game
+        run: python3 tests/test_validate_road_destination_source_lock.py

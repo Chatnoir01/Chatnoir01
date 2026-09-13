@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Fail-close validation for the shipped road-destination source corpus.
 
-This validator proves that the compatible grand-bruxelles-osm-v1 documents present
-under data/osm exactly match the committed allowlist and SHA-256 digests. It does not
-acquire data and grants no render/runtime/JOUABLE authorization.
+This validator proves that compatible grand-bruxelles-osm-v1 documents under data/osm
+match the committed allowlist and SHA-256 digests, retain the locked OSM attribution
+and license, and have self-consistent selected/source accounting. It does not acquire
+data and grants no render/runtime/JOUABLE authorization.
 """
 from __future__ import annotations
 
@@ -15,7 +16,10 @@ from typing import Any
 
 LOCK_FORMAT = "grand-bruxelles-road-destination-source-lock-v1"
 SOURCE_FORMAT = "grand-bruxelles-osm-v1"
+SOURCE_ATTRIBUTION = "OpenStreetMap contributors via Overpass API"
+SOURCE_LICENSE = "ODbL-1.0"
 DEFAULT_LOCK_NAME = "road_destination_sources.lock.json"
+COUNT_KEYS = ("roads", "drivable_roads", "buildings", "railways", "environment_points")
 
 
 def fail(message: str) -> "NoReturn":
@@ -54,10 +58,82 @@ def repository_root(source_root: Path) -> Path:
     return source_root.parent.parent
 
 
+def non_negative_count(value: Any, label: str) -> int:
+    if type(value) is not int or value < 0:
+        fail(f"{label} must be a non-negative integer")
+    return value
+
+
+def required_array(payload: dict[str, Any], key: str) -> list[Any]:
+    value = payload.get(key)
+    if type(value) is not list:
+        fail(f"accounting {key} must be an array")
+    return value
+
+
+def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
+    if payload.get("format") != SOURCE_FORMAT:
+        fail(f"source format drift {path}")
+    if payload.get("source") != SOURCE_ATTRIBUTION:
+        fail(f"source attribution drift {path}")
+    if payload.get("license") != SOURCE_LICENSE:
+        fail(f"source license drift {path}")
+
+    roads = required_array(payload, "roads")
+    buildings = required_array(payload, "buildings")
+    railways = required_array(payload, "railways")
+    environment_points = required_array(payload, "environment_points")
+
+    drivable_roads = 0
+    for index, road in enumerate(roads):
+        if type(road) is not dict:
+            fail(f"accounting roads[{index}] must be an object")
+        if road.get("drivable") is True:
+            drivable_roads += 1
+
+    materialized = {
+        "roads": len(roads),
+        "drivable_roads": drivable_roads,
+        "buildings": len(buildings),
+        "railways": len(railways),
+        "environment_points": len(environment_points),
+    }
+
+    stats = payload.get("stats")
+    if type(stats) is not dict:
+        fail(f"accounting stats missing {path}")
+    for key in COUNT_KEYS:
+        selected = non_negative_count(stats.get(key), f"accounting stats.{key}")
+        if selected != materialized[key]:
+            fail(
+                f"accounting mismatch {path} {key}: "
+                f"stats={selected} materialized={materialized[key]}"
+            )
+
+    source_stats = payload.get("source_stats")
+    if type(source_stats) is not dict:
+        fail(f"source_stats missing {path}")
+    totals = {
+        key: non_negative_count(source_stats.get(key), f"source_stats.{key}")
+        for key in COUNT_KEYS
+    }
+    if totals["drivable_roads"] > totals["roads"]:
+        fail(f"source_stats invalid {path}: drivable_roads > roads")
+    for key in COUNT_KEYS:
+        if materialized[key] > totals[key]:
+            fail(
+                f"source_stats invalid {path}: selected {key}={materialized[key]} "
+                f"exceeds source total={totals[key]}"
+            )
+
+
 def load_lock(source_root: Path, lock_path: Path | None = None) -> dict[str, str]:
     source_root = source_root.resolve()
     repo_root = repository_root(source_root)
-    lock_path = (lock_path or (source_root / DEFAULT_LOCK_NAME)).resolve()
+    canonical_lock = (source_root / DEFAULT_LOCK_NAME).resolve()
+    lock_path = (lock_path or canonical_lock).resolve()
+    if lock_path != canonical_lock:
+        fail(f"lock path must be canonical {canonical_lock}, got {lock_path}")
     try:
         raw_text = lock_path.read_text(encoding="utf-8")
         payload = json.loads(raw_text, object_pairs_hook=reject_duplicate_object_keys)
@@ -73,9 +149,9 @@ def load_lock(source_root: Path, lock_path: Path | None = None) -> dict[str, str
         fail("lock field set drift")
     if payload.get("format") != LOCK_FORMAT or payload.get("source_format") != SOURCE_FORMAT:
         fail("lock format drift")
-    if payload.get("source") != "OpenStreetMap contributors via Overpass API":
+    if payload.get("source") != SOURCE_ATTRIBUTION:
         fail("source attribution drift")
-    if payload.get("license") != "ODbL-1.0":
+    if payload.get("license") != SOURCE_LICENSE:
         fail("source license drift")
     if type(payload.get("evidence_artifact_id")) is not int or payload["evidence_artifact_id"] <= 0:
         fail("invalid evidence artifact id")
@@ -122,6 +198,7 @@ def discover_compatible_documents(source_root: Path) -> dict[str, str]:
         if type(payload) is not dict or payload.get("format") != SOURCE_FORMAT:
             continue
         relative = canonical_source_path(path.resolve().relative_to(repo_root).as_posix())
+        validate_source_payload(relative, payload)
         compatible[relative] = hashlib.sha256(raw).hexdigest()
     return dict(sorted(compatible.items()))
 
@@ -141,11 +218,18 @@ def validate(source_root: Path, lock_path: Path | None = None) -> dict[str, str]
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source-root", type=Path, default=Path(__file__).resolve().parents[1] / "data" / "osm")
+    parser.add_argument(
+        "--source-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "data" / "osm",
+    )
     parser.add_argument("--lock", type=Path)
     args = parser.parse_args()
     locked = validate(args.source_root, args.lock)
-    print(f"ROAD_DESTINATION_SOURCE_LOCK_OK: documents={len(locked)}")
+    print(
+        f"ROAD_DESTINATION_SOURCE_LOCK_OK: documents={len(locked)} "
+        "provenance=true accounting=true network_used=false"
+    )
     for path, digest in locked.items():
         print(f"ROAD_DESTINATION_SOURCE_LOCK_DOCUMENT: {path} sha256={digest}")
     return 0

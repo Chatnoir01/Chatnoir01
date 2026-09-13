@@ -1,0 +1,116 @@
+name: Grand Bruxelles CIV-1 Rest Basis Minimal
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_right_foot_child_inventory_probe.gd"
+      - ".github/workflows/grand-bruxelles-civ1-rest-basis-minimal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rest-basis-minimal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Fetch exact pinned sources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1basis/{source,quaternius,project,evidence}
+          curl --fail --location --retry 3 'https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb' -o /tmp/civ1basis/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1basis/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1basis/source/vitruvian_body.glb /tmp/civ1basis/source/civ1_body.glb --require-animations
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1basis/source/civ1_body.glb' | sha256sum -c -
+          curl --fail --location --retry 3 'https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip' -o /tmp/civ1basis/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1basis/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1basis/quaternius.zip -d /tmp/civ1basis/quaternius
+          LICENSE_FILE="$(find /tmp/civ1basis/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Build dependency-complete rig-only Godot project
+        run: |
+          set -euo pipefail
+          MASTER="$(find /tmp/civ1basis/quaternius -path '*/Models_with_rigging/Master_Rigged.tscn' -type f -print -quit)"
+          test -n "$MASTER"
+          MODELS_DIR="$(dirname "$MASTER")"
+          UAL="$(find /tmp/civ1basis/quaternius -type f -name 'UAL1_Standard.glb' -print -quit)"
+          test -n "$UAL"
+          cp -a "$MODELS_DIR" /tmp/civ1basis/project/Models_with_rigging
+          mkdir -p '/tmp/civ1basis/project/addons/quaternius_ik_rigged/Quaternius Meshes'
+          cp "$UAL" '/tmp/civ1basis/project/addons/quaternius_ik_rigged/UAL1_Standard.glb'
+          for asset in \
+            'Superhero_Male_FullBody_Eyebrows.res' \
+            'Superhero_Male_FullBody_Eyes.res' \
+            'Superhero_Male_FullBody_Superhero_Male.res'; do
+            SRC="$(find /tmp/civ1basis/quaternius -type f -name "$asset" -print -quit)"
+            test -n "$SRC"
+            cp "$SRC" "/tmp/civ1basis/project/addons/quaternius_ik_rigged/Quaternius Meshes/$asset"
+          done
+          mkdir -p '/tmp/civ1basis/project/Godot - UE'
+          for asset in \
+            'T_Hair_1_BaseColor.png' \
+            'T_Eye_Brown.png' \
+            'T_Superhero_Male_Dark.png' \
+            'T_Superhero_Male_Roughness.png' \
+            'T_Superhero_Male_Normal.png'; do
+            SRC="$(find /tmp/civ1basis/quaternius -type f -name "$asset" -print -quit)"
+            test -n "$SRC"
+            cp "$SRC" "/tmp/civ1basis/project/Godot - UE/$asset"
+          done
+          cp /tmp/civ1basis/source/civ1_body.glb /tmp/civ1basis/project/civ1_body.glb
+          cp grand-bruxelles-game/tools/godot_civ1_right_foot_child_inventory_probe.gd /tmp/civ1basis/project/gb_civ1_right_foot_child_inventory.gd
+          printf '[application]\nconfig/name="CIV1RestBasisMinimal"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > /tmp/civ1basis/project/project.godot
+          test -f /tmp/civ1basis/project/Models_with_rigging/Master_Rigged.tscn
+          find /tmp/civ1basis/project -type f | sort | tee /tmp/civ1basis/evidence/minimal-project-files.log
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 'https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip' -o /tmp/civ1basis/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1basis/godot.zip' | sha256sum -c -
+          unzip -q /tmp/civ1basis/godot.zip -d /tmp/civ1basis/engine
+          chmod +x /tmp/civ1basis/engine/Godot_v4.7.1-stable_linux.x86_64
+          echo 'GODOT_BIN=/tmp/civ1basis/engine/Godot_v4.7.1-stable_linux.x86_64' >> "$GITHUB_ENV"
+
+      - name: Import only minimal rig project and capture rest basis
+        run: |
+          set -euo pipefail
+          timeout 300 "$GODOT_BIN" --headless --editor --path /tmp/civ1basis/project --quit 2>&1 | tee /tmp/civ1basis/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path /tmp/civ1basis/project --script res://gb_civ1_right_foot_child_inventory.gd -- /tmp/civ1basis/evidence/right-foot-child-inventory.json 2>&1 | tee /tmp/civ1basis/evidence/probe.log
+          grep -Fq 'CIV1_RIGHT_FOOT_CHILD_INVENTORY_OK' /tmp/civ1basis/evidence/probe.log
+          if grep -Fq 'Resource file not found: res://Godot - UE/' /tmp/civ1basis/evidence/probe.log; then
+            echo 'CIV1_REST_BASIS_FAIL: pinned material texture dependency missing' >&2
+            exit 1
+          fi
+
+      - name: Validate bilateral rest-basis evidence
+        run: |
+          python3 - <<'PY' | tee /tmp/civ1basis/evidence/classification.log
+          import json, math
+          p=json.load(open('/tmp/civ1basis/evidence/right-foot-child-inventory.json'))
+          assert p['format']=='grand-bruxelles-civ1-right-foot-child-inventory-v2'
+          assert p['source_skeleton_bone_count']==65
+          assert p['target_skeleton_bone_count']==52
+          b=p['bilateral_rest_basis']
+          for k,v in b.items(): assert math.isfinite(float(v)), (k,v)
+          print('bilateral_rest_basis',b)
+          print('right_minus_left_local_delta_deg',b['right_minus_left_local_delta_deg'])
+          print('right_minus_left_global_delta_deg',b['right_minus_left_global_delta_deg'])
+          print('classification','diagnostic-only; dependency-complete minimal-project import; no runtime authorization')
+          PY
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-rest-basis-minimal-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1basis/evidence/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,76 @@
+{
+  "format": "grand-bruxelles-quaternius-material-source-integrity-v1",
+  "source": "Quaternius IK Rigged with animations",
+  "source_revision": "5c4dae72e49ad4e5959571e00a25d3d872cacba5",
+  "source_sha256": "f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767",
+  "license": "CC0-1.0",
+  "godot": "4.7.1.stable.official.a13da4feb",
+  "classification": "SOURCE_REFERENCE_TYPO_CONFIRMED",
+  "promotion_blocked": true,
+  "synthetic_repair_authorized": false,
+  "runtime_authorized": false,
+  "visual_approval_claimed": false,
+  "evidence": {
+    "workflow_run_id": 33476376222,
+    "artifact_id": 9788311554,
+    "artifact_digest": "sha256:681a109eef909c96d8afb17b10a09122f4d1479b2b03de4c8af382bc7cecc16d",
+    "import_exit_status": 0,
+    "godot_import_reported_missing_resources": true
+  },
+  "broken_references": [
+    {
+      "broken_reference": "T_Hair_1_Normal_png.png",
+      "broken_file_present": false,
+      "canonical_sibling": "T_Hair_1_Normal.png",
+      "canonical_sibling_present": true,
+      "surface_bound": true,
+      "referencing_files": [
+        "addons/quaternius_ik_rigged/Godot - UE/Superhero_Male_FullBody.gltf"
+      ],
+      "bound_surfaces": [
+        {
+          "gltf": "Superhero_Male_FullBody.gltf",
+          "mesh": 0,
+          "primitive": 0,
+          "material": 0,
+          "texture": 0,
+          "image": 0
+        }
+      ]
+    },
+    {
+      "broken_reference": "T_Eye_Normal_png.png",
+      "broken_file_present": false,
+      "canonical_sibling": "T_Eye_Normal.png",
+      "canonical_sibling_present": true,
+      "surface_bound": true,
+      "referencing_files": [
+        "addons/quaternius_ik_rigged/Godot - UE/Superhero_Female_FullBody.gltf",
+        "addons/quaternius_ik_rigged/Godot - UE/Superhero_Male_FullBody.gltf"
+      ],
+      "bound_surfaces": [
+        {
+          "gltf": "Superhero_Female_FullBody.gltf",
+          "mesh": 1,
+          "primitive": 0,
+          "material": 1,
+          "texture": 2,
+          "image": 2
+        },
+        {
+          "gltf": "Superhero_Male_FullBody.gltf",
+          "mesh": 1,
+          "primitive": 0,
+          "material": 1,
+          "texture": 2,
+          "image": 2
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "The exact archive contains the canonical .png siblings but not the two referenced *_png.png files.",
+    "Both malformed URIs are reached by materials bound to real mesh primitives, so the issue is not dead metadata.",
+    "No copy, rename, alias texture, generated image, or runtime source repair is authorized by this record."
+  ]
+}

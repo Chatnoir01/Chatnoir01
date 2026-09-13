@@ -1,0 +1,168 @@
+name: Grand Bruxelles CIV-1 RightFoot Vertical Term A-B
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd"
+      - "grand-bruxelles-game/tests/test_civ1_right_foot_vertical_term_ab_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-right-foot-vertical-term-ab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  right-foot-vertical-term-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_right_foot_vertical_term_ab_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1vertical/source /tmp/civ1vertical/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1vertical/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1vertical/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1vertical/source/vitruvian_body.glb /tmp/civ1vertical/source/civ1_body.glb --require-animations | tee /tmp/civ1vertical/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1vertical/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1vertical/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1vertical/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1vertical/quaternius
+          unzip -q /tmp/civ1vertical/quaternius.zip -d /tmp/civ1vertical/quaternius
+          LICENSE_FILE="$(find /tmp/civ1vertical/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1vertical/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1vertical/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1vertical/engine
+          GODOT_BIN=/tmp/civ1vertical/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1vertical/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1vertical/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Build isolated full-normalized and preserve-local-Y probes
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd /tmp/civ1vertical/full_probe.gd
+          cp /tmp/civ1vertical/full_probe.gd /tmp/civ1vertical/preserve_y_probe.gd
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/civ1vertical/preserve_y_probe.gd')
+          text=p.read_text()
+          old='var target_right_foot_normalized_local_rest_origin := normalized_local_direction * target_right_foot_original_local_rest_origin.length()'
+          new='''var target_length := target_right_foot_original_local_rest_origin.length()\n    var preserved_y := target_right_foot_original_local_rest_origin.y\n    var horizontal_sq := maxf((target_length * target_length) - (preserved_y * preserved_y), 0.0)\n    var source_horizontal := Vector2(normalized_local_direction.x, normalized_local_direction.z)\n    if source_horizontal.length() <= 0.000001:\n        push_error("CIV1_RIGHT_FOOT_REFERENCE_AB_FAIL: source XZ direction degenerate")\n        quit(14)\n        return\n    source_horizontal = source_horizontal.normalized()\n    var horizontal_length := sqrt(horizontal_sq)\n    var target_right_foot_normalized_local_rest_origin := Vector3(source_horizontal.x * horizontal_length, preserved_y, source_horizontal.y * horizontal_length)'''
+          assert old in text, 'canonical normalization line drifted'
+          text=text.replace(old,new,1)
+          text=text.replace('source_global_reference_direction_preserve_target_foot_length','source_global_reference_direction_xz_preserve_target_local_y_and_length',1)
+          p.write_text(text)
+          PY
+          grep -Fq 'preserved_y := target_right_foot_original_local_rest_origin.y' /tmp/civ1vertical/preserve_y_probe.gd
+          grep -Fq 'target_length := target_right_foot_original_local_rest_origin.length()' /tmp/civ1vertical/preserve_y_probe.gd
+          grep -Fq 'source_horizontal := Vector2(normalized_local_direction.x, normalized_local_direction.z)' /tmp/civ1vertical/preserve_y_probe.gd
+          grep -Fq 'source_global_reference_direction_xz_preserve_target_local_y_and_length' /tmp/civ1vertical/preserve_y_probe.gd
+
+      - name: Import once and capture both A-B candidates
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1vertical/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1vertical/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1VerticalTermAB"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1vertical/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp /tmp/civ1vertical/full_probe.gd "$PROJECT_ROOT/gb_civ1_full_probe.gd"
+          cp /tmp/civ1vertical/preserve_y_probe.gd "$PROJECT_ROOT/gb_civ1_preserve_y_probe.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1vertical/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_full_probe.gd -- /tmp/civ1vertical/evidence/full-normalized.json 2>&1 | tee /tmp/civ1vertical/evidence/full-probe.log
+          grep -Fq 'CIV1_RIGHT_FOOT_REFERENCE_AB_OK' /tmp/civ1vertical/evidence/full-probe.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_preserve_y_probe.gd -- /tmp/civ1vertical/evidence/preserve-local-y.json 2>&1 | tee /tmp/civ1vertical/evidence/preserve-y-probe.log
+          grep -Fq 'CIV1_RIGHT_FOOT_REFERENCE_AB_OK' /tmp/civ1vertical/evidence/preserve-y-probe.log
+
+      - name: Classify isolated vertical-term effect
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1vertical/evidence/vertical-term-ab.log
+          import json
+          from pathlib import Path
+
+          full=json.loads(Path('/tmp/civ1vertical/evidence/full-normalized.json').read_text())
+          keep_y=json.loads(Path('/tmp/civ1vertical/evidence/preserve-local-y.json').read_text())
+          assert full['source_animation']==keep_y['source_animation']=='UAL1_Standard/Sprint'
+          assert full['sample_count']==keep_y['sample_count']==121
+          assert full['support_band_fraction']==keep_y['support_band_fraction']==0.10
+          assert full['target_right_foot_length_preserved'] is True
+          assert keep_y['target_right_foot_length_preserved'] is True
+          assert full['pose_reset_applied'] is True and keep_y['pose_reset_applied'] is True
+
+          source=full['source_right_support_candidate']
+          full_r=full['target_right_support_candidate']
+          keep_r=keep_y['target_right_support_candidate']
+          source_plane=float(source['low_height_threshold_y'])
+          full_error=abs(float(full_r['low_height_threshold_y'])-source_plane)
+          keep_error=abs(float(keep_r['low_height_threshold_y'])-source_plane)
+          full_windows=full_r['low_height_windows']
+          keep_windows=keep_r['low_height_windows']
+
+          result={
+              'format':'grand-bruxelles-civ1-right-foot-vertical-term-ab-v1',
+              'sample_count':121,
+              'support_band_fraction':0.10,
+              'intervention':'preserve target RightFoot local-rest Y; source-constrain XZ direction; preserve exact target foot length',
+              'source_plane_y':source_plane,
+              'full_normalized_plane_y':full_r['low_height_threshold_y'],
+              'preserve_local_y_plane_y':keep_r['low_height_threshold_y'],
+              'full_source_relative_plane_error_m':full_error,
+              'preserve_local_y_source_relative_plane_error_m':keep_error,
+              'source_relative_plane_error_m':keep_error,
+              'plane_error_improves_over_full':keep_error < full_error,
+              'full_median_horizontal_speed_mps':full_r['median_horizontal_speed_mps'],
+              'preserve_local_y_median_horizontal_speed_mps':keep_r['median_horizontal_speed_mps'],
+              'full_p90_horizontal_speed_mps':full_r['p90_horizontal_speed_mps'],
+              'preserve_local_y_p90_horizontal_speed_mps':keep_r['p90_horizontal_speed_mps'],
+              'source_low_height_windows':source['low_height_windows'],
+              'full_low_height_windows':full_windows,
+              'preserve_local_y_low_height_windows':keep_windows,
+              'secondary_window_removed':len(keep_windows) < len(full_windows),
+              'diagnostic_only':True,
+              'world_ground_assumed':False,
+              'runtime_authorized':False,
+              'visual_approval_claimed':False,
+          }
+          Path('/tmp/civ1vertical/evidence/vertical-term-ab.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+
+          # This is a causal A/B gate, not a runtime promotion gate. It must prove
+          # that preserving only local Y improves the measured support-plane error;
+          # secondary-window removal is reported independently and never fabricated.
+          assert result['plane_error_improves_over_full'] is True
+          PY
+
+      - name: Upload RightFoot vertical-term A-B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-right-foot-vertical-term-ab-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1vertical/evidence/
+          if-no-files-found: error
+          retention-days: 14

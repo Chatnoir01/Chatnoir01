@@ -1,0 +1,228 @@
+name: Grand Bruxelles CIV-1 Quaternius Material Integrity
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tests/test_civ1_quaternius_material_integrity_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-quaternius-material-integrity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quaternius-material-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_quaternius_material_integrity_contract.py
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1material/quaternius /tmp/civ1material/evidence
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1material/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1material/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1material/quaternius.zip -d /tmp/civ1material/quaternius
+          LICENSE_FILE="$(find /tmp/civ1material/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+          find /tmp/civ1material/quaternius -type f -printf '%P\n' | sort > /tmp/civ1material/evidence/material-inventory.txt
+          printf 'source_sha256=%s\nlicense=%s\ndiagnostic_only=true\nruntime_authorized=false\nvisual_approval_claimed=false\n' \
+            'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767' "$LICENSE_FILE" \
+            > /tmp/civ1material/evidence/provenance.txt
+
+      - name: Classify exact broken source references without repair
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1material/evidence/broken-reference-analysis.txt
+          import json
+          from pathlib import Path
+
+          root = Path('/tmp/civ1material/quaternius')
+          pairs = {
+              'T_Hair_1_Normal_png.png': 'T_Hair_1_Normal.png',
+              'T_Eye_Normal_png.png': 'T_Eye_Normal.png',
+          }
+          all_files = [p for p in root.rglob('*') if p.is_file()]
+          basenames = {}
+          for p in all_files:
+              basenames.setdefault(p.name, []).append(p)
+
+          def material_texture_indices(value):
+              indices = set()
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      if key.endswith('Texture') and isinstance(child, dict):
+                          index = child.get('index')
+                          if isinstance(index, int):
+                              indices.add(index)
+                      indices.update(material_texture_indices(child))
+              elif isinstance(value, list):
+                  for child in value:
+                      indices.update(material_texture_indices(child))
+              return indices
+
+          confirmed = 0
+          surface_bound_broken_files = []
+          for broken, canonical in pairs.items():
+              referencing_files = []
+              graph_evidence = []
+              for gltf in root.rglob('*.gltf'):
+                  try:
+                      doc = json.loads(gltf.read_text(encoding='utf-8'))
+                  except (UnicodeDecodeError, json.JSONDecodeError):
+                      continue
+                  images = doc.get('images', [])
+                  textures = doc.get('textures', [])
+                  materials = doc.get('materials', [])
+                  meshes = doc.get('meshes', [])
+                  image_indices = {
+                      i for i, image in enumerate(images)
+                      if isinstance(image, dict) and Path(str(image.get('uri', ''))).name == broken
+                  }
+                  if not image_indices:
+                      continue
+                  referencing_files.append(str(gltf.relative_to(root)))
+                  texture_source_indices = {
+                      i: texture.get('source')
+                      for i, texture in enumerate(textures)
+                      if isinstance(texture, dict) and isinstance(texture.get('source'), int)
+                  }
+                  broken_texture_indices = {
+                      texture_index for texture_index, source_index in texture_source_indices.items()
+                      if source_index in image_indices
+                  }
+                  material_texture_map = {
+                      i: sorted(material_texture_indices(material))
+                      for i, material in enumerate(materials)
+                  }
+                  broken_material_indices = {
+                      material_index for material_index, texture_indices in material_texture_map.items()
+                      if broken_texture_indices.intersection(texture_indices)
+                  }
+                  surface_material_indices = []
+                  for mesh_index, mesh in enumerate(meshes):
+                      if not isinstance(mesh, dict):
+                          continue
+                      for primitive_index, primitive in enumerate(mesh.get('primitives', [])):
+                          if not isinstance(primitive, dict):
+                              continue
+                          material_index = primitive.get('material')
+                          if isinstance(material_index, int):
+                              surface_material_indices.append({
+                                  'mesh': mesh_index,
+                                  'primitive': primitive_index,
+                                  'material': material_index,
+                              })
+                  bound_surfaces = [
+                      surface for surface in surface_material_indices
+                      if surface['material'] in broken_material_indices
+                  ]
+                  graph_evidence.append({
+                      'gltf': str(gltf.relative_to(root)),
+                      'image_indices': sorted(image_indices),
+                      'texture_source_indices': texture_source_indices,
+                      'broken_texture_indices': sorted(broken_texture_indices),
+                      'material_texture_indices': material_texture_map,
+                      'broken_material_indices': sorted(broken_material_indices),
+                      'surface_material_indices': surface_material_indices,
+                      'bound_surfaces': bound_surfaces,
+                  })
+
+              broken_present = bool(basenames.get(broken))
+              canonical_paths = [str(p.relative_to(root)) for p in basenames.get(canonical, [])]
+              canonical_sibling_present = bool(canonical_paths)
+              surface_bound = any(item['bound_surfaces'] for item in graph_evidence)
+              record = {
+                  'broken_reference': broken,
+                  'broken_file_present': broken_present,
+                  'canonical_sibling': canonical,
+                  'canonical_sibling_present': canonical_sibling_present,
+                  'canonical_paths': canonical_paths,
+                  'referencing_files': referencing_files,
+                  'surface_bound': surface_bound,
+                  'graph_evidence': graph_evidence,
+              }
+              print(json.dumps(record, sort_keys=True))
+              if referencing_files and not broken_present and canonical_sibling_present and surface_bound:
+                  confirmed += 1
+                  surface_bound_broken_files.append(broken)
+                  print(f'surface_bound=true broken_reference={broken}')
+              elif referencing_files and not surface_bound:
+                  raise SystemExit(f'BROKEN_REFERENCE_NOT_SURFACE_BOUND:{broken}')
+
+          print('surface_bound_broken_files=' + ','.join(surface_bound_broken_files))
+          print(f'confirmed_broken_reference_pairs={confirmed}')
+          if confirmed != len(pairs):
+              raise SystemExit('BROKEN_REFERENCE_CLASSIFICATION_INCOMPLETE')
+          print('SOURCE_REFERENCE_TYPO_CONFIRMED')
+          PY
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1material/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1material/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1material/engine
+          GODOT_BIN=/tmp/civ1material/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1material/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1material/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact source and fail closed on missing material resources
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1material/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+            PROJECT_BOOTSTRAP=source
+          else
+            PROJECT_ROOT="$(find /tmp/civ1material/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            PROJECT_BOOTSTRAP=ephemeral
+            printf '[application]\nconfig/name="CIV1MaterialIntegrity"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          printf 'project_bootstrap=%s\n' "$PROJECT_BOOTSTRAP" >> /tmp/civ1material/evidence/provenance.txt
+          set +e
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1material/evidence/import.log
+          IMPORT_STATUS=${PIPESTATUS[0]}
+          set -e
+          printf 'import_exit_status=%s\nproject_bootstrap=%s\n' "$IMPORT_STATUS" "$PROJECT_BOOTSTRAP" > /tmp/civ1material/evidence/verdict.txt
+          MISSING=0
+          for expected in T_Hair_1_Normal_png.png T_Eye_Normal_png.png; do
+            if grep -Fq "Can't open file from path" /tmp/civ1material/evidence/import.log && grep -Fq "$expected" /tmp/civ1material/evidence/import.log; then
+              grep -Fq "surface_bound=true broken_reference=$expected" /tmp/civ1material/evidence/broken-reference-analysis.txt
+              printf 'missing_expected_resource=%s\nsurface_bound=true\n' "$expected" | tee -a /tmp/civ1material/evidence/verdict.txt
+              MISSING=1
+            fi
+          done
+          printf 'diagnostic_only=true\nruntime_authorized=false\nvisual_approval_claimed=false\n' >> /tmp/civ1material/evidence/verdict.txt
+          if [ "$MISSING" -ne 0 ]; then
+            grep -Fq 'SOURCE_REFERENCE_TYPO_CONFIRMED' /tmp/civ1material/evidence/broken-reference-analysis.txt
+            echo 'SOURCE_REFERENCE_TYPO_CONFIRMED' | tee -a /tmp/civ1material/evidence/verdict.txt
+            echo 'MATERIAL_SOURCE_INCOMPLETE' | tee -a /tmp/civ1material/evidence/verdict.txt
+            exit 1
+          fi
+          if [ "$IMPORT_STATUS" -ne 0 ]; then
+            echo 'MATERIAL_IMPORT_FAILED' | tee -a /tmp/civ1material/evidence/verdict.txt
+            exit 1
+          fi
+          echo 'MATERIAL_SOURCE_RESOURCES_PRESENT' | tee -a /tmp/civ1material/evidence/verdict.txt
+
+      - name: Upload material-integrity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-quaternius-material-integrity-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1material/evidence/
+          if-no-files-found: error
+          retention-days: 14

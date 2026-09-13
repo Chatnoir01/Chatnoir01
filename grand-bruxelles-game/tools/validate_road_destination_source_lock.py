@@ -71,6 +71,12 @@ def required_array(payload: dict[str, Any], key: str) -> list[Any]:
     return value
 
 
+def canonical_road_text(index: int, field: str, value: Any) -> str:
+    if type(value) is not str or not value or value.strip() != value:
+        fail(f"roads[{index}].{field} must be a non-empty canonical string")
+    return value
+
+
 def validate_road_points(index: int, value: Any) -> None:
     if type(value) is not list or len(value) < 2:
         fail(f"roads[{index}].points must be an array with at least two points")
@@ -115,6 +121,8 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
         if osm_id in seen_road_osm_ids:
             fail(f"duplicate roads[].osm_id {osm_id}")
         seen_road_osm_ids.add(osm_id)
+        canonical_road_text(index, "name", road.get("name"))
+        canonical_road_text(index, "class", road.get("class"))
         drivable = road.get("drivable")
         if type(drivable) is not bool:
             fail(f"roads[{index}].drivable must be a boolean")

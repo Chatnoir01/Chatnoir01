@@ -5,7 +5,7 @@ import argparse, hashlib, ipaddress, json, struct
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v14"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v15"
 REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
 CHARACTER_ROOT = PurePosixPath("grand-bruxelles-game/assets/characters")
@@ -115,13 +115,15 @@ def _source_url_reasons(value: str) -> list[str]:
     if parsed.fragment:
         reasons.append("source_url_fragment_forbidden")
     host = (parsed.hostname or "").rstrip(".").lower()
-    if host == "localhost" or host.endswith(".localhost"):
+    is_localhost = host == "localhost" or host.endswith(".localhost")
+    if is_localhost:
         reasons.append("source_url_localhost_forbidden")
     if host:
         try:
             address = ipaddress.ip_address(host)
         except ValueError:
-            pass
+            if not is_localhost and "." not in host:
+                reasons.append("source_url_single_label_host_forbidden")
         else:
             if not address.is_global:
                 reasons.append("source_url_non_global_ip_forbidden")
@@ -228,7 +230,7 @@ def build_payload(registry: object, repo_root: Path) -> dict[str, object]:
     if invalid_indices:
         top_reasons.append("invalid_entries_present")
     eligible = [x for x in results if x.get("roster_eligible") is True]
-    return {"schema": SCHEMA, "registry_parse_valid": True, "registry_schema": registry_schema, "registry_schema_valid": registry_schema_valid, "registration_count": len(results), "eligible_count": len(eligible), "invalid_entry_count": len(invalid_indices), "civilian_count": sum(x.get("role") == "civilian" for x in eligible), "police_count": sum(x.get("role") == "police" for x in eligible), "blocking_reasons": sorted(set(top_reasons)), "explicit_registration_required": True, "registry_schema_contract_required": True, "strict_registry_fields_required": True, "strict_entry_fields_required": True, "canonical_provenance_values_required": True, "duplicate_json_keys_forbidden": True, "nonstandard_json_constants_forbidden": True, "invalid_entries_fail_closed": True, "source_license_hash_required": True, "license_allowlist_required": True, "allowed_licenses": sorted(ALLOWED_LICENSES), "glb_container_integrity_required": True, "glb_version_required": 2, "source_url_structural_provenance_required": True, "source_url_https_required": True, "source_url_local_network_forbidden": True, "canonical_character_path_confinement_required": True, "unique_content_identity_required": True, "filename_role_inference_forbidden": True, "player_reuse_as_roster_forbidden": True, "player_content_identity_reuse_forbidden": True, "roster_authorized": False, "runtime_authorized": False, "visual_approval_claimed": False, "entries": results}
+    return {"schema": SCHEMA, "registry_parse_valid": True, "registry_schema": registry_schema, "registry_schema_valid": registry_schema_valid, "registration_count": len(results), "eligible_count": len(eligible), "invalid_entry_count": len(invalid_indices), "civilian_count": sum(x.get("role") == "civilian" for x in eligible), "police_count": sum(x.get("role") == "police" for x in eligible), "blocking_reasons": sorted(set(top_reasons)), "explicit_registration_required": True, "registry_schema_contract_required": True, "strict_registry_fields_required": True, "strict_entry_fields_required": True, "canonical_provenance_values_required": True, "duplicate_json_keys_forbidden": True, "nonstandard_json_constants_forbidden": True, "invalid_entries_fail_closed": True, "source_license_hash_required": True, "license_allowlist_required": True, "allowed_licenses": sorted(ALLOWED_LICENSES), "glb_container_integrity_required": True, "glb_version_required": 2, "source_url_structural_provenance_required": True, "source_url_https_required": True, "source_url_local_network_forbidden": True, "source_url_multilabel_dns_required": True, "canonical_character_path_confinement_required": True, "unique_content_identity_required": True, "filename_role_inference_forbidden": True, "player_reuse_as_roster_forbidden": True, "player_content_identity_reuse_forbidden": True, "roster_authorized": False, "runtime_authorized": False, "visual_approval_claimed": False, "entries": results}
 
 
 def main() -> int:

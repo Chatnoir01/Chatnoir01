@@ -84,9 +84,16 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
     environment_points = required_array(payload, "environment_points")
 
     drivable_roads = 0
+    seen_road_osm_ids: set[int] = set()
     for index, road in enumerate(roads):
         if type(road) is not dict:
             fail(f"accounting roads[{index}] must be an object")
+        osm_id = road.get("osm_id")
+        if type(osm_id) is not int or osm_id <= 0:
+            fail(f"roads[{index}].osm_id must be a positive integer")
+        if osm_id in seen_road_osm_ids:
+            fail(f"duplicate roads[].osm_id {osm_id}")
+        seen_road_osm_ids.add(osm_id)
         if road.get("drivable") is True:
             drivable_roads += 1
 

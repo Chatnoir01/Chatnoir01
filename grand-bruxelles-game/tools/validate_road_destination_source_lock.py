@@ -130,7 +130,10 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
 def load_lock(source_root: Path, lock_path: Path | None = None) -> dict[str, str]:
     source_root = source_root.resolve()
     repo_root = repository_root(source_root)
-    lock_path = (lock_path or (source_root / DEFAULT_LOCK_NAME)).resolve()
+    canonical_lock = (source_root / DEFAULT_LOCK_NAME).resolve()
+    lock_path = (lock_path or canonical_lock).resolve()
+    if lock_path != canonical_lock:
+        fail(f"lock path must be canonical {canonical_lock}, got {lock_path}")
     try:
         raw_text = lock_path.read_text(encoding="utf-8")
         payload = json.loads(raw_text, object_pairs_hook=reject_duplicate_object_keys)

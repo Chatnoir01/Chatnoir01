@@ -89,12 +89,9 @@ func _run() -> void:
         _fail("foreign nested sidewalk geometry changed")
         return
 
-    var viewport := SubViewport.new()
-    viewport.name = "SidewalkSurfaceViewport"
-    root.add_child(viewport)
     var main := Node3D.new()
-    main.name = "Main"
-    viewport.add_child(main)
+    main.name = "ControlledSidewalkSurfaceScene"
+    root.add_child(main)
     current_scene = main
     var production_sidewalk := _add_osm_sidewalk(main, "SidewalkAuthorityProduction")
     var production_transform := production_sidewalk.global_transform
@@ -121,7 +118,7 @@ func _run() -> void:
 
     current_scene = null
     foreign_wrapper.queue_free()
-    viewport.queue_free()
+    main.queue_free()
     for _frame: int in range(4):
         await process_frame
 

@@ -1,0 +1,47 @@
+{
+  "bbox": [
+    157500.0,
+    165000.0,
+    158000.0,
+    165500.0
+  ],
+  "cell_id": "bxl-e157500-n165000-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-urbis-source-cell-v1",
+  "layers": {
+    "buildings": {
+      "features": 0,
+      "file": "raw/buildings.geojson",
+      "invalid_ownership_features": 0,
+      "ownership": "canonical_centroid_global_500m_cell",
+      "ownership_filtered": 0,
+      "wfs_name": "urbisvector:Buildings"
+    },
+    "street_axes": {
+      "features": 4,
+      "file": "raw/street_axes.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:StreetAxes"
+    },
+    "street_surfaces": {
+      "features": 9,
+      "file": "raw/street_surfaces.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:StreetSurfaces"
+    },
+    "train_network": {
+      "features": 0,
+      "file": "raw/train_network.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:TrainNetwork"
+    },
+    "tram_network": {
+      "features": 0,
+      "file": "raw/tram_network.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:TramNetwork"
+    }
+  },
+  "promotion": "source_only_no_runtime_mutation",
+  "source_digest": "f79251ec8cb27c7f502c52738391063dc8a5ae3762c1bf533d7ba567d466530e"
+}

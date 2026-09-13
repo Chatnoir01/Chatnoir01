@@ -1,0 +1,121 @@
+{
+  "bbox": [
+    148000.0,
+    171000.0,
+    148500.0,
+    171500.0
+  ],
+  "candidate_resolutions_m": [
+    1.0,
+    2.0,
+    4.0,
+    8.0
+  ],
+  "cell_id": "bxl-e148000-n171000-s500",
+  "crs": "EPSG:31370",
+  "evidence_digest": "77a62f5cc5743a918ab00f73550e678eeef04e8a2551f90864804be4ff071f65",
+  "format": "grand-bruxelles-cell-dtm-lod-evidence-v1",
+  "levels": [
+    {
+      "grid_shape": [
+        500,
+        500
+      ],
+      "max_abs_error_m": 3.682096,
+      "mean_bias_m": -2.1e-05,
+      "p50_abs_error_m": 0.001912,
+      "p95_abs_error_m": 0.031081,
+      "paired_samples": 996004,
+      "resolution_m": 1.0,
+      "rmse_m": 0.047835,
+      "sample_reduction_ratio": 4.0,
+      "source_max_m": 21.119,
+      "source_min_m": 13.02507,
+      "source_sample_count": 1000000,
+      "vertex_count": 250000
+    },
+    {
+      "grid_shape": [
+        250,
+        250
+      ],
+      "max_abs_error_m": 4.333175,
+      "mean_bias_m": 8.8e-05,
+      "p50_abs_error_m": 0.004226,
+      "p95_abs_error_m": 0.05597,
+      "paired_samples": 992016,
+      "resolution_m": 2.0,
+      "rmse_m": 0.079478,
+      "sample_reduction_ratio": 16.0,
+      "source_max_m": 21.119,
+      "source_min_m": 13.02507,
+      "source_sample_count": 1000000,
+      "vertex_count": 62500
+    },
+    {
+      "grid_shape": [
+        125,
+        125
+      ],
+      "max_abs_error_m": 4.243451,
+      "mean_bias_m": -0.000478,
+      "p50_abs_error_m": 0.010654,
+      "p95_abs_error_m": 0.11427,
+      "paired_samples": 984064,
+      "resolution_m": 4.0,
+      "rmse_m": 0.132458,
+      "sample_reduction_ratio": 64.0,
+      "source_max_m": 21.119,
+      "source_min_m": 13.02507,
+      "source_sample_count": 1000000,
+      "vertex_count": 15625
+    },
+    {
+      "grid_shape": [
+        63,
+        63
+      ],
+      "max_abs_error_m": 4.646584,
+      "mean_bias_m": 0.000567,
+      "p50_abs_error_m": 0.029158,
+      "p95_abs_error_m": 0.255774,
+      "paired_samples": 984064,
+      "resolution_m": 8.0,
+      "rmse_m": 0.215525,
+      "sample_reduction_ratio": 251.953,
+      "source_max_m": 21.119,
+      "source_min_m": 13.02507,
+      "source_sample_count": 1000000,
+      "vertex_count": 3969
+    }
+  ],
+  "maturity_effect": {
+    "reason": "lod_error_only_seams_normals_collisions_streaming_performance_and_photo_match_still_required",
+    "terrain_gate": false
+  },
+  "method": "sample_official_DTM_to_candidate_grids_then_bilinearly_reconstruct_at_source_pixel_centres",
+  "runtime_approved": false,
+  "selection": {
+    "blockers": [],
+    "p95_threshold_m": 0.15,
+    "remaining_runtime_gates": [
+      "seams",
+      "normals",
+      "collisions",
+      "streaming",
+      "performance",
+      "photo_match"
+    ],
+    "runtime_approved": false,
+    "selected_p95_abs_error_m": 0.11427,
+    "selected_resolution_m": 4.0,
+    "selected_vertex_count": 15625,
+    "selection_policy": "coarsest_candidate_with_p95_at_or_below_threshold"
+  },
+  "source": "official_validated_DTM",
+  "source_pixel_size_m": 0.5,
+  "source_raster_validation_digest": "10ff6b5477f51528e61ecbe267bc59322012c5a79912cd84f6f3db190f369e0e",
+  "source_valid_samples": 1000000,
+  "source_value_evidence_digest": "7161510196545c042a01ebada09ecc052a6bcc046a34c65603b74f87e8ca48af",
+  "status": "terrain_lod_candidate_selected_pending_runtime_validation"
+}

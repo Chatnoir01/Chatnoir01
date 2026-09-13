@@ -1,0 +1,47 @@
+{
+  "bbox": [
+    151500.0,
+    164000.0,
+    152000.0,
+    164500.0
+  ],
+  "blockers": [
+    "no_authoritative_buildings_to_sample"
+  ],
+  "building_count": 0,
+  "buildings": [],
+  "candidate_count": 0,
+  "candidate_digest": "db114338d9285294570b5ded8de13b30ae87c53287dc7ead2be864e5e8a1c17b",
+  "cell_id": "bxl-e151500-n164000-s500",
+  "confidence_counts": {
+    "high": 0,
+    "insufficient": 0,
+    "medium": 0
+  },
+  "confidence_policy": {
+    "high_candidate": "p75",
+    "high_minimum_plausible_fraction": 0.9,
+    "high_minimum_plausible_pixels": 64,
+    "insufficient_candidate": null,
+    "medium_candidate": "p50",
+    "minimum_plausible_fraction": 0.6,
+    "minimum_plausible_pixels": 16,
+    "plausible_window_m": [
+      -0.5,
+      250.0
+    ]
+  },
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-building-height-candidates-v1",
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "per_building_candidates_require_independent_secondary_validation_before_runtime_use"
+  },
+  "method": "paired_DSM_minus_DTM_pixel_centers_inside_authoritative_UrbIS_building_footprints",
+  "runtime_approved_count": 0,
+  "runtime_promotion_allowed": false,
+  "source_frontier_digest": "a15dc7114604fcbba632196ad9072571d98c9b9a48535932ea9b4c7d4493d385",
+  "source_raster_validation_digest": "3d15637f2f327ddab2f7a1ef6f4daa7217d74a63a9466bfcf760f14792f63c9e",
+  "source_value_evidence_digest": "7eea52cf3a958431c8c01e82837179bbfd38530e83391668fcc865c547e33445",
+  "status": "no_height_candidates_derived"
+}

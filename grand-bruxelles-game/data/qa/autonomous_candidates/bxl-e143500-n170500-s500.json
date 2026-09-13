@@ -1,0 +1,86 @@
+{
+  "authority": {
+    "buildings_source_present": true,
+    "geometry": "UrbIS raw EPSG:31370 building footprints",
+    "maturity_manifest_digest": "63f2430283ea664b7232e4a3e04b3fee481b0385e772c100890a5e15c5a17397",
+    "source_manifest_digest": "aaad3f73c42a20735bd8dc7a6d1b8686f8eb527e1d5e3a227497cc521868ddf4"
+  },
+  "blockers": [
+    "runtime_geometry",
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "materials",
+    "facade",
+    "clutter",
+    "mobility",
+    "license",
+    "region_scalable",
+    "photo_match",
+    "performance"
+  ],
+  "buildings": [
+    {
+      "area_m2": 101,
+      "bbox_31370": [
+        143988.939,
+        170727.469,
+        144001.931,
+        170740.991
+      ],
+      "block_id": "https://databrussels.be/id/block/30619",
+      "building_id": "https://databrussels.be/id/building/1657715",
+      "cell_id": "bxl-e143500-n170500-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          143988.939,
+          170731.307
+        ],
+        [
+          143997.683,
+          170727.469
+        ],
+        [
+          144000.0,
+          170732.754
+        ],
+        [
+          144001.931,
+          170737.154
+        ],
+        [
+          144000.0,
+          170738.004
+        ],
+        [
+          143993.187,
+          170740.991
+        ],
+        [
+          143988.939,
+          170731.307
+        ]
+      ],
+      "footprint_digest": "5455aa58b350b6ac2b35d248488e32d88afd1db2bd903be0be714df35ac04354",
+      "height_m": null,
+      "record_digest": "a693e85ff0c968fa0ab3e2f31aa19056060b62de6f99756a35a9bee2f28e7d20",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 7
+    }
+  ],
+  "cell_id": "bxl-e143500-n170500-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-candidate-package-v1",
+  "package_digest": "9b3a89339a53a4f09aaf814666d85c58228c2077948c51626b92096a986257ef",
+  "promotion_policy": "no_runtime_mutation_until_full_regional_maturity_contract_passes",
+  "state": "EVIDENCE_PENDING",
+  "summary": {
+    "invalid_features": 0,
+    "runtime_approved_buildings": 0,
+    "total_vertices": 7,
+    "valid_buildings": 1
+  }
+}

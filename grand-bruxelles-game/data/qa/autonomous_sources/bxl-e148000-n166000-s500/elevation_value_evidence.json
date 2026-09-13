@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    148000.0,
+    166000.0,
+    148500.0,
+    166500.0
+  ],
+  "cell_id": "bxl-e148000-n166000-s500",
+  "crs": "EPSG:31370",
+  "dsm": {
+    "max_m": 123.41928100585938,
+    "mean_m": 76.46630740731048,
+    "min_m": 48.576236724853516,
+    "p01_m": 51.74140289306641,
+    "p05_m": 59.21191234588623,
+    "p25_m": 67.38260078430176,
+    "p50_m": 75.2839469909668,
+    "p75_m": 84.12554931640625,
+    "p95_m": 97.64606552124023,
+    "p99_m": 110.30168365478517,
+    "span_m": 74.84304428100586,
+    "total_samples": 1000000,
+    "valid_ratio": 1.0,
+    "valid_samples": 1000000
+  },
+  "dsm_minus_dtm": {
+    "max_m": 38.00946044921875,
+    "mean_m": 6.46965408429718,
+    "min_m": -1.7884521484375,
+    "p01_m": 0.0,
+    "p05_m": 0.0,
+    "p25_m": 0.0,
+    "p50_m": 3.0341339111328125,
+    "p75_m": 11.364279747009277,
+    "p95_m": 21.984535026550287,
+    "p99_m": 34.0818025970459,
+    "severe_negative_ratio": 0.0,
+    "severe_negative_threshold_m": -2.0,
+    "span_m": 39.79791259765625,
+    "total_samples": 1000000,
+    "valid_ratio": 1.0,
+    "valid_samples": 1000000
+  },
+  "dtm": {
+    "max_m": 90.50199890136719,
+    "mean_m": 69.9966533230133,
+    "min_m": 48.55081558227539,
+    "p01_m": 50.27035457611084,
+    "p05_m": 56.8685359954834,
+    "p25_m": 63.66397953033447,
+    "p50_m": 67.99874114990234,
+    "p75_m": 78.02283096313477,
+    "p95_m": 85.10630149841309,
+    "p99_m": 87.55100288391114,
+    "span_m": 41.9511833190918,
+    "total_samples": 1000000,
+    "valid_ratio": 1.0,
+    "valid_samples": 1000000
+  },
+  "evidence_digest": "4e9c7f7d6525c35d4895fc576595cedc675ebe318fc3665b9361b6cf753c7458",
+  "format": "grand-bruxelles-cell-elevation-value-evidence-v1",
+  "height_source_pair_ready": true,
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "source_values_only_runtime_terrain_and_secondary_height_validation_still_required",
+    "terrain_gate": false
+  },
+  "quality_failures": [],
+  "status": "source_value_quality_validated",
+  "terrain_source_evidence_ready": true
+}

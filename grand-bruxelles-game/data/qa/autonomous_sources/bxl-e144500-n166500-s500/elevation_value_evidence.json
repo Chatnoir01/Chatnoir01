@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    144500.0,
+    166500.0,
+    145000.0,
+    167000.0
+  ],
+  "cell_id": "bxl-e144500-n166500-s500",
+  "crs": "EPSG:31370",
+  "dsm": {
+    "max_m": 85.96468353271484,
+    "mean_m": 29.262193405218124,
+    "min_m": 18.87870216369629,
+    "p01_m": 21.504912967681886,
+    "p05_m": 22.437892150878906,
+    "p25_m": 24.480050563812256,
+    "p50_m": 26.716607093811035,
+    "p75_m": 32.68846416473389,
+    "p95_m": 40.22220935821531,
+    "p99_m": 54.22244194030762,
+    "span_m": 67.08598136901855,
+    "total_samples": 1000000,
+    "valid_ratio": 1.0,
+    "valid_samples": 1000000
+  },
+  "dsm_minus_dtm": {
+    "max_m": 60.10774612426758,
+    "mean_m": 3.7048691526012423,
+    "min_m": -3.952657699584961,
+    "p01_m": -0.013076801300048829,
+    "p05_m": 0.0,
+    "p25_m": 0.0,
+    "p50_m": 0.4530305862426758,
+    "p75_m": 6.219517230987549,
+    "p95_m": 14.875065612792966,
+    "p99_m": 27.03184997558594,
+    "severe_negative_ratio": 0.000261,
+    "severe_negative_threshold_m": -2.0,
+    "span_m": 64.06040382385254,
+    "total_samples": 1000000,
+    "valid_ratio": 1.0,
+    "valid_samples": 1000000
+  },
+  "dtm": {
+    "max_m": 35.8390007019043,
+    "mean_m": 25.557324252616883,
+    "min_m": 18.659696578979492,
+    "p01_m": 21.10035675048828,
+    "p05_m": 21.779924583435058,
+    "p25_m": 23.457260131835938,
+    "p50_m": 24.826528549194336,
+    "p75_m": 26.913077354431152,
+    "p95_m": 32.336143493652344,
+    "p99_m": 33.806804733276365,
+    "span_m": 17.179304122924805,
+    "total_samples": 1000000,
+    "valid_ratio": 1.0,
+    "valid_samples": 1000000
+  },
+  "evidence_digest": "d96d9b5c8327ec6a1c5f60b07925e2f9097ae76a9f19e7b4c04088b718283182",
+  "format": "grand-bruxelles-cell-elevation-value-evidence-v1",
+  "height_source_pair_ready": true,
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "source_values_only_runtime_terrain_and_secondary_height_validation_still_required",
+    "terrain_gate": false
+  },
+  "quality_failures": [],
+  "status": "source_value_quality_validated",
+  "terrain_source_evidence_ready": true
+}

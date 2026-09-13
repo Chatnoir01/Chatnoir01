@@ -2,6 +2,7 @@ extends SceneTree
 
 const RUNTIME_SCRIPT := preload("res://game/scripts/ixelles_midi_sidewalk_runtime.gd")
 const AUTOLOAD_NAME := &"IxellesMidiSidewalkRuntime"
+const GRAND_PLACE_CONTOUR_AUTOLOAD := &"GrandPlaceOfficialLod2Contour"
 const MATERIAL_OWNER := "ixelles_midi_sidewalk_runtime"
 
 class TestIxellesSlice:
@@ -23,6 +24,7 @@ func _build_target_fixture() -> Dictionary:
     slice_root.name = "IxellesDirectMicroSlice"
     slice_root.runtime_loaded = false
     root.add_child(slice_root)
+    current_scene = slice_root
     var parent := Node3D.new()
     parent.name = "OfficialIxellesStreetSurfaces"
     slice_root.add_child(parent)
@@ -31,6 +33,12 @@ func _build_target_fixture() -> Dictionary:
     target.mesh = QuadMesh.new()
     parent.add_child(target)
     return {"slice_root": slice_root, "parent": parent, "target": target}
+
+func _release_fixture(fixture: Dictionary) -> void:
+    var slice_root := fixture["slice_root"] as Node3D
+    if current_scene == slice_root:
+        current_scene = null
+    slice_root.queue_free()
 
 func _new_runtime(label: String) -> Node:
     var runtime: Node = RUNTIME_SCRIPT.new()
@@ -46,13 +54,20 @@ func _dispatch_candidate(runtime: Node, instance_id: int) -> void:
     runtime.call("_apply_candidate", instance_id)
     _phase("case2_dispatch_end")
 
+func _remove_autoload(name: StringName) -> void:
+    var autoload: Node = root.get_node_or_null(str(name))
+    if autoload != null:
+        root.remove_child(autoload)
+        autoload.free()
+
 func _run() -> void:
     _phase("isolate_canonical_autoload")
-    var canonical_runtime: Node = root.get_node_or_null(str(AUTOLOAD_NAME))
-    if canonical_runtime != null:
-        root.remove_child(canonical_runtime)
-        canonical_runtime.free()
-        await process_frame
+    _remove_autoload(AUTOLOAD_NAME)
+    # This witness owns Ixelles lifecycle semantics only. The Grand-Place contour
+    # autoload has an independent late-node watcher and must not consume the
+    # synthetic nodes created here; its own lifecycle gates remain authoritative.
+    _remove_autoload(GRAND_PLACE_CONTOUR_AUTOLOAD)
+    await process_frame
 
     _phase("case1_real_node_added_begin")
     var runtime := _new_runtime("teardown")
@@ -72,7 +87,7 @@ func _run() -> void:
         _fail("runtime became ready after leaving SceneTree")
         return
     runtime.free()
-    (teardown_fixture["slice_root"] as Node3D).queue_free()
+    _release_fixture(teardown_fixture)
     await process_frame
     _phase("case1_real_node_added_ok")
 
@@ -102,7 +117,7 @@ func _run() -> void:
         return
     root.remove_child(freed_runtime)
     freed_runtime.free()
-    (freed_fixture["slice_root"] as Node3D).queue_free()
+    _release_fixture(freed_fixture)
     await process_frame
     _phase("case2_invalid_id_ok")
 
@@ -134,7 +149,7 @@ func _run() -> void:
         _fail("teardown did not reset ready state after material release")
         return
     restore_runtime.free()
-    (restore_fixture["slice_root"] as Node3D).queue_free()
+    _release_fixture(restore_fixture)
     await process_frame
     _phase("case3_material_restore_ok")
 
@@ -160,9 +175,9 @@ func _run() -> void:
         _fail("teardown removed later-owner metadata")
         return
     later_runtime.free()
-    (later_fixture["slice_root"] as Node3D).queue_free()
+    _release_fixture(later_fixture)
     await process_frame
     _phase("case4_later_owner_ok")
 
-    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true material_legacy_restored=true later_owner_preserved=true valid_slice_contract=true ready=false")
+    print("IXELLES_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: canonical_autoload_isolated=true grand_place_contour_autoload_isolated=true real_node_added_teardown_safe=true isolated_deferred_id_dispatch=true freed_candidate_id_invalid=true freed_candidate_safe=true material_legacy_restored=true later_owner_preserved=true valid_slice_contract=true authoritative_fixture=true ready=false")
     quit(0)

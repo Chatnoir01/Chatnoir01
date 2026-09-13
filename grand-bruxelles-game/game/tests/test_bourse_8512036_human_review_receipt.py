@@ -10,6 +10,7 @@ from strict_json_evidence import load_path_strict
 
 ROOT = Path(__file__).resolve().parents[2]
 RECEIPT = ROOT / "data/qa/corridor/bourse_8512036_human_review.json"
+WORKFLOW = ROOT.parent / ".github/workflows/grand-bruxelles-bourse-8512036-human-review.yml"
 REVIEWED_HEAD = "d53b96e19ec0fed94963e70c5aa9285a15d8d13e"
 WORKFLOW_RUN_ID = 34746779942
 ARTIFACT_ID = 10313914321
@@ -66,6 +67,21 @@ def main() -> None:
     ):
         require(receipt.get(key) is False, f"{key} must remain false")
 
+    require(WORKFLOW.is_file(), "human review workflow missing")
+    workflow_text = WORKFLOW.read_text(encoding="utf-8")
+    require(
+        "receipt.get(\"artifact_id\")" in workflow_text,
+        "workflow must derive reviewed artifact id from the durable receipt",
+    )
+    require(
+        'actions/artifacts/$artifact_id' in workflow_text,
+        "workflow artifact API must use the receipt-derived artifact id",
+    )
+    require(
+        f"actions/artifacts/{ARTIFACT_ID}" not in workflow_text,
+        "workflow must not duplicate the current artifact id as a hard-coded constant",
+    )
+
     # A durable REJECT receipt is intentionally independent of current branch
     # ancestry. Corridor snapshot rebuilds re-parent proven trees directly onto
     # live main, so the reviewed head can legitimately stop being an ancestor.
@@ -101,7 +117,7 @@ def main() -> None:
         "verdict=REJECT destination_advertisable=false runtime_mount_authorized=false "
         "rendered_geometry_authorized=false collision_authorized=false safe_spawn_authorized=false "
         "visual_acceptance=false jouable_authorized=false finite_json_required=true "
-        "durable_reject_ancestry_independent=true "
+        "durable_reject_ancestry_independent=true workflow_artifact_id_receipt_bound=true "
         f"artifact_payload_verified={str(bool(reviewed_png_path)).lower()} "
         f"ci_payload_required={str(in_github_actions).lower()}"
     )

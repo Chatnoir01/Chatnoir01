@@ -74,7 +74,7 @@ def main():
         assert raw_unicode_path["roster_eligible"] is False
         utf8_encoded_path=validate_entry(candidate(rel,sha,"https://example.invalid/source/caf%C3%A9.glb"),root)
         assert utf8_encoded_path["roster_eligible"] is True
-        for source in ("https://example.invalid/source/%3Fcivilian.glb","https://example.invalid/source/%23civilian.glb","https://example.invalid/source/%25civilian.glb","https://example.invalid/source/%FFcivilian.glb","https://example.invalid/source/%C0%AFcivilian.glb"):
+        for source in ("https://example.invalid/source/%3Fcivilian.glb","https://example.invalid/source/%23civilian.glb","https://example.invalid/source/%25civilian.glb","https://example.invalid/source/%FFcivilian.glb","https://example.invalid/source/%C0%AFcivilian.glb","https://example.invalid/source/cafe%CC%81.glb"):
             ambiguous_octets=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in ambiguous_octets["blocking_reasons"]
             assert ambiguous_octets["roster_eligible"] is False
@@ -84,10 +84,12 @@ def main():
         root_with_slash=validate_entry(candidate(rel,sha,"https://example.invalid/"),root)
         assert root_with_slash["roster_eligible"] is True
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
-        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v29"
+        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v30"
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_percent_encoding_required"] is True
+        assert payload["source_url_percent_encoding_utf8_non_ascii_only_required"] is True
+        assert payload["source_url_unicode_nfc_required"] is True
         assert payload["source_url_encoded_path_separators_forbidden"] is True
         assert payload["source_url_dot_segments_forbidden"] is True
         assert payload["source_url_ascii_host_required"] is True
@@ -97,5 +99,5 @@ def main():
         assert payload["source_url_canonical_port_spelling_required"] is True
         assert payload["source_url_canonical_ip_literal_required"] is True
         assert payload["source_url_canonical_ipv6_spelling_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V29_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V30_GREEN")
 if __name__=="__main__": main()

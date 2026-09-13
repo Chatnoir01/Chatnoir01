@@ -34,17 +34,18 @@ def main():
         queried=validate_entry(candidate(rel,sha,"https://example.invalid/source?view=detail"),root)
         assert "source_url_query_forbidden" in queried["blocking_reasons"]
         assert queried["roster_eligible"] is False
-        # Percent-encoded unreserved bytes and lowercase percent hex are alternate textual
-        # spellings of the same path and must fail closed for durable provenance.
         for source in ("https://example.invalid/source/%7Ecivilian.glb","https://example.invalid/source/%2fcivilian.glb"):
             encoded=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in encoded["blocking_reasons"]
             assert encoded["roster_eligible"] is False
+        canonical_reserved=validate_entry(candidate(rel,sha,"https://example.invalid/source/%2Fcivilian.glb"),root)
+        assert canonical_reserved["roster_eligible"] is True
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_scheme_host_case_required"] is True
         assert payload["source_url_default_https_port_forbidden"] is True
         assert payload["source_url_query_forbidden"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V20_REGRESSION")
+        assert payload["source_url_canonical_percent_encoding_required"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V20_GREEN")
 if __name__=="__main__": main()

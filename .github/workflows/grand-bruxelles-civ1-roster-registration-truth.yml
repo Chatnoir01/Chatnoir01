@@ -6,6 +6,7 @@ on:
       - 'grand-bruxelles-game/tools/civ1_roster_registration_truth.py'
       - 'grand-bruxelles-game/tools/test_civ1_roster_registration_truth.py'
       - 'grand-bruxelles-game/tools/test_civ1_roster_source_path_slash.py'
+      - 'grand-bruxelles-game/tools/test_civ1_roster_source_identity.py'
       - 'grand-bruxelles-game/qa/civ1_roster_registry.json'
       - '.github/workflows/grand-bruxelles-civ1-roster-registration-truth.yml'
   pull_request:
@@ -13,6 +14,7 @@ on:
       - 'grand-bruxelles-game/tools/civ1_roster_registration_truth.py'
       - 'grand-bruxelles-game/tools/test_civ1_roster_registration_truth.py'
       - 'grand-bruxelles-game/tools/test_civ1_roster_source_path_slash.py'
+      - 'grand-bruxelles-game/tools/test_civ1_roster_source_identity.py'
       - 'grand-bruxelles-game/qa/civ1_roster_registry.json'
       - '.github/workflows/grand-bruxelles-civ1-roster-registration-truth.yml'
 permissions:
@@ -35,6 +37,7 @@ jobs:
         run: |
           python grand-bruxelles-game/tools/test_civ1_roster_registration_truth.py
           python grand-bruxelles-game/tools/test_civ1_roster_source_path_slash.py
+          python grand-bruxelles-game/tools/test_civ1_roster_source_identity.py
       - name: Measure canonical roster registration
         run: |
           mkdir -p /tmp/civ1-roster-truth

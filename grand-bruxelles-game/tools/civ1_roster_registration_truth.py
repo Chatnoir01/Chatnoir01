@@ -4,7 +4,7 @@ import argparse, hashlib, ipaddress, json, struct
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-SCHEMA="grand-bruxelles-civ1-roster-registration-truth-v24"
+SCHEMA="grand-bruxelles-civ1-roster-registration-truth-v25"
 REGISTRY_SCHEMA="grand-bruxelles-civ1-roster-registry-v1"
 PLAYER_ASSET="grand-bruxelles-game/assets/characters/player_character.glb"
 CHARACTER_ROOT=PurePosixPath("grand-bruxelles-game/assets/characters")
@@ -13,6 +13,7 @@ REQUIRED={"asset_path","role","sha256","source_url","license"}
 ALLOWED_LICENSES={"CC0-1.0","CC-BY-4.0","CC-BY-SA-4.0","MIT","Apache-2.0","BSD-2-Clause","BSD-3-Clause","GPL-3.0-only","GPL-3.0-or-later"}
 UNRESERVED=set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 HEX=set("0123456789ABCDEF")
+DNS_CHARS=set("abcdefghijklmnopqrstuvwxyz0123456789-")
 
 class DuplicateJSONKeyError(ValueError): pass
 class NonStandardJSONConstantError(ValueError): pass
@@ -69,6 +70,11 @@ def _raw_host_port(netloc):
         return host,(suffix[1:] if suffix.startswith(":") else None)
     return hp.rsplit(":",1) if ":" in hp else (hp,None)
 
+def _canonical_dns_host(host):
+    if len(host)>253: return False
+    labels=host.split(".")
+    return all(label and len(label)<=63 and label[0] in DNS_CHARS-{"-"} and label[-1] in DNS_CHARS-{"-"} and all(c in DNS_CHARS for c in label) for label in labels)
+
 def _source_reasons(value):
     r=[]; raw=value.strip()
     if not raw: return r
@@ -93,6 +99,7 @@ def _source_reasons(value):
         try: address=ipaddress.ip_address(canonical_host)
         except ValueError:
             if not localhost and "." not in canonical_host: r.append("source_url_single_label_host_forbidden")
+            elif not localhost and not _canonical_dns_host(canonical_host): r.append("source_url_dns_host_invalid")
         else:
             if not address.is_global: r.append("source_url_non_global_ip_forbidden")
     return sorted(set(r))
@@ -151,7 +158,7 @@ def build_payload(registry,repo_root):
     invalid=[e for e in results if e.get("valid") is not True]
     if invalid: top.append("invalid_entries_present")
     eligible=[e for e in results if e.get("roster_eligible") is True]
-    flags={"explicit_registration_required":True,"registry_schema_contract_required":True,"strict_registry_fields_required":True,"strict_entry_fields_required":True,"canonical_provenance_values_required":True,"duplicate_json_keys_forbidden":True,"nonstandard_json_constants_forbidden":True,"invalid_entries_fail_closed":True,"source_license_hash_required":True,"license_allowlist_required":True,"glb_container_integrity_required":True,"glb_version_required":2,"source_url_structural_provenance_required":True,"source_url_https_required":True,"source_url_local_network_forbidden":True,"source_url_multilabel_dns_required":True,"source_url_canonical_host_spelling_required":True,"source_url_canonical_scheme_host_case_required":True,"source_url_default_https_port_forbidden":True,"source_url_canonical_port_spelling_required":True,"source_url_query_forbidden":True,"source_url_canonical_percent_encoding_required":True,"source_url_dot_segments_forbidden":True,"source_url_ascii_host_required":True,"source_url_explicit_root_path_required":True,"canonical_character_path_confinement_required":True,"unique_content_identity_required":True,"filename_role_inference_forbidden":True,"player_reuse_as_roster_forbidden":True,"player_content_identity_reuse_forbidden":True,"roster_authorized":False,"runtime_authorized":False,"visual_approval_claimed":False}
+    flags={"explicit_registration_required":True,"registry_schema_contract_required":True,"strict_registry_fields_required":True,"strict_entry_fields_required":True,"canonical_provenance_values_required":True,"duplicate_json_keys_forbidden":True,"nonstandard_json_constants_forbidden":True,"invalid_entries_fail_closed":True,"source_license_hash_required":True,"license_allowlist_required":True,"glb_container_integrity_required":True,"glb_version_required":2,"source_url_structural_provenance_required":True,"source_url_https_required":True,"source_url_local_network_forbidden":True,"source_url_multilabel_dns_required":True,"source_url_canonical_host_spelling_required":True,"source_url_canonical_scheme_host_case_required":True,"source_url_default_https_port_forbidden":True,"source_url_canonical_port_spelling_required":True,"source_url_query_forbidden":True,"source_url_canonical_percent_encoding_required":True,"source_url_dot_segments_forbidden":True,"source_url_ascii_host_required":True,"source_url_canonical_dns_host_required":True,"source_url_explicit_root_path_required":True,"canonical_character_path_confinement_required":True,"unique_content_identity_required":True,"filename_role_inference_forbidden":True,"player_reuse_as_roster_forbidden":True,"player_content_identity_reuse_forbidden":True,"roster_authorized":False,"runtime_authorized":False,"visual_approval_claimed":False}
     return {"schema":SCHEMA,"registry_parse_valid":True,"registry_schema":schema,"registry_schema_valid":schema_ok,"registration_count":len(results),"eligible_count":len(eligible),"invalid_entry_count":len(invalid),"civilian_count":sum(e.get("role")=="civilian" for e in eligible),"police_count":sum(e.get("role")=="police" for e in eligible),"blocking_reasons":sorted(set(top)),"allowed_licenses":sorted(ALLOWED_LICENSES),"entries":results,**flags}
 
 def main():

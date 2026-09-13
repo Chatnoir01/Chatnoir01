@@ -34,6 +34,13 @@ def main():
             assert "source_url_dns_host_invalid" in invalid_dns["blocking_reasons"]
             assert invalid_dns["roster_eligible"] is False
         assert validate_entry(candidate(rel,sha,"https://xn--exmple-cua.invalid/source"),root)["roster_eligible"] is True
+        for source in ("https://127.1/source","https://127.0.1/source","https://0177.0.0.1/source","https://0x7f.0.0.1/source","https://2130706433/source"):
+            legacy_ip=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_ip_literal_not_canonical" in legacy_ip["blocking_reasons"]
+            assert legacy_ip["roster_eligible"] is False
+        canonical_loopback=validate_entry(candidate(rel,sha,"https://127.0.0.1/source"),root)
+        assert "source_url_non_global_ip_forbidden" in canonical_loopback["blocking_reasons"]
+        assert canonical_loopback["roster_eligible"] is False
         default_port=validate_entry(candidate(rel,sha,"https://example.invalid:443/source"),root)
         assert "source_url_not_canonical" in default_port["blocking_reasons"]
         assert default_port["roster_eligible"] is False
@@ -68,5 +75,6 @@ def main():
         assert payload["source_url_canonical_dns_host_required"] is True
         assert payload["source_url_explicit_root_path_required"] is True
         assert payload["source_url_canonical_port_spelling_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V25_GREEN")
+        assert payload["source_url_canonical_ip_literal_required"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V26_GREEN")
 if __name__=="__main__": main()

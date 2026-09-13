@@ -55,7 +55,15 @@ def main() -> None:
     require(receipt.get("camera_changed") is False, "camera rescue forbidden")
     require(receipt.get("source_geometry_changed") is False, "source geometry rescue forbidden")
     require(receipt.get("resolver_thresholds_lowered") is False, "resolver threshold rescue forbidden")
-    for key in ("destination_advertisable", "visual_acceptance", "jouable_authorized"):
+    for key in (
+        "destination_advertisable",
+        "runtime_mount_authorized",
+        "rendered_geometry_authorized",
+        "collision_authorized",
+        "safe_spawn_authorized",
+        "visual_acceptance",
+        "jouable_authorized",
+    ):
         require(receipt.get(key) is False, f"{key} must remain false")
 
     # A durable REJECT receipt is intentionally independent of current branch
@@ -90,8 +98,10 @@ def main() -> None:
 
     print(
         "BOURSE_8512036_HUMAN_REVIEW_RECEIPT_OK "
-        "verdict=REJECT visual_acceptance=false jouable_authorized=false "
-        "finite_json_required=true durable_reject_ancestry_independent=true "
+        "verdict=REJECT destination_advertisable=false runtime_mount_authorized=false "
+        "rendered_geometry_authorized=false collision_authorized=false safe_spawn_authorized=false "
+        "visual_acceptance=false jouable_authorized=false finite_json_required=true "
+        "durable_reject_ancestry_independent=true "
         f"artifact_payload_verified={str(bool(reviewed_png_path)).lower()} "
         f"ci_payload_required={str(in_github_actions).lower()}"
     )

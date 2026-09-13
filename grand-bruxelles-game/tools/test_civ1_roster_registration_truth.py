@@ -41,6 +41,11 @@ def main():
         canonical_loopback=validate_entry(candidate(rel,sha,"https://127.0.0.1/source"),root)
         assert "source_url_non_global_ip_forbidden" in canonical_loopback["blocking_reasons"]
         assert canonical_loopback["roster_eligible"] is False
+        canonical_ipv6=validate_entry(candidate(rel,sha,"https://[2606:4700:4700::1111]/source"),root)
+        assert canonical_ipv6["roster_eligible"] is True
+        expanded_ipv6=validate_entry(candidate(rel,sha,"https://[2606:4700:4700:0000:0000:0000:0000:1111]/source"),root)
+        assert "source_url_ip_literal_not_canonical" in expanded_ipv6["blocking_reasons"]
+        assert expanded_ipv6["roster_eligible"] is False
         default_port=validate_entry(candidate(rel,sha,"https://example.invalid:443/source"),root)
         assert "source_url_not_canonical" in default_port["blocking_reasons"]
         assert default_port["roster_eligible"] is False

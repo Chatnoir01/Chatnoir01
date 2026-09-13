@@ -88,12 +88,9 @@ def _validate_osm_identity(element: dict[str, Any], index: int) -> tuple[str, in
 
 
 def _finite_coordinate(value: object, label: str) -> float:
-    if isinstance(value, bool):
-        raise ValueError(f"{label} must be numeric, not boolean")
-    try:
-        number = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{label} must be numeric") from exc
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be a JSON number")
+    number = float(value)
     if not math.isfinite(number):
         raise ValueError(f"{label} must be finite")
     return number

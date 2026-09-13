@@ -94,7 +94,10 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
         if osm_id in seen_road_osm_ids:
             fail(f"duplicate roads[].osm_id {osm_id}")
         seen_road_osm_ids.add(osm_id)
-        if road.get("drivable") is True:
+        drivable = road.get("drivable")
+        if type(drivable) is not bool:
+            fail(f"roads[{index}].drivable must be a boolean")
+        if drivable:
             drivable_roads += 1
 
     materialized = {

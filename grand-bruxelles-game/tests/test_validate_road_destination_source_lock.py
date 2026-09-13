@@ -132,10 +132,20 @@ def main() -> int:
     roads[1]["osm_id"] = roads[0]["osm_id"]
     _expect_rejected(lock_doc, duplicate_road_id, "duplicate")
 
+    bad_drivable_type = json.loads(json.dumps(source_doc))
+    roads = bad_drivable_type["roads"]
+    stats = bad_drivable_type["stats"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    assert roads[0].get("drivable") is True
+    assert isinstance(stats, dict)
+    roads[0]["drivable"] = "true"
+    stats["drivable_roads"] = int(stats["drivable_roads"]) - 1
+    _expect_rejected(lock_doc, bad_drivable_type, "drivable")
+
     print(
         "ROAD_DESTINATION_SOURCE_LOCK_TEST_OK "
         "digest=true provenance=true accounting=true lock_path=true "
-        "road_osm_id_integrity=true network_used=false"
+        "road_osm_id_integrity=true road_drivable_bool_integrity=true network_used=false"
     )
     return 0
 

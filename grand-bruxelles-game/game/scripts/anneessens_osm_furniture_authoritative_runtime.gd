@@ -15,11 +15,4 @@ func _is_authoritative_production_scene(candidate: Node3D) -> bool:
         return true
     if not _is_canonical_packed_main(candidate):
         return false
-    var parent := candidate.get_parent()
-    if parent == tree.root:
-        return str(candidate.name) == "Main"
-    return (
-        str(candidate.name) == "Main"
-        and parent is Viewport
-        and parent.get_parent() == tree.root
-    )
+    return candidate.get_parent() == tree.root and str(candidate.name) == "Main"

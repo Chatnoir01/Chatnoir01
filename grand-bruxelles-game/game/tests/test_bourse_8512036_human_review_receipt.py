@@ -10,11 +10,11 @@ from strict_json_evidence import load_path_strict
 
 ROOT = Path(__file__).resolve().parents[2]
 RECEIPT = ROOT / "data/qa/corridor/bourse_8512036_human_review.json"
-REVIEWED_HEAD = "2c56c997071f4c90204d330a16f40863900e60dc"
-WORKFLOW_RUN_ID = 34738947794
-ARTIFACT_ID = 10312386121
+REVIEWED_HEAD = "d53b96e19ec0fed94963e70c5aa9285a15d8d13e"
+WORKFLOW_RUN_ID = 34746779942
+ARTIFACT_ID = 10313914321
 ARTIFACT_NAME = "grand-bruxelles-bourse-8512036-corridor-masked-visual"
-ARTIFACT_DIGEST = "sha256:bbbda2bccb09c3ea07f7af0f39118487272c215abf90ea6722fd93035e97b0d1"
+ARTIFACT_DIGEST = "sha256:e6d56bbc17f984908fa94047ff90fb9b985666df6360da0d5f035bc8ccfe0c96"
 PNG_SHA256 = "9ead5aefb244092c96143366e01c9f3ff321c480d4197ca87e441efcbfcf61f2"
 OSM_ID = 8512036
 WIDTH = 1280

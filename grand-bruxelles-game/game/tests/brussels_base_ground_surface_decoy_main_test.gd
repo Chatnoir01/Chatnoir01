@@ -2,6 +2,7 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
 const TARGET_RUNTIME := "BrusselsBaseGroundSurfaceRuntime"
+const MATERIAL_FAMILY := "brussels_base_ground_surface_v1"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -56,6 +57,15 @@ func _run() -> void:
     var nested_main := MAIN_SCENE.instantiate()
     viewport.add_child(nested_main)
 
+    var nested_ground := nested_main.get_node_or_null("Ground") as CSGBox3D
+    if nested_ground == null:
+        _fail("canonical viewport Ground missing")
+        return
+    var nested_legacy_material := nested_ground.material
+    if nested_legacy_material == null:
+        _fail("canonical viewport Ground legacy material missing before authority witness")
+        return
+
     await _wait_frames(20)
     if bool(runtime.call("ready_complete")):
         _fail("canonical Main under SubViewport was incorrectly accepted as authoritative")
@@ -63,11 +73,10 @@ func _run() -> void:
     if bool(runtime.call("failed")):
         _fail("non-authoritative canonical viewport mount permanently failed runtime")
         return
-    var nested_ground := nested_main.get_node_or_null("Ground") as CSGBox3D
-    if nested_ground == null:
-        _fail("canonical viewport Ground missing")
+    if nested_ground.material != nested_legacy_material:
+        _fail("canonical viewport Ground legacy material was mutated despite lacking authority")
         return
-    if nested_ground.material != null:
+    if str(nested_ground.material.get_meta("material_family", "")) == MATERIAL_FAMILY:
         _fail("canonical viewport Ground received shared material despite lacking authority")
         return
 
@@ -87,7 +96,7 @@ func _run() -> void:
     if bool(runtime.call("failed")):
         _fail("runtime failed after canonical root-level production Main appeared")
         return
-    if str(runtime.call("material_family")) != "brussels_base_ground_surface_v1":
+    if str(runtime.call("material_family")) != MATERIAL_FAMILY:
         _fail("material family drifted after root-level bind")
         return
     if int(runtime.call("presentation_revision")) != 6:
@@ -99,12 +108,12 @@ func _run() -> void:
         _fail("canonical root-level Ground was not enhanced")
         return
     var material := ground.material as ShaderMaterial
-    if str(material.get_meta("material_family", "")) != "brussels_base_ground_surface_v1":
+    if str(material.get_meta("material_family", "")) != MATERIAL_FAMILY:
         _fail("enhanced Ground material metadata missing")
         return
     if bool(material.get_meta("geometry_changed", true)) or bool(material.get_meta("collision_changed", true)):
         _fail("root-level binding changed Ground geometry/collision contract")
         return
 
-    print("BRUSSELS_BASE_GROUND_SURFACE_DECOY_MAIN_OK: decoy_ignored=true canonical_viewport_rejected=true canonical_root_bound=true geometry_changed=false collision_changed=false")
+    print("BRUSSELS_BASE_GROUND_SURFACE_DECOY_MAIN_OK: decoy_ignored=true canonical_viewport_rejected=true legacy_material_preserved=true canonical_root_bound=true geometry_changed=false collision_changed=false")
     quit(0)

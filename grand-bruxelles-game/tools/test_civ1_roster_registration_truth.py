@@ -34,10 +34,16 @@ def main():
         # A non-default port can designate a distinct HTTPS origin and remains valid.
         nondefault_port=validate_entry(candidate(rel,sha,"https://example.invalid:8443/source"),root)
         assert nondefault_port["roster_eligible"] is True
+        # Provenance must be a stable public locator, not an ephemeral/signed/query-param
+        # representation that can expire, leak credentials, or multiply spellings.
+        queried=validate_entry(candidate(rel,sha,"https://example.invalid/source?token=abc"),root)
+        assert "source_url_query_forbidden" in queried["blocking_reasons"]
+        assert queried["roster_eligible"] is False
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_scheme_host_case_required"] is True
         assert payload["source_url_default_https_port_forbidden"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V18_GREEN")
+        assert payload["source_url_query_forbidden"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V19_GREEN")
 if __name__=="__main__": main()

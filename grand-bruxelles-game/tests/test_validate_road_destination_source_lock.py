@@ -76,6 +76,21 @@ def main() -> int:
     assert baseline.returncode == 0, baseline.stdout + baseline.stderr
     assert "ROAD_DESTINATION_SOURCE_LOCK_OK" in baseline.stdout
 
+    # The lock itself is provenance authority and must stay inside the canonical
+    # source root. An arbitrary external lock must never be able to authorize the
+    # same materialized source corpus.
+    with tempfile.TemporaryDirectory(prefix="gb-road-source-lock-path-") as tmp:
+        tmp_root = Path(tmp)
+        source_root = tmp_root / "data" / "osm"
+        source_root.mkdir(parents=True)
+        source_path = source_root / "vertical_slice_01.game.json"
+        source_path.write_bytes(SOURCE.read_bytes())
+        external_lock = tmp_root / "external-road-source.lock.json"
+        external_lock.write_bytes(LOCK.read_bytes())
+        external_result = _run(external_lock, source_path)
+        assert external_result.returncode != 0, external_result.stdout
+        assert "lock path" in (external_result.stdout + external_result.stderr).lower()
+
     bad_license = json.loads(json.dumps(lock_doc))
     bad_license["license"] = "UNKNOWN"
     _expect_rejected(bad_license, source_doc, "license")
@@ -98,7 +113,7 @@ def main() -> int:
     source_stats["drivable_roads"] = int(source_stats["roads"]) + 1
     _expect_rejected(lock_doc, bad_source_stats, "source_stats")
 
-    print("ROAD_DESTINATION_SOURCE_LOCK_TEST_OK digest=true provenance=true accounting=true network_used=false")
+    print("ROAD_DESTINATION_SOURCE_LOCK_TEST_OK digest=true provenance=true accounting=true lock_path=true network_used=false")
     return 0
 
 

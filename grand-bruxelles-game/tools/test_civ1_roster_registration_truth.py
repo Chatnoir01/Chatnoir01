@@ -61,5 +61,6 @@ def main():
         assert payload["source_url_dot_segments_forbidden"] is True
         assert payload["source_url_ascii_host_required"] is True
         assert payload["source_url_explicit_root_path_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V23_GREEN")
+        assert payload["source_url_canonical_port_spelling_required"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V24_GREEN")
 if __name__=="__main__": main()

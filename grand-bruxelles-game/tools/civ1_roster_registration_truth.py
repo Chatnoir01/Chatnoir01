@@ -9,7 +9,7 @@ import struct
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v22"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v23"
 REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 PLAYER_ASSET = "grand-bruxelles-game/assets/characters/player_character.glb"
 CHARACTER_ROOT = PurePosixPath("grand-bruxelles-game/assets/characters")
@@ -96,6 +96,7 @@ def _source_url_reasons(value):
     if parsed.username is not None or parsed.password is not None: reasons.append('source_url_credentials_forbidden')
     if parsed.query: reasons.append('source_url_query_forbidden')
     if parsed.fragment: reasons.append('source_url_fragment_forbidden')
+    if not parsed.path: reasons.append('source_url_not_canonical')
     if not _path_percent_encoding_is_canonical(parsed.path) or _path_has_dot_segments(parsed.path): reasons.append('source_url_not_canonical')
     parsed_host=parsed.hostname or ''
     hostport=parsed.netloc.rsplit('@',1)[-1]
@@ -167,7 +168,7 @@ def build_payload(registry,repo_root):
     invalid_indices=[i for i,item in enumerate(results) if item.get('valid') is not True]
     if invalid_indices: top_reasons.append('invalid_entries_present')
     eligible=[item for item in results if item.get('roster_eligible') is True]
-    return {'schema':SCHEMA,'registry_parse_valid':True,'registry_schema':registry_schema,'registry_schema_valid':registry_schema_valid,'registration_count':len(results),'eligible_count':len(eligible),'invalid_entry_count':len(invalid_indices),'civilian_count':sum(item.get('role')=='civilian' for item in eligible),'police_count':sum(item.get('role')=='police' for item in eligible),'blocking_reasons':sorted(set(top_reasons)),'explicit_registration_required':True,'registry_schema_contract_required':True,'strict_registry_fields_required':True,'strict_entry_fields_required':True,'canonical_provenance_values_required':True,'duplicate_json_keys_forbidden':True,'nonstandard_json_constants_forbidden':True,'invalid_entries_fail_closed':True,'source_license_hash_required':True,'license_allowlist_required':True,'allowed_licenses':sorted(ALLOWED_LICENSES),'glb_container_integrity_required':True,'glb_version_required':2,'source_url_structural_provenance_required':True,'source_url_https_required':True,'source_url_local_network_forbidden':True,'source_url_multilabel_dns_required':True,'source_url_canonical_host_spelling_required':True,'source_url_canonical_scheme_host_case_required':True,'source_url_default_https_port_forbidden':True,'source_url_query_forbidden':True,'source_url_canonical_percent_encoding_required':True,'source_url_dot_segments_forbidden':True,'source_url_ascii_host_required':True,'canonical_character_path_confinement_required':True,'unique_content_identity_required':True,'filename_role_inference_forbidden':True,'player_reuse_as_roster_forbidden':True,'player_content_identity_reuse_forbidden':True,'roster_authorized':False,'runtime_authorized':False,'visual_approval_claimed':False,'entries':results}
+    return {'schema':SCHEMA,'registry_parse_valid':True,'registry_schema':registry_schema,'registry_schema_valid':registry_schema_valid,'registration_count':len(results),'eligible_count':len(eligible),'invalid_entry_count':len(invalid_indices),'civilian_count':sum(item.get('role')=='civilian' for item in eligible),'police_count':sum(item.get('role')=='police' for item in eligible),'blocking_reasons':sorted(set(top_reasons)),'explicit_registration_required':True,'registry_schema_contract_required':True,'strict_registry_fields_required':True,'strict_entry_fields_required':True,'canonical_provenance_values_required':True,'duplicate_json_keys_forbidden':True,'nonstandard_json_constants_forbidden':True,'invalid_entries_fail_closed':True,'source_license_hash_required':True,'license_allowlist_required':True,'allowed_licenses':sorted(ALLOWED_LICENSES),'glb_container_integrity_required':True,'glb_version_required':2,'source_url_structural_provenance_required':True,'source_url_https_required':True,'source_url_local_network_forbidden':True,'source_url_multilabel_dns_required':True,'source_url_canonical_host_spelling_required':True,'source_url_canonical_scheme_host_case_required':True,'source_url_default_https_port_forbidden':True,'source_url_query_forbidden':True,'source_url_canonical_percent_encoding_required':True,'source_url_dot_segments_forbidden':True,'source_url_ascii_host_required':True,'source_url_explicit_root_path_required':True,'canonical_character_path_confinement_required':True,'unique_content_identity_required':True,'filename_role_inference_forbidden':True,'player_reuse_as_roster_forbidden':True,'player_content_identity_reuse_forbidden':True,'roster_authorized':False,'runtime_authorized':False,'visual_approval_claimed':False,'entries':results}
 
 def main():
     parser=argparse.ArgumentParser(); parser.add_argument('registry',type=Path); parser.add_argument('--repo-root',type=Path,default=Path('.')); parser.add_argument('--out',type=Path); args=parser.parse_args(); duplicate_key=None; nonstandard_constant=None

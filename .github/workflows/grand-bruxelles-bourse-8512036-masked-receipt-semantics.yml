@@ -1,0 +1,141 @@
+name: Grand Bruxelles Bourse 8512036 Masked Receipt Semantics
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-masked-receipt-semantics.yml"
+      - ".github/workflows/grand-bruxelles-bourse-8512036-corridor-masked-visual.yml"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_corridor_masked_visual_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-8512036-masked-receipt-semantics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      EXPECTED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and locked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'SEMANTICS_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'SEMANTICS_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "$EXPECTED_SOURCE_SHA256  grand-bruxelles-game/data/osm/vertical_slice_01.game.json" | sha256sum -c -
+
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/receipt-semantics-import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/receipt-semantics-import.log
+
+      - name: Produce real Bourse masked receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/bourse_8512036_corridor_masked_visual_test.gd 2>&1 | tee /tmp/receipt-semantics-runtime.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_CORRIDOR_MASKED_VISUAL_FAIL" /tmp/receipt-semantics-runtime.log
+          test "$(grep -c 'BOURSE_8512036_CORRIDOR_MASKED_VISUAL_OK' /tmp/receipt-semantics-runtime.log)" -eq 1
+
+      - name: Verify receipt semantics and negative mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPT=grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/receipt.json
+          PNG=grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/road-8512036-corridor-masked.png
+          test -s "$RECEIPT"
+          test -s "$PNG"
+          python3 - "$RECEIPT" "$PNG" "$EXPECTED_SOURCE_SHA256" <<'PY'
+          import copy, hashlib, json, math, pathlib, sys
+          receipt_path=pathlib.Path(sys.argv[1]); png_path=pathlib.Path(sys.argv[2]); expected_source_sha=sys.argv[3]
+          receipt=json.loads(receipt_path.read_text(encoding='utf-8'))
+          png_sha=hashlib.sha256(png_path.read_bytes()).hexdigest()
+          def verify(r):
+              assert r['schema']=='grand-bruxelles-bourse-8512036-corridor-masked-visual-v1'
+              assert r['road_osm_id']==8512036 and r['request']=='road-8512036'
+              assert r['resolution']==[1280,720]
+              assert r['source_path']=='res://data/osm/vertical_slice_01.game.json'
+              assert isinstance(r['source_name'],str) and 'Saint-G' in r['source_name']
+              assert r['source_sha256']==expected_source_sha
+              assert r['lookup_mode']=='deterministic_runtime_index'
+              axis=r['axis_alignment']
+              assert isinstance(axis,(int,float)) and not isinstance(axis,bool) and math.isfinite(axis) and axis>=0.90
+              assert r['source_sightline_clear'] is True
+              assert r['qa_mask_applied'] is True and r['qa_mask_node']=='Player/VisualUpgrade'
+              assert r['qa_mask_originally_visible'] is True and r['qa_mask_restored'] is True
+              assert r['qa_mask_final_visibility'] is r['qa_mask_originally_visible'] and r['qa_mask_ephemeral'] is True
+              assert r['dynamic_state_frozen'] is True
+              assert r['character_runtime_changed'] is False and r['player_physics_changed'] is False and r['camera_changed'] is False
+              assert r['source_geometry_changed'] is False and r['collision_geometry_changed'] is False and r['resolver_thresholds_lowered'] is False
+              assert r['human_visual_review_required'] is True and r['masked_frame_cannot_promote_destination'] is True
+              assert r['visual_acceptance'] is False and r['destination_advertisable'] is False and r['jouable_authorized'] is False
+              if 'png_sha256' in r:
+                  assert r['png_sha256']==png_sha
+          verify(receipt)
+          mutations=(
+              ('request','road-8512037'),
+              ('source_sha256','0'*64),
+              ('lookup_mode','nearest_guess'),
+              ('qa_mask_restored',False),
+              ('dynamic_state_frozen',False),
+              ('camera_changed',True),
+              ('source_geometry_changed',True),
+              ('collision_geometry_changed',True),
+              ('resolver_thresholds_lowered',True),
+              ('destination_advertisable',True),
+              ('jouable_authorized',True),
+          )
+          for field,bad_value in mutations:
+              bad=copy.deepcopy(receipt); bad[field]=bad_value
+              try:
+                  verify(bad)
+              except AssertionError:
+                  continue
+              raise AssertionError(f'receipt semantic mutation accepted: {field}')
+          print('BOURSE_8512036_MASKED_RECEIPT_SEMANTICS_GREEN')
+          PY
+
+      - name: Upload semantic proof logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-bourse-8512036-masked-receipt-semantics
+          path: |
+            /tmp/receipt-semantics-import.log
+            /tmp/receipt-semantics-runtime.log
+            grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/receipt.json
+          if-no-files-found: error
+          retention-days: 7

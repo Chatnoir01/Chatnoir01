@@ -1,0 +1,218 @@
+name: Grand Bruxelles Bourse Automatic Destination Candidate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-automatic-destination-candidate.yml"
+      - "grand-bruxelles-game/tests/test_bourse_automatic_destination_candidate.py"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      EXPECTED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+      EXPECTED_RUNTIME_INDEX_SHA256: 9876775a7dcbc32e2beb679895f05a2be6d1eaa063483d0aa17c328af285b883
+      EXPECTED_RUNTIME_CATALOG_SHA256: 7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f
+      EXPECTED_WINNER_OSM_ID: "8512036"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry, exact head and locked source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'BOURSE_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'BOURSE_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+          printf '%s  %s\n' "$EXPECTED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+          printf '%s  %s\n' "$EXPECTED_RUNTIME_INDEX_SHA256" grand-bruxelles-game/data/runtime/road_destination_runtime_index.json | sha256sum -c -
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['format']=='grand-bruxelles-road-runtime-index-v1'
+          assert d['source_lookup_only'] is True
+          assert d['catalog_sha256']=='7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f'
+          assert d['authorization']['runtime_mount_authorized'] is False
+          assert d['authorization']['safe_spawn_authorized'] is False
+          assert d['authorization']['jouable_authorized'] is False
+          PY
+
+      - name: Prove canonical source road metadata and coercion regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import copy,json,math,pathlib
+          source_path=pathlib.Path('grand-bruxelles-game/data/osm/vertical_slice_01.game.json')
+          source=json.loads(source_path.read_text(encoding='utf-8'))
+
+          def validate_metadata(road):
+              osm_id=road.get('osm_id')
+              assert type(osm_id) is int and osm_id > 0
+              name=road.get('name','')
+              road_class=road.get('class','')
+              width=road.get('width',0.0)
+              assert type(name) is str, f'road {osm_id} name must be a JSON string'
+              assert type(road_class) is str, f'road {osm_id} class must be a JSON string'
+              assert name == name.strip(), f'road {osm_id} name must be canonical trimmed text'
+              assert road_class == road_class.strip(), f'road {osm_id} class must be canonical trimmed text'
+              assert all(ord(ch) >= 32 for ch in name), f'road {osm_id} name contains control characters'
+              assert all(ord(ch) >= 32 for ch in road_class), f'road {osm_id} class contains control characters'
+              assert type(width) in (int,float) and not isinstance(width,bool), f'road {osm_id} width must be a JSON number'
+              width=float(width)
+              assert math.isfinite(width) and width >= 0.0, f'road {osm_id} width must be finite and non-negative'
+              return name,road_class,width
+
+          roads=source.get('roads')
+          assert isinstance(roads,list) and roads
+          for road in roads:
+              assert isinstance(road,dict)
+              validate_metadata(road)
+
+          winner=next(r for r in roads if r.get('osm_id') == 8512036)
+          for field,bad in (
+              ('name',8512036),
+              ('class',True),
+              ('width','5.0'),
+              ('width',True),
+              ('width',float('nan')),
+              ('width',float('inf')),
+              ('width',-1.0),
+          ):
+              mutated=copy.deepcopy(winner)
+              mutated[field]=bad
+              try:
+                  validate_metadata(mutated)
+              except AssertionError:
+                  continue
+              raise AssertionError(f'non-canonical candidate metadata accepted: {field}={bad!r}')
+          for field,bad in (('name',' Rue Saint-Géry'),('class','residential\n')):
+              mutated=copy.deepcopy(winner)
+              mutated[field]=bad
+              try:
+                  validate_metadata(mutated)
+              except AssertionError:
+                  continue
+              raise AssertionError(f'non-canonical candidate text accepted: {field}={bad!r}')
+          print('BOURSE_CANDIDATE_SOURCE_METADATA_GREEN')
+          PY
+
+      - name: Prove exact source-indexed Bourse candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tests/test_bourse_automatic_destination_candidate.py | tee /tmp/bourse-candidate.log
+          grep -q 'BOURSE_AUTOMATIC_DESTINATION_CANDIDATE_OK' /tmp/bourse-candidate.log
+          python3 - "$EXPECTED_WINNER_OSM_ID" <<'PY'
+          import json,pathlib,sys
+          expected=int(sys.argv[1])
+          prefix='BOURSE_AUTOMATIC_DESTINATION_CANDIDATE_OK '
+          lines=pathlib.Path('/tmp/bourse-candidate.log').read_text(encoding='utf-8').splitlines()
+          matches=[line for line in lines if line.startswith(prefix)]
+          assert len(matches)==1, f'expected one candidate result line, got {len(matches)}'
+          candidate=json.loads(matches[0][len(prefix):])
+          assert type(candidate.get('osm_id')) is int
+          assert candidate['osm_id']==expected, (candidate['osm_id'], expected)
+          PY
+
+      - name: Seal fail-closed evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPT=grand-bruxelles-game/artifacts/qa/bourse_automatic_destination_candidate/receipt.json
+          test -s "$RECEIPT"
+          python3 - "$RECEIPT" "$BOURSE_BASE_SHA" "$BOURSE_HEAD_SHA" "$EXPECTED_SOURCE_SHA256" "$EXPECTED_RUNTIME_CATALOG_SHA256" "$EXPECTED_WINNER_OSM_ID" <<'PY'
+          import json,math,sys
+          p,base,head,expected_source_sha,expected_catalog_sha,expected_winner=sys.argv[1:]
+          expected_winner=int(expected_winner)
+          d=json.load(open(p))
+          assert d['schema'] == 'grand-bruxelles-bourse-automatic-destination-candidate-v6'
+          c=d['contracts']
+          for k in (
+              'strict_json_proven',
+              'canonical_osm_integer_identity_proven',
+              'finite_source_coordinates_proven',
+              'road_point_shape_proven',
+              'malformed_source_coordinate_regression_proven',
+              'canonical_source_road_metadata_proven',
+              'candidate_metadata_coercion_regression_proven',
+              'unique_corridor_anchor_ids_proven',
+              'unique_runtime_index_document_proven',
+              'unique_source_road_ids_proven',
+              'runtime_index_authorization_closed',
+              'duplicate_document_regression_proven',
+              'noncanonical_road_id_regression_proven',
+              'exact_distance_ranking_proven',
+              'distance_rounding_is_evidence_only',
+              'exact_source_identity_proven',
+              'runtime_index_membership_proven',
+              'drivable_source_road_proven',
+          ):
+              assert c[k] is True, (k,c[k])
+          for k in ('rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','destination_advertisable','visual_acceptance','jouable_authorized'):
+              assert c[k] is False, (k,c[k])
+          ri=d['runtime_index']
+          assert d['source']['sha256'] == expected_source_sha
+          assert ri['matching_document_count'] == 1
+          assert ri['matching_document_sha256'] == expected_source_sha
+          assert ri['road_identity_count'] > 0
+          candidate=d['candidate']
+          ranked=d['ranked_candidates']
+          assert type(candidate['osm_id']) is int and candidate['osm_id'] > 0
+          assert candidate['osm_id'] == expected_winner, (candidate['osm_id'], expected_winner)
+          assert ranked and ranked[0] == candidate, 'receipt candidate must equal deterministic ranked_candidates[0]'
+          assert d['ranked_candidate_count'] >= len(ranked) > 0
+          for row in ranked:
+              assert type(row['osm_id']) is int and row['osm_id'] > 0
+              assert type(row.get('name')) is str
+              assert type(row.get('class')) is str
+              assert row['name'] == row['name'].strip()
+              assert row['class'] == row['class'].strip()
+              assert type(row.get('width_m')) in (int,float) and not isinstance(row.get('width_m'),bool)
+              assert math.isfinite(float(row['width_m'])) and float(row['width_m']) >= 0.0
+          d['base_sha']=base
+          d['head_sha']=head
+          d['locked_runtime_catalog_sha256']=expected_catalog_sha
+          d['locked_winner_osm_id']=expected_winner
+          json.dump(d,open(p,'w'),indent=2,sort_keys=True)
+          open(p,'a').write('\n')
+          PY
+          sha256sum "$RECEIPT" /tmp/bourse-candidate.log
+
+      - name: Revalidate live main and locked bytes before success
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$BOURSE_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$BOURSE_HEAD_SHA"
+          printf '%s  %s\n' "$EXPECTED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+          printf '%s  %s\n' "$EXPECTED_RUNTIME_INDEX_SHA256" grand-bruxelles-game/data/runtime/road_destination_runtime_index.json | sha256sum -c -
+
+      - name: Upload Bourse source-candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-bourse-automatic-destination-candidate
+          path: |
+            grand-bruxelles-game/artifacts/qa/bourse_automatic_destination_candidate/receipt.json
+            /tmp/bourse-candidate.log
+          if-no-files-found: error
+          retention-days: 7

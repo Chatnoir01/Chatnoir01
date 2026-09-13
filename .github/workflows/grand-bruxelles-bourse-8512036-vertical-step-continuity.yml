@@ -1,0 +1,171 @@
+name: Grand Bruxelles Bourse 8512036 Vertical Step Continuity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-vertical-step-continuity.yml"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_vertical_step_continuity_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-8512036-vertical-step:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      LOCKED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+      LOCKED_SOURCE_PATH: res://data/osm/vertical_slice_01.game.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and locked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"; fi
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+          printf 'VERTICAL_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'VERTICAL_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 unzip
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -E '^4\.7\.1\.stable\.'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/vertical-import.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/vertical-import.log
+
+      - name: Prove bounded three-second vertical motion
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/bourse_8512036_vertical_step_continuity_test.gd 2>&1 | tee /tmp/vertical-runtime.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_VERTICAL_STEP_FAIL" /tmp/vertical-runtime.log
+          grep -q 'BOURSE_8512036_VERTICAL_STEP_GREEN' /tmp/vertical-runtime.log
+
+      - name: Seal fail-closed vertical-step receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage=/tmp/bourse-vertical-step-evidence
+          receipt=grand-bruxelles-game/artifacts/qa/bourse_8512036_vertical_step_continuity.json
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp /tmp/vertical-import.log "$stage/import.log" 2>/dev/null || true
+          cp /tmp/vertical-runtime.log "$stage/runtime.log" 2>/dev/null || true
+          test -s "$receipt"
+          cp "$receipt" "$stage/receipt.json"
+          python3 - "$stage/receipt.json" <<'PY'
+          import copy, json, math, os, pathlib, sys
+          def reject_constant(v): raise ValueError(v)
+          def finite_float(v):
+              x=float(v)
+              if not math.isfinite(x): raise ValueError(v)
+              return x
+          def no_dupes(pairs):
+              out={}
+              for k,v in pairs:
+                  if k in out: raise ValueError(k)
+                  out[k]=v
+              return out
+          d=json.loads(pathlib.Path(sys.argv[1]).read_text(),parse_constant=reject_constant,parse_float=finite_float,object_pairs_hook=no_dupes)
+          def validate(r):
+              def integer(k):
+                  v=r[k]; assert type(v) is int and not isinstance(v,bool); return v
+              def finite(k):
+                  v=r[k]; assert type(v) in (int,float) and not isinstance(v,bool) and math.isfinite(v); return float(v)
+              assert r['schema']=='grand-bruxelles-bourse-8512036-vertical-step-continuity-v1'
+              assert integer('road_osm_id')==8512036
+              assert r['lookup_mode']=='deterministic_runtime_index'
+              assert r['source_path']==os.environ['LOCKED_SOURCE_PATH'] and r['source_sha256']==os.environ['LOCKED_SOURCE_SHA256']
+              assert integer('physics_hz')==60 and integer('step_count')==180
+              sprint=finite('authoritative_sprint_speed_mps'); assert sprint>0
+              snap=finite('authoritative_floor_snap_length_m'); assert snap>=0
+              safe=finite('authoritative_safe_margin_m'); assert safe>=0
+              slides=integer('authoritative_max_slides'); assert slides>=1
+              floor_angle=finite('authoritative_floor_max_angle_rad'); assert 0<floor_angle<math.pi/2
+              horizontal=finite('authoritative_horizontal_step_m'); assert math.isclose(horizontal,sprint/60.0,rel_tol=0,abs_tol=1e-9)
+              recovery=finite('authoritative_recovery_budget_m'); assert math.isclose(recovery,safe*slides,rel_tol=0,abs_tol=1e-9)
+              expected=horizontal*math.tan(floor_angle)+snap+recovery
+              assert r['vertical_step_bound_derivation']=='horizontal_step_times_tan_floor_max_angle_plus_floor_snap_plus_safe_margin_times_max_slides'
+              bound=finite('max_vertical_step_m'); assert math.isclose(bound,expected,rel_tol=0,abs_tol=1e-6)
+              observed=finite('max_observed_vertical_step_m'); assert 0<=observed<=bound+1e-6
+              assert integer('vertical_checked_step_count')==180
+              assert integer('vertical_step_violation_count')==0 and integer('first_vertical_step_violation_step')==0
+              assert integer('grounded_step_count')==180 and integer('grounded_failure_count')==0
+              assert integer('canonical_support_step_count')==180 and integer('canonical_support_failure_count')==0
+              assert r['canonical_owner_id']=='generic_osm_surface_collision_runtime'
+              assert r['support_mode']=='characterbody_capsule_test_motion'
+              assert r['continuous_vertical_step_bound'] is True
+              assert r['continuous_grounded_support'] is True
+              assert r['continuous_canonical_road_support'] is True
+              assert r['actual_character_body_move_and_slide'] is True
+              assert r['vertical_step_green'] is True
+              for k in ('source_geometry_changed','collision_geometry_changed','camera_changed','resolver_thresholds_lowered','destination_advertisable','visual_acceptance','jouable_authorized'): assert r[k] is False
+          validate(d)
+          mutations=(('max_vertical_step_m',999.0),('max_observed_vertical_step_m',999.0),('vertical_checked_step_count',179),('vertical_step_violation_count',1),('first_vertical_step_violation_step',1),('grounded_step_count',179),('grounded_failure_count',1),('canonical_support_step_count',179),('canonical_support_failure_count',1),('continuous_vertical_step_bound',False),('continuous_grounded_support',False),('continuous_canonical_road_support',False),('vertical_step_green',False))
+          for key,value in mutations:
+              m=copy.deepcopy(d); m[key]=value
+              try: validate(m)
+              except (AssertionError,KeyError,TypeError,ValueError): continue
+              raise AssertionError(f'fail-open vertical receipt mutation accepted: {key}={value!r}')
+          PY
+
+      - name: Revalidate live main before success
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$VERTICAL_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$VERTICAL_HEAD_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+
+      - name: Stage provenance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage=/tmp/bourse-vertical-step-evidence
+          mkdir -p "$stage"
+          printf '%s\n' "$VERTICAL_BASE_SHA" > "$stage/live-main-sha.txt"
+          printf '%s\n' "$VERTICAL_HEAD_SHA" > "$stage/exact-head-sha.txt"
+          sha256sum "$stage"/* > "$stage/SHA256SUMS.txt"
+
+      - name: Upload vertical-step evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-8512036-vertical-step-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/bourse-vertical-step-evidence
+          if-no-files-found: error
+          retention-days: 14

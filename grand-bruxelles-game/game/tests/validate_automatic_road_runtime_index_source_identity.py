@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
-import json
 import re
 from pathlib import Path
+
+from strict_json_evidence import load_path_strict
 
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 MAX_EXACT_JSON_INTEGER = 9007199254740991
@@ -30,20 +31,34 @@ def exact_osm_id(value):
 
 def load_json(path: Path):
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ValidationError(f"cannot parse {path}: {exc}") from exc
+        value = load_path_strict(path)
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ValidationError(f"cannot parse strict JSON {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ValidationError(f"top-level JSON must be an object: {path}")
     return value
 
 
-def resolve_source(root: Path, raw_path):
-    if not isinstance(raw_path, str) or not raw_path.strip():
-        raise ValidationError("descriptor path must be a non-empty string")
-    text = raw_path.strip()
+def canonical_runtime_source_path(raw_path):
+    if not isinstance(raw_path, str):
+        raise ValidationError("descriptor path must be a string")
+    if not raw_path or raw_path.strip() != raw_path or "\\" in raw_path:
+        raise ValidationError(f"descriptor path is not canonical: {raw_path!r}")
+    text = raw_path
     if text.startswith("res://"):
         text = text[len("res://"):]
+    elif text.startswith("/") or "://" in text:
+        raise ValidationError(f"descriptor path is not project-relative: {raw_path!r}")
+    if not text or text.startswith("/") or text.endswith("/") or "//" in text:
+        raise ValidationError(f"descriptor path has ambiguous separators: {raw_path!r}")
+    segments = text.split("/")
+    if any(not segment or segment in {".", ".."} or ":" in segment for segment in segments):
+        raise ValidationError(f"descriptor path contains a forbidden segment: {raw_path!r}")
+    return text
+
+
+def resolve_source(root: Path, raw_path):
+    text = canonical_runtime_source_path(raw_path)
     candidate = (root / text).resolve()
     try:
         candidate.relative_to(root)
@@ -143,7 +158,7 @@ def main():
         raise SystemExit(f"AUTOMATIC_ROAD_RUNTIME_INDEX_SOURCE_IDENTITY_FAIL: {exc}")
     print(
         "AUTOMATIC_ROAD_RUNTIME_INDEX_SOURCE_IDENTITY_GREEN: "
-        f"documents={result['source_document_count']} indexed_roads={result['indexed_road_count']}"
+        f"documents={result['source_document_count']} indexed_roads={result['indexed_road_count']} canonical_paths=true strict_json=true"
     )
 
 

@@ -92,6 +92,23 @@ func _write_mutated_first_sha(value: Variant) -> bool:
     return _write_index(index)
 
 
+func _write_duplicate_source_document() -> bool:
+    var index := _mutated_index()
+    var documents: Variant = index.get("documents", [])
+    if not documents is Array or documents.is_empty() or not documents[0] is Dictionary:
+        _fail("runtime index has no first document")
+        return false
+    var duplicate := (documents[0] as Dictionary).duplicate(true)
+    var road_ids: Variant = duplicate.get("road_ids", [])
+    if not road_ids is Array or (road_ids as Array).is_empty():
+        _fail("runtime index duplicate source has no road ids")
+        return false
+    duplicate["road_ids"] = [(road_ids as Array)[0]]
+    (documents as Array).append(duplicate)
+    index["documents"] = documents
+    return _write_index(index)
+
+
 func _run() -> void:
     if not FileAccess.file_exists(INDEX_PATH):
         _fail("runtime index missing")
@@ -148,7 +165,10 @@ func _run() -> void:
     if _write_mutated_first_sha(" " + baseline_sha.substr(1)):
         _fail("source sha256 with leading whitespace was silently canonicalized")
         return
+    if _write_duplicate_source_document():
+        _fail("duplicate runtime-index source document was accepted")
+        return
 
     _restore_index()
-    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true path_traversal_rejected=true ambiguous_separators_rejected=true nonhex_sha_rejected=true sha_aliases_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
+    print("AUTOMATIC_ROAD_RUNTIME_INDEX_IDENTITY_GREEN: numeric_string_rejected=true fractional_rejected=true bool_rejected=true path_traversal_rejected=true ambiguous_separators_rejected=true nonhex_sha_rejected=true sha_aliases_rejected=true duplicate_source_document_rejected=true valid_source_unchanged=true destination_advertisable=false jouable=false")
     quit(0)

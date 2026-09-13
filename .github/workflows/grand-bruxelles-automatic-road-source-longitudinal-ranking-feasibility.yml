@@ -34,30 +34,50 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "${{ github.event.pull_request.base.sha }}"
 
+      - name: Initialize exact ranking diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "head_sha=${{ github.event.pull_request.head.sha || github.sha }}"
+            echo "base_sha=${{ github.event.pull_request.base.sha || 'workflow_dispatch' }}"
+            echo "godot_version=4.7.1-stable"
+            echo "godot_zip_sha256=c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba"
+            echo "ranking_probe_started=false"
+          } > /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
+
       - name: Install exact official Godot 4.7.1
         shell: bash
         run: |
           set -euo pipefail
           GODOT_ZIP=/tmp/Godot_v4.7.1-stable_linux.x86_64.zip
-          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
-          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          GODOT_URL=https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          echo "godot_download_url=$GODOT_URL" >> /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 20 \
+            "$GODOT_URL" --output "$GODOT_ZIP" \
+            2> >(tee -a /tmp/automatic-road-source-longitudinal-ranking-feasibility.log >&2)
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c - | tee -a /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
+          rm -rf /tmp/godot
+          mkdir -p /tmp/godot
           unzip -q "$GODOT_ZIP" -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | tee -a /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
 
       - name: Import project for deterministic class/resource state
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
           set -euo pipefail
-          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path . --quit-after 2
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path . --quit-after 2 \
+            2>&1 | tee -a /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
 
       - name: Prove expanded longitudinal candidates under frozen ranking
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_source_longitudinal_ranking_feasibility_test.gd 2>&1 | tee /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
+          echo "ranking_probe_started=true" >> /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_source_longitudinal_ranking_feasibility_test.gd 2>&1 | tee -a /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
           grep -F 'AUTOMATIC_ROAD_SOURCE_LONGITUDINAL_RANKING_FEASIBILITY_GREEN:' /tmp/automatic-road-source-longitudinal-ranking-feasibility.log
 
       - name: Persist exact ranking diagnostics

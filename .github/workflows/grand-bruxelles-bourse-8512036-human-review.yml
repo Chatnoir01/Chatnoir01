@@ -1,0 +1,86 @@
+name: Grand Bruxelles Bourse 8512036 Human Review Provenance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-human-review.yml"
+      - "grand-bruxelles-game/game/tests/test_bourse_8512036_human_review_receipt.py"
+      - "grand-bruxelles-game/game/tests/test_bourse_human_review_strict_json_overflow.py"
+      - "grand-bruxelles-game/game/tests/strict_json_evidence.py"
+      - "grand-bruxelles-game/data/qa/corridor/bourse_8512036_human_review.json"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_candidate_player_witness_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  human-review-provenance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Bind exact live main and candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          expected_head="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$head_sha" = "$expected_head"
+          base="$(git merge-base HEAD origin/main)"
+          echo "live_main=$live_main"
+          echo "merge_base=$base"
+          test "$base" = "$live_main"
+          echo "BOURSE_8512036_HUMAN_REVIEW_PROVENANCE live_main=$live_main head=$head_sha"
+
+      - name: Fetch immutable reviewed artifact metadata and payload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          API="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/10312386121"
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$API" \
+            -o /tmp/bourse-8512036-artifact.json
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$API/zip" \
+            -o /tmp/bourse-8512036-artifact.zip
+          rm -rf /tmp/bourse-8512036-reviewed-artifact
+          mkdir -p /tmp/bourse-8512036-reviewed-artifact
+          unzip -q /tmp/bourse-8512036-artifact.zip -d /tmp/bourse-8512036-reviewed-artifact
+          reviewed_png=/tmp/bourse-8512036-reviewed-artifact/road-8512036-corridor-masked.png
+          test -s "$reviewed_png"
+          test "$(find /tmp/bourse-8512036-reviewed-artifact -type f -name 'road-8512036-corridor-masked.png' | wc -l)" -eq 1
+          echo "reviewed_png=$reviewed_png" >> "$GITHUB_ENV"
+          sha256sum "$reviewed_png"
+
+      - name: Prove finite strict JSON binding
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 game/tests/test_bourse_human_review_strict_json_overflow.py
+
+      - name: Require durable full-frame REJECT receipt
+        working-directory: grand-bruxelles-game
+        shell: bash
+        env:
+          BOURSE_8512036_ARTIFACT_METADATA: /tmp/bourse-8512036-artifact.json
+          BOURSE_8512036_REVIEWED_PNG: ${{ env.reviewed_png }}
+        run: |
+          set -euo pipefail
+          python3 game/tests/test_bourse_8512036_human_review_receipt.py

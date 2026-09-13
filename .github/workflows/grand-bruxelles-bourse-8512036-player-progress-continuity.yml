@@ -1,0 +1,159 @@
+name: Grand Bruxelles Bourse 8512036 Player Progress Continuity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-player-progress-continuity.yml"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_player_progress_continuity_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-8512036-player-progress-continuity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      LOCKED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+      LOCKED_SOURCE_PATH: res://data/osm/vertical_slice_01.game.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and locked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"; fi
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+          printf 'BOURSE_PROGRESS_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'BOURSE_PROGRESS_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 unzip
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -E '^4\.7\.1\.stable\.'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/bourse-progress-import.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/bourse-progress-import.log
+
+      - name: Prove per-frame Bourse player progress continuity
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/bourse_8512036_player_progress_continuity_test.gd 2>&1 | tee /tmp/bourse-progress-runtime.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_PLAYER_PROGRESS_CONTINUITY_FAIL" /tmp/bourse-progress-runtime.log
+          grep -q 'BOURSE_8512036_PLAYER_PROGRESS_CONTINUITY_GREEN' /tmp/bourse-progress-runtime.log
+
+      - name: Seal fail-closed progress receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage=/tmp/bourse-progress-evidence
+          receipt=grand-bruxelles-game/artifacts/qa/bourse_8512036_player_progress_continuity.json
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp /tmp/bourse-progress-import.log "$stage/import.log" 2>/dev/null || true
+          cp /tmp/bourse-progress-runtime.log "$stage/runtime.log" 2>/dev/null || true
+          test -s "$receipt"
+          cp "$receipt" "$stage/receipt.json"
+          python3 - "$stage/receipt.json" <<'PY'
+          import json, math, os, pathlib, sys
+          def reject_constant(value): raise ValueError(f"non-standard JSON number: {value}")
+          def finite_float(value):
+              parsed=float(value)
+              if not math.isfinite(parsed): raise ValueError(f"non-finite JSON float: {value}")
+              return parsed
+          def no_duplicate_keys(pairs):
+              out={}
+              for key,value in pairs:
+                  if key in out: raise ValueError(f"duplicate JSON key: {key}")
+                  out[key]=value
+              return out
+          d=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'),parse_constant=reject_constant,parse_float=finite_float,object_pairs_hook=no_duplicate_keys)
+          def finite(key):
+              v=d[key]; assert type(v) in (int,float) and not isinstance(v,bool) and math.isfinite(v); return float(v)
+          assert d['schema']=='grand-bruxelles-bourse-8512036-player-progress-continuity-v4'
+          assert type(d['road_osm_id']) is int and d['road_osm_id']==8512036
+          assert d['lookup_mode']=='deterministic_runtime_index'
+          assert d['source_path']==os.environ['LOCKED_SOURCE_PATH'] and d['source_sha256']==os.environ['LOCKED_SOURCE_SHA256']
+          assert d['simulation_seconds']==3.0 and type(d['physics_hz']) is int and d['physics_hz']==60
+          assert type(d['step_count']) is int and d['step_count']==180
+          path_length=finite('source_path_length_m'); assert path_length>0
+          speed=finite('authoritative_sprint_speed_mps'); margin=finite('authoritative_safe_margin_m')
+          assert type(d['authoritative_max_slides']) is int and not isinstance(d['authoritative_max_slides'],bool) and d['authoritative_max_slides']>0
+          max_slides=d['authoritative_max_slides']
+          requested=finite('requested_step_m'); recovery=finite('recovery_budget_m'); allowed_horizontal=finite('max_horizontal_step_allowed_m'); allowed_fwd=finite('max_forward_step_allowed_m'); allowed_back=finite('max_backward_step_allowed_m')
+          assert speed>0 and margin>0
+          assert math.isclose(requested,speed/60.0,rel_tol=0.0,abs_tol=1e-9)
+          assert math.isclose(recovery,margin*max_slides,rel_tol=0.0,abs_tol=1e-9)
+          assert math.isclose(allowed_horizontal,requested+recovery,rel_tol=0.0,abs_tol=1e-9)
+          assert math.isclose(allowed_fwd,allowed_horizontal,rel_tol=0.0,abs_tol=1e-9)
+          assert math.isclose(allowed_back,recovery,rel_tol=0.0,abs_tol=1e-9)
+          assert d['limit_derivation']=='sprint_speed_times_dt_plus_safe_margin_times_max_slides'
+          assert finite('max_horizontal_step_m') <= allowed_horizontal + 1e-6
+          assert finite('max_forward_step_m') <= allowed_fwd + 1e-6
+          assert finite('max_backward_step_m') <= allowed_back + 1e-6
+          assert type(d['horizontal_step_violations']) is int and d['horizontal_step_violations']==0
+          assert type(d['forward_step_violations']) is int and d['forward_step_violations']==0
+          assert type(d['backward_step_violations']) is int and d['backward_step_violations']==0
+          assert d['first_violation']=={}
+          assert d['actual_character_body_move_and_slide'] is True
+          assert d['engine_recovery_budget_used'] is True
+          assert d['full_horizontal_step_bounded'] is True
+          max_progress=finite('max_progress_m'); final_progress=finite('final_progress_m')
+          assert d['source_target_reached'] is True
+          assert max_progress >= path_length
+          assert type(d['first_target_reach_step']) is int and not isinstance(d['first_target_reach_step'],bool) and 1 <= d['first_target_reach_step'] <= d['step_count']
+          target_time=finite('first_target_reach_time_s'); target_progress=finite('first_target_reach_progress_m')
+          assert math.isclose(target_time,d['first_target_reach_step']/float(d['physics_hz']),rel_tol=0.0,abs_tol=1e-9)
+          assert target_progress >= path_length and target_progress <= max_progress + 1e-9
+          assert final_progress <= max_progress + 1e-9
+          for k in ('source_geometry_changed','collision_geometry_changed','camera_changed','resolver_thresholds_lowered','destination_advertisable','visual_acceptance','jouable_authorized'): assert d[k] is False
+          PY
+          sha256sum "$stage/receipt.json" "$stage/runtime.log" > "$stage/SHA256SUMS"
+
+      - name: Revalidate live main before success
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BOURSE_PROGRESS_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$BOURSE_PROGRESS_HEAD_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+
+      - name: Upload Bourse progress-continuity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-bourse-8512036-player-progress-continuity
+          path: /tmp/bourse-progress-evidence
+          if-no-files-found: error

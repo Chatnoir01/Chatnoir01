@@ -1,0 +1,108 @@
+name: Grand Bruxelles Bourse 8512036 Ground Continuity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-ground-continuity.yml"
+      - "grand-bruxelles-game/tests/validate_bourse_8512036_ground_continuity_receipt.py"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_ground_continuity_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bourse-8512036-ground-continuity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      EXPECTED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+      EXPECTED_RUNTIME_INDEX_SHA256: 9876775a7dcbc32e2beb679895f05a2be6d1eaa063483d0aa17c328af285b883
+      EXPECTED_COLLISION_OWNER_ID: generic_osm_surface_collision_runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and locked inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"; fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'CONTINUITY_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'CONTINUITY_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "$EXPECTED_SOURCE_SHA256  grand-bruxelles-game/data/osm/vertical_slice_01.game.json" | sha256sum -c -
+          echo "$EXPECTED_RUNTIME_INDEX_SHA256  grand-bruxelles-game/data/runtime/road_destination_runtime_index.json" | sha256sum -c -
+      - name: Prove continuity receipt validator self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path=Path('grand-bruxelles-game/tests/validate_bourse_8512036_ground_continuity_receipt.py')
+          spec=importlib.util.spec_from_file_location('bourse_continuity_validator',path); module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          module.self_test()
+          print('BOURSE_8512036_GROUND_CONTINUITY_VALIDATOR_SELFTEST_GREEN probe_model=capsule_contact_axis_centerline_v1 probes=7')
+          PY
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log
+      - name: Prove Bourse collision-backed capsule contact-axis continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/bourse_8512036_ground_continuity_test.gd 2>&1 | tee /tmp/ground-continuity.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_GROUND_CONTINUITY_FAIL" /tmp/ground-continuity.log
+          test "$(grep -c 'BOURSE_8512036_GROUND_CONTINUITY_OK' /tmp/ground-continuity.log)" -eq 1
+          grep -Fq 'stations=7 probes=7 probe_model=capsule_contact_axis_centerline_v1' /tmp/ground-continuity.log
+          grep -Fq "collision_owner=$EXPECTED_COLLISION_OWNER_ID" /tmp/ground-continuity.log
+      - name: Seal fail-closed continuity receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPT=grand-bruxelles-game/artifacts/qa/bourse_8512036_ground_continuity.json
+          test -s "$RECEIPT"
+          python3 grand-bruxelles-game/tests/validate_bourse_8512036_ground_continuity_receipt.py "$RECEIPT" "$CONTINUITY_BASE_SHA" "$CONTINUITY_HEAD_SHA" "$EXPECTED_SOURCE_SHA256" "$EXPECTED_RUNTIME_INDEX_SHA256" "$EXPECTED_COLLISION_OWNER_ID"
+          sha256sum "$RECEIPT" /tmp/ground-continuity.log | tee /tmp/ground-continuity.sha256
+      - name: Revalidate live main before success
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$CONTINUITY_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$CONTINUITY_HEAD_SHA"
+      - name: Upload Bourse ground-continuity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-bourse-8512036-ground-continuity
+          path: |
+            grand-bruxelles-game/artifacts/qa/bourse_8512036_ground_continuity.json
+            /tmp/ground-continuity.log
+            /tmp/import.log
+            /tmp/ground-continuity.sha256
+          if-no-files-found: warn
+          retention-days: 7

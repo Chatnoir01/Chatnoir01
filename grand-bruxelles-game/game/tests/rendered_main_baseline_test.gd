@@ -189,8 +189,18 @@ func _run() -> void:
     var scene := packed.instantiate()
     root.add_child(scene)
 
+    # Warm the full game logic for the same frozen 120-frame budget without paying
+    # for 120 llvmpipe renders that are discarded before the measured sample.
+    # Godot guarantees that engine logic keeps processing while this is false.
+    RenderingServer.render_loop_enabled = false
     for _i: int in range(WARMUP_FRAMES):
         await process_frame
+    RenderingServer.render_loop_enabled = true
+
+    # Prime one unmeasured rendered frame after logic warmup so shader/material
+    # initialization cannot contaminate the 120-frame performance sample.
+    RenderingServer.force_draw()
+    await process_frame
 
     var frame_times_ms: Array[float] = []
     var previous_tick_usec := Time.get_ticks_usec()

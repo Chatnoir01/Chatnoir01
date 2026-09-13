@@ -57,6 +57,7 @@ func _run() -> void:
     var main_mount := Node3D.new()
     main_mount.name = "Main"
     viewport.add_child(main_mount)
+    current_scene = main_mount
     var osm := Node3D.new()
     osm.name = "BrusselsOSM"
     main_mount.add_child(osm)
@@ -70,7 +71,7 @@ func _run() -> void:
         await process_frame
 
     if bool(runtime.call("failed")) or not bool(runtime.call("ready_complete")):
-        _fail("sidewalk surface runtime did not bind after legitimate nested sidewalk mount")
+        _fail("sidewalk surface runtime did not bind after explicit current_scene sidewalk mount")
         return
     if int(runtime.call("applied_sidewalk_count")) != 1:
         _fail("expected exactly one sidewalk after initial dormant-mount bind")
@@ -95,5 +96,10 @@ func _run() -> void:
         _fail("sidewalk geometry changed during lifecycle bind")
         return
 
-    print("BRUSSELS_OSM_SIDEWALK_SURFACE_DORMANT_MOUNT_OK: sidewalks=2 off_zone_errors=0 nested_mount=true event_driven=true incremental_bind=true geometry_changed=false source=OSM-adjacent license=ODbL-1.0")
+    current_scene = null
+    viewport.queue_free()
+    for _frame: int in range(4):
+        await process_frame
+
+    print("BRUSSELS_OSM_SIDEWALK_SURFACE_DORMANT_MOUNT_OK: sidewalks=2 off_zone_errors=0 explicit_current_scene=true event_driven=true incremental_bind=true geometry_changed=false source=OSM-adjacent license=ODbL-1.0")
     quit(0)

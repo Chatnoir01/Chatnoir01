@@ -95,6 +95,7 @@ func _run() -> void:
     var main := Node3D.new()
     main.name = "Main"
     viewport.add_child(main)
+    current_scene = main
     var production_sidewalk := _add_osm_sidewalk(main, "SidewalkAuthorityProduction")
     var production_transform := production_sidewalk.global_transform
     var production_size := production_sidewalk.size
@@ -103,7 +104,7 @@ func _run() -> void:
         await process_frame
 
     if int(runtime.call("applied_sidewalk_count")) != 1:
-        _fail("authoritative root-level viewport Main did not bind exactly one sidewalk")
+        _fail("explicit current_scene fixture did not bind exactly one sidewalk")
         return
     if str(production_sidewalk.get_meta(OWNER_META, "")) != OWNER_VALUE:
         _fail("authoritative sidewalk did not receive canonical material ownership")
@@ -118,10 +119,11 @@ func _run() -> void:
         _fail("authoritative sidewalk geometry changed")
         return
 
+    current_scene = null
     foreign_wrapper.queue_free()
     viewport.queue_free()
     for _frame: int in range(4):
         await process_frame
 
-    print("BRUSSELS_OSM_SIDEWALK_SURFACE_AUTHORITY_OK: foreign_clone_rejected=true authoritative_viewport_main=true geometry_changed=false")
+    print("BRUSSELS_OSM_SIDEWALK_SURFACE_AUTHORITY_OK: foreign_clone_rejected=true explicit_current_scene=true geometry_changed=false")
     quit(0)

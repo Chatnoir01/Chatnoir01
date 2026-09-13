@@ -34,7 +34,7 @@ jobs:
       - name: Measure canonical roster registration
         run: |
           mkdir -p /tmp/civ1-roster-truth
-          python grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1-roster_registry.json --repo-root . --out /tmp/civ1-roster-truth/civ1-roster-registration-truth.json
+          python grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root . --out /tmp/civ1-roster-truth/civ1-roster-registration-truth.json
       - name: Assert production truth
         run: |
           python - <<'PY'

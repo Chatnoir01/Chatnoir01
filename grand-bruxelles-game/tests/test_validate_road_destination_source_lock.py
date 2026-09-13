@@ -16,10 +16,15 @@ SOURCE_KEY = "data/osm/vertical_slice_01.game.json"
 
 
 def _run(lock_path: Path, source_path: Path) -> subprocess.CompletedProcess[str]:
-    if not VALIDATOR.is_file():
-        raise AssertionError(f"required validator missing: {VALIDATOR.relative_to(PROJECT)}")
     return subprocess.run(
-        [sys.executable, str(VALIDATOR), "--lock", str(lock_path), "--source", str(source_path)],
+        [
+            sys.executable,
+            str(VALIDATOR),
+            "--source-root",
+            str(source_path.parent),
+            "--lock",
+            str(lock_path),
+        ],
         cwd=PROJECT,
         capture_output=True,
         text=True,
@@ -35,9 +40,11 @@ def _expect_rejected(
     preserve_bad_digest: bool = False,
 ) -> None:
     with tempfile.TemporaryDirectory(prefix="gb-road-source-lock-") as tmp:
-        root = Path(tmp)
-        lock_path = root / "road_destination_sources.lock.json"
-        source_path = root / "vertical_slice_01.game.json"
+        source_root = Path(tmp) / "data" / "osm"
+        source_root.mkdir(parents=True)
+        lock_path = source_root / "road_destination_sources.lock.json"
+        source_path = source_root / "vertical_slice_01.game.json"
+
         source_bytes = json.dumps(
             source_doc,
             separators=(",", ":"),

@@ -57,13 +57,16 @@ func _run() -> void:
         _fail("main scene did not instantiate")
         return
 
-    var viewport := SubViewport.new()
-    viewport.size = Vector2i(WIDTH, HEIGHT)
-    viewport.own_world_3d = true
-    viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
-    viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-    root.add_child(viewport)
-    viewport.add_child(scene)
+    # Player-view evidence must exercise the production authority topology, not a
+    # preview/tool SubViewport. Keep the deterministic 1280x720 render target,
+    # but mount the canonical Main directly under SceneTree.root and mark it as
+    # current_scene exactly as a normal project launch does.
+    root.size = Vector2i(WIDTH, HEIGHT)
+    root.add_child(scene)
+    current_scene = scene
+    if scene.get_parent() != root or current_scene != scene:
+        _fail("canonical Main did not acquire authoritative root/current_scene topology")
+        return
     _hide_dynamic(scene)
 
     for _frame: int in range(WAIT_FRAMES):
@@ -93,9 +96,9 @@ func _run() -> void:
         await process_frame
     RenderingServer.force_draw()
     await process_frame
-    var image := viewport.get_texture().get_image()
+    var image := root.get_texture().get_image()
     if image == null or image.is_empty() or image.get_size() != Vector2i(WIDTH, HEIGHT):
-        _fail("1280x720 capture unavailable")
+        _fail("1280x720 root player-view capture unavailable")
         return
 
     var absolute := ProjectSettings.globalize_path(output_path)
@@ -104,5 +107,5 @@ func _run() -> void:
         _fail("could not save capture")
         return
 
-    print("ANNEESSENS_PLAYER_VIEW_CAPTURE_OK: output=%s size=%dx%d spawn=(%.3f,%.3f,%.3f) road=%s road_pos=(%.3f,%.3f,%.3f) road_distance=%.3f fov=%.1f camera_changed=false source_geometry_changed=false threshold_changed=false visual_acceptance=false jouable_authorized=false" % [output_path, WIDTH, HEIGHT, camera.position.x, camera.position.y, camera.position.z, road.name, road.global_position.x, road.global_position.y, road.global_position.z, road_distance, camera.fov])
+    print("ANNEESSENS_PLAYER_VIEW_CAPTURE_OK: output=%s size=%dx%d spawn=(%.3f,%.3f,%.3f) road=%s road_pos=(%.3f,%.3f,%.3f) road_distance=%.3f fov=%.1f authority=root_current_scene camera_changed=false source_geometry_changed=false threshold_changed=false visual_acceptance=false jouable_authorized=false" % [output_path, WIDTH, HEIGHT, camera.position.x, camera.position.y, camera.position.z, road.name, road.global_position.x, road.global_position.y, road.global_position.z, road_distance, camera.fov])
     quit(0)

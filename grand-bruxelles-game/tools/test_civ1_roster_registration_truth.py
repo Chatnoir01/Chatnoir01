@@ -56,7 +56,6 @@ def main():
             encoded=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in encoded["blocking_reasons"]
             assert encoded["roster_eligible"] is False
-        assert validate_entry(candidate(rel,sha,"https://example.invalid/source/%2Fcivilian.glb"),root)["roster_eligible"] is True
         for source in ("https://example.invalid/source/%2Fcivilian.glb","https://example.invalid/source/%5Ccivilian.glb"):
             separator=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in separator["blocking_reasons"]
@@ -74,11 +73,12 @@ def main():
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_percent_encoding_required"] is True
+        assert payload["source_url_encoded_path_separators_forbidden"] is True
         assert payload["source_url_dot_segments_forbidden"] is True
         assert payload["source_url_ascii_host_required"] is True
         assert payload["source_url_canonical_dns_host_required"] is True
         assert payload["source_url_explicit_root_path_required"] is True
         assert payload["source_url_canonical_port_spelling_required"] is True
         assert payload["source_url_canonical_ip_literal_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V26_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V27_GREEN")
 if __name__=="__main__": main()

@@ -47,7 +47,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          API="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/10313914321"
+          artifact_id="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(Path("grand-bruxelles-game/data/qa/corridor/bourse_8512036_human_review.json").read_text(encoding="utf-8"))
+          artifact_id = receipt.get("artifact_id")
+          if isinstance(artifact_id, bool) or not isinstance(artifact_id, int) or artifact_id <= 0:
+              raise SystemExit("receipt artifact_id must be a positive integer")
+          print(artifact_id)
+          PY
+          )"
+          API="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$artifact_id"
           curl -fsSL \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
@@ -67,6 +78,7 @@ jobs:
           test -s "$reviewed_png"
           test "$(find /tmp/bourse-8512036-reviewed-artifact -type f -name 'road-8512036-corridor-masked.png' | wc -l)" -eq 1
           echo "reviewed_png=$reviewed_png" >> "$GITHUB_ENV"
+          echo "receipt_artifact_id=$artifact_id"
           sha256sum "$reviewed_png"
 
       - name: Prove finite strict JSON binding

@@ -142,10 +142,41 @@ def main() -> int:
     stats["drivable_roads"] = int(stats["drivable_roads"]) - 1
     _expect_rejected(lock_doc, bad_drivable_type, "drivable")
 
+    bad_points_type = json.loads(json.dumps(source_doc))
+    roads = bad_points_type["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["points"] = "0,0;1,1"
+    _expect_rejected(lock_doc, bad_points_type, "points")
+
+    bad_points_short = json.loads(json.dumps(source_doc))
+    roads = bad_points_short["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["points"] = [[0.0, 0.0]]
+    _expect_rejected(lock_doc, bad_points_short, "points")
+
+    bad_point_shape = json.loads(json.dumps(source_doc))
+    roads = bad_point_shape["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["points"] = [[0.0, 0.0, 1.0], [1.0, 1.0]]
+    _expect_rejected(lock_doc, bad_point_shape, "points")
+
+    bad_point_coordinate = json.loads(json.dumps(source_doc))
+    roads = bad_point_coordinate["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["points"] = [["0.0", 0.0], [1.0, 1.0]]
+    _expect_rejected(lock_doc, bad_point_coordinate, "points")
+
+    degenerate_points = json.loads(json.dumps(source_doc))
+    roads = degenerate_points["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["points"] = [[1.0, 1.0], [1.0, 1.0]]
+    _expect_rejected(lock_doc, degenerate_points, "distinct")
+
     print(
         "ROAD_DESTINATION_SOURCE_LOCK_TEST_OK "
         "digest=true provenance=true accounting=true lock_path=true "
-        "road_osm_id_integrity=true road_drivable_bool_integrity=true network_used=false"
+        "road_osm_id_integrity=true road_drivable_bool_integrity=true "
+        "road_geometry_integrity=true network_used=false"
     )
     return 0
 

@@ -31,9 +31,13 @@ def main():
         default_port=validate_entry(candidate(rel,sha,"https://example.invalid:443/source"),root)
         assert "source_url_not_canonical" in default_port["blocking_reasons"]
         assert default_port["roster_eligible"] is False
+        # A non-default port can designate a distinct HTTPS origin and remains valid.
+        nondefault_port=validate_entry(candidate(rel,sha,"https://example.invalid:8443/source"),root)
+        assert nondefault_port["roster_eligible"] is True
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_scheme_host_case_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V17_GREEN")
+        assert payload["source_url_default_https_port_forbidden"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V18_GREEN")
 if __name__=="__main__": main()

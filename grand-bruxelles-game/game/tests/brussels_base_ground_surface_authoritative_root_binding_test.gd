@@ -80,6 +80,48 @@ func _run() -> void:
     if packed == null:
         _fail("canonical production main scene missing")
         return
+
+    var canonical_viewport_host := SubViewport.new()
+    canonical_viewport_host.name = "CanonicalEnvironmentToolViewport"
+    root.add_child(canonical_viewport_host)
+    var canonical_viewport_scene := packed.instantiate() as Node3D
+    if canonical_viewport_scene == null:
+        _fail("canonical production main scene did not instantiate under viewport")
+        return
+    canonical_viewport_host.add_child(canonical_viewport_scene)
+
+    if str(canonical_viewport_scene.scene_file_path) != "res://game/main.tscn":
+        _fail("canonical viewport scene identity drifted: %s" % str(canonical_viewport_scene.scene_file_path))
+        return
+    if current_scene != null:
+        _fail("canonical viewport rejection witness requires current_scene to remain null")
+        return
+
+    var viewport_ground := canonical_viewport_scene.get_node_or_null("Ground") as CSGBox3D
+    if viewport_ground == null:
+        _fail("canonical viewport Ground missing")
+        return
+    var viewport_legacy_material := viewport_ground.material
+    if viewport_legacy_material == null:
+        _fail("canonical viewport Ground legacy material missing before authority witness")
+        return
+
+    for _frame: int in range(20):
+        await process_frame
+
+    if viewport_ground.material != viewport_legacy_material:
+        _fail("canonical Main under SubViewport had its legacy Ground material mutated")
+        return
+    if str(viewport_ground.material.get_meta("material_family", "")) == MATERIAL_FAMILY:
+        _fail("canonical Main under SubViewport acquired shared ground material authority")
+        return
+    if bool(runtime.call("ready_complete")):
+        _fail("runtime completed binding against canonical Main under SubViewport")
+        return
+
+    _free_node(canonical_viewport_host)
+    await process_frame
+
     var scene := packed.instantiate() as Node3D
     if scene == null:
         _fail("canonical production main scene did not instantiate as Node3D")
@@ -113,5 +155,5 @@ func _run() -> void:
         _fail("runtime did not complete cleanly on canonical root-instantiated Main")
         return
 
-    print("BRUSSELS_BASE_GROUND_AUTHORITATIVE_ROOT_BIND_OK: root_decoy_rejected=true viewport_decoy_rejected=true decoys_unmounted_before_canonical=true canonical_scene=true current_scene=null family=%s" % MATERIAL_FAMILY)
+    print("BRUSSELS_BASE_GROUND_AUTHORITATIVE_ROOT_BIND_OK: root_decoy_rejected=true viewport_decoy_rejected=true canonical_viewport_rejected=true legacy_material_preserved=true decoys_unmounted_before_canonical=true canonical_scene=true current_scene=null family=%s" % MATERIAL_FAMILY)
     quit(0)

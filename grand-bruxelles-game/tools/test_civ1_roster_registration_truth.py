@@ -69,6 +69,11 @@ def main():
             dotted=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in dotted["blocking_reasons"]
             assert dotted["roster_eligible"] is False
+        raw_unicode_path=validate_entry(candidate(rel,sha,"https://example.invalid/source/café.glb"),root)
+        assert "source_url_non_ascii_path_forbidden" in raw_unicode_path["blocking_reasons"]
+        assert raw_unicode_path["roster_eligible"] is False
+        utf8_encoded_path=validate_entry(candidate(rel,sha,"https://example.invalid/source/caf%C3%A9.glb"),root)
+        assert utf8_encoded_path["roster_eligible"] is True
         root_without_slash=validate_entry(candidate(rel,sha,"https://example.invalid"),root)
         assert "source_url_not_canonical" in root_without_slash["blocking_reasons"]
         assert root_without_slash["roster_eligible"] is False

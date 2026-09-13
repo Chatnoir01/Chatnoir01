@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -70,6 +71,26 @@ def required_array(payload: dict[str, Any], key: str) -> list[Any]:
     return value
 
 
+def validate_road_points(index: int, value: Any) -> None:
+    if type(value) is not list or len(value) < 2:
+        fail(f"roads[{index}].points must be an array with at least two points")
+    distinct: set[tuple[float, float]] = set()
+    for point_index, point in enumerate(value):
+        if type(point) is not list or len(point) != 2:
+            fail(f"roads[{index}].points[{point_index}] must be a [x,z] pair")
+        coordinates: list[float] = []
+        for coordinate_index, coordinate in enumerate(point):
+            if type(coordinate) not in (int, float) or not math.isfinite(float(coordinate)):
+                fail(
+                    f"roads[{index}].points[{point_index}][{coordinate_index}] "
+                    "must be a finite numeric coordinate"
+                )
+            coordinates.append(float(coordinate))
+        distinct.add((coordinates[0], coordinates[1]))
+    if len(distinct) < 2:
+        fail(f"roads[{index}].points must contain at least two distinct coordinates")
+
+
 def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
     if payload.get("format") != SOURCE_FORMAT:
         fail(f"source format drift {path}")
@@ -97,6 +118,7 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
         drivable = road.get("drivable")
         if type(drivable) is not bool:
             fail(f"roads[{index}].drivable must be a boolean")
+        validate_road_points(index, road.get("points"))
         if drivable:
             drivable_roads += 1
 

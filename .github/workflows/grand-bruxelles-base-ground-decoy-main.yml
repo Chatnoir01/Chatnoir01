@@ -43,6 +43,6 @@ jobs:
         working-directory: grand-bruxelles-game
         run: godot --headless --editor --path . --quit-after 2
 
-      - name: Reject decoy Main and bind legitimate nested Main
+      - name: Reject decoy and canonical viewport mounts, then bind canonical root Main
         working-directory: grand-bruxelles-game
         run: godot --headless --path . -s res://game/tests/brussels_base_ground_surface_decoy_main_test.gd

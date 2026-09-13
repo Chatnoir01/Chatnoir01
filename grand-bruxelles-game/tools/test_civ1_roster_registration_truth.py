@@ -74,6 +74,10 @@ def main():
         assert raw_unicode_path["roster_eligible"] is False
         utf8_encoded_path=validate_entry(candidate(rel,sha,"https://example.invalid/source/caf%C3%A9.glb"),root)
         assert utf8_encoded_path["roster_eligible"] is True
+        for source in ("https://example.invalid/source/%3Fcivilian.glb","https://example.invalid/source/%23civilian.glb","https://example.invalid/source/%25civilian.glb","https://example.invalid/source/%FFcivilian.glb","https://example.invalid/source/%C0%AFcivilian.glb"):
+            ambiguous_octets=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_not_canonical" in ambiguous_octets["blocking_reasons"]
+            assert ambiguous_octets["roster_eligible"] is False
         root_without_slash=validate_entry(candidate(rel,sha,"https://example.invalid"),root)
         assert "source_url_not_canonical" in root_without_slash["blocking_reasons"]
         assert root_without_slash["roster_eligible"] is False

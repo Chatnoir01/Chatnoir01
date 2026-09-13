@@ -124,12 +124,7 @@ func _is_authoritative_sidewalk_scene(node: Node) -> bool:
         return false
     if tree.current_scene == candidate:
         return true
-    var parent := candidate.get_parent()
-    if parent == tree.root:
-        return true
-    # Preserve the established synthetic/editor mount: SceneTree.root -> Viewport -> Main.
-    # Familiar anchor names nested any deeper never gain shared sidewalk-surface authority.
-    return str(candidate.name) == "Main" and parent is Viewport and parent.get_parent() == tree.root
+    return candidate.scene_file_path == "res://game/main.tscn"
 
 func _is_generated_roads_root(node: Node) -> bool:
     if not node is Node3D or str(node.name) != "GeneratedRoads":

@@ -26,6 +26,9 @@ def main():
             result=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in result["blocking_reasons"] or "source_url_single_label_host_forbidden" in result["blocking_reasons"]
             assert result["roster_eligible"] is False
+        unicode_host=validate_entry(candidate(rel,sha,"https://exämple.invalid/source"),root)
+        assert "source_url_non_ascii_host_forbidden" in unicode_host["blocking_reasons"]
+        assert unicode_host["roster_eligible"] is False
         default_port=validate_entry(candidate(rel,sha,"https://example.invalid:443/source"),root)
         assert "source_url_not_canonical" in default_port["blocking_reasons"]
         assert default_port["roster_eligible"] is False

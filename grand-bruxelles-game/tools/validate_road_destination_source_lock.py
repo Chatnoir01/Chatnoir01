@@ -118,6 +118,13 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
         drivable = road.get("drivable")
         if type(drivable) is not bool:
             fail(f"roads[{index}].drivable must be a boolean")
+        width = road.get("width")
+        if (
+            type(width) not in (int, float)
+            or not math.isfinite(float(width))
+            or float(width) <= 0.0
+        ):
+            fail(f"roads[{index}].width must be a finite positive number")
         validate_road_points(index, road.get("points"))
         if drivable:
             drivable_roads += 1

@@ -172,11 +172,23 @@ def main() -> int:
     roads[0]["points"] = [[1.0, 1.0], [1.0, 1.0]]
     _expect_rejected(lock_doc, degenerate_points, "distinct")
 
+    bad_width_type = json.loads(json.dumps(source_doc))
+    roads = bad_width_type["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["width"] = str(roads[0]["width"])
+    _expect_rejected(lock_doc, bad_width_type, "width")
+
+    bad_width_zero = json.loads(json.dumps(source_doc))
+    roads = bad_width_zero["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["width"] = 0
+    _expect_rejected(lock_doc, bad_width_zero, "width")
+
     print(
         "ROAD_DESTINATION_SOURCE_LOCK_TEST_OK "
         "digest=true provenance=true accounting=true lock_path=true "
         "road_osm_id_integrity=true road_drivable_bool_integrity=true "
-        "road_geometry_integrity=true network_used=false"
+        "road_geometry_integrity=true road_width_integrity=true network_used=false"
     )
     return 0
 

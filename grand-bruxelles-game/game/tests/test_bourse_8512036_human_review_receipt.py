@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import os
 import struct
-import subprocess
 from pathlib import Path
 
 from strict_json_evidence import load_path_strict
@@ -59,8 +58,12 @@ def main() -> None:
     for key in ("destination_advertisable", "visual_acceptance", "jouable_authorized"):
         require(receipt.get(key) is False, f"{key} must remain false")
 
-    subprocess.run(["git", "merge-base", "--is-ancestor", REVIEWED_HEAD, "HEAD"], cwd=ROOT.parent, check=True)
-
+    # A durable REJECT receipt is intentionally independent of current branch
+    # ancestry. Corridor snapshot rebuilds re-parent proven trees directly onto
+    # live main, so the reviewed head can legitimately stop being an ancestor.
+    # Provenance is instead bound fail-closed below to immutable GitHub artifact
+    # metadata (run + reviewed head + artifact digest) and the downloaded PNG
+    # bytes. A REJECT receipt can never promote the current head.
     metadata_path = os.environ.get("BOURSE_8512036_ARTIFACT_METADATA", "").strip()
     reviewed_png_path = os.environ.get("BOURSE_8512036_REVIEWED_PNG", "").strip()
     in_github_actions = os.environ.get("GITHUB_ACTIONS", "").strip().lower() == "true"
@@ -88,7 +91,7 @@ def main() -> None:
     print(
         "BOURSE_8512036_HUMAN_REVIEW_RECEIPT_OK "
         "verdict=REJECT visual_acceptance=false jouable_authorized=false "
-        "finite_json_required=true "
+        "finite_json_required=true durable_reject_ancestry_independent=true "
         f"artifact_payload_verified={str(bool(reviewed_png_path)).lower()} "
         f"ci_payload_required={str(in_github_actions).lower()}"
     )

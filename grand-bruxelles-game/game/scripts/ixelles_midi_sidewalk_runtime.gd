@@ -4,6 +4,7 @@ const MATERIAL_FACTORY := preload("res://game/scripts/brussels_blue_stone_materi
 const TARGET_NAME := &"StreetSurfaces_SW"
 const TARGET_PARENT_NAME := &"OfficialIxellesStreetSurfaces"
 const TARGET_ROOT_NAME := &"IxellesDirectMicroSlice"
+const PRODUCTION_SCENE_PATH := "res://game/main.tscn"
 const DISABLE_ENV := "GB_IXELLES_MIDI_SIDEWALK"
 const MATERIAL_OWNER := "ixelles_midi_sidewalk_runtime"
 
@@ -89,7 +90,21 @@ func _is_valid_target(target: Node) -> bool:
     if parent == null or parent.name != TARGET_PARENT_NAME:
         return false
     var slice_root := parent.get_parent()
-    return slice_root != null and slice_root.name == TARGET_ROOT_NAME
+    if slice_root == null or slice_root.name != TARGET_ROOT_NAME:
+        return false
+    return _has_authoritative_owner(target)
+
+func _has_authoritative_owner(node: Node) -> bool:
+    var tree := node.get_tree()
+    var explicit_scene: Node = tree.current_scene if tree != null else null
+    var cursor: Node = node
+    while cursor != null:
+        if explicit_scene != null and cursor == explicit_scene:
+            return true
+        if cursor.scene_file_path == PRODUCTION_SCENE_PATH:
+            return true
+        cursor = cursor.get_parent()
+    return false
 
 func _ensure_material() -> void:
     if _material != null:

@@ -32,6 +32,9 @@ def main():
         default_port=validate_entry(candidate(rel,sha,"https://example.invalid:443/source"),root)
         assert "source_url_not_canonical" in default_port["blocking_reasons"]
         assert default_port["roster_eligible"] is False
+        leading_zero_port=validate_entry(candidate(rel,sha,"https://example.invalid:08443/source"),root)
+        assert "source_url_not_canonical" in leading_zero_port["blocking_reasons"]
+        assert leading_zero_port["roster_eligible"] is False
         nondefault_port=validate_entry(candidate(rel,sha,"https://example.invalid:8443/source"),root)
         assert nondefault_port["roster_eligible"] is True
         queried=validate_entry(candidate(rel,sha,"https://example.invalid/source?view=detail"),root)

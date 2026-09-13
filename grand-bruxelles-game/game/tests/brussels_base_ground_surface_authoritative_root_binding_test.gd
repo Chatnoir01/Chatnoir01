@@ -97,14 +97,22 @@ func _run() -> void:
         _fail("canonical viewport rejection witness requires current_scene to remain null")
         return
 
-    for _frame: int in range(20):
-        await process_frame
-
     var viewport_ground := canonical_viewport_scene.get_node_or_null("Ground") as CSGBox3D
     if viewport_ground == null:
         _fail("canonical viewport Ground missing")
         return
-    if viewport_ground.material != null:
+    var viewport_legacy_material := viewport_ground.material
+    if viewport_legacy_material == null:
+        _fail("canonical viewport Ground legacy material missing before authority witness")
+        return
+
+    for _frame: int in range(20):
+        await process_frame
+
+    if viewport_ground.material != viewport_legacy_material:
+        _fail("canonical Main under SubViewport had its legacy Ground material mutated")
+        return
+    if str(viewport_ground.material.get_meta("material_family", "")) == MATERIAL_FAMILY:
         _fail("canonical Main under SubViewport acquired shared ground material authority")
         return
     if bool(runtime.call("ready_complete")):
@@ -147,5 +155,5 @@ func _run() -> void:
         _fail("runtime did not complete cleanly on canonical root-instantiated Main")
         return
 
-    print("BRUSSELS_BASE_GROUND_AUTHORITATIVE_ROOT_BIND_OK: root_decoy_rejected=true viewport_decoy_rejected=true canonical_viewport_rejected=true decoys_unmounted_before_canonical=true canonical_scene=true current_scene=null family=%s" % MATERIAL_FAMILY)
+    print("BRUSSELS_BASE_GROUND_AUTHORITATIVE_ROOT_BIND_OK: root_decoy_rejected=true viewport_decoy_rejected=true canonical_viewport_rejected=true legacy_material_preserved=true decoys_unmounted_before_canonical=true canonical_scene=true current_scene=null family=%s" % MATERIAL_FAMILY)
     quit(0)

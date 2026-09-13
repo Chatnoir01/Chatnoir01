@@ -164,10 +164,7 @@ func _is_authoritative_main(main: Node) -> bool:
         return true
     if not _is_canonical_packed_main(main):
         return false
-    var parent := main.get_parent()
-    if parent == tree.root:
-        return true
-    return str(main.name) == TARGET_MAIN_NODE and parent is Viewport and parent.get_parent() == tree.root
+    return main.get_parent() == tree.root
 
 func _ground_contract_error(main: Node) -> String:
     var ground_candidate := main.get_node_or_null(TARGET_GROUND_NODE)

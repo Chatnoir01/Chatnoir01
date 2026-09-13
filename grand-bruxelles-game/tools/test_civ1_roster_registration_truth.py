@@ -137,7 +137,28 @@ def main() -> None:
         assert duplicate_payload["registration_count"] == 0
         assert duplicate_payload["eligible_count"] == 0
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V13_GREEN")
+        for token in ("NaN", "Infinity", "-Infinity"):
+            nonstandard_registry = root / f"nonstandard_{token.replace('-', 'minus_')}.json"
+            nonstandard_registry.write_text(
+                f'{{"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[{token}]}}',
+                encoding="utf-8",
+            )
+            historical_nonstandard = json.loads(nonstandard_registry.read_text(encoding="utf-8"))
+            assert len(historical_nonstandard["entries"]) == 1, "v13 precondition: stdlib JSON accepts non-standard numeric constants by default"
+            proc = subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("civ1_roster_registration_truth.py")), str(nonstandard_registry), "--repo-root", str(root)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert proc.returncode == 2
+            nonstandard_payload = json.loads(proc.stdout)
+            assert nonstandard_payload["registry_parse_valid"] is False
+            assert f"registry_nonstandard_json_constant:{token}" in nonstandard_payload["blocking_reasons"]
+            assert nonstandard_payload["registration_count"] == 0
+            assert nonstandard_payload["eligible_count"] == 0
+
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V14_GREEN")
 
 
 if __name__ == "__main__":

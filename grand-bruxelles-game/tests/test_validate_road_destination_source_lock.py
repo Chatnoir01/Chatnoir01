@@ -111,7 +111,32 @@ def main() -> int:
     source_stats["drivable_roads"] = int(source_stats["roads"]) + 1
     _expect_rejected(lock_doc, bad_source_stats, "source_stats")
 
-    print("ROAD_DESTINATION_SOURCE_LOCK_TEST_OK digest=true provenance=true accounting=true lock_path=true network_used=false")
+    bad_road_id_type = json.loads(json.dumps(source_doc))
+    roads = bad_road_id_type["roads"]
+    assert isinstance(roads, list) and roads
+    assert isinstance(roads[0], dict)
+    roads[0]["osm_id"] = str(roads[0]["osm_id"])
+    _expect_rejected(lock_doc, bad_road_id_type, "osm_id")
+
+    bad_road_id_zero = json.loads(json.dumps(source_doc))
+    roads = bad_road_id_zero["roads"]
+    assert isinstance(roads, list) and roads
+    assert isinstance(roads[0], dict)
+    roads[0]["osm_id"] = 0
+    _expect_rejected(lock_doc, bad_road_id_zero, "osm_id")
+
+    duplicate_road_id = json.loads(json.dumps(source_doc))
+    roads = duplicate_road_id["roads"]
+    assert isinstance(roads, list) and len(roads) >= 2
+    assert isinstance(roads[0], dict) and isinstance(roads[1], dict)
+    roads[1]["osm_id"] = roads[0]["osm_id"]
+    _expect_rejected(lock_doc, duplicate_road_id, "duplicate")
+
+    print(
+        "ROAD_DESTINATION_SOURCE_LOCK_TEST_OK "
+        "digest=true provenance=true accounting=true lock_path=true "
+        "road_osm_id_integrity=true network_used=false"
+    )
     return 0
 
 

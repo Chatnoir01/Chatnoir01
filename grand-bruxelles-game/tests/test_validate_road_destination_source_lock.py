@@ -13,6 +13,7 @@ VALIDATOR = PROJECT / "tools" / "validate_road_destination_source_lock.py"
 LOCK = PROJECT / "data" / "osm" / "road_destination_sources.lock.json"
 SOURCE = PROJECT / "data" / "osm" / "vertical_slice_01.game.json"
 SOURCE_KEY = "data/osm/vertical_slice_01.game.json"
+# Fresh-head rebuild anchor: this regression is intentionally deterministic and network-free.
 
 
 def _run(lock_path: Path, source_path: Path) -> subprocess.CompletedProcess[str]:

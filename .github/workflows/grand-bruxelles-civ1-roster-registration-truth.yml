@@ -34,18 +34,19 @@ jobs:
       - name: Measure canonical roster registration
         run: |
           mkdir -p /tmp/civ1-roster-truth
-          python grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root . --out /tmp/civ1-roster-truth/civ1-roster-registration-truth.json
+          python grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1-roster_registry.json --repo-root . --out /tmp/civ1-roster-truth/civ1-roster-registration-truth.json
       - name: Assert production truth
         run: |
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-truth/civ1-roster-registration-truth.json',encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v22'
+          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v23'
           assert d['blocking_reasons']==[]
           assert d['registration_count']==0 and d['eligible_count']==0
           assert d['source_url_canonical_percent_encoding_required'] is True
           assert d['source_url_dot_segments_forbidden'] is True
           assert d['source_url_ascii_host_required'] is True
+          assert d['source_url_explicit_root_path_required'] is True
           assert d['roster_authorized'] is False and d['runtime_authorized'] is False and d['visual_approval_claimed'] is False
           PY
       - uses: actions/upload-artifact@v4

@@ -46,11 +46,17 @@ def main():
             dotted=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in dotted["blocking_reasons"]
             assert dotted["roster_eligible"] is False
+        root_without_slash=validate_entry(candidate(rel,sha,"https://example.invalid"),root)
+        assert "source_url_not_canonical" in root_without_slash["blocking_reasons"]
+        assert root_without_slash["roster_eligible"] is False
+        root_with_slash=validate_entry(candidate(rel,sha,"https://example.invalid/"),root)
+        assert root_with_slash["roster_eligible"] is True
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_percent_encoding_required"] is True
         assert payload["source_url_dot_segments_forbidden"] is True
         assert payload["source_url_ascii_host_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V22_GREEN")
+        assert payload["source_url_explicit_root_path_required"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V23_GREEN")
 if __name__=="__main__": main()

@@ -69,13 +69,21 @@ def _expect_cli_rejected_without_artifact(raw_lanes: str) -> None:
             check=False,
         )
         assert result.returncode != 0, result.stdout
-        assert "road width" in (result.stdout + result.stderr).lower(), result.stderr
+        assert "road lanes" in (result.stdout + result.stderr).lower() or "road width" in (
+            result.stdout + result.stderr
+        ).lower(), result.stderr
         assert not output_path.exists(), "failed conversion must not leave a partial game JSON artifact"
 
 
 def main() -> int:
     for raw_lanes in ("bogus", "nan", "0", "-2"):
         _expect_rejected(raw_lanes)
+
+    # OSM lanes=* is a positive-integer count of traffic lanes. A fractional
+    # numeric value is syntactically parseable but semantically invalid and
+    # must not be turned into authoritative carriageway width.
+    _expect_rejected("2.5")
+    _expect_cli_rejected_without_artifact("2.5")
 
     # A syntactically finite OSM numeric value can still overflow when the
     # derived carriageway width multiplies lane count by 3m. The converter
@@ -94,6 +102,7 @@ def main() -> int:
     print(
         "TRANSFORM_OSM_EXPLICIT_LANES_OK "
         "invalid_explicit_lanes_rejected=true nonpositive_lanes_rejected=true "
+        "fractional_lane_counts_rejected=true "
         "derived_width_overflow_rejected=true cli_overflow_rejected=true "
         "partial_artifact_absent=true valid_lane_widths_retained=true network_used=false"
     )

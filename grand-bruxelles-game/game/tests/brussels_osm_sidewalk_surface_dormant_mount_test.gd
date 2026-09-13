@@ -51,12 +51,9 @@ func _run() -> void:
         _fail("sidewalk surface runtime completed without a generic sidewalk mount")
         return
 
-    var viewport := SubViewport.new()
-    viewport.name = "DormantSidewalkMountViewport"
-    root.add_child(viewport)
     var main_mount := Node3D.new()
-    main_mount.name = "Main"
-    viewport.add_child(main_mount)
+    main_mount.name = "ControlledDormantSidewalkScene"
+    root.add_child(main_mount)
     current_scene = main_mount
     var osm := Node3D.new()
     osm.name = "BrusselsOSM"
@@ -97,7 +94,7 @@ func _run() -> void:
         return
 
     current_scene = null
-    viewport.queue_free()
+    main_mount.queue_free()
     for _frame: int in range(4):
         await process_frame
 

@@ -73,6 +73,10 @@ def main():
             duplicate_separator=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in duplicate_separator["blocking_reasons"]
             assert duplicate_separator["roster_eligible"] is False
+        for source in ("https://example.invalid/source/civilian\x7f.glb","https://example.invalid/source/civilian<bad>.glb","https://example.invalid/source/civilian{bad}.glb","https://example.invalid/source/civilian|bad.glb","https://example.invalid/source/civilian^bad.glb","https://example.invalid/source/civilian`bad.glb"):
+            invalid_rfc_path=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_not_canonical" in invalid_rfc_path["blocking_reasons"]
+            assert invalid_rfc_path["roster_eligible"] is False
         raw_unicode_path=validate_entry(candidate(rel,sha,"https://example.invalid/source/café.glb"),root)
         assert "source_url_non_ascii_path_forbidden" in raw_unicode_path["blocking_reasons"]
         assert raw_unicode_path["roster_eligible"] is False

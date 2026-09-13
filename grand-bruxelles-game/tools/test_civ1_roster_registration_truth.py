@@ -125,6 +125,7 @@ def main() -> None:
         assert canonical["strict_entry_fields_required"] is True
         assert canonical["canonical_provenance_values_required"] is True
         assert canonical["duplicate_json_keys_forbidden"] is True
+        assert canonical["source_url_multilabel_dns_required"] is True
 
         duplicate_registry = root / "duplicate_registry.json"
         duplicate_registry.write_text('{"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[],"entries":[{"asset_path":"x"}]}', encoding="utf-8")

@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-bourse-8512036-human-review.yml"
       - "grand-bruxelles-game/game/tests/test_bourse_8512036_human_review_receipt.py"
+      - "grand-bruxelles-game/game/tests/test_bourse_8512036_review_promotion_rails.py"
       - "grand-bruxelles-game/game/tests/test_bourse_human_review_strict_json_overflow.py"
       - "grand-bruxelles-game/game/tests/strict_json_evidence.py"
       - "grand-bruxelles-game/data/qa/corridor/bourse_8512036_human_review.json"
@@ -74,6 +75,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 game/tests/test_bourse_human_review_strict_json_overflow.py
+
+      - name: Prove REJECT closes every promotion rail
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 game/tests/test_bourse_8512036_review_promotion_rails.py
 
       - name: Require durable full-frame REJECT receipt
         working-directory: grand-bruxelles-game

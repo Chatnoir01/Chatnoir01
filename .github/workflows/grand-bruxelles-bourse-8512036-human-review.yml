@@ -47,7 +47,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          API="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/10312386121"
+          API="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/10313914321"
           curl -fsSL \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \

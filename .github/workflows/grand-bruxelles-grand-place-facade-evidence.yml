@@ -1,0 +1,189 @@
+name: Grand Bruxelles Grand-Place Facade Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-facade-evidence.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_evidence_capture.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_owner_identity_presentation.gd"
+      - "grand-bruxelles-game/tools/qa/validate_grand_place_facade_evidence.py"
+      - "grand-bruxelles-game/tools/qa/grand_place_source_winding_diagnostic.py"
+      - "grand-bruxelles-game/tests/test_grand_place_facade_evidence_validator.py"
+      - "grand-bruxelles-game/tests/test_grand_place_facade_engine_capture_contract.py"
+      - "grand-bruxelles-game/tests/test_grand_place_corridor_refresh_gate.py"
+      - "grand-bruxelles-game/tests/test_grand_place_owner_identity_presentation.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-facade-evidence.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_evidence_capture.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_owner_identity_presentation.gd"
+      - "grand-bruxelles-game/tools/qa/validate_grand_place_facade_evidence.py"
+      - "grand-bruxelles-game/tools/qa/grand_place_source_winding_diagnostic.py"
+      - "grand-bruxelles-game/tests/test_grand_place_facade_evidence_validator.py"
+      - "grand-bruxelles-game/tests/test_grand_place_facade_engine_capture_contract.py"
+      - "grand-bruxelles-game/tests/test_grand_place_corridor_refresh_gate.py"
+      - "grand-bruxelles-game/tests/test_grand_place_owner_identity_presentation.py"
+
+permissions:
+  contents: read
+
+jobs:
+  facade-evidence-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install isolated test dependency
+        run: python -m pip install --disable-pip-version-check --no-cache-dir pytest
+      - name: Validate dedicated Grand-Place facade evidence contract
+        run: >-
+          python -m pytest -q
+          tests/test_grand_place_facade_evidence_validator.py
+          tests/test_grand_place_facade_engine_capture_contract.py
+          tests/test_grand_place_corridor_refresh_gate.py
+          tests/test_grand_place_owner_identity_presentation.py
+      - name: Diagnose Maison du Roi source winding
+        run: >-
+          python tools/qa/grand_place_source_winding_diagnostic.py
+          --source data/urbis/grand_place_lod2/1654360.game.json
+          --camera 319.01 1.72 -535.20
+      - name: Assert CI cannot self-authorize visual approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          gate = json.loads(Path("data/qa/grand_place_facade_visual_gate.json").read_text(encoding="utf-8"))
+          evidence = gate["evidence_contract"]
+          assert evidence["artifact_kind"] == "grand_place_facade_visual_witness"
+          assert evidence["required_resolution"] == [1280, 720]
+          assert evidence["generic_photo_match_artifact_is_sufficient"] is False
+          assert evidence["human_full_frame_inspection_required"] is True
+          assert evidence["numeric_gate_alone_is_sufficient"] is False
+          print("GRAND_PLACE_FACADE_EVIDENCE_CI_OK structural_only=true human_review=pending")
+          PY
+
+  facade-engine-witness:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - name: Checkout exact candidate with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify Grand-Place live-main continuity
+        shell: bash
+        env:
+          GB_EVIDENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          GB_LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          echo "GB_LIVE_MAIN_SHA=$GB_LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          echo "GB_EVIDENCE_HEAD_SHA=$GB_EVIDENCE_HEAD_SHA" >> "$GITHUB_ENV"
+          GB_INTEGRATION_FLOOR_SHA="$(python -c 'import json; print(json.load(open("data/qa/grand_place_facade_visual_gate.json", encoding="utf-8"))["integration_floor_sha"])')"
+          if ! [[ "$GB_INTEGRATION_FLOOR_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "invalid Grand-Place integration floor SHA: $GB_INTEGRATION_FLOOR_SHA" >&2
+            exit 1
+          fi
+          if grep -q '"production_base_sha"' data/qa/grand_place_facade_visual_gate.json; then
+            echo "legacy production_base_sha is forbidden; use immutable integration_floor_sha" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GB_INTEGRATION_FLOOR_SHA" "$GB_LIVE_MAIN_SHA"; then
+            echo "Grand-Place integration floor is not an ancestor of live main: floor=$GB_INTEGRATION_FLOOR_SHA live_main=$GB_LIVE_MAIN_SHA" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GB_LIVE_MAIN_SHA" "$GB_EVIDENCE_HEAD_SHA"; then
+            echo "Grand-Place candidate does not contain live main: live_main=$GB_LIVE_MAIN_SHA head=$GB_EVIDENCE_HEAD_SHA" >&2
+            exit 1
+          fi
+          echo "GRAND_PLACE_INTEGRATION_FLOOR_OK floor=$GB_INTEGRATION_FLOOR_SHA live_main=$GB_LIVE_MAIN_SHA head=$GB_EVIDENCE_HEAD_SHA"
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact candidate project
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --editor --quit 2>&1 | tee /tmp/grand-place-facade-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-facade-import.log; then exit 1; fi
+      - name: Capture four real Grand-Place facade views
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GB_EVIDENCE_BASE_SHA: ${{ env.GB_LIVE_MAIN_SHA }}
+          GB_EVIDENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/grand-place-facade-evidence
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path . --rendering-method gl_compatibility --fixed-fps 60 --script res://game/tests/grand_place_facade_evidence_capture.gd 2>&1 | tee /tmp/grand-place-facade-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_CAPTURE_FAIL" /tmp/grand-place-facade-capture.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_CAPTURE_OK views=4 resolution=1280x720 human_review=pending" /tmp/grand-place-facade-capture.log
+      - name: Bind witness payload with SHA-256 sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/grand-place-facade-evidence
+          sha256sum canonical.png cornet_renard.png brasseurs_rose_thabor.png maison_du_roi.png > png-sha256.txt
+          test "$(wc -l < png-sha256.txt)" -eq 4
+          SIDECAR="$GITHUB_WORKSPACE/grand-bruxelles-game/artifacts/grand-place-facade-evidence/png-sha256.txt"
+          test -f "$SIDECAR"
+          test "$(wc -l < "$SIDECAR")" -eq 4
+          sha256sum --check png-sha256.txt
+          echo "GRAND_PLACE_FACADE_PNG_HASHES_OK count=4"
+          sha256sum canonical.png cornet_renard.png brasseurs_rose_thabor.png maison_du_roi.png manifest.json > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 5
+          EVIDENCE_SIDECAR="$GITHUB_WORKSPACE/grand-bruxelles-game/artifacts/grand-place-facade-evidence/evidence-sha256.txt"
+          test -f "$EVIDENCE_SIDECAR"
+          test "$(wc -l < "$EVIDENCE_SIDECAR")" -eq 5
+          sha256sum --check evidence-sha256.txt
+          echo "GRAND_PLACE_FACADE_EVIDENCE_HASHES_OK png_count=4 payload_count=5 manifest_bound=true"
+      - name: Validate engine-generated witness artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/grand-place-facade-evidence
+          test "$(wc -l < png-sha256.txt)" -eq 4
+          test "$(wc -l < evidence-sha256.txt)" -eq 5
+          sha256sum --check png-sha256.txt
+          sha256sum --check evidence-sha256.txt
+          cd ../..
+          python tools/qa/validate_grand_place_facade_evidence.py --gate data/qa/grand_place_facade_visual_gate.json --manifest artifacts/grand-place-facade-evidence/manifest.json --artifact-root artifacts/grand-place-facade-evidence
+      - name: Stage witness logs inside artifact root
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/grand-place-facade-evidence
+          if test -f /tmp/grand-place-facade-import.log; then cp /tmp/grand-place-facade-import.log artifacts/grand-place-facade-evidence/; fi
+          if test -f /tmp/grand-place-facade-capture.log; then cp /tmp/grand-place-facade-capture.log artifacts/grand-place-facade-evidence/; fi
+      - name: Upload dedicated Grand-Place facade witness
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-facade-evidence
+          path: grand-bruxelles-game/artifacts/grand-place-facade-evidence/
+          if-no-files-found: error

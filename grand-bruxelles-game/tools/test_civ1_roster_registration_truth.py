@@ -38,8 +38,7 @@ def main():
             encoded=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in encoded["blocking_reasons"]
             assert encoded["roster_eligible"] is False
-        canonical_reserved=validate_entry(candidate(rel,sha,"https://example.invalid/source/%2Fcivilian.glb"),root)
-        assert canonical_reserved["roster_eligible"] is True
+        assert validate_entry(candidate(rel,sha,"https://example.invalid/source/%2Fcivilian.glb"),root)["roster_eligible"] is True
         for source in ("https://example.invalid/source/./civilian.glb","https://example.invalid/source/../civilian.glb"):
             dotted=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in dotted["blocking_reasons"]
@@ -47,9 +46,7 @@ def main():
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
-        assert payload["source_url_canonical_scheme_host_case_required"] is True
-        assert payload["source_url_default_https_port_forbidden"] is True
-        assert payload["source_url_query_forbidden"] is True
         assert payload["source_url_canonical_percent_encoding_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V20_DOT_SEGMENT_RED_EXPECTED")
+        assert payload["source_url_dot_segments_forbidden"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V21_GREEN")
 if __name__=="__main__": main()

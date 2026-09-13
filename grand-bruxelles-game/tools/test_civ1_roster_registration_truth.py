@@ -51,5 +51,6 @@ def main():
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_percent_encoding_required"] is True
         assert payload["source_url_dot_segments_forbidden"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V21_GREEN")
+        assert payload["source_url_ascii_host_required"] is True
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V22_GREEN")
 if __name__=="__main__": main()

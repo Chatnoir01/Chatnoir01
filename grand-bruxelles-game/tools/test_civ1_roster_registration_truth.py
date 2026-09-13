@@ -111,6 +111,10 @@ def main() -> None:
             assert "source_url_single_label_host_forbidden" in result["blocking_reasons"]
             assert result["roster_eligible"] is False
 
+        trailing_dot = validate_entry(entry(rel, sha, source_url="https://assets.example.invalid./civilian.glb"), root)
+        assert "source_url_not_canonical" in trailing_dot["blocking_reasons"], trailing_dot
+        assert trailing_dot["roster_eligible"] is False, trailing_dot
+
         player = root / PLAYER_ASSET
         player.parent.mkdir(parents=True, exist_ok=True)
         player.write_bytes(minimal_glb())
@@ -152,7 +156,7 @@ def main() -> None:
             assert nonstandard_payload["registration_count"] == 0
             assert nonstandard_payload["eligible_count"] == 0
 
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V15_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V16_GREEN")
 
 
 if __name__ == "__main__":

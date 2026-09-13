@@ -78,6 +78,10 @@ def main():
             ambiguous_octets=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_not_canonical" in ambiguous_octets["blocking_reasons"]
             assert ambiguous_octets["roster_eligible"] is False
+        for source in ("https://example.invalid/source/civilian%E2%80%8B.glb","https://example.invalid/source/civilian%E2%80%AE.glb","https://example.invalid/source/civilian%EF%BB%BF.glb"):
+            invisible_control=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_not_canonical" in invisible_control["blocking_reasons"]
+            assert invisible_control["roster_eligible"] is False
         root_without_slash=validate_entry(candidate(rel,sha,"https://example.invalid"),root)
         assert "source_url_not_canonical" in root_without_slash["blocking_reasons"]
         assert root_without_slash["roster_eligible"] is False

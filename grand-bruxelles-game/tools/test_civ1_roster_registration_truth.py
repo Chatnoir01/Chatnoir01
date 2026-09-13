@@ -29,6 +29,10 @@ def main():
         unicode_host=validate_entry(candidate(rel,sha,"https://exämple.invalid/source"),root)
         assert "source_url_non_ascii_host_forbidden" in unicode_host["blocking_reasons"]
         assert unicode_host["roster_eligible"] is False
+        for source in ("https://%65xample.invalid/source","https://bad_host.example/source","https://bad-.example/source","https://example..invalid/source"):
+            invalid_dns=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_dns_host_invalid" in invalid_dns["blocking_reasons"]
+            assert invalid_dns["roster_eligible"] is False
         default_port=validate_entry(candidate(rel,sha,"https://example.invalid:443/source"),root)
         assert "source_url_not_canonical" in default_port["blocking_reasons"]
         assert default_port["roster_eligible"] is False
@@ -62,5 +66,5 @@ def main():
         assert payload["source_url_ascii_host_required"] is True
         assert payload["source_url_explicit_root_path_required"] is True
         assert payload["source_url_canonical_port_spelling_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V24_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V24_DNS_HOST_REGRESSION_GREEN")
 if __name__=="__main__": main()

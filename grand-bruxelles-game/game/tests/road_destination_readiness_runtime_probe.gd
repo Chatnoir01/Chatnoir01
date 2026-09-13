@@ -5,7 +5,9 @@ const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn
 const CATALOG_PATH := "res://data/provenance/brussels_road_destination_readiness_catalog.json"
 const OUTPUT_PATH := "res://artifacts/road-destination-readiness/runtime-probe.json"
 const REQUIRED_GRAND_PLACE_APPROACH := 13842686
-const REQUIRED_BOURSE_APPROACH := 411724192
+const REQUIRED_BOURSE_LEGACY_APPROACH := 411724192
+const REQUIRED_BOURSE_AUTOMATIC_WINNER := 8512036
+const RENDER_DECOY_OSM_ID := 9007199254740001
 
 
 func _initialize() -> void:
@@ -24,16 +26,10 @@ func _catalog() -> Dictionary:
     return parsed as Dictionary if parsed is Dictionary else {}
 
 
-func _rendered(world: Node, osm_id: int) -> bool:
-    var prefix := "Road_%d_" % osm_id
-    var stack: Array[Node] = [world]
-    while not stack.is_empty():
-        var node: Node = stack.pop_back()
-        if str(node.name).begins_with(prefix):
-            return true
-        for child: Node in node.get_children():
-            stack.append(child)
-    return false
+func _rendered(resolver: Node, world: Node, osm_id: int) -> bool:
+    # Readiness evidence must use the exact production predicate. Duplicating a
+    # weaker test-side renderer check can create false RUNTIME_READY witnesses.
+    return bool(resolver.call("_road_is_rendered", world, osm_id))
 
 
 func _write_result(payload: Dictionary) -> bool:
@@ -78,7 +74,14 @@ func _run() -> void:
         _fail("catalog destination count drifted")
         return
 
-    var required_ids := {REQUIRED_GRAND_PLACE_APPROACH: false, REQUIRED_BOURSE_APPROACH: false}
+    # Keep the historical Bourse approach covered, but also require the
+    # deterministic automatic Bourse winner so the global readiness chain
+    # cannot regress to validating only the legacy hand-selected road.
+    var required_ids := {
+        REQUIRED_GRAND_PLACE_APPROACH: false,
+        REQUIRED_BOURSE_LEGACY_APPROACH: false,
+        REQUIRED_BOURSE_AUTOMATIC_WINNER: false,
+    }
     for raw_row: Variant in raw_destinations:
         if raw_row is Dictionary:
             var candidate_id := int((raw_row as Dictionary).get("road_osm_id", 0))
@@ -102,6 +105,17 @@ func _run() -> void:
 
     var resolver := RESOLVER_SCRIPT.new()
     root.add_child(resolver)
+
+    # Regression guard: a name-only decoy is not rendered geometry. This probe
+    # now delegates to production semantics so future readiness checks cannot
+    # drift back to accepting arbitrary Road_<id>_* node names.
+    var render_decoy := Node3D.new()
+    render_decoy.name = "Road_%d_NameOnlyDecoy" % RENDER_DECOY_OSM_ID
+    main.add_child(render_decoy)
+    if _rendered(resolver, main, RENDER_DECOY_OSM_ID):
+        _fail("shared production render predicate accepted name-only decoy")
+        return
+
     var original_position := player.global_position
     var observations: Array[Dictionary] = []
     var runtime_ready_count := 0
@@ -129,7 +143,7 @@ func _run() -> void:
         player.velocity = Vector3.ZERO
         await physics_frame
 
-        var rendered := _rendered(main, osm_id)
+        var rendered := _rendered(resolver, main, osm_id)
         var applied := resolver.apply_to_player(player, osm_id)
         var ground_y := float(player.get_meta("automatic_road_direct_ground_y", INF)) if applied else INF
         var ground_ready := applied and is_finite(ground_y)
@@ -178,7 +192,11 @@ func _run() -> void:
         "rendered_count": rendered_count,
         "resolver_applied_count": resolver_applied_count,
         "runtime_ready_witness_count": runtime_ready_count,
-        "required_corridor_approaches": [REQUIRED_BOURSE_APPROACH, REQUIRED_GRAND_PLACE_APPROACH],
+        "required_corridor_approaches": [REQUIRED_BOURSE_LEGACY_APPROACH, REQUIRED_BOURSE_AUTOMATIC_WINNER, REQUIRED_GRAND_PLACE_APPROACH],
+        "render_predicate": "automatic_road_direct_spawn._road_is_rendered",
+        "render_predicate_shared_with_production": true,
+        "name_only_render_decoy_rejected": true,
+        "automatic_bourse_winner_required": true,
         "observations": observations,
         "measurement_only": true,
         "catalog_mutated": false,

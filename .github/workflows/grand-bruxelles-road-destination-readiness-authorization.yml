@@ -1,0 +1,114 @@
+name: Grand Bruxelles Road Destination Readiness Authorization
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json"
+      - "grand-bruxelles-game/data/osm/**"
+      - "grand-bruxelles-game/data/cell_manifests/**"
+      - "grand-bruxelles-game/tests/validate_road_destination_readiness_authorization.py"
+      - "grand-bruxelles-game/tests/validate_road_destination_readiness_canonical_aggregate_identity.py"
+      - "grand-bruxelles-game/tests/test_road_destination_readiness_canonical_aggregate_identity.py"
+      - "grand-bruxelles-game/tests/test_road_destination_readiness_cell_identity_binding.py"
+      - "grand-bruxelles-game/tests/validate_road_destination_readiness_hash_identity.py"
+      - "grand-bruxelles-game/tests/test_road_destination_readiness_file_hash_binding.py"
+      - "grand-bruxelles-game/tests/validate_road_destination_readiness_source_geometry_summary.py"
+      - "grand-bruxelles-game/tests/test_road_destination_readiness_source_geometry_summary_binding.py"
+      - ".github/workflows/grand-bruxelles-road-destination-readiness-authorization.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  fail-closed-destination-authorization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 32
+      - name: Require exact live-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Reject non-canonical aggregate identity aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          python3 tests/test_road_destination_readiness_canonical_aggregate_identity.py | tee /tmp/road-destination-readiness-canonical.log
+          grep -F "whitespace_aliases_rejected=true" /tmp/road-destination-readiness-canonical.log
+          grep -F "control_aliases_rejected=true" /tmp/road-destination-readiness-canonical.log
+          grep -F "source_path_aliases_rejected=true" /tmp/road-destination-readiness-canonical.log
+      - name: Reject cell identity tuple drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          python3 tests/test_road_destination_readiness_cell_identity_binding.py | tee /tmp/road-destination-readiness-cell-identity.log
+          grep -F "cell_id_grid_bound=true" /tmp/road-destination-readiness-cell-identity.log
+          grep -F "manifest_path_bound=true" /tmp/road-destination-readiness-cell-identity.log
+          grep -F "bbox_bound=true" /tmp/road-destination-readiness-cell-identity.log
+          grep -F "crs_bound=true" /tmp/road-destination-readiness-cell-identity.log
+      - name: Reject malformed readiness provenance hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          python3 tests/validate_road_destination_readiness_hash_identity.py \
+            data/provenance/brussels_road_destination_readiness_catalog.json \
+            --root . \
+            --self-test | tee /tmp/road-destination-readiness-hash-identity.log
+          grep -F "canonical_sha256_format=true" /tmp/road-destination-readiness-hash-identity.log
+          grep -F "lowercase_hex_required=true" /tmp/road-destination-readiness-hash-identity.log
+          grep -F "source_file_hash_bound=true" /tmp/road-destination-readiness-hash-identity.log
+          grep -F "cell_manifest_hash_bound=true" /tmp/road-destination-readiness-hash-identity.log
+          grep -F "source_points_hash_bound=true" /tmp/road-destination-readiness-hash-identity.log
+          grep -F "hash_identity_fail_closed=true" /tmp/road-destination-readiness-hash-identity.log
+          grep -F "self_test=true" /tmp/road-destination-readiness-hash-identity.log
+      - name: Prove source geometry summary drift is rejected
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          python3 tests/test_road_destination_readiness_source_geometry_summary_binding.py | tee /tmp/road-destination-readiness-source-geometry-summary.log
+          grep -F "source_local_point_count_bound=true" /tmp/road-destination-readiness-source-geometry-summary.log
+          grep -F "source_local_bbox_bound=true" /tmp/road-destination-readiness-source-geometry-summary.log
+          grep -F "finite_source_geometry_summary_required=true" /tmp/road-destination-readiness-source-geometry-summary.log
+          grep -F "source_geometry_summary_fail_closed=true" /tmp/road-destination-readiness-source-geometry-summary.log
+      - name: Prove valid-format file and source-points hash drift is rejected
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          python3 tests/test_road_destination_readiness_file_hash_binding.py | tee /tmp/road-destination-readiness-file-hash.log
+          grep -F "source_file_hash_bound=true" /tmp/road-destination-readiness-file-hash.log
+          grep -F "cell_manifest_hash_bound=true" /tmp/road-destination-readiness-file-hash.log
+          grep -F "source_points_hash_bound=true" /tmp/road-destination-readiness-file-hash.log
+          grep -F "hashed_input_trigger_coverage=true" /tmp/road-destination-readiness-file-hash.log
+          grep -F "valid_hash_drift_rejected=true" /tmp/road-destination-readiness-file-hash.log
+      - name: Reject premature, non-boolean, shadow, semantic, count, or aggregate drift promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game
+          python3 tests/validate_road_destination_readiness_authorization.py \
+            data/provenance/brussels_road_destination_readiness_catalog.json \
+            --self-test | tee /tmp/road-destination-readiness-authorization.log
+          grep -F "all_authorizations_false=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "registered_not_rendered=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "closed_root_schema=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "closed_authorization_schema=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "closed_destination_schema=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "finite_json_required=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "promotion_state_strings_bound=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "destination_count_bound=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "mapped_cell_count_bound=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "source_document_count_bound=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "aggregate_identity_nonempty=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "promotion_fail_closed=true" /tmp/road-destination-readiness-authorization.log
+          grep -F "self_test=true" /tmp/road-destination-readiness-authorization.log

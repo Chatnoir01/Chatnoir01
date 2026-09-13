@@ -1,0 +1,244 @@
+name: Grand Bruxelles Bourse 8512036 Lateral Jitter Continuity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-lateral-jitter-continuity.yml"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_lateral_jitter_continuity_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-8512036-lateral-jitter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      LOCKED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+      LOCKED_SOURCE_PATH: res://data/osm/vertical_slice_01.game.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and locked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"; fi
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+          printf 'LATERAL_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'LATERAL_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 unzip
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -E '^4\.7\.1\.stable\.'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/lateral-import.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/lateral-import.log
+
+      - name: Prove lateral jitter continuity
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/bourse_8512036_lateral_jitter_continuity_test.gd 2>&1 | tee /tmp/lateral-runtime.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_LATERAL_JITTER_FAIL" /tmp/lateral-runtime.log
+          grep -q 'BOURSE_8512036_LATERAL_JITTER_GREEN' /tmp/lateral-runtime.log
+
+      - name: Seal fail-closed lateral-jitter receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage=/tmp/bourse-lateral-jitter-evidence
+          receipt=grand-bruxelles-game/artifacts/qa/bourse_8512036_lateral_jitter_continuity.json
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp /tmp/lateral-import.log "$stage/import.log" 2>/dev/null || true
+          cp /tmp/lateral-runtime.log "$stage/runtime.log" 2>/dev/null || true
+          test -s "$receipt"
+          cp "$receipt" "$stage/receipt.json"
+          python3 - "$stage/receipt.json" <<'PY'
+          import copy, json, math, os, pathlib, sys
+
+          def reject_constant(v): raise ValueError(v)
+          def finite_float(v):
+              x=float(v)
+              if not math.isfinite(x): raise ValueError(v)
+              return x
+          def no_dupes(pairs):
+              out={}
+              for k,v in pairs:
+                  if k in out: raise ValueError(k)
+                  out[k]=v
+              return out
+
+          d=json.loads(pathlib.Path(sys.argv[1]).read_text(), parse_constant=reject_constant, parse_float=finite_float, object_pairs_hook=no_dupes)
+
+          def validate(receipt):
+              def integer(k):
+                  v=receipt[k]; assert type(v) is int and not isinstance(v,bool); return v
+              def finite(k):
+                  v=receipt[k]; assert type(v) in (int,float) and not isinstance(v,bool) and math.isfinite(v); return float(v)
+
+              assert receipt['schema']=='grand-bruxelles-bourse-8512036-lateral-jitter-v4'
+              assert integer('road_osm_id')==8512036
+              assert receipt['lookup_mode']=='deterministic_runtime_index'
+              assert receipt['source_path']==os.environ['LOCKED_SOURCE_PATH'] and receipt['source_sha256']==os.environ['LOCKED_SOURCE_SHA256']
+              assert integer('physics_hz')==60
+              movement_limit=integer('movement_step_limit'); assert movement_limit==180
+              post_steps=integer('post_target_step_count'); assert post_steps==60
+              checked_steps=integer('lateral_checked_step_count'); assert checked_steps==post_steps+1
+              assert receipt['input_mode']=='continuous_authoritative_sprint_zero_lateral_command'
+              target_step=integer('first_target_plane_step'); assert 1 <= target_step <= movement_limit
+              sprint=finite('authoritative_sprint_speed_mps'); assert sprint > 0.0
+              safe=finite('authoritative_safe_margin_m'); assert safe>=0.0
+              slides=integer('authoritative_max_slides'); assert slides>=1
+              capsule=finite('authoritative_capsule_radius_m'); assert capsule > 0.0
+              assert receipt['recovery_budget_derivation']=='authoritative_safe_margin_times_max_slides'
+              recovery=finite('recovery_budget_m'); assert abs(recovery-safe*slides) <= 1e-6
+              assert receipt['lateral_step_bound_derivation']=='authoritative_safe_margin_times_max_slides'
+              assert abs(finite('max_lateral_step_m')-recovery) <= 1e-6
+              crossing=finite('target_crossing_lateral_step_m'); assert crossing >= 0.0 and crossing <= recovery + 1e-6
+              assert receipt['target_crossing_lateral_step_within_bound'] is True
+              assert integer('lateral_step_violation_count')==0
+              assert integer('first_lateral_step_violation_step')==0
+              observed=finite('max_observed_lateral_step_m'); assert observed >= crossing and observed <= recovery + 1e-6
+              assert receipt['continuous_lateral_jitter_bound'] is True
+
+              assert receipt['lateral_envelope_derivation']=='authoritative_player_capsule_radius'
+              envelope=finite('lateral_envelope_tolerance_m'); assert abs(envelope-capsule) <= 1e-6
+              assert integer('lateral_envelope_checked_step_count')==checked_steps
+              assert integer('lateral_envelope_within_bound_step_count')==checked_steps
+              crossing_offset=finite('target_crossing_lateral_offset_m'); assert crossing_offset >= 0.0 and crossing_offset <= envelope + 1e-6
+              assert receipt['target_crossing_lateral_offset_within_bound'] is True
+              assert integer('lateral_envelope_violation_count')==0
+              assert integer('first_lateral_envelope_violation_step')==0
+              max_offset=finite('max_observed_lateral_offset_m'); assert max_offset >= crossing_offset and max_offset <= envelope + 1e-6
+              assert receipt['continuous_lateral_envelope_bound'] is True
+
+              assert receipt['support_mode']=='characterbody_capsule_test_motion'
+              assert receipt['canonical_owner_id']=='generic_osm_surface_collision_runtime'
+              assert integer('grounded_checked_step_count')==checked_steps
+              assert integer('grounded_within_bound_step_count')==checked_steps
+              assert receipt['target_crossing_grounded'] is True
+              assert integer('grounded_failure_count')==0
+              assert integer('first_grounded_failure_step')==0
+              assert receipt['continuous_grounded_support'] is True
+              assert integer('canonical_support_checked_step_count')==checked_steps
+              assert integer('canonical_support_within_bound_step_count')==checked_steps
+              assert receipt['target_crossing_canonical_support'] is True
+              assert integer('canonical_support_failure_count')==0
+              assert integer('first_canonical_support_failure_step')==0
+              assert receipt['continuous_canonical_road_support'] is True
+              assert receipt['requested_osm_id_owned_every_checked_frame'] is True
+
+              assert integer('post_target_frames')==post_steps
+              assert receipt['actual_character_body_move_and_slide'] is True
+              assert receipt['lateral_jitter_green'] is True
+              for k in ('source_geometry_changed','collision_geometry_changed','camera_changed','resolver_thresholds_lowered','destination_advertisable','visual_acceptance','jouable_authorized'):
+                  assert receipt[k] is False
+
+          validate(d)
+
+          negative_mutations = (
+              ('input_mode', 'non_authoritative_or_lateral_command'),
+              ('movement_step_limit', 181),
+              ('first_target_plane_step', 0),
+              ('first_target_plane_step', 181),
+              ('authoritative_sprint_speed_mps', 0.0),
+              ('recovery_budget_derivation', 'untrusted_constant'),
+              ('lateral_checked_step_count', 60),
+              ('target_crossing_lateral_step_within_bound', False),
+              ('target_crossing_lateral_step_m', 999.0),
+              ('lateral_envelope_derivation', 'untrusted_constant'),
+              ('lateral_envelope_tolerance_m', 999.0),
+              ('lateral_envelope_checked_step_count', 60),
+              ('lateral_envelope_within_bound_step_count', 60),
+              ('target_crossing_lateral_offset_m', 999.0),
+              ('target_crossing_lateral_offset_within_bound', False),
+              ('lateral_envelope_violation_count', 1),
+              ('first_lateral_envelope_violation_step', 1),
+              ('max_observed_lateral_offset_m', 999.0),
+              ('continuous_lateral_envelope_bound', False),
+              ('support_mode', 'untrusted_support_probe'),
+              ('canonical_owner_id', 'wrong_owner'),
+              ('grounded_checked_step_count', 60),
+              ('grounded_within_bound_step_count', 60),
+              ('target_crossing_grounded', False),
+              ('grounded_failure_count', 1),
+              ('first_grounded_failure_step', 1),
+              ('continuous_grounded_support', False),
+              ('canonical_support_checked_step_count', 60),
+              ('canonical_support_within_bound_step_count', 60),
+              ('target_crossing_canonical_support', False),
+              ('canonical_support_failure_count', 1),
+              ('first_canonical_support_failure_step', 1),
+              ('continuous_canonical_road_support', False),
+              ('requested_osm_id_owned_every_checked_frame', False),
+          )
+          for key, value in negative_mutations:
+              mutated=copy.deepcopy(d)
+              mutated[key]=value
+              try:
+                  validate(mutated)
+              except (AssertionError, KeyError, TypeError, ValueError):
+                  continue
+              raise AssertionError(f'fail-open lateral receipt mutation accepted: {key}={value!r}')
+          PY
+
+      - name: Revalidate live main before success
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$LATERAL_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$LATERAL_HEAD_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+
+      - name: Stage provenance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage=/tmp/bourse-lateral-jitter-evidence
+          mkdir -p "$stage"
+          printf '%s\n' "$LATERAL_BASE_SHA" > "$stage/live-main-sha.txt"
+          printf '%s\n' "$LATERAL_HEAD_SHA" > "$stage/exact-head-sha.txt"
+          sha256sum "$stage"/* > "$stage/SHA256SUMS.txt"
+
+      - name: Upload lateral-jitter evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-8512036-lateral-jitter-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/bourse-lateral-jitter-evidence
+          if-no-files-found: error
+          retention-days: 14

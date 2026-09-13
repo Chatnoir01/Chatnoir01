@@ -1,0 +1,124 @@
+name: Grand Bruxelles Bourse 8512036 Deterministic Target Identity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-deterministic-target-identity.yml"
+      - "grand-bruxelles-game/tests/validate_bourse_8512036_deterministic_target_identity.py"
+      - "grand-bruxelles-game/tests/validate_bourse_8512036_deterministic_candidate.py"
+      - "grand-bruxelles-game/tests/validate_bourse_8512036_masked_native_receipt.py"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_corridor_masked_visual_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-8512036-deterministic-target-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      EXPECTED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and locked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          echo "$EXPECTED_SOURCE_SHA256  grand-bruxelles-game/data/osm/vertical_slice_01.game.json" | sha256sum -c -
+
+      - name: Compile exact-head validators
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile grand-bruxelles-game/tests/validate_bourse_8512036_masked_native_receipt.py
+          python3 -m py_compile grand-bruxelles-game/tests/validate_bourse_8512036_deterministic_candidate.py
+          python3 -m py_compile grand-bruxelles-game/tests/validate_bourse_8512036_deterministic_target_identity.py
+
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/target-identity-import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/target-identity-import.log
+
+      - name: Produce real Bourse native receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/bourse_8512036_corridor_masked_visual_test.gd 2>&1 | tee /tmp/target-identity-runtime.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_CORRIDOR_MASKED_VISUAL_FAIL" /tmp/target-identity-runtime.log
+          test "$(grep -c 'BOURSE_8512036_CORRIDOR_MASKED_VISUAL_OK' /tmp/target-identity-runtime.log)" -eq 1
+
+      - name: Require native receipt plus deterministic target identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tests/validate_bourse_8512036_deterministic_target_identity.py \
+            --receipt grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/receipt.json \
+            --source grand-bruxelles-game/data/osm/vertical_slice_01.game.json \
+            --source-sha "$EXPECTED_SOURCE_SHA256" \
+            --self-test | tee /tmp/deterministic-target-identity.log
+          grep -q 'BOURSE_8512036_DETERMINISTIC_TARGET_IDENTITY_GREEN' /tmp/deterministic-target-identity.log
+          grep -q 'native_receipt_composed=true' /tmp/deterministic-target-identity.log
+          grep -q 'source_bytes_sha_bound=true' /tmp/deterministic-target-identity.log
+
+      - name: Prove CLI rejects mutated locked source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/data/osm/vertical_slice_01.game.json /tmp/bourse-source-drift.json
+          printf '\n' >> /tmp/bourse-source-drift.json
+          if python3 grand-bruxelles-game/tests/validate_bourse_8512036_deterministic_target_identity.py \
+            --receipt grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/receipt.json \
+            --source /tmp/bourse-source-drift.json \
+            --source-sha "$EXPECTED_SOURCE_SHA256" \
+            > /tmp/deterministic-target-source-drift.log 2>&1; then
+            echo 'mutated source bytes unexpectedly accepted by CLI validator' >&2
+            cat /tmp/deterministic-target-source-drift.log >&2
+            exit 1
+          fi
+          grep -q 'source SHA-256 drift:' /tmp/deterministic-target-source-drift.log
+          printf 'BOURSE_8512036_TARGET_SOURCE_DRIFT_REJECTED expected_sha=%s\n' "$EXPECTED_SOURCE_SHA256"
+
+      - name: Upload deterministic target identity proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-bourse-8512036-deterministic-target-identity
+          path: |
+            /tmp/target-identity-import.log
+            /tmp/target-identity-runtime.log
+            /tmp/deterministic-target-identity.log
+            /tmp/deterministic-target-source-drift.log
+            grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/receipt.json
+          if-no-files-found: error
+          retention-days: 7

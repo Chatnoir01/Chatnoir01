@@ -1,0 +1,173 @@
+name: Grand Bruxelles Bourse 8512036 Capsule Shape Identity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-capsule-shape-identity.yml"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_player_motion_continuity_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_floor_physics_identity_probe.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capsule-shape-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      LOCKED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and locked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"; fi
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+          printf 'CAPSULE_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'CAPSULE_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 unzip
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -E '^4\.7\.1\.stable\.'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/capsule-import.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/capsule-import.log
+
+      - name: Produce three-second Player Motion receipt
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/bourse_8512036_player_motion_continuity_test.gd 2>&1 | tee /tmp/player-motion.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_PLAYER_MOTION_CONTINUITY_FAIL" /tmp/player-motion.log
+          grep -q 'BOURSE_8512036_PLAYER_MOTION_CONTINUITY_GREEN' /tmp/player-motion.log
+
+      - name: Independently probe live Player capsule
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/bourse_8512036_floor_physics_identity_probe.gd 2>&1 | tee /tmp/capsule-probe.log
+          status=${PIPESTATUS[0]}; test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_FLOOR_PHYSICS_IDENTITY_FAIL" /tmp/capsule-probe.log
+          grep -q 'BOURSE_8512036_FLOOR_PHYSICS_IDENTITY_GREEN' /tmp/capsule-probe.log
+
+      - name: Fail closed on capsule-shape identity drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import copy, json, math, pathlib
+          motion=json.loads(pathlib.Path('grand-bruxelles-game/artifacts/qa/bourse_8512036_player_motion_continuity.json').read_text())
+          probe=json.loads(pathlib.Path('grand-bruxelles-game/artifacts/qa/bourse_8512036_floor_physics_identity.json').read_text())
+          assert motion['schema']=='grand-bruxelles-bourse-8512036-player-motion-continuity-v6'
+          assert probe['schema']=='grand-bruxelles-bourse-8512036-floor-physics-identity-v2'
+          assert motion['road_osm_id']==8512036 and motion['lookup_mode']=='deterministic_runtime_index'
+          assert probe['node_path']=='Player' and probe['node_type']=='CharacterBody3D'
+          assert probe['collision_shape_path']=='Player/CollisionShape3D'
+          assert probe['collision_shape_type']=='CapsuleShape3D'
+          assert motion['actual_character_body_move_and_slide'] is True
+          assert motion['support_probe_uses_player_capsule'] is True
+          assert motion['continuous_requested_road_support'] is True
+          assert motion['floor_frames']==motion['step_count']==180 and motion['airborne_frames']==0
+
+          pairs=(
+              ('capsule_radius_m','authoritative_capsule_radius_m'),
+              ('capsule_height_m','authoritative_capsule_height_m'),
+              ('authoritative_sprint_speed_mps','authoritative_sprint_speed_mps'),
+              ('authoritative_gravity_mps2','authoritative_gravity_mps2'),
+              ('authoritative_floor_snap_length_m','authoritative_floor_snap_length_m'),
+              ('authoritative_safe_margin_m','authoritative_safe_margin_m'),
+          )
+          for motion_key,probe_key in pairs:
+              a=float(motion[motion_key]); b=float(probe[probe_key])
+              assert math.isfinite(a) and math.isfinite(b) and a>0 and b>0, (motion_key,a,probe_key,b)
+              assert math.isclose(a,b,rel_tol=0.0,abs_tol=1e-12), (motion_key,a,probe_key,b)
+
+          radius=float(probe['authoritative_capsule_radius_m'])
+          assert math.isclose(float(motion['static_gap_clear_progress_m']),float(motion['station_two_progress_m'])+radius,rel_tol=0.0,abs_tol=1e-12)
+          assert motion['lateral_tolerance_derived_from_capsule_radius'] is True
+
+          for motion_key,probe_key,delta in (
+              ('capsule_height_m','authoritative_capsule_height_m',0.01),
+              ('capsule_radius_m','authoritative_capsule_radius_m',0.01),
+          ):
+              tampered=copy.deepcopy(motion)
+              tampered[motion_key]=float(tampered[motion_key])+delta
+              if motion_key=='capsule_radius_m':
+                  tampered['static_gap_clear_progress_m']=float(tampered['station_two_progress_m'])+float(tampered[motion_key])
+              accepted=True
+              try:
+                  assert math.isclose(float(tampered[motion_key]),float(probe[probe_key]),rel_tol=0.0,abs_tol=1e-12)
+              except AssertionError:
+                  accepted=False
+              assert not accepted, f'coordinated capsule mutation escaped crosscheck: {motion_key}'
+
+          assert probe['source']=='independent_main_scene_runtime_probe'
+          for key in ('physics_parameters_mutated','character_controller_mutated','source_geometry_changed','collision_geometry_changed','resolver_thresholds_lowered'):
+              assert probe[key] is False
+          PY
+
+      - name: Revalidate live main before success
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$CAPSULE_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$CAPSULE_HEAD_SHA"
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+
+      - name: Stage capsule-shape evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage=/tmp/bourse-capsule-shape-evidence
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp /tmp/capsule-import.log "$stage/import.log" 2>/dev/null || true
+          cp /tmp/player-motion.log "$stage/player-motion.log" 2>/dev/null || true
+          cp /tmp/capsule-probe.log "$stage/capsule-probe.log" 2>/dev/null || true
+          cp grand-bruxelles-game/artifacts/qa/bourse_8512036_player_motion_continuity.json "$stage/player-motion.json" 2>/dev/null || true
+          cp grand-bruxelles-game/artifacts/qa/bourse_8512036_floor_physics_identity.json "$stage/capsule-identity.json" 2>/dev/null || true
+          printf '%s\n' "$CAPSULE_BASE_SHA" > "$stage/live-main-sha.txt"
+          printf '%s\n' "$CAPSULE_HEAD_SHA" > "$stage/exact-head-sha.txt"
+          sha256sum "$stage"/* > "$stage/SHA256SUMS"
+
+      - name: Upload capsule-shape evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-8512036-capsule-shape-identity-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/bourse-capsule-shape-evidence
+          if-no-files-found: error
+          retention-days: 14

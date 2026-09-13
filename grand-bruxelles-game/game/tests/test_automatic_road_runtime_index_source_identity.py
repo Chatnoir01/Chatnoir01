@@ -7,7 +7,7 @@ from pathlib import Path
 from validate_automatic_road_runtime_index_source_identity import ValidationError, validate
 
 
-def write_fixture(root: Path, *, duplicate_source=False, duplicate_index=False, traversal=False):
+def write_fixture(root: Path, *, duplicate_source=False, duplicate_index=False, traversal=False, path_alias=None):
     source_rel = "../outside.json" if traversal else "data/osm/source.json"
     source_path = (root / source_rel).resolve()
     source_path.parent.mkdir(parents=True, exist_ok=True)
@@ -22,6 +22,7 @@ def write_fixture(root: Path, *, duplicate_source=False, duplicate_index=False, 
     road_ids = [101, 202]
     if duplicate_index:
         road_ids.append(101)
+    descriptor_path = source_rel if path_alias is None else path_alias
     index = {
         "format": "grand-bruxelles-road-runtime-index-v1",
         "source_lookup_only": True,
@@ -34,7 +35,7 @@ def write_fixture(root: Path, *, duplicate_source=False, duplicate_index=False, 
             "jouable_authorized": False,
         },
         "documents": [{
-            "path": source_rel,
+            "path": descriptor_path,
             "sha256": hashlib.sha256(source_bytes).hexdigest(),
             "road_ids": road_ids,
         }],
@@ -56,6 +57,22 @@ def expect_reject(**kwargs):
         raise AssertionError(f"fixture unexpectedly accepted: {kwargs}")
 
 
+def expect_duplicate_index_key_reject():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        index_path = write_fixture(root)
+        raw = index_path.read_text(encoding="utf-8")
+        needle = '"source_lookup_only": true'
+        assert raw.count(needle) >= 2
+        raw = raw.replace(needle, needle + ", " + needle, 1)
+        index_path.write_text(raw, encoding="utf-8")
+        try:
+            validate(root, index_path)
+        except ValidationError:
+            return
+        raise AssertionError("duplicate runtime-index JSON key unexpectedly accepted by semantic identity validator")
+
+
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -67,6 +84,10 @@ def main():
     expect_reject(duplicate_source=True)
     expect_reject(duplicate_index=True)
     expect_reject(traversal=True)
+    expect_reject(path_alias=" data/osm/source.json")
+    expect_reject(path_alias="data/osm/source.json ")
+    expect_reject(path_alias="res://data/osm/source.json ")
+    expect_duplicate_index_key_reject()
     print("AUTOMATIC_ROAD_RUNTIME_INDEX_SOURCE_IDENTITY_REGRESSION_GREEN")
 
 

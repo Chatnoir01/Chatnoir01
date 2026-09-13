@@ -1,0 +1,156 @@
+name: Grand Bruxelles Midi Fonsny Same-Way Arc Runtime
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-fonsny-same-way-arc-runtime.yml"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_same_way_arc_runtime_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove-same-way-arc-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      EXPECTED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry, exact head and locked source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'SAME_WAY_ARC_MAIN_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'SAME_WAY_ARC_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+          printf '%s  %s\n' "$EXPECTED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+
+      - name: Install verified Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+
+      - name: Prepare durable evidence payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/same-way-arc-evidence
+          mkdir -p /tmp/same-way-arc-evidence
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
+          cp /tmp/import.log /tmp/same-way-arc-evidence/import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log
+
+      - name: Run same-way arc regression and preserve RED evidence
+        shell: bash
+        run: |
+          set +e
+          timeout 150s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_fonsny_same_way_arc_runtime_test.gd 2>&1 | tee /tmp/same-way-arc.log
+          PROBE_STATUS=${PIPESTATUS[0]}
+          set -e
+          printf 'SAME_WAY_ARC_PROBE_STATUS=%s\n' "$PROBE_STATUS" >> "$GITHUB_ENV"
+          cp /tmp/same-way-arc.log /tmp/same-way-arc-evidence/same-way-arc.log
+          python3 - "$SAME_WAY_ARC_MAIN_SHA" "$SAME_WAY_ARC_HEAD_SHA" "$PROBE_STATUS" <<'PY'
+          import json,sys
+          base,head,status=sys.argv[1:]
+          json.dump({"base_sha":base,"head_sha":head,"probe_exit_code":int(status)},open('/tmp/same-way-arc-evidence/run_status.json','w',encoding='utf-8'),indent=2,sort_keys=True)
+          PY
+          RECEIPT=grand-bruxelles-game/artifacts/qa/midi_fonsny_same_way_arc_runtime.json
+          if [ -s "$RECEIPT" ]; then cp "$RECEIPT" /tmp/same-way-arc-evidence/receipt.unsealed.json; fi
+
+      - name: Seal fail-closed runtime receipt
+        if: env.SAME_WAY_ARC_PROBE_STATUS == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPT=grand-bruxelles-game/artifacts/qa/midi_fonsny_same_way_arc_runtime.json
+          test -s "$RECEIPT"
+          python3 - "$RECEIPT" "$SAME_WAY_ARC_MAIN_SHA" "$SAME_WAY_ARC_HEAD_SHA" "$EXPECTED_SOURCE_SHA256" <<'PY'
+          import json,sys
+          p,base,head,expected_source_sha=sys.argv[1:]
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-midi-fonsny-same-way-arc-runtime-v1'
+          assert d['target_osm_id']==288509378
+          assert d['short_osm_id']==977936292
+          assert d['control_osm_id']==35903015
+          assert d['target_source_path']=='res://data/osm/vertical_slice_01.game.json'
+          assert d['target_source_sha256']==expected_source_sha
+          assert 21.7 < float(d['target_best_segment_m']) < 21.9
+          assert 10.8 < float(d['target_half_best_segment_m']) < 11.0
+          assert 29.1 < float(d['target_same_way_polyline_m']) < 29.4
+          assert abs(float(d['target_required_first_offset_lookahead_m'])-13.335) < 0.001
+          assert float(d['target_half_best_segment_m']) < float(d['target_required_first_offset_lookahead_m'])
+          assert float(d['target_same_way_polyline_m']) > float(d['target_required_first_offset_lookahead_m'])
+          assert float(d['target_required_first_offset_lookahead_m']) <= float(d['target_axis_lookahead_m']) <= 22.0
+          assert float(d['target_axis_alignment']) >= 0.90
+          assert int(d['target_source_arc_segment_hops']) >= 1
+          assert d['target_same_requested_osm_way_only'] is True
+          assert 7.6 < float(d['short_same_way_polyline_m']) < 7.9
+          assert float(d['short_same_way_polyline_m']) < float(d['short_required_first_offset_lookahead_m'])
+          assert d['short_remains_fail_closed'] is True
+          assert abs(float(d['control_axis_lookahead_m'])-22.0) < 0.000001
+          assert int(d['control_source_arc_segment_hops']) == 0
+          for key in ['cross_way_traversal_used','source_geometry_changed','collision_geometry_changed','camera_contract_changed','resolver_thresholds_lowered','destination_advertisable','visual_acceptance','jouable_authorized']:
+              assert d[key] is False
+          d['base_sha']=base
+          d['head_sha']=head
+          open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2,sort_keys=True)+'\n')
+          PY
+          cp "$RECEIPT" /tmp/same-way-arc-evidence/receipt.json
+          sha256sum "$RECEIPT" | tee /tmp/same-way-arc-evidence/receipt.sha256
+
+      - name: Upload exact-head same-way arc evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-midi-fonsny-same-way-arc-runtime
+          path: /tmp/same-way-arc-evidence/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Revalidate live main and locked source before success
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$SAME_WAY_ARC_MAIN_SHA"
+          test "$(git rev-parse HEAD)" = "$SAME_WAY_ARC_HEAD_SHA"
+          printf '%s  %s\n' "$EXPECTED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+
+      - name: Enforce GREEN after evidence upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${SAME_WAY_ARC_PROBE_STATUS:-missing}" = "0"
+          test -s /tmp/same-way-arc-evidence/receipt.json
+          test -s /tmp/same-way-arc-evidence/receipt.sha256
+          test -s /tmp/same-way-arc-evidence/run_status.json
+          test "$(grep -c 'MIDI_FONSNY_SAME_WAY_ARC_RUNTIME_OK: requested=288509378' /tmp/same-way-arc-evidence/same-way-arc.log)" -eq 1
+          ! grep -E "SCRIPT ERROR|Parse Error:|MIDI_FONSNY_SAME_WAY_ARC_RUNTIME_FAIL" /tmp/same-way-arc-evidence/same-way-arc.log

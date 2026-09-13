@@ -1,0 +1,29 @@
+{
+  "schema": "grand-bruxelles-bourse-8512036-human-review-v1",
+  "reviewed_head_sha": "d53b96e19ec0fed94963e70c5aa9285a15d8d13e",
+  "workflow_run_id": 34746779942,
+  "artifact_id": 10313914321,
+  "artifact_name": "grand-bruxelles-bourse-8512036-corridor-masked-visual",
+  "artifact_digest": "sha256:e6d56bbc17f984908fa94047ff90fb9b985666df6360da0d5f035bc8ccfe0c96",
+  "png_sha256": "9ead5aefb244092c96143366e01c9f3ff321c480d4197ca87e441efcbfcf61f2",
+  "osm_id": 8512036,
+  "source_name": "Rue Saint-Géry - Sint-Goriksstraat",
+  "width": 1280,
+  "height": 720,
+  "full_frame_inspected": true,
+  "verdict": "REJECT",
+  "rejection_reasons": [
+    "large flat open area dominates the left and foreground of the player frame",
+    "Bourse/Saint-Géry urban mass remains sparse and distant, so the destination does not yet read as a convincing dense urban arrival"
+  ],
+  "camera_changed": false,
+  "source_geometry_changed": false,
+  "resolver_thresholds_lowered": false,
+  "destination_advertisable": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "visual_acceptance": false,
+  "jouable_authorized": false
+}

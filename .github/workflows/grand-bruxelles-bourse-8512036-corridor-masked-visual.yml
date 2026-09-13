@@ -1,0 +1,256 @@
+name: Grand Bruxelles Bourse 8512036 Corridor Masked Visual
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-corridor-masked-visual.yml"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_corridor_masked_visual_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_candidate_player_witness_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-8512036-corridor-masked-visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      EXPECTED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'MASKED_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'MASKED_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "$EXPECTED_SOURCE_SHA256  grand-bruxelles-game/data/osm/vertical_slice_01.game.json" | sha256sum -c -
+
+      - name: Recompute repository-derived Bourse winner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tests/test_bourse_automatic_destination_candidate.py | tee /tmp/bourse-candidate.log
+          grep -Eq '8512036|road-8512036' /tmp/bourse-candidate.log
+
+      - name: Install verified Godot 4.7.1 and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -q '^4\.7\.1\.stable'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log
+
+      - name: Capture source-backed Bourse corridor-only QA frame
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/bourse_8512036_corridor_masked_visual_test.gd 2>&1 | tee /tmp/masked-visual.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_CORRIDOR_MASKED_VISUAL_FAIL" /tmp/masked-visual.log
+          test "$(grep -c 'BOURSE_8512036_CORRIDOR_MASKED_VISUAL_OK' /tmp/masked-visual.log)" -eq 1
+          grep -q 'mask_restored=true' /tmp/masked-visual.log
+
+      - name: Seal fail-closed masked QA receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR=grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual
+          RECEIPT="$DIR/receipt.json"
+          PNG="$DIR/road-8512036-corridor-masked.png"
+          test -s "$RECEIPT"
+          test -s "$PNG"
+          python3 - "$RECEIPT" "$PNG" "$MASKED_BASE_SHA" "$MASKED_HEAD_SHA" "$EXPECTED_SOURCE_SHA256" <<'PY'
+          import hashlib,json,os,struct,sys
+          receipt,png,base,head,expected_source_sha=sys.argv[1:]
+          d=json.load(open(receipt,encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-bourse-8512036-corridor-masked-visual-v1'
+          assert d['road_osm_id']==8512036 and d['request']=='road-8512036'
+          assert d['resolution']==[1280,720]
+          assert d['source_path']=='res://data/osm/vertical_slice_01.game.json'
+          assert 'Saint-G' in d['source_name']
+          assert d['lookup_mode']=='deterministic_runtime_index'
+          assert d['source_sha256']==expected_source_sha
+          assert float(d['axis_alignment']) >= 0.90
+          assert d['source_sightline_clear'] is True
+          assert d['qa_mask_applied'] is True
+          assert d['qa_mask_node']=='Player/VisualUpgrade'
+          assert d['qa_mask_originally_visible'] is True
+          assert d['qa_mask_restored'] is True
+          assert d['qa_mask_final_visibility'] is d['qa_mask_originally_visible']
+          assert d['qa_mask_ephemeral'] is True
+          assert d['dynamic_state_frozen'] is True
+          assert d['character_runtime_changed'] is False
+          assert d['player_physics_changed'] is False
+          assert d['camera_changed'] is False
+          assert d['source_geometry_changed'] is False
+          assert d['collision_geometry_changed'] is False
+          assert d['resolver_thresholds_lowered'] is False
+          assert d['human_visual_review_required'] is True
+          assert d['masked_frame_cannot_promote_destination'] is True
+          assert d['visual_acceptance'] is False
+          assert d['destination_advertisable'] is False
+          assert d['jouable_authorized'] is False
+          with open(png,'rb') as f:
+              sig=f.read(8); length=struct.unpack('>I',f.read(4))[0]; kind=f.read(4); ihdr=f.read(length)
+          assert sig==b'\x89PNG\r\n\x1a\n' and kind==b'IHDR'
+          width,height=struct.unpack('>II',ihdr[:8])
+          assert (width,height)==(1280,720)
+          assert os.path.getsize(png) > 50000
+          d['base_sha']=base
+          d['head_sha']=head
+          d['png_sha256']=hashlib.sha256(open(png,'rb').read()).hexdigest()
+          open(receipt,'w',encoding='utf-8').write(json.dumps(d,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum "$PNG" "$RECEIPT" | tee /tmp/masked-visual.sha256
+
+      - name: Seal canonical evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual
+          BUNDLE="$ROOT/evidence_bundle"
+          rm -rf "$BUNDLE"
+          mkdir -p "$BUNDLE"
+          cp "$ROOT/road-8512036-corridor-masked.png" "$BUNDLE/road-8512036-corridor-masked.png"
+          cp "$ROOT/receipt.json" "$BUNDLE/receipt.json"
+          cp /tmp/bourse-candidate.log "$BUNDLE/bourse-candidate.log"
+          cp /tmp/masked-visual.log "$BUNDLE/masked-visual.log"
+          cp /tmp/import.log "$BUNDLE/import.log"
+          cp /tmp/masked-visual.sha256 "$BUNDLE/masked-visual.sha256"
+          for file in \
+            road-8512036-corridor-masked.png \
+            receipt.json \
+            bourse-candidate.log \
+            masked-visual.log \
+            import.log \
+            masked-visual.sha256; do
+            test -s "$BUNDLE/$file"
+          done
+          python3 - "$BUNDLE" "$MASKED_BASE_SHA" "$MASKED_HEAD_SHA" <<'PY'
+          import hashlib,json,pathlib,sys
+          bundle=pathlib.Path(sys.argv[1])
+          base=sys.argv[2]
+          head=sys.argv[3]
+          required=[
+              'road-8512036-corridor-masked.png',
+              'receipt.json',
+              'bourse-candidate.log',
+              'masked-visual.log',
+              'import.log',
+              'masked-visual.sha256',
+          ]
+          files={}
+          for name in required:
+              payload=(bundle/name).read_bytes()
+              assert payload, name
+              files[name]={'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()}
+          manifest={
+              'schema':'grand-bruxelles-bourse-8512036-masked-evidence-bundle-v2',
+              'base_sha':base,
+              'head_sha':head,
+              'road_osm_id':8512036,
+              'staging_bundle_root':'grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/evidence_bundle',
+              'artifact_archive_root':'.',
+              'required_files':required,
+              'files':files,
+              'human_visual_review_required':True,
+              'visual_acceptance':False,
+              'destination_advertisable':False,
+              'jouable_authorized':False,
+          }
+          (bundle/'evidence-manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          PY
+          test -s "$BUNDLE/evidence-manifest.json"
+          find "$BUNDLE" -maxdepth 1 -type f ! -name 'bundle-files.txt' -printf '%f\n' | sort > "$BUNDLE/bundle-files.txt"
+          test "$(wc -l < "$BUNDLE/bundle-files.txt")" -eq 7
+          test "$(find "$BUNDLE" -maxdepth 1 -type f | wc -l)" -eq 8
+
+      - name: Verify sealed bundle independently and reject coordinated drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE=grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/evidence_bundle
+          python3 - "$BUNDLE" "$MASKED_BASE_SHA" "$MASKED_HEAD_SHA" <<'PY'
+          import copy,hashlib,json,pathlib,sys
+          bundle=pathlib.Path(sys.argv[1]); base=sys.argv[2]; head=sys.argv[3]
+          required=['road-8512036-corridor-masked.png','receipt.json','bourse-candidate.log','masked-visual.log','import.log','masked-visual.sha256']
+          expected_inventory=sorted(required+['evidence-manifest.json'])
+          expected=sorted(expected_inventory+['bundle-files.txt'])
+          actual=sorted(p.name for p in bundle.iterdir() if p.is_file())
+          assert actual==expected, (actual,expected)
+          inventory=(bundle/'bundle-files.txt').read_text(encoding='utf-8').splitlines()
+          assert inventory==expected_inventory, (inventory,expected_inventory)
+          manifest=json.loads((bundle/'evidence-manifest.json').read_text(encoding='utf-8'))
+          def verify(m):
+              assert m['schema']=='grand-bruxelles-bourse-8512036-masked-evidence-bundle-v2'
+              assert m['base_sha']==base and m['head_sha']==head
+              assert m['road_osm_id']==8512036
+              assert m['staging_bundle_root']=='grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/evidence_bundle'
+              assert m['artifact_archive_root']=='.'
+              assert m['required_files']==required and sorted(m['files'])==sorted(required)
+              assert m['human_visual_review_required'] is True
+              assert m['visual_acceptance'] is False and m['destination_advertisable'] is False and m['jouable_authorized'] is False
+              for name in required:
+                  payload=(bundle/name).read_bytes()
+                  assert m['files'][name]['bytes']==len(payload)
+                  assert m['files'][name]['sha256']==hashlib.sha256(payload).hexdigest()
+              receipt=json.loads((bundle/'receipt.json').read_text(encoding='utf-8'))
+              png_sha=hashlib.sha256((bundle/'road-8512036-corridor-masked.png').read_bytes()).hexdigest()
+              receipt_sha=hashlib.sha256((bundle/'receipt.json').read_bytes()).hexdigest()
+              assert receipt['base_sha']==base and receipt['head_sha']==head and receipt['road_osm_id']==8512036
+              assert receipt['png_sha256']==png_sha
+              sidecar=(bundle/'masked-visual.sha256').read_text(encoding='utf-8').splitlines()
+              assert len(sidecar)==2
+              assert sidecar[0].split()[0]==png_sha
+              assert sidecar[1].split()[0]==receipt_sha
+          verify(manifest)
+          for mutate in ('head','road','png_hash','promotion'):
+              bad=copy.deepcopy(manifest)
+              if mutate=='head': bad['head_sha']='0'*40
+              elif mutate=='road': bad['road_osm_id']=8512037
+              elif mutate=='png_hash': bad['files']['road-8512036-corridor-masked.png']['sha256']='0'*64
+              else: bad['visual_acceptance']=True
+              try:
+                  verify(bad)
+              except AssertionError:
+                  continue
+              raise AssertionError(f'negative mutation accepted: {mutate}')
+          print('BOURSE_8512036_EVIDENCE_BUNDLE_VERIFY_OK')
+          PY
+
+      - name: Upload Bourse corridor-only masked visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-bourse-8512036-corridor-masked-visual
+          path: grand-bruxelles-game/artifacts/qa/bourse_8512036_corridor_masked_visual/evidence_bundle/
+          if-no-files-found: error
+          retention-days: 7

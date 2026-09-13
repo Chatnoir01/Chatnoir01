@@ -1,0 +1,149 @@
+name: Grand Bruxelles Bourse 8512036 Candidate Player Witness
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-8512036-candidate-player-witness.yml"
+      - ".github/workflows/grand-bruxelles-bourse-automatic-destination-candidate.yml"
+      - "grand-bruxelles-game/tests/test_bourse_automatic_destination_candidate.py"
+      - "grand-bruxelles-game/game/tests/bourse_8512036_candidate_player_witness_test.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-8512036-player-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GODOT_ZIP_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      LOCKED_SOURCE_SHA256: 899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact-current-main ancestry and exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          fi
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+          printf 'BOURSE_8512036_BASE_SHA=%s\n' "$MAIN_SHA" >> "$GITHUB_ENV"
+          printf 'BOURSE_8512036_HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_ENV"
+
+      - name: Recompute deterministic Bourse winner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tests/test_bourse_automatic_destination_candidate.py | tee /tmp/bourse-candidate.log
+          grep -Fq '"osm_id": 8512036' /tmp/bourse-candidate.log
+          printf '%s  %s\n' "$LOCKED_SOURCE_SHA256" grand-bruxelles-game/data/osm/vertical_slice_01.game.json | sha256sum -c -
+
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+
+      - name: Install verified Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ZIP_SHA256" /tmp/godot.zip | sha256sum -c -
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -E '^4\.7\.1\.stable\.'
+
+      - name: Import exact-head project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/bourse-8512036-import.log
+          status=${PIPESTATUS[0]}
+          test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/bourse-8512036-import.log
+
+      - name: Prove winning candidate through shared resolver and capture player frame
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/bourse_8512036_candidate_player_witness_test.gd 2>&1 | tee /tmp/bourse-8512036-runtime.log
+          status=${PIPESTATUS[0]}
+          test "$status" -eq 0
+          ! grep -E "SCRIPT ERROR|Parse Error:|BOURSE_8512036_CANDIDATE_PLAYER_WITNESS_FAIL" /tmp/bourse-8512036-runtime.log
+          grep -q 'BOURSE_8512036_CANDIDATE_PLAYER_WITNESS_GREEN' /tmp/bourse-8512036-runtime.log
+
+      - name: Seal fail-closed evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage=/tmp/bourse-8512036-evidence
+          png=grand-bruxelles-game/artifacts/visual/automatic_road_8512036_player.png
+          rm -rf "$stage" && mkdir -p "$stage"
+          cp /tmp/bourse-candidate.log "$stage/candidate.log" 2>/dev/null || true
+          cp /tmp/bourse-8512036-import.log "$stage/import.log" 2>/dev/null || true
+          cp /tmp/bourse-8512036-runtime.log "$stage/runtime.log" 2>/dev/null || true
+          test -s "$png"
+          cp "$png" "$stage/automatic_road_8512036_player.png"
+          python3 - "$stage" <<'PY'
+          import hashlib,json,os,pathlib,struct,sys
+          stage=pathlib.Path(sys.argv[1])
+          png=stage/'automatic_road_8512036_player.png'
+          raw=png.read_bytes()
+          assert raw[:8] == b'\x89PNG\r\n\x1a\n' and raw[12:16] == b'IHDR'
+          width,height=struct.unpack('>II',raw[16:24])
+          assert (width,height)==(1280,720)
+          runtime=(stage/'runtime.log').read_text(errors='replace')
+          assert 'BOURSE_8512036_CANDIDATE_PLAYER_WITNESS_GREEN' in runtime
+          def sha(p): return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+          receipt={
+            'schema':'grand-bruxelles-bourse-winning-candidate-player-witness-v1',
+            'base_sha':os.environ.get('BOURSE_8512036_BASE_SHA',''),
+            'head_sha':os.environ.get('BOURSE_8512036_HEAD_SHA',''),
+            'osm_id':8512036,
+            'source_name':'Rue Saint-Géry - Sint-Goriksstraat',
+            'source_sha256':os.environ['LOCKED_SOURCE_SHA256'],
+            'png_sha256':sha(png),
+            'runtime_log_sha256':sha(stage/'runtime.log'),
+            'candidate_log_sha256':sha(stage/'candidate.log'),
+            'width':width,'height':height,
+            'candidate_identity_recomputed':True,
+            'shared_resolver_used':True,
+            'human_full_frame_review_required':True,
+            'destination_advertisable':False,
+            'visual_acceptance':False,
+            'jouable_authorized':False,
+          }
+          (stage/'manifest.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          PY
+          (cd "$stage" && find . -maxdepth 1 -type f ! -name evidence-sha256.txt -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > evidence-sha256.txt)
+
+      - name: Revalidate live-main identity before success
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BOURSE_8512036_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$BOURSE_8512036_HEAD_SHA"
+
+      - name: Upload winning-candidate player evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automatic-road-8512036-player-witness
+          path: /tmp/bourse-8512036-evidence/
+          if-no-files-found: error
+          retention-days: 14

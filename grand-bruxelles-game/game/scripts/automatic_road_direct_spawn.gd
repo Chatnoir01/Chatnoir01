@@ -402,6 +402,75 @@ func _display_road_width(road: Dictionary) -> float:
     return width
 
 
+func _same_way_arc_target(points: PackedVector2Array, segment_index: int, direction_sign: int, maximum_distance_m: float) -> Dictionary:
+    if points.size() < 2 or segment_index < 0 or segment_index >= points.size() - 1:
+        return {}
+    if direction_sign != 1 and direction_sign != -1:
+        return {}
+    if not is_finite(maximum_distance_m) or maximum_distance_m <= 0.0:
+        return {}
+    var start: Vector2 = points[segment_index]
+    var finish: Vector2 = points[segment_index + 1]
+    var midpoint := start.lerp(finish, 0.5)
+    var endpoint: Vector2 = finish if direction_sign > 0 else start
+    var first_distance := midpoint.distance_to(endpoint)
+    var remaining := maximum_distance_m
+    var travelled := 0.0
+    var segment_hops := 0
+    if first_distance > 0.0000001:
+        if remaining <= first_distance:
+            return {
+                "target": midpoint.lerp(endpoint, remaining / first_distance),
+                "lookahead_m": remaining,
+                "segment_hops": 0,
+                "same_requested_osm_way_only": true,
+            }
+        travelled = first_distance
+        remaining -= first_distance
+    if direction_sign > 0:
+        for index: int in range(segment_index + 1, points.size() - 1):
+            var a: Vector2 = points[index]
+            var b: Vector2 = points[index + 1]
+            var length := a.distance_to(b)
+            if length <= 0.0000001:
+                continue
+            segment_hops += 1
+            if remaining <= length:
+                return {
+                    "target": a.lerp(b, remaining / length),
+                    "lookahead_m": travelled + remaining,
+                    "segment_hops": segment_hops,
+                    "same_requested_osm_way_only": true,
+                }
+            travelled += length
+            remaining -= length
+    else:
+        for index: int in range(segment_index - 1, -1, -1):
+            var a: Vector2 = points[index + 1]
+            var b: Vector2 = points[index]
+            var length := a.distance_to(b)
+            if length <= 0.0000001:
+                continue
+            segment_hops += 1
+            if remaining <= length:
+                return {
+                    "target": a.lerp(b, remaining / length),
+                    "lookahead_m": travelled + remaining,
+                    "segment_hops": segment_hops,
+                    "same_requested_osm_way_only": true,
+                }
+            travelled += length
+            remaining -= length
+    if travelled <= 0.0000001:
+        return {}
+    return {
+        "target": points[points.size() - 1] if direction_sign > 0 else points[0],
+        "lookahead_m": travelled,
+        "segment_hops": segment_hops,
+        "same_requested_osm_way_only": true,
+    }
+
+
 func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
     var points := _road_points(road)
     if points.size() < 2:
@@ -436,10 +505,6 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
         # may only break ties inside the 1 mm safest-clearance stratum, then spawn
         # clearance provides the final deterministic tie-break.
         var required_lookahead := offset * 2.10
-        var max_segment_lookahead := best_length * 0.5
-        var lookahead := minf(22.0, max_segment_lookahead)
-        if lookahead < required_lookahead:
-            continue
         var candidates: Array[Dictionary] = []
         var safest_corridor_clearance := -INF
         for side: float in [1.0, -1.0]:
@@ -449,8 +514,14 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
             if _point_inside_any_source_building(document, candidate):
                 continue
             var candidate_clearance := _source_building_clearance(document, candidate)
-            for along_sign: float in [1.0, -1.0]:
-                var target := midpoint + direction * lookahead * along_sign
+            for along_sign: int in [1, -1]:
+                var arc := _same_way_arc_target(points, best_index, along_sign, 22.0)
+                if arc.is_empty():
+                    continue
+                var lookahead := float(arc.get("lookahead_m", 0.0))
+                if lookahead < required_lookahead:
+                    continue
+                var target: Vector2 = arc["target"]
                 if absf(target.x) > MAX_WORLD_ABS_M or absf(target.y) > MAX_WORLD_ABS_M:
                     continue
                 if _point_inside_any_source_building(document, target):
@@ -463,7 +534,7 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
                     continue
                 if not _segment_clear_of_source_buildings(document, candidate, target):
                     continue
-                var continuation_count := end_connections if along_sign > 0.0 else start_connections
+                var continuation_count := end_connections if along_sign > 0 else start_connections
                 var corridor_clearance := _source_view_corridor_clearance(document, candidate, target)
                 if not is_finite(corridor_clearance) or corridor_clearance < 0.0:
                     continue
@@ -480,6 +551,8 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
                     "source_building_clearance_m": candidate_clearance,
                     "source_view_corridor_clearance_m": corridor_clearance,
                     "source_network_continuation_count": continuation_count,
+                    "source_arc_segment_hops": int(arc.get("segment_hops", 0)),
+                    "same_requested_osm_way_only": bool(arc.get("same_requested_osm_way_only", false)),
                 })
         if candidates.is_empty() or not is_finite(safest_corridor_clearance):
             continue
@@ -779,6 +852,8 @@ func apply_to_player(player: Node, osm_id: int) -> bool:
     body.set_meta("automatic_road_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
     body.set_meta("automatic_road_direct_axis_lookahead_m", float(viewpoint.get("axis_lookahead_m", 0.0)))
     body.set_meta("automatic_road_direct_axis_alignment", float(viewpoint.get("axis_alignment", 0.0)))
+    body.set_meta("automatic_road_direct_source_arc_segment_hops", int(viewpoint.get("source_arc_segment_hops", 0)))
+    body.set_meta("automatic_road_direct_same_requested_osm_way_only", bool(viewpoint.get("same_requested_osm_way_only", false)))
     body.set_meta("automatic_road_direct_corridor_anchor_oriented", bool(orientation.get("anchor_oriented", false)))
     if bool(orientation.get("anchor_oriented", false)):
         body.set_meta("automatic_road_direct_corridor_anchor_xz", orientation.get("anchor_xz"))

@@ -80,17 +80,18 @@ def main():
         root_with_slash=validate_entry(candidate(rel,sha,"https://example.invalid/"),root)
         assert root_with_slash["roster_eligible"] is True
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
-        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v28"
+        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v29"
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_canonical_percent_encoding_required"] is True
         assert payload["source_url_encoded_path_separators_forbidden"] is True
         assert payload["source_url_dot_segments_forbidden"] is True
         assert payload["source_url_ascii_host_required"] is True
+        assert payload["source_url_ascii_path_required"] is True
         assert payload["source_url_canonical_dns_host_required"] is True
         assert payload["source_url_explicit_root_path_required"] is True
         assert payload["source_url_canonical_port_spelling_required"] is True
         assert payload["source_url_canonical_ip_literal_required"] is True
         assert payload["source_url_canonical_ipv6_spelling_required"] is True
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V28_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V29_GREEN")
 if __name__=="__main__": main()

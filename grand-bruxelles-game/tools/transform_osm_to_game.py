@@ -276,6 +276,8 @@ def building_height(tags: dict[str, Any]) -> float:
             raise ValueError(f"building levels must be a finite unitless number: {tags.get('building:levels')!r}")
         if not 1.0 <= levels <= 80.0:
             raise ValueError(f"building levels must be within [1, 80]: {tags.get('building:levels')!r}")
+        if not levels.is_integer():
+            raise ValueError(f"building levels must be an integer count: {tags.get('building:levels')!r}")
         return round(max(3.2, levels * 3.15), 2)
 
     kind = str(tags.get("building", "yes"))

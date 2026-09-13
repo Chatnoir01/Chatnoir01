@@ -40,10 +40,11 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('/tmp/civ1-roster-truth/civ1-roster-registration-truth.json',encoding='utf-8'))
-          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v17'
+          assert d['schema']=='grand-bruxelles-civ1-roster-registration-truth-v18'
           assert d['blocking_reasons']==[]
           assert d['registration_count']==0 and d['eligible_count']==0
           assert d['source_url_canonical_scheme_host_case_required'] is True
+          assert d['source_url_default_https_port_forbidden'] is True
           assert d['roster_authorized'] is False and d['runtime_authorized'] is False and d['visual_approval_claimed'] is False
           PY
       - uses: actions/upload-artifact@v4

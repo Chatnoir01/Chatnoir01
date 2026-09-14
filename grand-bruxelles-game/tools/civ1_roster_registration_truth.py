@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# v47 is a deliberately thin policy layer over the previously qualified v38
+# v48 is a deliberately thin policy layer over the previously qualified v38
 # parser/structural validator. Keeping the v38 core immutable makes each
 # provenance delta reviewable while binding newer policy gates directly to
 # roster eligibility.
@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import civ1_roster_registration_truth_v38 as _v38
 from civ1_roster_local_network_provenance import is_local_network_source
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v47"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v48"
 REGISTRY_SCHEMA = _v38.REGISTRY_SCHEMA
 PLAYER_ASSET = _v38.PLAYER_ASSET
 CHARACTER_ROOT = _v38.CHARACTER_ROOT
@@ -22,6 +22,7 @@ DuplicateJSONKeyError = _v38.DuplicateJSONKeyError
 NonStandardJSONConstantError = _v38.NonStandardJSONConstantError
 SPECIAL_USE_DNS_SUFFIXES = ("alt", "onion")
 PRIVATE_USE_DNS_SUFFIXES = ("internal",)
+DNS_INFRASTRUCTURE_SUFFIXES = ("arpa",)
 NAT64_TRANSLATION_PREFIXES = (
     ipaddress.ip_network("64:ff9b::/96"),
     ipaddress.ip_network("64:ff9b:1::/48"),
@@ -99,6 +100,12 @@ def _uses_private_use_namespace(value: str) -> bool:
     return bool(host) and _matches_dns_namespace(host, PRIVATE_USE_DNS_SUFFIXES)
 
 
+def _uses_dns_infrastructure_namespace(value: str) -> bool:
+    """Reject ARPA infrastructure names as ordinary public asset provenance."""
+    host = _normalized_dns_host(value)
+    return bool(host) and _matches_dns_namespace(host, DNS_INFRASTRUCTURE_SUFFIXES)
+
+
 def _uses_ambiguous_dotted_numeric_host(value: str) -> bool:
     host = _normalized_dns_host(value)
     if not host or "." not in host:
@@ -132,6 +139,8 @@ def _source_reasons(value: str) -> list[str]:
             reasons.append("source_url_special_use_namespace_forbidden")
         if _uses_private_use_namespace(value):
             reasons.append("source_url_private_use_namespace_forbidden")
+        if _uses_dns_infrastructure_namespace(value):
+            reasons.append("source_url_dns_infrastructure_namespace_forbidden")
         if _uses_ambiguous_dotted_numeric_host(value):
             reasons.append("source_url_ambiguous_dotted_numeric_host_forbidden")
     return sorted(set(reasons))
@@ -154,6 +163,7 @@ def build_payload(registry, repo_root):
     payload["source_url_ipv6_nat64_forbidden"] = True
     payload["source_url_special_use_namespace_forbidden"] = True
     payload["source_url_private_use_namespace_forbidden"] = True
+    payload["source_url_dns_infrastructure_namespace_forbidden"] = True
     payload["source_url_ambiguous_dotted_numeric_host_forbidden"] = True
     return payload
 

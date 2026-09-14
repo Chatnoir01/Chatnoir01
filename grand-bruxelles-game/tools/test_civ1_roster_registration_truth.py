@@ -82,10 +82,9 @@ def main():
         synthetic_registry={"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[candidate(rel,sha,s) for s in local_sources]}
         assert violating_sources(synthetic_registry)==list(local_sources)
 
-        # Python's ipaddress currently reports deprecated IPv4-compatible IPv6
-        # spellings such as ::127.0.0.1 as globally scoped. They must not bypass
-        # the provenance boundary merely because the embedded IPv4 is hidden in
-        # IPv6 syntax.
+        # Python's ipaddress reports deprecated IPv4-compatible ::/96 spellings
+        # such as ::127.0.0.1 as globally scoped. They cannot be immutable public
+        # provenance identities because the low 32 bits hide IPv4-shaped values.
         for source in (
             "https://[::7f00:1]/source/civilian.glb",
             "https://[::a00:1]/source/civilian.glb",
@@ -94,6 +93,9 @@ def main():
             bad=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_ipv4_compatible_ipv6_forbidden" in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False, (source,bad)
+        public_ipv6=validate_entry(candidate(rel,sha,"https://[2606:4700:4700::1111]/source/civilian.glb"),root)
+        assert "source_url_ipv4_compatible_ipv6_forbidden" not in public_ipv6["blocking_reasons"], public_ipv6
+        assert public_ipv6["roster_eligible"] is True, public_ipv6
 
         canonical_registry_path=Path("grand-bruxelles-game/qa/civ1_roster_registry.json")
         if canonical_registry_path.is_file():
@@ -128,7 +130,7 @@ def main():
         assert all("duplicate_source_url" in e["blocking_reasons"] for e in duplicate_source["entries"]), duplicate_source
 
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
-        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v39"
+        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v40"
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_idna_alabel_roundtrip_required"] is True
@@ -139,10 +141,11 @@ def main():
         assert payload["source_url_reserved_domain_subdomains_forbidden"] is True
         assert payload["source_url_local_network_forbidden"] is True
         assert payload["source_url_local_network_integrated_required"] is True
+        assert payload["source_url_ipv4_compatible_ipv6_forbidden"] is True
         assert payload["unique_content_identity_required"] is True
         assert payload["unique_source_provenance_required"] is True
         assert payload["roster_authorized"] is False
         assert payload["runtime_authorized"] is False
         assert payload["visual_approval_claimed"] is False
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V39_LOCAL_NETWORK_INTEGRATION_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V40_IPV4_COMPATIBLE_IPV6_GREEN")
 if __name__=="__main__": main()

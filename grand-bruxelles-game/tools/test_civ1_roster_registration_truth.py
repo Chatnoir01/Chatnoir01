@@ -55,6 +55,8 @@ def main():
         canonical_ipv4=validate_entry(candidate(rel,sha,"https://8.8.8.8/source/civilian.glb"),root)
         assert "source_url_ambiguous_dotted_numeric_host_forbidden" not in canonical_ipv4["blocking_reasons"], canonical_ipv4
         assert canonical_ipv4["roster_eligible"] is True, canonical_ipv4
+        for source in ("https://[2002:808:808::]/source/civilian.glb","https://[2002:7f00:1::]/source/civilian.glb","https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/source/civilian.glb"):
+            bad=validate_entry(candidate(rel,sha,source),root); assert "source_url_ipv6_transition_forbidden" in bad["blocking_reasons"], (source,bad); assert bad["roster_eligible"] is False, (source,bad)
         canonical_registry_path=Path("grand-bruxelles-game/qa/civ1_roster_registry.json")
         if canonical_registry_path.is_file():
             canonical_registry=json.loads(canonical_registry_path.read_text(encoding="utf-8")); assert violating_sources(canonical_registry)==[], violating_sources(canonical_registry)

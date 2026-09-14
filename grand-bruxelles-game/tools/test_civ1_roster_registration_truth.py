@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import hashlib, struct, tempfile
+import hashlib, json, struct, tempfile
 from pathlib import Path
 from civ1_roster_registration_truth import build_payload, validate_entry
+from civ1_roster_local_network_provenance import is_local_network_source, violating_sources
 
 def minimal_glb(payload=b"{}  "):
     total=20+len(payload)
@@ -60,15 +61,24 @@ def main():
             assert "source_url_reserved_host_forbidden" in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False
 
-        for source in (
+        local_sources=(
             "https://assets.local/source/civilian.glb",
             "https://cdn.assets.local/source/civilian.glb",
             "https://home.arpa/source/civilian.glb",
             "https://cdn.home.arpa/source/civilian.glb",
-        ):
-            bad=validate_entry(candidate(rel,sha,source),root)
-            assert "source_url_local_network_forbidden" in bad["blocking_reasons"], (source,bad)
-            assert bad["roster_eligible"] is False
+            "https://localhost/source/civilian.glb",
+            "https://assets.localhost/source/civilian.glb",
+        )
+        for source in local_sources:
+            assert is_local_network_source(source) is True, source
+        assert is_local_network_source("https://assets.character-fixtures.com/source/civilian.glb") is False
+        synthetic_registry={"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[candidate(rel,sha,s) for s in local_sources]}
+        assert violating_sources(synthetic_registry)==list(local_sources)
+
+        canonical_registry_path=Path("grand-bruxelles-game/qa/civ1_roster_registry.json")
+        if canonical_registry_path.is_file():
+            canonical_registry=json.loads(canonical_registry_path.read_text(encoding="utf-8"))
+            assert violating_sources(canonical_registry)==[], violating_sources(canonical_registry)
 
         rel_copy="grand-bruxelles-game/assets/characters/civilian_fixture_copy.glb"
         copy_asset=root/rel_copy; copy_asset.write_bytes(asset.read_bytes())
@@ -107,10 +117,11 @@ def main():
         assert payload["source_url_empty_delimiters_forbidden"] is True
         assert payload["source_url_reserved_host_forbidden"] is True
         assert payload["source_url_reserved_domain_subdomains_forbidden"] is True
+        assert payload["source_url_local_network_forbidden"] is True
         assert payload["unique_content_identity_required"] is True
         assert payload["unique_source_provenance_required"] is True
         assert payload["roster_authorized"] is False
         assert payload["runtime_authorized"] is False
         assert payload["visual_approval_claimed"] is False
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V38_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V38_LOCAL_NETWORK_GATE_GREEN")
 if __name__=="__main__": main()

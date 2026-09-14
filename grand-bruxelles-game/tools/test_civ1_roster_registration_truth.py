@@ -23,11 +23,18 @@ def main():
             "https://xn--abc.invalid/source/civilian.glb",
             "https://xn--a.invalid/source/civilian.glb",
             "https://xn--0.invalid/source/civilian.glb",
-            "https://xn--invalid-.invalid/source/civilian.glb",
         ):
             bad=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_idna_label_invalid" in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False
+
+        # A-label-shaped text that is already syntactically invalid DNS must fail
+        # at the DNS gate rather than being misclassified as an IDNA round-trip failure.
+        dns_bad=validate_entry(candidate(rel,sha,"https://xn--invalid-.invalid/source/civilian.glb"),root)
+        assert "source_url_dns_host_invalid" in dns_bad["blocking_reasons"], dns_bad
+        assert "source_url_idna_label_invalid" not in dns_bad["blocking_reasons"], dns_bad
+        assert dns_bad["roster_eligible"] is False
+
         for source,reason in (
             ("https://example.invalid/source/civilian.glb?","source_url_query_forbidden"),
             ("https://example.invalid/source/civilian.glb#","source_url_fragment_forbidden"),

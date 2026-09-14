@@ -6,8 +6,9 @@ on:
       - "grand-bruxelles-game/data/osm/road_destination_sources.lock.json"
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
       - "grand-bruxelles-game/tools/validate_road_destination_source_lock.py"
+      - "grand-bruxelles-game/tools/validate_road_destination_corridor_membership.py"
       - "grand-bruxelles-game/tests/test_validate_road_destination_source_lock.py"
-      - "grand-bruxelles-game/tests/test_required_building_provenance_lock.py"
+      - "grand-bruxelles-game/tests/test_validate_road_destination_corridor_membership.py"
       - ".github/workflows/grand-bruxelles-road-destination-source-lock.yml"
   workflow_dispatch:
 
@@ -33,4 +34,4 @@ jobs:
         working-directory: grand-bruxelles-game
         run: |
           python3 tests/test_validate_road_destination_source_lock.py
-          python3 tests/test_required_building_provenance_lock.py
+          python3 tests/test_validate_road_destination_corridor_membership.py

@@ -3,8 +3,8 @@
 
 This validator proves that compatible grand-bruxelles-osm-v1 documents under data/osm
 match the committed allowlist and SHA-256 digests, retain the locked OSM attribution
-and license, and have self-consistent selected/source accounting. It does not acquire
-data and grants no render/runtime/JOUABLE authorization.
+and license, and have self-consistent corridor selection and source accounting. It does
+not acquire data and grants no render/runtime/JOUABLE authorization.
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ SOURCE_ATTRIBUTION = "OpenStreetMap contributors via Overpass API"
 SOURCE_LICENSE = "ODbL-1.0"
 DEFAULT_LOCK_NAME = "road_destination_sources.lock.json"
 COUNT_KEYS = ("roads", "drivable_roads", "buildings", "railways", "environment_points")
+SELECTION_RADIUS_KEYS = ("roads", "buildings", "railways", "environment_points")
 
 
 def fail(message: str) -> "NoReturn":
@@ -71,6 +72,56 @@ def required_array(payload: dict[str, Any], key: str) -> list[Any]:
     return value
 
 
+def canonical_nonempty_text(value: Any, label: str) -> str:
+    if type(value) is not str or not value or value.strip() != value:
+        fail(f"{label} must be a non-empty canonical string")
+    return value
+
+
+def finite_number(value: Any, label: str, *, positive: bool = False) -> float:
+    if type(value) not in (int, float) or not math.isfinite(float(value)):
+        fail(f"{label} must be a finite number")
+    number = float(value)
+    if positive and number <= 0.0:
+        fail(f"{label} must be a finite positive number")
+    return number
+
+
+def validate_corridor_selection(payload: dict[str, Any]) -> None:
+    corridor = payload.get("corridor")
+    if type(corridor) is not dict:
+        fail("corridor must be an object")
+
+    canonical_nonempty_text(corridor.get("name"), "corridor.name")
+
+    anchors = corridor.get("anchors")
+    if type(anchors) is not list or not anchors:
+        fail("corridor.anchors must be a non-empty array")
+    seen_anchor_ids: set[str] = set()
+    for index, anchor in enumerate(anchors):
+        if type(anchor) is not dict:
+            fail(f"corridor.anchors[{index}] must be an object")
+        anchor_id = canonical_nonempty_text(anchor.get("id"), f"corridor.anchors[{index}].id")
+        if anchor_id in seen_anchor_ids:
+            fail(f"duplicate corridor anchor id {anchor_id!r}")
+        seen_anchor_ids.add(anchor_id)
+        canonical_nonempty_text(anchor.get("name"), f"corridor.anchors[{index}].name")
+        finite_number(anchor.get("x"), f"corridor.anchors[{index}].x")
+        finite_number(anchor.get("z"), f"corridor.anchors[{index}].z")
+
+    selection_radius = corridor.get("selection_radius_m")
+    if type(selection_radius) is not dict:
+        fail("corridor.selection_radius_m must be an object")
+    if set(selection_radius) != set(SELECTION_RADIUS_KEYS):
+        fail("corridor.selection_radius_m field set drift")
+    for key in SELECTION_RADIUS_KEYS:
+        finite_number(
+            selection_radius.get(key),
+            f"corridor.selection_radius_m.{key}",
+            positive=True,
+        )
+
+
 def canonical_road_text(
     index: int,
     field: str,
@@ -114,6 +165,8 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
         fail(f"source attribution drift {path}")
     if payload.get("license") != SOURCE_LICENSE:
         fail(f"source license drift {path}")
+
+    validate_corridor_selection(payload)
 
     roads = required_array(payload, "roads")
     buildings = required_array(payload, "buildings")
@@ -284,7 +337,7 @@ def main() -> int:
     locked = validate(args.source_root, args.lock)
     print(
         f"ROAD_DESTINATION_SOURCE_LOCK_OK: documents={len(locked)} "
-        "provenance=true accounting=true network_used=false"
+        "provenance=true corridor_selection=true accounting=true network_used=false"
     )
     for path, digest in locked.items():
         print(f"ROAD_DESTINATION_SOURCE_LOCK_DOCUMENT: {path} sha256={digest}")

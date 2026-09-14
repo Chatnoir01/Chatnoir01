@@ -34,9 +34,25 @@ def _source_file(repo_root: Path, source_path: str) -> Path | None:
     root_parts = SOURCE_ROOT.parts
     if len(pure.parts) <= len(root_parts) or pure.parts[: len(root_parts)] != root_parts:
         return None
+
     game_root = (repo_root / "grand-bruxelles-game").resolve()
-    allowed = (game_root / Path(*root_parts)).resolve()
-    candidate = (game_root / Path(*pure.parts)).resolve()
+    lexical_root = game_root / Path(*root_parts)
+    lexical_candidate = game_root / Path(*pure.parts)
+
+    # A manifest path is an identity, not merely a locator to matching bytes.
+    # Reject aliases anywhere from the source root through the declared file,
+    # including in-root symlinks whose resolved target would otherwise pass the
+    # confinement, size and Git-blob checks below.
+    current = lexical_root
+    if current.is_symlink():
+        return None
+    for part in pure.parts[len(root_parts) :]:
+        current = current / part
+        if current.is_symlink():
+            return None
+
+    allowed = lexical_root.resolve()
+    candidate = lexical_candidate.resolve()
     try:
         candidate.relative_to(allowed)
     except ValueError:

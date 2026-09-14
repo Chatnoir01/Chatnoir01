@@ -1,0 +1,219 @@
+name: Grand Bruxelles Atomium UrbIS 3D Discovery
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/grand-bruxelles-atomium-urbis3d-discovery.yml'
+      - 'grand-bruxelles-game/tools/build_atomium_heysel_urbis3d_slice.py'
+      - 'grand-bruxelles-game/tools/extract_urbis_3d_hero.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-official-3d:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch official Paradigm 3D Constructions Atom feed
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            'https://urbisdownload.datastore.brussels/atomfeed/e9ec2aa4-cffd-11ee-bccc-00090ffe0001-fr.xml' \
+            --output "$RUNNER_TEMP/urbis-3d-constructions.xml"
+          test -s "$RUNNER_TEMP/urbis-3d-constructions.xml"
+
+      - name: Resolve latest official Heysel SHP tile from feed
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+          import xml.etree.ElementTree as ET
+
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'urbis-3d-constructions.xml'
+          root = ET.parse(path).getroot()
+          hrefs = []
+          for element in root.iter():
+              href = element.attrib.get('href')
+              if href and href not in hrefs:
+                  hrefs.append(href)
+              text = (element.text or '').strip()
+              if text.startswith('http') and text not in hrefs:
+                  hrefs.append(text)
+
+          archives = [url for url in hrefs if any(token in url.lower() for token in ('.zip', '.gml', '.gpkg', '.shp'))]
+          pattern = re.compile(r'/SHP/UrbISBuildings3D_31370_SHP_148176_(\d{8})\.zip$')
+          candidates = []
+          for url in hrefs:
+              match = pattern.search(url)
+              if match:
+                  candidates.append((match.group(1), url))
+          if not candidates:
+              raise SystemExit('No official SHP distribution found for EPSG:31370 tile 148176')
+          date, url = max(candidates)
+          env = pathlib.Path(os.environ['GITHUB_ENV'])
+          with env.open('a', encoding='utf-8') as handle:
+              handle.write(f'URBIS3D_HEYSEL_DATE={date}\n')
+              handle.write(f'URBIS3D_HEYSEL_URL={url}\n')
+          print('URBIS_3D_DISCOVERY_HREFS=' + json.dumps(hrefs, ensure_ascii=False))
+          print('URBIS_3D_DISCOVERY_ARCHIVES=' + json.dumps(archives, ensure_ascii=False))
+          print(f'URBIS_3D_HEYSEL_DISTRIBUTION_OK tile=148176 date={date} url={url}')
+          PY
+
+      - name: Download exact official Heysel SHP archive
+        run: |
+          set -euo pipefail
+          ARCHIVE="$RUNNER_TEMP/UrbISBuildings3D_31370_SHP_148176_${URBIS3D_HEYSEL_DATE}.zip"
+          curl --fail --location --retry 3 --retry-delay 3 --silent --show-error \
+            "$URBIS3D_HEYSEL_URL" --output "$ARCHIVE"
+          test -s "$ARCHIVE"
+          sha256sum "$ARCHIVE" | tee "$RUNNER_TEMP/urbis3d-heysel-archive.sha256"
+          unzip -t "$ARCHIVE" >/dev/null
+          mkdir -p "$RUNNER_TEMP/urbis3d-heysel"
+          unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/urbis3d-heysel"
+          find "$RUNNER_TEMP/urbis3d-heysel" -maxdepth 3 -type f -printf '%P\n' | sort | tee "$RUNNER_TEMP/urbis3d-heysel-members.txt"
+
+      - name: Inspect official SHP layers and fields
+        run: |
+          python3 -m pip install --disable-pip-version-check --quiet pyshp
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import shapefile
+
+          runner = pathlib.Path(os.environ['RUNNER_TEMP'])
+          archive = runner / f"UrbISBuildings3D_31370_SHP_148176_{os.environ['URBIS3D_HEYSEL_DATE']}.zip"
+          extracted = runner / 'urbis3d-heysel'
+          layers = []
+          for shp in sorted(extracted.rglob('*.shp')):
+              reader = shapefile.Reader(str(shp))
+              fields = [
+                  {'name': field[0], 'type': field[1], 'size': field[2], 'decimal': field[3]}
+                  for field in reader.fields[1:]
+              ]
+              bbox = list(reader.bbox) if getattr(reader, 'bbox', None) is not None else None
+              zbox = list(reader.zbox) if getattr(reader, 'zbox', None) is not None else None
+              layers.append({
+                  'name': shp.stem,
+                  'relative_path': shp.relative_to(extracted).as_posix(),
+                  'shape_type': reader.shapeType,
+                  'shape_type_name': reader.shapeTypeName,
+                  'feature_count': len(reader),
+                  'bbox': bbox,
+                  'zbox': zbox,
+                  'fields': fields,
+              })
+              reader.close()
+
+          if not layers:
+              raise SystemExit('Official Heysel archive contains no SHP layers')
+          raw = archive.read_bytes()
+          receipt = {
+              'schema': 'grand-bruxelles-atomium-urbis3d-heysel-discovery-v1',
+              'source': 'Paradigm UrbIS - Constructions 3D',
+              'dataset_id': 'e9ec2aa4-cffd-11ee-bccc-00090ffe0001',
+              'crs': 'EPSG:31370',
+              'tile': '148176',
+              'distribution_date': os.environ['URBIS3D_HEYSEL_DATE'],
+              'distribution_url': os.environ['URBIS3D_HEYSEL_URL'],
+              'archive_sha256': hashlib.sha256(raw).hexdigest(),
+              'archive_size_bytes': len(raw),
+              'layers': layers,
+              'integration_claimed': False,
+              'jouable_claim': False,
+          }
+          dest = runner / 'urbis3d-heysel-discovery.json'
+          dest.write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          print(json.dumps(receipt, indent=2, ensure_ascii=False))
+          print(f"URBIS_3D_HEYSEL_ARCHIVE_OK layers={len(layers)} sha256={receipt['archive_sha256']}")
+          PY
+
+      - name: Require a source-backed building-face candidate
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+
+          receipt = json.loads((pathlib.Path(os.environ['RUNNER_TEMP']) / 'urbis3d-heysel-discovery.json').read_text())
+          candidates = []
+          for layer in receipt['layers']:
+              names = {field['name'].lower() for field in layer['fields']}
+              label = layer['name'].lower()
+              if 'face' in label or 'surface' in label or {'bu2d_id', 'type'} <= names:
+                  candidates.append(layer['name'])
+          if not candidates:
+              raise SystemExit('No building-face/surface layer candidate identified; do not promote 3D integration')
+          print('URBIS_3D_HEYSEL_FACE_CANDIDATES=' + ','.join(candidates))
+          PY
+
+      - name: Build deterministic source-faithful Heysel LoD2 slice
+        run: |
+          set -euo pipefail
+          ARCHIVE_SHA="$(cut -d' ' -f1 "$RUNNER_TEMP/urbis3d-heysel-archive.sha256")"
+          SOURCE_ROOT="$RUNNER_TEMP/urbis3d-heysel/shp"
+          PREFIX='UrbISBuildings3D_148176'
+          OUT1="$RUNNER_TEMP/atomium-heysel-urbis3d-slice.json"
+          OUT2="$RUNNER_TEMP/atomium-heysel-urbis3d-slice-repeat.json"
+          for OUT in "$OUT1" "$OUT2"; do
+            python3 grand-bruxelles-game/tools/build_atomium_heysel_urbis3d_slice.py \
+              --source-root "$SOURCE_ROOT" \
+              --prefix "$PREFIX" \
+              --min-e 148002.07966029973 \
+              --min-n 176002.01708776454 \
+              --max-e 148998.18860971605 \
+              --max-n 176998.12603718086 \
+              --origin-e 147868.29422791934 \
+              --origin-n 169538.62414926197 \
+              --package-url "$URBIS3D_HEYSEL_URL" \
+              --package-sha256 "$ARCHIVE_SHA" \
+              --distribution-date "$URBIS3D_HEYSEL_DATE" \
+              --output "$OUT"
+          done
+          cmp "$OUT1" "$OUT2"
+          sha256sum "$OUT1" | tee "$RUNNER_TEMP/atomium-heysel-urbis3d-slice.sha256"
+          python3 - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'atomium-heysel-urbis3d-slice.json'
+          data = json.loads(path.read_text(encoding='utf-8'))
+          evidence = data['evidence']
+          if evidence['building_count'] <= 0 or evidence['face_count'] <= 0 or evidence['triangle_count'] <= 0:
+              raise SystemExit('LoD2 slice is empty')
+          if data['coordinates']['game_y_conversion_claimed'] is not False:
+              raise SystemExit('Discovery slice must not claim a game-Y conversion')
+          print(
+              'ATOMIUM_HEYSEL_URBIS3D_ARTIFACT_OK '
+              f"bytes={path.stat().st_size} buildings={evidence['building_count']} "
+              f"faces={evidence['face_count']} triangles={evidence['triangle_count']} "
+              f"z={evidence['source_z_min_m']}..{evidence['source_z_max_m']}"
+          )
+          PY
+
+      - name: Upload official feed and Heysel discovery receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: urbis-3d-heysel-discovery
+          path: |
+            ${{ runner.temp }}/urbis-3d-constructions.xml
+            ${{ runner.temp }}/urbis3d-heysel-discovery.json
+            ${{ runner.temp }}/urbis3d-heysel-archive.sha256
+            ${{ runner.temp }}/urbis3d-heysel-members.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload deterministic Heysel LoD2 slice
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-heysel-urbis3d-slice
+          path: |
+            ${{ runner.temp }}/atomium-heysel-urbis3d-slice.json
+            ${{ runner.temp }}/atomium-heysel-urbis3d-slice.sha256
+          if-no-files-found: error
+          retention-days: 7

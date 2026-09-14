@@ -43,6 +43,14 @@ def _expect_rejected(lock_doc: dict[str, object], source_doc: dict[str, object],
         assert needle.lower() in (result.stdout + result.stderr).lower(), result.stdout + result.stderr
 
 
+def _first_required_building(source_doc: dict[str, object]) -> dict[str, object]:
+    corridor = source_doc["corridor"]
+    assert isinstance(corridor, dict)
+    required = corridor["required_buildings"]
+    assert isinstance(required, list) and required and isinstance(required[0], dict)
+    return required[0]
+
+
 def main() -> int:
     lock_doc = json.loads(LOCK.read_text(encoding="utf-8"))
     source_doc = json.loads(SOURCE.read_text(encoding="utf-8"))
@@ -80,6 +88,25 @@ def main() -> int:
     assert isinstance(bad_required, list) and isinstance(bad_required[0], dict)
     bad_required[0]["urbis_crs"] = "EPSG:4326"
     _expect_rejected(lock_doc, bad_urbis_crs, "urbis_crs")
+
+    bourse = required[0]
+    assert bourse["osm_type"] == "way"
+    assert bourse["osm_id"] == 13494623
+    assert bourse["urbis_inspire_id"] == "https://databrussels.be/id/building/1751663"
+    assert bourse["urbis_ref"] == "8186511"
+    assert bourse["urbis_area_m2"] == 3368
+    assert bourse["cross_check_accessed_at"] == "2026-08-12"
+
+    crosswalk_mutations = (
+        ("urbis_inspire_id", "https://databrussels.be/id/building/1751664"),
+        ("urbis_ref", "8186512"),
+        ("urbis_area_m2", 3369),
+        ("cross_check_accessed_at", "2026-08-13"),
+    )
+    for field, replacement in crosswalk_mutations:
+        drifted = json.loads(json.dumps(source_doc))
+        _first_required_building(drifted)[field] = replacement
+        _expect_rejected(lock_doc, drifted, "historical Bourse UrbIS crosswalk drift")
 
     bad_runtime_approval = json.loads(json.dumps(source_doc))
     bad_corridor = bad_runtime_approval["corridor"]

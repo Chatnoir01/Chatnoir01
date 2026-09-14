@@ -52,6 +52,9 @@ def main():
             "https://example.com/source/civilian.glb",
             "https://example.net/source/civilian.glb",
             "https://example.org/source/civilian.glb",
+            "https://assets.example.com/source/civilian.glb",
+            "https://cdn.assets.example.net/source/civilian.glb",
+            "https://characters.example.org/source/civilian.glb",
         ):
             bad=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_reserved_host_forbidden" in bad["blocking_reasons"], (source,bad)

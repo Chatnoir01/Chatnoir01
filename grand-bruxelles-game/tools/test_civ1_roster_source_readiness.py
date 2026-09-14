@@ -53,6 +53,22 @@ def main():
         assert source_ready(root) is True
         assert blocking_entries(registry, root) == []
 
+        # A manifest path must identify a real regular source file, not merely
+        # resolve to matching bytes through an alias. The historical gate used
+        # Path.resolve(), so an in-root symlink to an identical blob passed.
+        backing_file = source_file.with_name("body-backing.glb")
+        source_file.unlink()
+        backing_file.write_bytes(b"civ1-source-body")
+        source_file.symlink_to(backing_file.name)
+        status.write_text(json.dumps(ready_status), encoding="utf-8")
+        assert source_ready(root) is False, (
+            "CIV-1 readiness must reject symlinked source paths even when the target remains "
+            "inside the source root and has the declared bytes"
+        )
+        source_file.unlink()
+        backing_file.unlink()
+        source_file.write_bytes(b"civ1-source-body")
+
         missing_source = json.loads(json.dumps(ready_status))
         source_file.unlink()
         status.write_text(json.dumps(missing_source), encoding="utf-8")

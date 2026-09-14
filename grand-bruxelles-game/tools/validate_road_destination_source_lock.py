@@ -22,7 +22,13 @@ SOURCE_LICENSE = "ODbL-1.0"
 DEFAULT_LOCK_NAME = "road_destination_sources.lock.json"
 COUNT_KEYS = ("roads", "drivable_roads", "buildings", "railways", "environment_points")
 SELECTION_RADIUS_KEYS = ("roads", "buildings", "railways", "environment_points")
-REQUIRED_CORRIDOR_ANCHOR_IDS = ("midi", "anneessens", "bourse", "grand_place")
+REQUIRED_CORRIDOR_ANCHORS = (
+    ("midi", "Gare du Midi", -668.5, 627.84),
+    ("anneessens", "Place Anneessens", -272.04, -217.07),
+    ("bourse", "Bourse / Beurs", 81.54, -664.58),
+    ("grand_place", "Grand-Place", 319.01, -535.2),
+)
+REQUIRED_CORRIDOR_ANCHOR_IDS = tuple(anchor[0] for anchor in REQUIRED_CORRIDOR_ANCHORS)
 REQUIRED_BUILDING_APPROVAL_KEYS = ("footprint", "height", "roof", "frontage")
 URBIS_CRS = "EPSG:31370"
 
@@ -185,6 +191,22 @@ def validate_corridor_selection(payload: dict[str, Any]) -> None:
             "corridor anchor order drift: "
             f"observed={ordered_anchor_ids!r} required={list(REQUIRED_CORRIDOR_ANCHOR_IDS)!r}"
         )
+
+    for index, (anchor, expected) in enumerate(zip(anchors, REQUIRED_CORRIDOR_ANCHORS, strict=True)):
+        expected_id, expected_name, expected_x, expected_z = expected
+        observed_name = anchor.get("name")
+        observed_x = float(anchor.get("x"))
+        observed_z = float(anchor.get("z"))
+        if observed_name != expected_name:
+            fail(
+                f"corridor anchor name drift {expected_id}: "
+                f"observed={observed_name!r} required={expected_name!r}"
+            )
+        if observed_x != expected_x or observed_z != expected_z:
+            fail(
+                f"corridor anchor coordinate drift {expected_id}: "
+                f"observed=[{observed_x},{observed_z}] required=[{expected_x},{expected_z}]"
+            )
 
     validate_required_buildings(corridor)
 
@@ -416,7 +438,8 @@ def main() -> int:
     locked = validate(args.source_root, args.lock)
     print(
         f"ROAD_DESTINATION_SOURCE_LOCK_OK: documents={len(locked)} "
-        "provenance=true corridor_selection=true accounting=true network_used=false"
+        "provenance=true corridor_selection=true anchor_coordinates_locked=true "
+        "accounting=true network_used=false"
     )
     for path, digest in locked.items():
         print(f"ROAD_DESTINATION_SOURCE_LOCK_DOCUMENT: {path} sha256={digest}")

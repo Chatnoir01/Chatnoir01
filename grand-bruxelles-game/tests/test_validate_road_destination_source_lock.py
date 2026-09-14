@@ -126,6 +126,22 @@ def main() -> int:
     anchors[1]["id"] = anchors[0]["id"]
     _expect_rejected(lock_doc, duplicate_anchor_id, "duplicate")
 
+    missing_required_anchor = json.loads(json.dumps(source_doc))
+    corridor = missing_required_anchor["corridor"]
+    assert isinstance(corridor, dict)
+    anchors = corridor["anchors"]
+    assert isinstance(anchors, list) and len(anchors) == 4
+    corridor["anchors"] = [anchor for anchor in anchors if anchor.get("id") != "bourse"]
+    _expect_rejected(lock_doc, missing_required_anchor, "anchor order")
+
+    reordered_required_anchors = json.loads(json.dumps(source_doc))
+    corridor = reordered_required_anchors["corridor"]
+    assert isinstance(corridor, dict)
+    anchors = corridor["anchors"]
+    assert isinstance(anchors, list) and len(anchors) == 4
+    anchors[1], anchors[2] = anchors[2], anchors[1]
+    _expect_rejected(lock_doc, reordered_required_anchors, "anchor order")
+
     bad_anchor_coordinate = json.loads(json.dumps(source_doc))
     corridor = bad_anchor_coordinate["corridor"]
     assert isinstance(corridor, dict)
@@ -254,9 +270,10 @@ def main() -> int:
     print(
         "ROAD_DESTINATION_SOURCE_LOCK_TEST_OK "
         "digest=true provenance=true accounting=true lock_path=true "
-        "corridor_selection_integrity=true road_osm_id_integrity=true "
-        "road_name_class_integrity=true road_drivable_bool_integrity=true "
-        "road_geometry_integrity=true road_width_integrity=true network_used=false"
+        "corridor_selection_integrity=true corridor_anchor_order_integrity=true "
+        "road_osm_id_integrity=true road_name_class_integrity=true "
+        "road_drivable_bool_integrity=true road_geometry_integrity=true "
+        "road_width_integrity=true network_used=false"
     )
     return 0
 

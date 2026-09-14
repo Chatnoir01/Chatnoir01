@@ -24,11 +24,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Validate Character provenance tools
         run: python3 -m py_compile grand-bruxelles-game/tools/civ1_roster_*.py
-      - name: Character roster registration regression v46
+      - name: Character roster registration regression v47
         working-directory: grand-bruxelles-game/tools
         run: python3 test_civ1_roster_registration_truth.py
       - name: Character NAT64 provenance regression
         working-directory: grand-bruxelles-game/tools
         run: python3 test_civ1_roster_nat64_provenance.py
+      - name: Character ARPA provenance regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_arpa_provenance.py
       - name: Canonical Character roster truth
         run: python3 grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root .

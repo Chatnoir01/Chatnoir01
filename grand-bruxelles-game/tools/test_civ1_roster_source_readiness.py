@@ -30,6 +30,9 @@ def main():
         ]
 
         source_path = "assets/characters/civilians/civ1/source/body.glb"
+        source_file = root / "grand-bruxelles-game" / source_path
+        source_file.parent.mkdir(parents=True)
+        source_file.write_bytes(b"civ1-source-body")
         ready_status = {
             "candidate_id": "CIV-1",
             "production_authorized": True,
@@ -39,12 +42,39 @@ def main():
             "character_source": {"license_evidence": {"unresolved_components": []}},
             "source_paths": [source_path],
             "source_manifest": {
-                source_path: {"license_scope_verified": True}
+                source_path: {
+                    "license_scope_verified": True,
+                    "git_blob_sha1": "3914b89458e542b73f0168b0bf80c8e356e78f9c",
+                    "size_bytes": 16,
+                }
             },
         }
         status.write_text(json.dumps(ready_status), encoding="utf-8")
         assert source_ready(root) is True
         assert blocking_entries(registry, root) == []
+
+        missing_source = json.loads(json.dumps(ready_status))
+        source_file.unlink()
+        status.write_text(json.dumps(missing_source), encoding="utf-8")
+        assert source_ready(root) is False, (
+            "source_package_present=true must be grounded in an actual source file"
+        )
+        source_file.write_bytes(b"civ1-source-body")
+
+        tampered_source = json.loads(json.dumps(ready_status))
+        source_file.write_bytes(b"tampered-civ1-source")
+        status.write_text(json.dumps(tampered_source), encoding="utf-8")
+        assert source_ready(root) is False, (
+            "CIV-1 readiness must bind each source file to its declared Git blob SHA-1 and size"
+        )
+        source_file.write_bytes(b"civ1-source-body")
+
+        missing_integrity = json.loads(json.dumps(ready_status))
+        del missing_integrity["source_manifest"][source_path]["git_blob_sha1"]
+        status.write_text(json.dumps(missing_integrity), encoding="utf-8")
+        assert source_ready(root) is False, (
+            "every ready source manifest record must carry immutable Git blob identity"
+        )
 
         unresolved_license = json.loads(json.dumps(ready_status))
         unresolved_license["character_source"]["license_evidence"]["unresolved_components"] = [

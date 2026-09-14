@@ -9,26 +9,43 @@ import tempfile
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
-VALIDATOR = PROJECT / "tools" / "validate_road_destination_source_lock.py"
+SOURCE_LOCK_VALIDATOR = PROJECT / "tools" / "validate_road_destination_source_lock.py"
+ORIGIN_VALIDATOR = PROJECT / "tools" / "validate_road_destination_origin_lock.py"
 LOCK = PROJECT / "data" / "osm" / "road_destination_sources.lock.json"
 SOURCE = PROJECT / "data" / "osm" / "vertical_slice_01.game.json"
 SOURCE_KEY = "data/osm/vertical_slice_01.game.json"
 
 
-def _run(lock_path: Path, source_path: Path) -> subprocess.CompletedProcess[str]:
+def _run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [
-            sys.executable,
-            str(VALIDATOR),
-            "--source-root",
-            str(source_path.parent),
-            "--lock",
-            str(lock_path),
-        ],
+        args,
         cwd=PROJECT,
         capture_output=True,
         text=True,
         check=False,
+    )
+
+
+def _run(lock_path: Path, source_path: Path) -> subprocess.CompletedProcess[str]:
+    source_lock = _run_command(
+        [
+            sys.executable,
+            str(SOURCE_LOCK_VALIDATOR),
+            "--source-root",
+            str(source_path.parent),
+            "--lock",
+            str(lock_path),
+        ]
+    )
+    if source_lock.returncode != 0:
+        return source_lock
+    return _run_command(
+        [
+            sys.executable,
+            str(ORIGIN_VALIDATOR),
+            "--source",
+            str(source_path),
+        ]
     )
 
 
@@ -73,7 +90,7 @@ def main() -> int:
 
     print(
         "ROAD_DESTINATION_ORIGIN_LOCK_TEST_OK "
-        "lat=true lon=true digest_recompute_resistant=true network_used=false"
+        "lat=true lon=true digest_recompute_resistant=true exact_schema=true network_used=false"
     )
     return 0
 

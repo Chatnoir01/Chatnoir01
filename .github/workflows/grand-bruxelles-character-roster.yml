@@ -1,0 +1,34 @@
+name: Grand Bruxelles Character Roster CI
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/civ1_roster_*.py"
+      - "grand-bruxelles-game/qa/civ1_roster_registry.json"
+      - ".github/workflows/grand-bruxelles-character-roster.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-character-roster-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  roster-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate Character provenance tools
+        run: python3 -m py_compile grand-bruxelles-game/tools/civ1_roster_*.py
+      - name: Character roster registration regression v46
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_registration_truth.py
+      - name: Character NAT64 provenance regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_nat64_provenance.py
+      - name: Canonical Character roster truth
+        run: python3 grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root .

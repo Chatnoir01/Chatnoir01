@@ -92,9 +92,6 @@ def main():
             assert "source_url_special_use_namespace_forbidden" in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False, (source,bad)
 
-        # Python's ipaddress reports deprecated IPv4-compatible ::/96 spellings
-        # such as ::127.0.0.1 as globally scoped. They cannot be immutable public
-        # provenance identities because the low 32 bits hide IPv4-shaped values.
         for source in (
             "https://[::7f00:1]/source/civilian.glb",
             "https://[::a00:1]/source/civilian.glb",
@@ -140,7 +137,7 @@ def main():
         assert all("duplicate_source_url" in e["blocking_reasons"] for e in duplicate_source["entries"]), duplicate_source
 
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
-        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v40"
+        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v41"
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_idna_alabel_roundtrip_required"] is True
@@ -152,10 +149,11 @@ def main():
         assert payload["source_url_local_network_forbidden"] is True
         assert payload["source_url_local_network_integrated_required"] is True
         assert payload["source_url_ipv4_compatible_ipv6_forbidden"] is True
+        assert payload["source_url_special_use_namespace_forbidden"] is True
         assert payload["unique_content_identity_required"] is True
         assert payload["unique_source_provenance_required"] is True
         assert payload["roster_authorized"] is False
         assert payload["runtime_authorized"] is False
         assert payload["visual_approval_claimed"] is False
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V40_IPV4_COMPATIBLE_IPV6_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V41_SPECIAL_USE_GREEN")
 if __name__=="__main__": main()

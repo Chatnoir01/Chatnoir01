@@ -53,6 +53,21 @@ def main():
         assert source_ready(root) is True
         assert blocking_entries(registry, root) == []
 
+        # The canonical status path is itself provenance identity. A symlinked
+        # source_status.json must not be allowed to import a ready declaration
+        # from another file, even when that target contains byte-for-byte valid
+        # readiness metadata.
+        status_backing = status.with_name("source_status-backing.json")
+        status.unlink()
+        status_backing.write_text(json.dumps(ready_status), encoding="utf-8")
+        status.symlink_to(status_backing.name)
+        assert source_ready(root) is False, (
+            "CIV-1 readiness must reject a symlinked canonical source_status.json alias"
+        )
+        status.unlink()
+        status_backing.unlink()
+        status.write_text(json.dumps(ready_status), encoding="utf-8")
+
         # A manifest path must identify a real regular source file, not merely
         # resolve to matching bytes through an alias. The historical gate used
         # Path.resolve(), so an in-root symlink to an identical blob passed.

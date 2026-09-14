@@ -36,6 +36,9 @@ jobs:
       - name: Character CIV-1 source readiness regression
         working-directory: grand-bruxelles-game/tools
         run: python3 test_civ1_roster_source_readiness.py
+      - name: Character CIV-1 strict JSON readiness regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_source_readiness_nonstandard_json.py
       - name: Canonical CIV-1 source readiness gate
         run: python3 grand-bruxelles-game/tools/civ1_roster_source_readiness.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root .
       - name: Canonical Character roster truth

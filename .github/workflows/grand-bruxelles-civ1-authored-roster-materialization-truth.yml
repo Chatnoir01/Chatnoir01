@@ -1,0 +1,91 @@
+name: Grand Bruxelles CIV-1 Authored Roster Materialization Truth
+on:
+  push:
+    branches: ['character/**']
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_roster_promotion_truth.py'
+      - 'grand-bruxelles-game/tools/civ1_authored_roster_materialization_truth.py'
+      - 'grand-bruxelles-game/tools/test_civ1_authored_roster_materialization_truth.py'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/game/scripts/humanoid_visual.gd'
+      - 'grand-bruxelles-game/assets/characters/**'
+      - '.github/workflows/grand-bruxelles-civ1-authored-roster-materialization-truth.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_roster_promotion_truth.py'
+      - 'grand-bruxelles-game/tools/civ1_authored_roster_materialization_truth.py'
+      - 'grand-bruxelles-game/tools/test_civ1_authored_roster_materialization_truth.py'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/game/scripts/humanoid_visual.gd'
+      - 'grand-bruxelles-game/assets/characters/**'
+      - '.github/workflows/grand-bruxelles-civ1-authored-roster-materialization-truth.yml'
+permissions:
+  contents: read
+jobs:
+  authored-roster-materialization-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require current live main ancestry and QA-only scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data grand-bruxelles-game/assets
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproduce and reject phantom, malformed, payload-empty, null-root, spoofed-node-attribute, spoofed-scene-header, malformed-scene-format, spoofed-glTF-version, or unframed-GLB-tail authored roster assets
+        run: python grand-bruxelles-game/tools/test_civ1_authored_roster_materialization_truth.py
+      - name: Measure canonical roster materialization truth
+        run: |
+          mkdir -p /tmp/civ1-roster-materialization
+          python grand-bruxelles-game/tools/civ1_authored_roster_materialization_truth.py \
+            grand-bruxelles-game/game/main.tscn \
+            grand-bruxelles-game/game/scripts/humanoid_visual.gd \
+            grand-bruxelles-game \
+            /tmp/civ1-roster-materialization/civ1-authored-roster-materialization-truth.json
+      - name: Assert current fail-closed production truth
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/civ1-roster-materialization/civ1-authored-roster-materialization-truth.json', encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-civ1-authored-roster-materialization-truth-v9'
+          assert d['promotion_truth_schema']=='grand-bruxelles-civ1-authored-roster-promotion-truth-v6'
+          assert d['correlated_asset_backing_required'] is True
+          assert d['scene_format_preflight_required'] is True
+          assert d['scene_payload_preflight_required'] is True
+          assert d['concrete_scene_root_node_required'] is True
+          assert d['exact_tscn_node_attribute_tokens_required'] is True
+          assert d['exact_tscn_scene_header_format_token_required'] is True
+          assert d['positive_integer_tscn_scene_format_required'] is True
+          assert d['exact_gltf_asset_version_required'] is True
+          assert d['strict_glb_chunk_structure_required'] is True
+          assert d['correlated_authored_asset_paths'] == []
+          assert d['materialized_correlated_authored_asset_paths'] == []
+          assert d['scene_valid_correlated_authored_asset_paths'] == []
+          assert d['scene_payload_valid_correlated_authored_asset_paths'] == []
+          assert d['scene_backing_formats'] == {}
+          assert d['missing_or_empty_correlated_authored_asset_paths'] == []
+          assert d['invalid_or_unsupported_scene_backing_paths'] == []
+          assert d['invalid_or_empty_scene_payload_paths'] == []
+          assert d['all_correlated_authored_asset_backings_materialized'] is False
+          assert d['all_correlated_authored_asset_scene_backings_valid'] is False
+          assert d['all_correlated_authored_asset_scene_payloads_instantiable'] is False
+          assert d['multiple_scene_payload_authored_npc_identities_proven'] is False
+          assert d['static_authored_roster_ready'] is False
+          assert d['authored_civilian_police_roster_materialization_ready'] is False
+          assert d['promotion_blocked'] is True
+          assert d['runtime_authorized'] is False
+          assert d['visual_approval_claimed'] is False
+          assert d['contact_verified'] is False
+          assert d['foot_slide_verified'] is False
+          print(json.dumps(d, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-authored-roster-materialization-truth
+          path: /tmp/civ1-roster-materialization/civ1-authored-roster-materialization-truth.json

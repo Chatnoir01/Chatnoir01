@@ -17,42 +17,53 @@ def main():
         rel="grand-bruxelles-game/assets/characters/civilian_fixture.glb"
         asset=root/rel; asset.parent.mkdir(parents=True); asset.write_bytes(minimal_glb())
         sha=hashlib.sha256(asset.read_bytes()).hexdigest()
-        good=validate_entry(candidate(rel,sha,"https://xn--exmple-cua.invalid/source/civilian.glb"),root)
+        good=validate_entry(candidate(rel,sha,"https://xn--exmple-cua.com/source/civilian.glb"),root)
         assert good["roster_eligible"] is True, good
         for source in (
-            "https://xn--abc.invalid/source/civilian.glb",
-            "https://xn--a.invalid/source/civilian.glb",
-            "https://xn--0.invalid/source/civilian.glb",
+            "https://xn--abc.com/source/civilian.glb",
+            "https://xn--a.com/source/civilian.glb",
+            "https://xn--0.com/source/civilian.glb",
         ):
             bad=validate_entry(candidate(rel,sha,source),root)
             assert "source_url_idna_label_invalid" in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False
 
-        # A-label-shaped text that is already syntactically invalid DNS must fail
-        # at the DNS gate rather than being misclassified as an IDNA round-trip failure.
-        dns_bad=validate_entry(candidate(rel,sha,"https://xn--invalid-.invalid/source/civilian.glb"),root)
+        dns_bad=validate_entry(candidate(rel,sha,"https://xn--invalid-.com/source/civilian.glb"),root)
         assert "source_url_dns_host_invalid" in dns_bad["blocking_reasons"], dns_bad
         assert "source_url_idna_label_invalid" not in dns_bad["blocking_reasons"], dns_bad
         assert dns_bad["roster_eligible"] is False
 
         for source,reason in (
-            ("https://example.invalid/source/civilian.glb?","source_url_query_forbidden"),
-            ("https://example.invalid/source/civilian.glb#","source_url_fragment_forbidden"),
-            ("https://example.invalid/source/civilian.glb?x=1","source_url_query_forbidden"),
-            ("https://example.invalid/source/civilian.glb#frag","source_url_fragment_forbidden"),
-            ("https://example.invalid/source/civilian.glb?#","source_url_query_forbidden"),
+            ("https://assets.character-fixtures.com/source/civilian.glb?","source_url_query_forbidden"),
+            ("https://assets.character-fixtures.com/source/civilian.glb#","source_url_fragment_forbidden"),
+            ("https://assets.character-fixtures.com/source/civilian.glb?x=1","source_url_query_forbidden"),
+            ("https://assets.character-fixtures.com/source/civilian.glb#frag","source_url_fragment_forbidden"),
+            ("https://assets.character-fixtures.com/source/civilian.glb?#","source_url_query_forbidden"),
         ):
             bad=validate_entry(candidate(rel,sha,source),root)
             assert reason in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False
 
-        # Roster identity must be content-unique, not merely path/source-unique.
+        # Reserved/documentation DNS names cannot prove a production asset source.
+        for source in (
+            "https://example.invalid/source/civilian.glb",
+            "https://assets.invalid/source/civilian.glb",
+            "https://assets.test/source/civilian.glb",
+            "https://assets.example/source/civilian.glb",
+            "https://example.com/source/civilian.glb",
+            "https://example.net/source/civilian.glb",
+            "https://example.org/source/civilian.glb",
+        ):
+            bad=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_reserved_host_forbidden" in bad["blocking_reasons"], (source,bad)
+            assert bad["roster_eligible"] is False
+
         rel_copy="grand-bruxelles-game/assets/characters/civilian_fixture_copy.glb"
         copy_asset=root/rel_copy; copy_asset.write_bytes(asset.read_bytes())
         duplicate_content=build_payload(
             {"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[
-                candidate(rel,sha,"https://example.invalid/source/civilian-a.glb"),
-                candidate(rel_copy,sha,"https://example.invalid/source/civilian-b.glb"),
+                candidate(rel,sha,"https://assets.character-fixtures.com/source/civilian-a.glb"),
+                candidate(rel_copy,sha,"https://assets.character-fixtures.com/source/civilian-b.glb"),
             ]},root)
         assert duplicate_content["eligible_count"]==0, duplicate_content
         assert "duplicate_content_sha256" in duplicate_content["blocking_reasons"], duplicate_content
@@ -60,15 +71,14 @@ def main():
         assert all("duplicate_content_sha256" in e["blocking_reasons"] for e in duplicate_content["entries"]), duplicate_content
         assert duplicate_content["unique_content_identity_required"] is True
 
-        # Source identity must also remain one-to-one even when bytes differ.
         rel_other="grand-bruxelles-game/assets/characters/police_fixture.glb"
         other_asset=root/rel_other; other_asset.write_bytes(minimal_glb(b"{ } "))
         other_sha=hashlib.sha256(other_asset.read_bytes()).hexdigest()
         assert other_sha!=sha
         duplicate_source=build_payload(
             {"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[
-                candidate(rel,sha,"https://example.invalid/source/shared.glb"),
-                candidate(rel_other,other_sha,"https://example.invalid/source/shared.glb",role="police"),
+                candidate(rel,sha,"https://assets.character-fixtures.com/source/shared.glb"),
+                candidate(rel_other,other_sha,"https://assets.character-fixtures.com/source/shared.glb",role="police"),
             ]},root)
         assert duplicate_source["eligible_count"]==0, duplicate_source
         assert "duplicate_source_url" in duplicate_source["blocking_reasons"], duplicate_source
@@ -88,5 +98,5 @@ def main():
         assert payload["roster_authorized"] is False
         assert payload["runtime_authorized"] is False
         assert payload["visual_approval_claimed"] is False
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V36_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_RESERVED_HOST_RED")
 if __name__=="__main__": main()

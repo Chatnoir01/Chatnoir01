@@ -6,6 +6,7 @@ on:
       - "grand-bruxelles-game/data/osm/road_destination_sources.lock.json"
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
       - "grand-bruxelles-game/tools/validate_road_destination_source_lock.py"
+      - "grand-bruxelles-game/tools/validate_required_building_urbis_crosswalk_lock.py"
       - "grand-bruxelles-game/tools/validate_road_destination_corridor_membership.py"
       - "grand-bruxelles-game/tools/validate_road_destination_selection_radius_lock.py"
       - "grand-bruxelles-game/tools/validate_road_destination_source_stats_lock.py"
@@ -42,6 +43,7 @@ jobs:
         working-directory: grand-bruxelles-game
         run: |
           python3 tests/test_validate_road_destination_source_lock.py
+          python3 tools/validate_required_building_urbis_crosswalk_lock.py --source data/osm/vertical_slice_01.game.json
           python3 tests/test_required_building_provenance_lock.py
           python3 tests/test_required_building_runtime_approval_lock.py
           python3 tests/test_validate_road_destination_corridor_membership.py

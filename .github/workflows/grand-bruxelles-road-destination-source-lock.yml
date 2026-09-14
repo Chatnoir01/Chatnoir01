@@ -8,12 +8,14 @@ on:
       - "grand-bruxelles-game/tools/validate_road_destination_source_lock.py"
       - "grand-bruxelles-game/tools/validate_road_destination_corridor_membership.py"
       - "grand-bruxelles-game/tools/validate_road_destination_selection_radius_lock.py"
+      - "grand-bruxelles-game/tools/validate_road_destination_source_stats_lock.py"
       - "grand-bruxelles-game/tests/test_validate_road_destination_source_lock.py"
       - "grand-bruxelles-game/tests/test_required_building_provenance_lock.py"
       - "grand-bruxelles-game/tests/test_validate_road_destination_corridor_membership.py"
       - "grand-bruxelles-game/tests/test_road_destination_anchor_coordinate_lock.py"
       - "grand-bruxelles-game/tests/test_road_destination_origin_lock.py"
       - "grand-bruxelles-game/tests/test_road_destination_selection_radius_lock.py"
+      - "grand-bruxelles-game/tests/test_road_destination_source_stats_lock.py"
       - ".github/workflows/grand-bruxelles-road-destination-source-lock.yml"
   workflow_dispatch:
 
@@ -44,3 +46,5 @@ jobs:
           python3 tests/test_road_destination_anchor_coordinate_lock.py
           python3 tests/test_road_destination_origin_lock.py
           python3 tests/test_road_destination_selection_radius_lock.py
+          python3 tools/validate_road_destination_source_stats_lock.py --source data/osm/vertical_slice_01.game.json
+          python3 tests/test_road_destination_source_stats_lock.py

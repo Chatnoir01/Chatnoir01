@@ -1,0 +1,171 @@
+name: Grand Bruxelles CIV-1 Downstream Link Attribution
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd"
+      - "grand-bruxelles-game/tests/test_civ1_downstream_link_attribution_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-downstream-link-attribution.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  downstream-link-attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_downstream_link_attribution_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1down/source /tmp/civ1down/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1down/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1down/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1down/source/vitruvian_body.glb /tmp/civ1down/source/civ1_body.glb --require-animations | tee /tmp/civ1down/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1down/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1down/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1down/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1down/quaternius
+          unzip -q /tmp/civ1down/quaternius.zip -d /tmp/civ1down/quaternius
+          LICENSE_FILE="$(find /tmp/civ1down/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1down/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1down/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1down/engine
+          GODOT_BIN=/tmp/civ1down/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1down/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1down/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact rigs and capture 121-sample chain
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1down/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1down/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1DownstreamLinkAttribution"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1down/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd "$PROJECT_ROOT/gb_civ1_global_chain_diagnostic.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1down/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_diagnostic.gd -- /tmp/civ1down/evidence/global-chain.json 2>&1 | tee /tmp/civ1down/evidence/probe.log
+          grep -Fq 'CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK' /tmp/civ1down/evidence/probe.log
+
+      - name: Attribute downstream bilateral asymmetry by chain link
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1down/evidence/classification.log
+          import json, math
+          from pathlib import Path
+
+          RESIDUAL_INDICES = [84, 85, 86, 87, 88]
+          BILATERAL_BONES = {
+              'Right': ('RightUpperLeg', 'RightLowerLeg', 'RightFoot'),
+              'Left': ('LeftUpperLeg', 'LeftLowerLeg', 'LeftFoot'),
+          }
+          p=json.loads(Path('/tmp/civ1down/evidence/global-chain.json').read_text())
+          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v3'
+          assert p['sample_count']==121
+          assert p['retarget_modifier']=='RetargetModifier3D'
+          assert p['use_global_pose'] is False
+          assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          assert p['diagnostic_only'] is True and p['runtime_authorized'] is False and p['visual_approval_claimed'] is False
+          samples=p['model_space_samples']
+          assert len(samples)==121
+
+          def y(sample, bone, side):
+              key='source_hips_relative_origin' if side=='source' else 'target_hips_relative_origin'
+              value=sample['bones'][bone][side][key]
+              assert len(value)==3 and all(math.isfinite(float(v)) for v in value)
+              return float(value[1])
+
+          def side(prefix):
+              upper, lower, foot=BILATERAL_BONES[prefix]
+              rows=[]
+              for i in RESIDUAL_INDICES:
+                  s=samples[i]
+                  upper_error=y(s,upper,'target')-y(s,upper,'source')
+                  lower_error=y(s,lower,'target')-y(s,lower,'source')
+                  foot_error=y(s,foot,'target')-y(s,foot,'source')
+                  lower_relative=lower_error-upper_error
+                  foot_relative=foot_error-lower_error
+                  rows.append({
+                      'sample_index':i,
+                      'upper_error_m':upper_error,
+                      'lower_error_m':lower_error,
+                      'foot_error_m':foot_error,
+                      'lowerleg_relative_compensation_m':lower_relative,
+                      'foot_relative_compensation_m':foot_relative,
+                      'downstream_compensation_m':lower_relative+foot_relative,
+                  })
+              mean=lambda key: sum(row[key] for row in rows)/len(rows)
+              lower_mean=mean('lowerleg_relative_compensation_m')
+              foot_mean=mean('foot_relative_compensation_m')
+              downstream_mean=mean('downstream_compensation_m')
+              assert math.isclose(lower_mean+foot_mean,downstream_mean,rel_tol=0.0,abs_tol=1e-12)
+              return {'lowerleg_relative_mean_m':lower_mean,'foot_relative_mean_m':foot_mean,'downstream_mean_m':downstream_mean,'per_sample':rows}
+
+          right=side('Right'); left=side('Left')
+          lowerleg_compensation_bilateral_delta_m=abs(right['lowerleg_relative_mean_m']-left['lowerleg_relative_mean_m'])
+          foot_compensation_bilateral_delta_m=abs(right['foot_relative_mean_m']-left['foot_relative_mean_m'])
+          downstream_compensation_bilateral_delta_m=abs(right['downstream_mean_m']-left['downstream_mean_m'])
+
+          if math.isclose(lowerleg_compensation_bilateral_delta_m,foot_compensation_bilateral_delta_m,rel_tol=0.0,abs_tol=1e-12):
+              downstream_link_classification='balanced_downstream_asymmetry'
+          elif lowerleg_compensation_bilateral_delta_m > foot_compensation_bilateral_delta_m:
+              downstream_link_classification='lowerleg_relative_asymmetry_dominant'
+          else:
+              downstream_link_classification='foot_relative_asymmetry_dominant'
+
+          result={
+              'format':'grand-bruxelles-civ1-downstream-link-attribution-v1',
+              'sample_count':121,
+              'residual_indices':RESIDUAL_INDICES,
+              'right':right,
+              'left':left,
+              'lowerleg_compensation_bilateral_delta_m':lowerleg_compensation_bilateral_delta_m,
+              'foot_compensation_bilateral_delta_m':foot_compensation_bilateral_delta_m,
+              'downstream_compensation_bilateral_delta_m':downstream_compensation_bilateral_delta_m,
+              'downstream_link_classification':downstream_link_classification,
+              'threshold_was_modified':False,
+              'diagnostic_only':True,
+              'world_ground_assumed':False,
+              'runtime_authorized':False,
+              'visual_approval_claimed':False,
+          }
+          Path('/tmp/civ1down/evidence/downstream-link-attribution.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+
+      - name: Upload downstream-link evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-downstream-link-attribution-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1down/evidence/
+          if-no-files-found: error
+          retention-days: 14

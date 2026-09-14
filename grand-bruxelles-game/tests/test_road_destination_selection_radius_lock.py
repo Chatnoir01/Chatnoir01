@@ -10,6 +10,7 @@ from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
 SOURCE_LOCK_VALIDATOR = PROJECT / "tools" / "validate_road_destination_source_lock.py"
+RADIUS_LOCK_VALIDATOR = PROJECT / "tools" / "validate_road_destination_selection_radius_lock.py"
 LOCK = PROJECT / "data" / "osm" / "road_destination_sources.lock.json"
 SOURCE = PROJECT / "data" / "osm" / "vertical_slice_01.game.json"
 SOURCE_KEY = "data/osm/vertical_slice_01.game.json"
@@ -21,8 +22,12 @@ EXPECTED_RADII = {
 }
 
 
+def _run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, cwd=PROJECT, capture_output=True, text=True, check=False)
+
+
 def _run(lock_path: Path, source_path: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    source_lock = _run_command(
         [
             sys.executable,
             str(SOURCE_LOCK_VALIDATOR),
@@ -30,12 +35,11 @@ def _run(lock_path: Path, source_path: Path) -> subprocess.CompletedProcess[str]
             str(source_path.parent),
             "--lock",
             str(lock_path),
-        ],
-        cwd=PROJECT,
-        capture_output=True,
-        text=True,
-        check=False,
+        ]
     )
+    if source_lock.returncode != 0:
+        return source_lock
+    return _run_command([sys.executable, str(RADIUS_LOCK_VALIDATOR), "--source", str(source_path)])
 
 
 def _mutated_result(kind: str) -> subprocess.CompletedProcess[str]:
@@ -57,10 +61,7 @@ def _mutated_result(kind: str) -> subprocess.CompletedProcess[str]:
         ).encode("utf-8")
         source_path.write_bytes(source_bytes)
         lock_doc["documents"][SOURCE_KEY] = hashlib.sha256(source_bytes).hexdigest()
-        lock_path.write_text(
-            json.dumps(lock_doc, sort_keys=True, allow_nan=False),
-            encoding="utf-8",
-        )
+        lock_path.write_text(json.dumps(lock_doc, sort_keys=True, allow_nan=False), encoding="utf-8")
         return _run(lock_path, source_path)
 
 
@@ -78,6 +79,8 @@ def main() -> int:
             f"source lock accepted corridor.selection_radius_m.{kind} drift with recomputed digest; "
             "historical selection semantics must be pinned independently of the digest"
         )
+        combined = (result.stdout + result.stderr).lower()
+        assert "selection_radius_m" in combined and ("drift" in combined or kind in combined), combined
 
     print(
         "ROAD_DESTINATION_SELECTION_RADIUS_LOCK_TEST_OK "

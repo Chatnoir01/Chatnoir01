@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# v42 is a deliberately thin policy layer over the previously qualified v38
+# v43 is a deliberately thin policy layer over the previously qualified v38
 # parser/structural validator. Keeping the v38 core immutable makes each
 # provenance delta reviewable while binding newer policy gates directly to
 # roster eligibility.
@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import civ1_roster_registration_truth_v38 as _v38
 from civ1_roster_local_network_provenance import is_local_network_source
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v42"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v43"
 REGISTRY_SCHEMA = _v38.REGISTRY_SCHEMA
 PLAYER_ASSET = _v38.PLAYER_ASSET
 CHARACTER_ROOT = _v38.CHARACTER_ROOT
@@ -27,19 +27,29 @@ _base_source_reasons = _v38._source_reasons
 _base_build_payload = _v38.build_payload
 
 
-def _uses_ipv4_compatible_ipv6(value: str) -> bool:
-    """Reject the deprecated ::/96 IPv4-compatible IPv6 provenance space."""
+def _parsed_ip(value: str):
     try:
         host = urlsplit(value).hostname
     except ValueError:
-        return False
+        return None
     if not host:
-        return False
+        return None
     try:
-        address = ipaddress.ip_address(host)
+        return ipaddress.ip_address(host)
     except ValueError:
-        return False
+        return None
+
+
+def _uses_ipv4_compatible_ipv6(value: str) -> bool:
+    """Reject the deprecated ::/96 IPv4-compatible IPv6 provenance space."""
+    address = _parsed_ip(value)
     return isinstance(address, ipaddress.IPv6Address) and (int(address) >> 32) == 0
+
+
+def _uses_ipv4_mapped_ipv6(value: str) -> bool:
+    """Reject ::ffff:0:0/96 aliases so one IPv4 endpoint has one source identity."""
+    address = _parsed_ip(value)
+    return isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None
 
 
 def _normalized_dns_host(value: str) -> str:
@@ -72,6 +82,8 @@ def _source_reasons(value: str) -> list[str]:
             reasons.append("source_url_local_network_forbidden")
         if _uses_ipv4_compatible_ipv6(value):
             reasons.append("source_url_ipv4_compatible_ipv6_forbidden")
+        if _uses_ipv4_mapped_ipv6(value):
+            reasons.append("source_url_ipv4_mapped_ipv6_forbidden")
         if _uses_special_use_namespace(value):
             reasons.append("source_url_special_use_namespace_forbidden")
         if _uses_private_use_namespace(value):
@@ -80,7 +92,7 @@ def _source_reasons(value: str) -> list[str]:
 
 
 # The v38 functions resolve globals in their defining module. Patch only the
-# policy hooks intentionally changed by the thin v42 layer; all structural
+# policy hooks intentionally changed by the thin v43 layer; all structural
 # parsing/asset behavior stays byte-for-byte in the qualified v38 core.
 _v38._source_reasons = _source_reasons
 _v38.SCHEMA = SCHEMA
@@ -93,6 +105,7 @@ def build_payload(registry, repo_root):
     payload["schema"] = SCHEMA
     payload["source_url_local_network_integrated_required"] = True
     payload["source_url_ipv4_compatible_ipv6_forbidden"] = True
+    payload["source_url_ipv4_mapped_ipv6_forbidden"] = True
     payload["source_url_special_use_namespace_forbidden"] = True
     payload["source_url_private_use_namespace_forbidden"] = True
     return payload

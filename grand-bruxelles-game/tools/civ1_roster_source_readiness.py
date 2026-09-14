@@ -16,6 +16,19 @@ REQUIRED_READY_FLAGS = (
 )
 
 
+class DuplicateJSONKeyError(ValueError):
+    pass
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateJSONKeyError(key)
+        result[key] = value
+    return result
+
+
 def _git_blob_sha1(data: bytes) -> str:
     digest = hashlib.sha1()
     digest.update(f"blob {len(data)}\0".encode("ascii"))
@@ -141,8 +154,11 @@ def source_ready(repo_root: Path) -> bool:
         return False
     status_path = repo_root / STATUS_PATH
     try:
-        status = json.loads(status_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        status = json.loads(
+            status_path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_keys,
+        )
+    except (OSError, json.JSONDecodeError, DuplicateJSONKeyError):
         return False
     return _status_consistent(status, repo_root)
 

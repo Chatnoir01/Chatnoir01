@@ -82,6 +82,16 @@ def main():
         synthetic_registry={"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[candidate(rel,sha,s) for s in local_sources]}
         assert violating_sources(synthetic_registry)==list(local_sources)
 
+        for source in (
+            "https://assets.alt/source/civilian.glb",
+            "https://cdn.assets.alt/source/civilian.glb",
+            "https://assets.onion/source/civilian.glb",
+            "https://cdn.assets.onion/source/civilian.glb",
+        ):
+            bad=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_special_use_namespace_forbidden" in bad["blocking_reasons"], (source,bad)
+            assert bad["roster_eligible"] is False, (source,bad)
+
         # Python's ipaddress reports deprecated IPv4-compatible ::/96 spellings
         # such as ::127.0.0.1 as globally scoped. They cannot be immutable public
         # provenance identities because the low 32 bits hide IPv4-shaped values.

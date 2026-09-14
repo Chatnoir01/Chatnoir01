@@ -158,6 +158,52 @@ def validate_road_points(index: int, value: Any) -> None:
         fail(f"roads[{index}].points must contain at least two distinct coordinates")
 
 
+def point_segment_distance_squared(
+    px: float,
+    pz: float,
+    ax: float,
+    az: float,
+    bx: float,
+    bz: float,
+) -> float:
+    dx = bx - ax
+    dz = bz - az
+    length_squared = dx * dx + dz * dz
+    if length_squared == 0.0:
+        return (px - ax) ** 2 + (pz - az) ** 2
+    projection = ((px - ax) * dx + (pz - az) * dz) / length_squared
+    projection = min(1.0, max(0.0, projection))
+    qx = ax + projection * dx
+    qz = az + projection * dz
+    return (px - qx) ** 2 + (pz - qz) ** 2
+
+
+def validate_road_selection_geometry(payload: dict[str, Any], roads: list[Any]) -> None:
+    corridor = payload["corridor"]
+    anchors = corridor["anchors"]
+    radius = float(corridor["selection_radius_m"]["roads"])
+    radius_squared = radius * radius
+    anchor_points = [(float(anchor["x"]), float(anchor["z"])) for anchor in anchors]
+
+    for index, road in enumerate(roads):
+        points = road["points"]
+        intersects = False
+        for anchor_x, anchor_z in anchor_points:
+            for point_index in range(len(points) - 1):
+                ax, az = float(points[point_index][0]), float(points[point_index][1])
+                bx, bz = float(points[point_index + 1][0]), float(points[point_index + 1][1])
+                if point_segment_distance_squared(anchor_x, anchor_z, ax, az, bx, bz) <= radius_squared:
+                    intersects = True
+                    break
+            if intersects:
+                break
+        if not intersects:
+            fail(
+                f"roads[{index}] osm_id={road['osm_id']} lies outside declared "
+                f"corridor road selection radius {radius:g} m"
+            )
+
+
 def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
     if payload.get("format") != SOURCE_FORMAT:
         fail(f"source format drift {path}")
@@ -199,6 +245,8 @@ def validate_source_payload(path: str, payload: dict[str, Any]) -> None:
         validate_road_points(index, road.get("points"))
         if drivable:
             drivable_roads += 1
+
+    validate_road_selection_geometry(payload, roads)
 
     materialized = {
         "roads": len(roads),
@@ -337,7 +385,8 @@ def main() -> int:
     locked = validate(args.source_root, args.lock)
     print(
         f"ROAD_DESTINATION_SOURCE_LOCK_OK: documents={len(locked)} "
-        "provenance=true corridor_selection=true accounting=true network_used=false"
+        "provenance=true corridor_selection=true road_selection_geometry=true "
+        "accounting=true network_used=false"
     )
     for path, digest in locked.items():
         print(f"ROAD_DESTINATION_SOURCE_LOCK_DOCUMENT: {path} sha256={digest}")

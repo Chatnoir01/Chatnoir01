@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# v39 is a deliberately thin policy layer over the previously qualified v38
-# parser/structural validator. Keeping the v38 core immutable makes the
-# provenance delta reviewable while binding the local-network gate directly to
+# v40 is a deliberately thin policy layer over the previously qualified v38
+# parser/structural validator. Keeping the v38 core immutable makes each
+# provenance delta reviewable while binding the newer policy gates directly to
 # roster eligibility.
+import ipaddress
+from urllib.parse import urlsplit
+
 import civ1_roster_registration_truth_v38 as _v38
 from civ1_roster_local_network_provenance import is_local_network_source
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v39"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v40"
 REGISTRY_SCHEMA = _v38.REGISTRY_SCHEMA
 PLAYER_ASSET = _v38.PLAYER_ASSET
 CHARACTER_ROOT = _v38.CHARACTER_ROOT
@@ -22,16 +25,41 @@ _base_source_reasons = _v38._source_reasons
 _base_build_payload = _v38.build_payload
 
 
+def _uses_ipv4_compatible_ipv6(value: str) -> bool:
+    """Reject the deprecated ::/96 IPv4-compatible IPv6 provenance space.
+
+    Python's ipaddress currently reports some addresses in this prefix as
+    globally scoped (for example ::127.0.0.1), even though the low 32 bits can
+    encode an IPv4 address. That makes `is_global` alone insufficient for the
+    immutable-source boundary and can hide local/private IPv4-shaped identity
+    behind IPv6 syntax.
+    """
+    try:
+        host = urlsplit(value).hostname
+    except ValueError:
+        return False
+    if not host:
+        return False
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return isinstance(address, ipaddress.IPv6Address) and (int(address) >> 32) == 0
+
+
 def _source_reasons(value: str) -> list[str]:
     reasons = list(_base_source_reasons(value))
-    if isinstance(value, str) and value.strip() and is_local_network_source(value):
-        reasons.append("source_url_local_network_forbidden")
+    if isinstance(value, str) and value.strip():
+        if is_local_network_source(value):
+            reasons.append("source_url_local_network_forbidden")
+        if _uses_ipv4_compatible_ipv6(value):
+            reasons.append("source_url_ipv4_compatible_ipv6_forbidden")
     return sorted(set(reasons))
 
 
 # The v38 functions resolve globals in their defining module. Patch only the
-# two policy hooks intentionally changed by v39; all structural behavior stays
-# byte-for-byte in the qualified v38 core.
+# policy hooks intentionally changed by the thin v40 layer; all structural
+# parsing/asset behavior stays byte-for-byte in the qualified v38 core.
 _v38._source_reasons = _source_reasons
 _v38.SCHEMA = SCHEMA
 
@@ -42,6 +70,7 @@ def build_payload(registry, repo_root):
     payload = _base_build_payload(registry, repo_root)
     payload["schema"] = SCHEMA
     payload["source_url_local_network_integrated_required"] = True
+    payload["source_url_ipv4_compatible_ipv6_forbidden"] = True
     return payload
 
 

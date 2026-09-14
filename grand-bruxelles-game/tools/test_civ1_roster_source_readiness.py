@@ -53,6 +53,21 @@ def main():
         assert source_ready(root) is True
         assert blocking_entries(registry, root) == []
 
+        # source_status.json is an authorization record. Duplicate JSON keys are
+        # ambiguous identity/policy, not a harmless serialization detail. The
+        # historical json.loads path used last-key-wins semantics, so a file
+        # containing both production_authorized=false and =true became ready.
+        duplicate_ready = json.dumps(ready_status).replace(
+            '"production_authorized": true',
+            '"production_authorized": false, "production_authorized": true',
+            1,
+        )
+        status.write_text(duplicate_ready, encoding="utf-8")
+        assert source_ready(root) is False, (
+            "CIV-1 readiness must reject duplicate keys in canonical source_status.json"
+        )
+        status.write_text(json.dumps(ready_status), encoding="utf-8")
+
         # The canonical status path is itself provenance identity. A symlinked
         # source_status.json must not be allowed to import a ready declaration
         # from another file, even when that target contains byte-for-byte valid

@@ -4,13 +4,12 @@ import hashlib, struct, tempfile
 from pathlib import Path
 from civ1_roster_registration_truth import build_payload, validate_entry
 
-def minimal_glb():
-    payload=b"{}  "
+def minimal_glb(payload=b"{}  "):
     total=20+len(payload)
     return struct.pack("<4sII",b"glTF",2,total)+struct.pack("<I4s",len(payload),b"JSON")+payload
 
-def candidate(path,sha,source):
-    return {"asset_path":path,"role":"civilian","sha256":sha,"source_url":source,"license":"CC0-1.0"}
+def candidate(path,sha,source,role="civilian"):
+    return {"asset_path":path,"role":role,"sha256":sha,"source_url":source,"license":"CC0-1.0"}
 
 def main():
     with tempfile.TemporaryDirectory() as td:
@@ -39,6 +38,36 @@ def main():
             bad=validate_entry(candidate(rel,sha,source),root)
             assert reason in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False
+
+        # Roster identity must be content-unique, not merely path/source-unique.
+        rel_copy="grand-bruxelles-game/assets/characters/civilian_fixture_copy.glb"
+        copy_asset=root/rel_copy; copy_asset.write_bytes(asset.read_bytes())
+        duplicate_content=build_payload(
+            {"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[
+                candidate(rel,sha,"https://example.invalid/source/civilian-a.glb"),
+                candidate(rel_copy,sha,"https://example.invalid/source/civilian-b.glb"),
+            ]},root)
+        assert duplicate_content["eligible_count"]==0, duplicate_content
+        assert "duplicate_content_sha256" in duplicate_content["blocking_reasons"], duplicate_content
+        assert duplicate_content["invalid_entry_count"]==2, duplicate_content
+        assert all("duplicate_content_sha256" in e["blocking_reasons"] for e in duplicate_content["entries"]), duplicate_content
+        assert duplicate_content["unique_content_identity_required"] is True
+
+        # Source identity must also remain one-to-one even when bytes differ.
+        rel_other="grand-bruxelles-game/assets/characters/police_fixture.glb"
+        other_asset=root/rel_other; other_asset.write_bytes(minimal_glb(b"{ } "))
+        other_sha=hashlib.sha256(other_asset.read_bytes()).hexdigest()
+        assert other_sha!=sha
+        duplicate_source=build_payload(
+            {"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[
+                candidate(rel,sha,"https://example.invalid/source/shared.glb"),
+                candidate(rel_other,other_sha,"https://example.invalid/source/shared.glb",role="police"),
+            ]},root)
+        assert duplicate_source["eligible_count"]==0, duplicate_source
+        assert "duplicate_source_url" in duplicate_source["blocking_reasons"], duplicate_source
+        assert duplicate_source["invalid_entry_count"]==2, duplicate_source
+        assert all("duplicate_source_url" in e["blocking_reasons"] for e in duplicate_source["entries"]), duplicate_source
+
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
         assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v36"
         assert payload["blocking_reasons"]==[]
@@ -47,6 +76,7 @@ def main():
         assert payload["source_url_query_forbidden"] is True
         assert payload["source_url_fragment_forbidden"] is True
         assert payload["source_url_empty_delimiters_forbidden"] is True
+        assert payload["unique_content_identity_required"] is True
         assert payload["unique_source_provenance_required"] is True
         assert payload["roster_authorized"] is False
         assert payload["runtime_authorized"] is False

@@ -60,10 +60,10 @@ def main():
         assert duplicate_source["eligible_count"]==0 and "duplicate_source_url" in duplicate_source["blocking_reasons"] and duplicate_source["invalid_entry_count"]==2
         assert all("duplicate_source_url" in e["blocking_reasons"] for e in duplicate_source["entries"])
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
-        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v42"
+        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v43"
         assert payload["blocking_reasons"]==[] and payload["registration_count"]==0 and payload["eligible_count"]==0
-        for flag in ("source_url_idna_alabel_roundtrip_required","source_url_query_forbidden","source_url_fragment_forbidden","source_url_empty_delimiters_forbidden","source_url_reserved_host_forbidden","source_url_reserved_domain_subdomains_forbidden","source_url_local_network_forbidden","source_url_local_network_integrated_required","source_url_ipv4_compatible_ipv6_forbidden","source_url_special_use_namespace_forbidden","source_url_private_use_namespace_forbidden","unique_content_identity_required","unique_source_provenance_required"):
+        for flag in ("source_url_idna_alabel_roundtrip_required","source_url_query_forbidden","source_url_fragment_forbidden","source_url_empty_delimiters_forbidden","source_url_reserved_host_forbidden","source_url_reserved_domain_subdomains_forbidden","source_url_local_network_forbidden","source_url_local_network_integrated_required","source_url_ipv4_compatible_ipv6_forbidden","source_url_ipv4_mapped_ipv6_forbidden","source_url_special_use_namespace_forbidden","source_url_private_use_namespace_forbidden","unique_content_identity_required","unique_source_provenance_required"):
             assert payload[flag] is True, (flag,payload)
         assert payload["roster_authorized"] is False and payload["runtime_authorized"] is False and payload["visual_approval_claimed"] is False
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V42_PRIVATE_USE_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V43_MAPPED_IPV6_GREEN")
 if __name__=="__main__": main()

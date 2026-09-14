@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# v46 is a deliberately thin policy layer over the previously qualified v38
+# v47 is a deliberately thin policy layer over the previously qualified v38
 # parser/structural validator. Keeping the v38 core immutable makes each
 # provenance delta reviewable while binding newer policy gates directly to
 # roster eligibility.
@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import civ1_roster_registration_truth_v38 as _v38
 from civ1_roster_local_network_provenance import is_local_network_source
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v46"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v47"
 REGISTRY_SCHEMA = _v38.REGISTRY_SCHEMA
 PLAYER_ASSET = _v38.PLAYER_ASSET
 CHARACTER_ROOT = _v38.CHARACTER_ROOT
@@ -22,6 +22,10 @@ DuplicateJSONKeyError = _v38.DuplicateJSONKeyError
 NonStandardJSONConstantError = _v38.NonStandardJSONConstantError
 SPECIAL_USE_DNS_SUFFIXES = ("alt", "onion")
 PRIVATE_USE_DNS_SUFFIXES = ("internal",)
+NAT64_TRANSLATION_PREFIXES = (
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("64:ff9b:1::/48"),
+)
 
 _base_source_reasons = _v38._source_reasons
 _base_build_payload = _v38.build_payload
@@ -59,15 +63,18 @@ def _uses_ipv6_scope(value: str) -> bool:
 
 
 def _uses_ipv6_transition(value: str) -> bool:
-    """Reject IPv6 transition locators that embed or derive a second IPv4 identity.
-
-    6to4 encodes an IPv4 address in 2002::/16 and Teredo encodes server/client IPv4
-    identities in 2001::/32. For immutable asset provenance, accepting those aliases
-    would let one network origin be represented by multiple source identities.
-    """
+    """Reject IPv6 transition locators that embed or derive a second IPv4 identity."""
     address = _parsed_ip(value)
     return isinstance(address, ipaddress.IPv6Address) and (
         address.sixtofour is not None or address.teredo is not None
+    )
+
+
+def _uses_ipv6_nat64(value: str) -> bool:
+    """Reject standardized IPv4/IPv6 translation prefixes as provenance aliases."""
+    address = _parsed_ip(value)
+    return isinstance(address, ipaddress.IPv6Address) and any(
+        address in prefix for prefix in NAT64_TRANSLATION_PREFIXES
     )
 
 
@@ -83,26 +90,16 @@ def _matches_dns_namespace(host: str, suffixes: tuple[str, ...]) -> bool:
 
 
 def _uses_special_use_namespace(value: str) -> bool:
-    """Reject non-public special-use DNS namespaces as ordinary HTTPS provenance."""
     host = _normalized_dns_host(value)
     return bool(host) and _matches_dns_namespace(host, SPECIAL_USE_DNS_SUFFIXES)
 
 
 def _uses_private_use_namespace(value: str) -> bool:
-    """Reject DNS namespaces permanently reserved for private/internal use."""
     host = _normalized_dns_host(value)
     return bool(host) and _matches_dns_namespace(host, PRIVATE_USE_DNS_SUFFIXES)
 
 
 def _uses_ambiguous_dotted_numeric_host(value: str) -> bool:
-    """Reject numeric dotted hosts that are not canonical IP literals.
-
-    A host such as 999.999.999.999 or 8.8.8.08 satisfies the generic LDH DNS
-    grammar after ipaddress parsing fails. Treating it as ordinary DNS creates
-    an unstable provenance identity because URL/network stacks may interpret
-    numeric-looking hosts differently. Canonical public IPv4 literals are
-    accepted earlier by ipaddress and therefore do not match this gate.
-    """
     host = _normalized_dns_host(value)
     if not host or "." not in host:
         return False
@@ -129,6 +126,8 @@ def _source_reasons(value: str) -> list[str]:
             reasons.append("source_url_ipv6_scope_forbidden")
         if _uses_ipv6_transition(value):
             reasons.append("source_url_ipv6_transition_forbidden")
+        if _uses_ipv6_nat64(value):
+            reasons.append("source_url_ipv6_nat64_forbidden")
         if _uses_special_use_namespace(value):
             reasons.append("source_url_special_use_namespace_forbidden")
         if _uses_private_use_namespace(value):
@@ -138,9 +137,6 @@ def _source_reasons(value: str) -> list[str]:
     return sorted(set(reasons))
 
 
-# The v38 functions resolve globals in their defining module. Patch only the
-# policy hooks intentionally changed by the thin v46 layer; all structural
-# parsing/asset behavior stays byte-for-byte in the qualified v38 core.
 _v38._source_reasons = _source_reasons
 _v38.SCHEMA = SCHEMA
 
@@ -155,6 +151,7 @@ def build_payload(registry, repo_root):
     payload["source_url_ipv4_mapped_ipv6_forbidden"] = True
     payload["source_url_ipv6_scope_forbidden"] = True
     payload["source_url_ipv6_transition_forbidden"] = True
+    payload["source_url_ipv6_nat64_forbidden"] = True
     payload["source_url_special_use_namespace_forbidden"] = True
     payload["source_url_private_use_namespace_forbidden"] = True
     payload["source_url_ambiguous_dotted_numeric_host_forbidden"] = True

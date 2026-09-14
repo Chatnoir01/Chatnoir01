@@ -60,6 +60,16 @@ def main():
             assert "source_url_reserved_host_forbidden" in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False
 
+        for source in (
+            "https://assets.local/source/civilian.glb",
+            "https://cdn.assets.local/source/civilian.glb",
+            "https://home.arpa/source/civilian.glb",
+            "https://cdn.home.arpa/source/civilian.glb",
+        ):
+            bad=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_local_network_forbidden" in bad["blocking_reasons"], (source,bad)
+            assert bad["roster_eligible"] is False
+
         rel_copy="grand-bruxelles-game/assets/characters/civilian_fixture_copy.glb"
         copy_asset=root/rel_copy; copy_asset.write_bytes(asset.read_bytes())
         duplicate_content=build_payload(

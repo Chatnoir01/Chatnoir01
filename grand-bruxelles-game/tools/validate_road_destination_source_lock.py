@@ -30,6 +30,13 @@ REQUIRED_CORRIDOR_ANCHORS = (
 )
 REQUIRED_CORRIDOR_ANCHOR_IDS = tuple(anchor[0] for anchor in REQUIRED_CORRIDOR_ANCHORS)
 REQUIRED_BUILDING_APPROVAL_KEYS = ("footprint", "height", "roof", "frontage")
+BOURSE_OSM_IDENTITY = ("way", 13494623)
+BOURSE_RUNTIME_APPROVAL = {
+    "footprint": True,
+    "height": True,
+    "roof": True,
+    "frontage": False,
+}
 URBIS_CRS = "EPSG:31370"
 
 
@@ -148,6 +155,11 @@ def validate_required_buildings(corridor: dict[str, Any]) -> None:
         for key in REQUIRED_BUILDING_APPROVAL_KEYS:
             if type(approval.get(key)) is not bool:
                 fail(f"{label}.runtime_approval.{key} must be a boolean")
+        if identity == BOURSE_OSM_IDENTITY and approval != BOURSE_RUNTIME_APPROVAL:
+            fail(
+                f"{label}.runtime_approval historical Bourse contract drift: "
+                f"observed={approval!r} required={BOURSE_RUNTIME_APPROVAL!r}"
+            )
 
         evidence = building.get("evidence")
         if type(evidence) is not dict or set(evidence) != set(REQUIRED_BUILDING_APPROVAL_KEYS):

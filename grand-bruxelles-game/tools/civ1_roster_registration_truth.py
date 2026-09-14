@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# v44 is a deliberately thin policy layer over the previously qualified v38
+# v45 is a deliberately thin policy layer over the previously qualified v38
 # parser/structural validator. Keeping the v38 core immutable makes each
 # provenance delta reviewable while binding newer policy gates directly to
 # roster eligibility.
@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import civ1_roster_registration_truth_v38 as _v38
 from civ1_roster_local_network_provenance import is_local_network_source
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v44"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v45"
 REGISTRY_SCHEMA = _v38.REGISTRY_SCHEMA
 PLAYER_ASSET = _v38.PLAYER_ASSET
 CHARACTER_ROOT = _v38.CHARACTER_ROOT
@@ -81,6 +81,28 @@ def _uses_private_use_namespace(value: str) -> bool:
     return bool(host) and _matches_dns_namespace(host, PRIVATE_USE_DNS_SUFFIXES)
 
 
+def _uses_ambiguous_dotted_numeric_host(value: str) -> bool:
+    """Reject numeric dotted hosts that are not canonical IP literals.
+
+    A host such as 999.999.999.999 or 8.8.8.08 satisfies the generic LDH DNS
+    grammar after ipaddress parsing fails. Treating it as ordinary DNS creates
+    an unstable provenance identity because URL/network stacks may interpret
+    numeric-looking hosts differently. Canonical public IPv4 literals are
+    accepted earlier by ipaddress and therefore do not match this gate.
+    """
+    host = _normalized_dns_host(value)
+    if not host or "." not in host:
+        return False
+    labels = host.split(".")
+    if not all(label.isascii() and label.isdigit() for label in labels):
+        return False
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return True
+    return False
+
+
 def _source_reasons(value: str) -> list[str]:
     reasons = list(_base_source_reasons(value))
     if isinstance(value, str) and value.strip():
@@ -96,11 +118,13 @@ def _source_reasons(value: str) -> list[str]:
             reasons.append("source_url_special_use_namespace_forbidden")
         if _uses_private_use_namespace(value):
             reasons.append("source_url_private_use_namespace_forbidden")
+        if _uses_ambiguous_dotted_numeric_host(value):
+            reasons.append("source_url_ambiguous_dotted_numeric_host_forbidden")
     return sorted(set(reasons))
 
 
 # The v38 functions resolve globals in their defining module. Patch only the
-# policy hooks intentionally changed by the thin v44 layer; all structural
+# policy hooks intentionally changed by the thin v45 layer; all structural
 # parsing/asset behavior stays byte-for-byte in the qualified v38 core.
 _v38._source_reasons = _source_reasons
 _v38.SCHEMA = SCHEMA
@@ -117,6 +141,7 @@ def build_payload(registry, repo_root):
     payload["source_url_ipv6_scope_forbidden"] = True
     payload["source_url_special_use_namespace_forbidden"] = True
     payload["source_url_private_use_namespace_forbidden"] = True
+    payload["source_url_ambiguous_dotted_numeric_host_forbidden"] = True
     return payload
 
 

@@ -23,6 +23,18 @@ def _git_blob_sha1(data: bytes) -> str:
     return digest.hexdigest()
 
 
+def _has_symlink_component(base: Path, parts: tuple[str, ...]) -> bool:
+    """Treat every canonical Character path component as identity, not a locator."""
+    current = base
+    if current.is_symlink():
+        return True
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
 def _source_file(repo_root: Path, source_path: str) -> Path | None:
     if not isinstance(source_path, str) or not source_path:
         return None
@@ -35,22 +47,17 @@ def _source_file(repo_root: Path, source_path: str) -> Path | None:
     if len(pure.parts) <= len(root_parts) or pure.parts[: len(root_parts)] != root_parts:
         return None
 
+    # A manifest path is an identity, not merely a locator to matching bytes.
+    # Reject aliases in every lexical component from the repository root through
+    # the declared file, including ancestor-directory symlinks and in-root file
+    # aliases whose resolved target would otherwise pass the byte checks below.
+    lexical_parts = ("grand-bruxelles-game",) + pure.parts
+    if _has_symlink_component(repo_root, lexical_parts):
+        return None
+
     game_root = (repo_root / "grand-bruxelles-game").resolve()
     lexical_root = game_root / Path(*root_parts)
     lexical_candidate = game_root / Path(*pure.parts)
-
-    # A manifest path is an identity, not merely a locator to matching bytes.
-    # Reject aliases anywhere from the source root through the declared file,
-    # including in-root symlinks whose resolved target would otherwise pass the
-    # confinement, size and Git-blob checks below.
-    current = lexical_root
-    if current.is_symlink():
-        return None
-    for part in pure.parts[len(root_parts) :]:
-        current = current / part
-        if current.is_symlink():
-            return None
-
     allowed = lexical_root.resolve()
     candidate = lexical_candidate.resolve()
     try:
@@ -127,8 +134,14 @@ def _status_consistent(status: object, repo_root: Path) -> bool:
 
 
 def source_ready(repo_root: Path) -> bool:
+    # source_status.json is the canonical authorization record. Reading through a
+    # symlink would let another file impersonate that identity, so fail closed
+    # before parsing even when the target contains otherwise valid JSON.
+    if _has_symlink_component(repo_root, tuple(STATUS_PATH.parts)):
+        return False
+    status_path = repo_root / STATUS_PATH
     try:
-        status = json.loads((repo_root / STATUS_PATH).read_text(encoding="utf-8"))
+        status = json.loads(status_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
     return _status_consistent(status, repo_root)

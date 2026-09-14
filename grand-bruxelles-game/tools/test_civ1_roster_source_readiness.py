@@ -29,16 +29,17 @@ def main():
             "grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"
         ]
 
+        source_path = "assets/characters/civilians/civ1/source/body.glb"
         ready_status = {
             "candidate_id": "CIV-1",
             "production_authorized": True,
             "activation_ready": True,
             "source_package_present": True,
+            "blocker": None,
             "character_source": {"license_evidence": {"unresolved_components": []}},
+            "source_paths": [source_path],
             "source_manifest": {
-                "assets/characters/civilians/civ1/source/body.glb": {
-                    "license_scope_verified": True
-                }
+                source_path: {"license_scope_verified": True}
             },
         }
         status.write_text(json.dumps(ready_status), encoding="utf-8")
@@ -56,9 +57,7 @@ def main():
         )
 
         unverified_manifest = json.loads(json.dumps(ready_status))
-        unverified_manifest["source_manifest"][
-            "assets/characters/civilians/civ1/source/body.glb"
-        ]["license_scope_verified"] = False
+        unverified_manifest["source_manifest"][source_path]["license_scope_verified"] = False
         status.write_text(json.dumps(unverified_manifest), encoding="utf-8")
         assert source_ready(root) is False, (
             "CIV-1 must not become roster-ready while any source manifest item has "
@@ -69,6 +68,18 @@ def main():
         wrong_candidate["candidate_id"] = "OTHER"
         status.write_text(json.dumps(wrong_candidate), encoding="utf-8")
         assert source_ready(root) is False, "readiness status must be bound to CIV-1 identity"
+
+        stale_blocker = json.loads(json.dumps(ready_status))
+        stale_blocker["blocker"] = "independently_licensed_idle_walk_run_not_verified"
+        status.write_text(json.dumps(stale_blocker), encoding="utf-8")
+        assert source_ready(root) is False, "ready flags must not override an active blocker"
+
+        manifest_mismatch = json.loads(json.dumps(ready_status))
+        manifest_mismatch["source_paths"].append(
+            "assets/characters/civilians/civ1/source/hair.glb"
+        )
+        status.write_text(json.dumps(manifest_mismatch), encoding="utf-8")
+        assert source_ready(root) is False, "source_paths and source_manifest must match exactly"
 
     print("CIV1_ROSTER_SOURCE_READINESS_GREEN")
 

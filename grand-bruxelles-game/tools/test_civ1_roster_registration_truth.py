@@ -52,6 +52,9 @@ def main():
             bad=validate_entry(candidate(rel,sha,source),root); assert "source_url_ipv6_scope_forbidden" in bad["blocking_reasons"], (source,bad); assert bad["roster_eligible"] is False, (source,bad)
         for source in ("https://999.999.999.999/source/civilian.glb","https://8.8.8.08/source/civilian.glb","https://256.1.1.1/source/civilian.glb"):
             bad=validate_entry(candidate(rel,sha,source),root); assert "source_url_ambiguous_dotted_numeric_host_forbidden" in bad["blocking_reasons"], (source,bad); assert bad["roster_eligible"] is False, (source,bad)
+        canonical_ipv4=validate_entry(candidate(rel,sha,"https://8.8.8.8/source/civilian.glb"),root)
+        assert "source_url_ambiguous_dotted_numeric_host_forbidden" not in canonical_ipv4["blocking_reasons"], canonical_ipv4
+        assert canonical_ipv4["roster_eligible"] is True, canonical_ipv4
         canonical_registry_path=Path("grand-bruxelles-game/qa/civ1_roster_registry.json")
         if canonical_registry_path.is_file():
             canonical_registry=json.loads(canonical_registry_path.read_text(encoding="utf-8")); assert violating_sources(canonical_registry)==[], violating_sources(canonical_registry)
@@ -64,10 +67,10 @@ def main():
         assert duplicate_source["eligible_count"]==0 and "duplicate_source_url" in duplicate_source["blocking_reasons"] and duplicate_source["invalid_entry_count"]==2
         assert all("duplicate_source_url" in e["blocking_reasons"] for e in duplicate_source["entries"])
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
-        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v44"
+        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v45"
         assert payload["blocking_reasons"]==[] and payload["registration_count"]==0 and payload["eligible_count"]==0
-        for flag in ("source_url_idna_alabel_roundtrip_required","source_url_query_forbidden","source_url_fragment_forbidden","source_url_empty_delimiters_forbidden","source_url_reserved_host_forbidden","source_url_reserved_domain_subdomains_forbidden","source_url_local_network_forbidden","source_url_local_network_integrated_required","source_url_ipv4_compatible_ipv6_forbidden","source_url_ipv4_mapped_ipv6_forbidden","source_url_ipv6_scope_forbidden","source_url_special_use_namespace_forbidden","source_url_private_use_namespace_forbidden","unique_content_identity_required","unique_source_provenance_required"):
+        for flag in ("source_url_idna_alabel_roundtrip_required","source_url_query_forbidden","source_url_fragment_forbidden","source_url_empty_delimiters_forbidden","source_url_reserved_host_forbidden","source_url_reserved_domain_subdomains_forbidden","source_url_local_network_forbidden","source_url_local_network_integrated_required","source_url_ipv4_compatible_ipv6_forbidden","source_url_ipv4_mapped_ipv6_forbidden","source_url_ipv6_scope_forbidden","source_url_special_use_namespace_forbidden","source_url_private_use_namespace_forbidden","source_url_ambiguous_dotted_numeric_host_forbidden","unique_content_identity_required","unique_source_provenance_required"):
             assert payload[flag] is True, (flag,payload)
         assert payload["roster_authorized"] is False and payload["runtime_authorized"] is False and payload["visual_approval_claimed"] is False
-    print("CIV1_ROSTER_REGISTRATION_TRUTH_V44_IPV6_SCOPE_GREEN")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V45_DOTTED_NUMERIC_HOST_GREEN")
 if __name__=="__main__": main()

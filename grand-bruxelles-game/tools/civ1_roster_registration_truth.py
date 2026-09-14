@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# v48 is a deliberately thin policy layer over the previously qualified v38
-# parser/structural validator. Keeping the v38 core immutable makes each
+# v47 remains a deliberately thin policy layer over the previously qualified
+# v38 parser/structural validator. Keeping the v38 core immutable makes each
 # provenance delta reviewable while binding newer policy gates directly to
 # roster eligibility.
 import ipaddress
@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import civ1_roster_registration_truth_v38 as _v38
 from civ1_roster_local_network_provenance import is_local_network_source
 
-SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v48"
+SCHEMA = "grand-bruxelles-civ1-roster-registration-truth-v47"
 REGISTRY_SCHEMA = _v38.REGISTRY_SCHEMA
 PLAYER_ASSET = _v38.PLAYER_ASSET
 CHARACTER_ROOT = _v38.CHARACTER_ROOT

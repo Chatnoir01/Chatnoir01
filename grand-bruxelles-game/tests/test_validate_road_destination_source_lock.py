@@ -99,6 +99,49 @@ def main() -> int:
     docs[SOURCE_KEY] = "0" * 64
     _expect_rejected(bad_digest, source_doc, "sha256", preserve_bad_digest=True)
 
+    bad_corridor_type = json.loads(json.dumps(source_doc))
+    bad_corridor_type["corridor"] = []
+    _expect_rejected(lock_doc, bad_corridor_type, "corridor")
+
+    bad_corridor_name = json.loads(json.dumps(source_doc))
+    corridor = bad_corridor_name["corridor"]
+    assert isinstance(corridor, dict)
+    corridor["name"] = " Midi -> Anneessens -> Bourse -> Grand-Place "
+    _expect_rejected(lock_doc, bad_corridor_name, "corridor.name")
+
+    bad_anchor_id = json.loads(json.dumps(source_doc))
+    corridor = bad_anchor_id["corridor"]
+    assert isinstance(corridor, dict)
+    anchors = corridor["anchors"]
+    assert isinstance(anchors, list) and anchors and isinstance(anchors[0], dict)
+    anchors[0]["id"] = " midi "
+    _expect_rejected(lock_doc, bad_anchor_id, "anchors[0].id")
+
+    duplicate_anchor_id = json.loads(json.dumps(source_doc))
+    corridor = duplicate_anchor_id["corridor"]
+    assert isinstance(corridor, dict)
+    anchors = corridor["anchors"]
+    assert isinstance(anchors, list) and len(anchors) >= 2
+    assert isinstance(anchors[0], dict) and isinstance(anchors[1], dict)
+    anchors[1]["id"] = anchors[0]["id"]
+    _expect_rejected(lock_doc, duplicate_anchor_id, "duplicate")
+
+    bad_anchor_coordinate = json.loads(json.dumps(source_doc))
+    corridor = bad_anchor_coordinate["corridor"]
+    assert isinstance(corridor, dict)
+    anchors = corridor["anchors"]
+    assert isinstance(anchors, list) and anchors and isinstance(anchors[0], dict)
+    anchors[0]["x"] = "-668.5"
+    _expect_rejected(lock_doc, bad_anchor_coordinate, "anchors[0].x")
+
+    bad_selection_radius = json.loads(json.dumps(source_doc))
+    corridor = bad_selection_radius["corridor"]
+    assert isinstance(corridor, dict)
+    selection_radius = corridor["selection_radius_m"]
+    assert isinstance(selection_radius, dict)
+    selection_radius["roads"] = 0
+    _expect_rejected(lock_doc, bad_selection_radius, "selection_radius_m.roads")
+
     bad_stats = json.loads(json.dumps(source_doc))
     stats = bad_stats["stats"]
     assert isinstance(stats, dict)
@@ -211,9 +254,9 @@ def main() -> int:
     print(
         "ROAD_DESTINATION_SOURCE_LOCK_TEST_OK "
         "digest=true provenance=true accounting=true lock_path=true "
-        "road_osm_id_integrity=true road_name_class_integrity=true "
-        "road_drivable_bool_integrity=true road_geometry_integrity=true "
-        "road_width_integrity=true network_used=false"
+        "corridor_selection_integrity=true road_osm_id_integrity=true "
+        "road_name_class_integrity=true road_drivable_bool_integrity=true "
+        "road_geometry_integrity=true road_width_integrity=true network_used=false"
     )
     return 0
 

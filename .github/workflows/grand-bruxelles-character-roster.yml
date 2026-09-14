@@ -33,5 +33,8 @@ jobs:
       - name: Character ARPA provenance regression
         working-directory: grand-bruxelles-game/tools
         run: python3 test_civ1_roster_arpa_provenance.py
+      - name: Character CIV-1 source readiness regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_source_readiness.py
       - name: Canonical Character roster truth
         run: python3 grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root .

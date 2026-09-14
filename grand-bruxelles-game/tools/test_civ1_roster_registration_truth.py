@@ -93,6 +93,14 @@ def main():
             assert bad["roster_eligible"] is False, (source,bad)
 
         for source in (
+            "https://assets.internal/source/civilian.glb",
+            "https://cdn.assets.internal/source/civilian.glb",
+        ):
+            bad=validate_entry(candidate(rel,sha,source),root)
+            assert "source_url_private_use_namespace_forbidden" in bad["blocking_reasons"], (source,bad)
+            assert bad["roster_eligible"] is False, (source,bad)
+
+        for source in (
             "https://[::7f00:1]/source/civilian.glb",
             "https://[::a00:1]/source/civilian.glb",
             "https://[::c0a8:101]/source/civilian.glb",

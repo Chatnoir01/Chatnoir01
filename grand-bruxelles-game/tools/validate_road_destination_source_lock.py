@@ -23,6 +23,8 @@ DEFAULT_LOCK_NAME = "road_destination_sources.lock.json"
 COUNT_KEYS = ("roads", "drivable_roads", "buildings", "railways", "environment_points")
 SELECTION_RADIUS_KEYS = ("roads", "buildings", "railways", "environment_points")
 REQUIRED_CORRIDOR_ANCHOR_IDS = ("midi", "anneessens", "bourse", "grand_place")
+REQUIRED_BUILDING_APPROVAL_KEYS = ("footprint", "height", "roof", "frontage")
+URBIS_CRS = "EPSG:31370"
 
 
 def fail(message: str) -> "NoReturn":
@@ -88,6 +90,72 @@ def finite_number(value: Any, label: str, *, positive: bool = False) -> float:
     return number
 
 
+def validate_required_buildings(corridor: dict[str, Any]) -> None:
+    required = corridor.get("required_buildings")
+    if type(required) is not list or not required:
+        fail("corridor.required_buildings must be a non-empty array")
+
+    seen_osm_ids: set[tuple[str, int]] = set()
+    for index, building in enumerate(required):
+        label = f"corridor.required_buildings[{index}]"
+        if type(building) is not dict:
+            fail(f"{label} must be an object")
+
+        osm_id = building.get("osm_id")
+        if type(osm_id) is not int or osm_id <= 0:
+            fail(f"{label}.osm_id must be a positive integer")
+        osm_type = canonical_nonempty_text(building.get("osm_type"), f"{label}.osm_type")
+        if osm_type not in {"node", "way", "relation"}:
+            fail(f"{label}.osm_type must be node, way or relation")
+        identity = (osm_type, osm_id)
+        if identity in seen_osm_ids:
+            fail(f"duplicate required-building OSM identity {identity!r}")
+        seen_osm_ids.add(identity)
+
+        anchor_id = canonical_nonempty_text(building.get("anchor_id"), f"{label}.anchor_id")
+        if anchor_id not in REQUIRED_CORRIDOR_ANCHOR_IDS:
+            fail(f"{label}.anchor_id is not a locked corridor anchor")
+        canonical_nonempty_text(building.get("role"), f"{label}.role")
+        canonical_nonempty_text(building.get("name"), f"{label}.name")
+
+        source_url = canonical_nonempty_text(building.get("source_url"), f"{label}.source_url")
+        expected_source_url = f"https://www.openstreetmap.org/{osm_type}/{osm_id}"
+        if source_url != expected_source_url:
+            fail(f"{label}.source_url must match the exact OSM identity")
+        if building.get("source_license") != SOURCE_LICENSE:
+            fail(f"{label}.source_license drift")
+
+        urbis_inspire_id = canonical_nonempty_text(
+            building.get("urbis_inspire_id"), f"{label}.urbis_inspire_id"
+        )
+        if not urbis_inspire_id.startswith("https://databrussels.be/id/building/"):
+            fail(f"{label}.urbis_inspire_id must be an official Brussels building identifier")
+        canonical_nonempty_text(building.get("urbis_ref"), f"{label}.urbis_ref")
+        if building.get("urbis_crs") != URBIS_CRS:
+            fail(f"{label}.urbis_crs must be {URBIS_CRS}")
+        finite_number(building.get("urbis_area_m2"), f"{label}.urbis_area_m2", positive=True)
+        canonical_nonempty_text(building.get("cross_check_accessed_at"), f"{label}.cross_check_accessed_at")
+
+        approval = building.get("runtime_approval")
+        if type(approval) is not dict or set(approval) != set(REQUIRED_BUILDING_APPROVAL_KEYS):
+            fail(f"{label}.runtime_approval field set drift")
+        for key in REQUIRED_BUILDING_APPROVAL_KEYS:
+            if type(approval.get(key)) is not bool:
+                fail(f"{label}.runtime_approval.{key} must be a boolean")
+
+        evidence = building.get("evidence")
+        if type(evidence) is not dict or set(evidence) != set(REQUIRED_BUILDING_APPROVAL_KEYS):
+            fail(f"{label}.evidence field set drift")
+        for key in REQUIRED_BUILDING_APPROVAL_KEYS:
+            item = evidence.get(key)
+            if approval[key] and type(item) is not dict:
+                fail(f"{label}.runtime_approval.{key}=true requires evidence.{key}")
+            if item is not None and type(item) is not dict:
+                fail(f"{label}.evidence.{key} must be an object or null")
+
+        canonical_nonempty_text(building.get("status"), f"{label}.status")
+
+
 def validate_corridor_selection(payload: dict[str, Any]) -> None:
     corridor = payload.get("corridor")
     if type(corridor) is not dict:
@@ -117,6 +185,8 @@ def validate_corridor_selection(payload: dict[str, Any]) -> None:
             "corridor anchor order drift: "
             f"observed={ordered_anchor_ids!r} required={list(REQUIRED_CORRIDOR_ANCHOR_IDS)!r}"
         )
+
+    validate_required_buildings(corridor)
 
     selection_radius = corridor.get("selection_radius_m")
     if type(selection_radius) is not dict:

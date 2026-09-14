@@ -56,6 +56,9 @@ jobs:
       - name: Validate Python tools
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
+      - name: Character roster registration regression
+        run: python3 grand-bruxelles-game/tools/test_civ1_roster_registration_truth.py
+
       - name: Test hero-building runtime selection
         run: |
           python3 -m unittest discover -s grand-bruxelles-game/tests -p 'test_make_runtime_slice.py' -v

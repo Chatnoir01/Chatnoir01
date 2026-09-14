@@ -142,6 +142,12 @@ def main() -> int:
     selection_radius["roads"] = 0
     _expect_rejected(lock_doc, bad_selection_radius, "selection_radius_m.roads")
 
+    out_of_scope_road = json.loads(json.dumps(source_doc))
+    roads = out_of_scope_road["roads"]
+    assert isinstance(roads, list) and roads and isinstance(roads[0], dict)
+    roads[0]["points"] = [[100000.0, 100000.0], [100010.0, 100010.0]]
+    _expect_rejected(lock_doc, out_of_scope_road, "selection radius")
+
     bad_stats = json.loads(json.dumps(source_doc))
     stats = bad_stats["stats"]
     assert isinstance(stats, dict)
@@ -254,9 +260,10 @@ def main() -> int:
     print(
         "ROAD_DESTINATION_SOURCE_LOCK_TEST_OK "
         "digest=true provenance=true accounting=true lock_path=true "
-        "corridor_selection_integrity=true road_osm_id_integrity=true "
-        "road_name_class_integrity=true road_drivable_bool_integrity=true "
-        "road_geometry_integrity=true road_width_integrity=true network_used=false"
+        "corridor_selection_integrity=true road_selection_geometry_integrity=true "
+        "road_osm_id_integrity=true road_name_class_integrity=true "
+        "road_drivable_bool_integrity=true road_geometry_integrity=true "
+        "road_width_integrity=true network_used=false"
     )
     return 0
 

@@ -20,6 +20,10 @@ class DuplicateJSONKeyError(ValueError):
     pass
 
 
+class NonStandardJSONConstantError(ValueError):
+    pass
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
@@ -27,6 +31,10 @@ def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]
             raise DuplicateJSONKeyError(key)
         result[key] = value
     return result
+
+
+def _reject_nonstandard_constant(token: str) -> object:
+    raise NonStandardJSONConstantError(token)
 
 
 def _git_blob_sha1(data: bytes) -> str:
@@ -60,10 +68,6 @@ def _source_file(repo_root: Path, source_path: str) -> Path | None:
     if len(pure.parts) <= len(root_parts) or pure.parts[: len(root_parts)] != root_parts:
         return None
 
-    # A manifest path is an identity, not merely a locator to matching bytes.
-    # Reject aliases in every lexical component from the repository root through
-    # the declared file, including ancestor-directory symlinks and in-root file
-    # aliases whose resolved target would otherwise pass the byte checks below.
     lexical_parts = ("grand-bruxelles-game",) + pure.parts
     if _has_symlink_component(repo_root, lexical_parts):
         return None
@@ -157,8 +161,14 @@ def source_ready(repo_root: Path) -> bool:
         status = json.loads(
             status_path.read_text(encoding="utf-8"),
             object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonstandard_constant,
         )
-    except (OSError, json.JSONDecodeError, DuplicateJSONKeyError):
+    except (
+        OSError,
+        json.JSONDecodeError,
+        DuplicateJSONKeyError,
+        NonStandardJSONConstantError,
+    ):
         return False
     return _status_consistent(status, repo_root)
 

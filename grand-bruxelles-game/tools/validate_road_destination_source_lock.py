@@ -22,6 +22,7 @@ SOURCE_LICENSE = "ODbL-1.0"
 DEFAULT_LOCK_NAME = "road_destination_sources.lock.json"
 COUNT_KEYS = ("roads", "drivable_roads", "buildings", "railways", "environment_points")
 SELECTION_RADIUS_KEYS = ("roads", "buildings", "railways", "environment_points")
+REQUIRED_CORRIDOR_ANCHOR_IDS = ("midi", "anneessens", "bourse", "grand_place")
 
 
 def fail(message: str) -> "NoReturn":
@@ -98,6 +99,7 @@ def validate_corridor_selection(payload: dict[str, Any]) -> None:
     if type(anchors) is not list or not anchors:
         fail("corridor.anchors must be a non-empty array")
     seen_anchor_ids: set[str] = set()
+    ordered_anchor_ids: list[str] = []
     for index, anchor in enumerate(anchors):
         if type(anchor) is not dict:
             fail(f"corridor.anchors[{index}] must be an object")
@@ -105,9 +107,16 @@ def validate_corridor_selection(payload: dict[str, Any]) -> None:
         if anchor_id in seen_anchor_ids:
             fail(f"duplicate corridor anchor id {anchor_id!r}")
         seen_anchor_ids.add(anchor_id)
+        ordered_anchor_ids.append(anchor_id)
         canonical_nonempty_text(anchor.get("name"), f"corridor.anchors[{index}].name")
         finite_number(anchor.get("x"), f"corridor.anchors[{index}].x")
         finite_number(anchor.get("z"), f"corridor.anchors[{index}].z")
+
+    if tuple(ordered_anchor_ids) != REQUIRED_CORRIDOR_ANCHOR_IDS:
+        fail(
+            "corridor anchor order drift: "
+            f"observed={ordered_anchor_ids!r} required={list(REQUIRED_CORRIDOR_ANCHOR_IDS)!r}"
+        )
 
     selection_radius = corridor.get("selection_radius_m")
     if type(selection_radius) is not dict:

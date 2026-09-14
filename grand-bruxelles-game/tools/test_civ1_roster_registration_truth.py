@@ -44,7 +44,6 @@ def main():
             assert reason in bad["blocking_reasons"], (source,bad)
             assert bad["roster_eligible"] is False
 
-        # Reserved/documentation DNS names cannot prove a production asset source.
         for source in (
             "https://example.invalid/source/civilian.glb",
             "https://assets.invalid/source/civilian.glb",
@@ -86,17 +85,18 @@ def main():
         assert all("duplicate_source_url" in e["blocking_reasons"] for e in duplicate_source["entries"]), duplicate_source
 
         payload=build_payload({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]},root)
-        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v36"
+        assert payload["schema"]=="grand-bruxelles-civ1-roster-registration-truth-v37"
         assert payload["blocking_reasons"]==[]
         assert payload["registration_count"]==0 and payload["eligible_count"]==0
         assert payload["source_url_idna_alabel_roundtrip_required"] is True
         assert payload["source_url_query_forbidden"] is True
         assert payload["source_url_fragment_forbidden"] is True
         assert payload["source_url_empty_delimiters_forbidden"] is True
+        assert payload["source_url_reserved_host_forbidden"] is True
         assert payload["unique_content_identity_required"] is True
         assert payload["unique_source_provenance_required"] is True
         assert payload["roster_authorized"] is False
         assert payload["runtime_authorized"] is False
         assert payload["visual_approval_claimed"] is False
-    print("CIV1_ROSTER_REGISTRATION_RESERVED_HOST_RED")
+    print("CIV1_ROSTER_REGISTRATION_TRUTH_V37_GREEN")
 if __name__=="__main__": main()

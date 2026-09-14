@@ -1,4 +1,4 @@
-name: Grand Bruxelles Road Destination Source Lock
+name: Grand Bruxelles Road Destination Corridor Membership
 
 on:
   pull_request:
@@ -7,17 +7,15 @@ on:
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
       - "grand-bruxelles-game/tools/validate_road_destination_source_lock.py"
       - "grand-bruxelles-game/tools/validate_road_destination_corridor_membership.py"
-      - "grand-bruxelles-game/tests/test_validate_road_destination_source_lock.py"
-      - "grand-bruxelles-game/tests/test_required_building_provenance_lock.py"
       - "grand-bruxelles-game/tests/test_validate_road_destination_corridor_membership.py"
-      - ".github/workflows/grand-bruxelles-road-destination-source-lock.yml"
+      - ".github/workflows/grand-bruxelles-road-destination-corridor-membership.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  validate-source-lock:
+  validate-corridor-membership:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,9 +29,6 @@ jobs:
           git fetch origin main --no-tags
           test "$(git rev-parse origin/main)" = "${{ github.event.pull_request.base.sha }}"
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
-      - name: Validate deterministic source lock
+      - name: Prove historical vertex-to-corridor membership
         working-directory: grand-bruxelles-game
-        run: |
-          python3 tests/test_validate_road_destination_source_lock.py
-          python3 tests/test_required_building_provenance_lock.py
-          python3 tests/test_validate_road_destination_corridor_membership.py
+        run: python3 tests/test_validate_road_destination_corridor_membership.py

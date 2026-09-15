@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import unicodedata
 from pathlib import Path, PurePosixPath
 
@@ -30,8 +31,14 @@ def _reject_duplicate_keys(pairs):
 def _reject_nonstandard_constant(token):
     raise NonStandardJSONConstantError(token)
 
+def _parse_finite_float(token: str) -> float:
+    value = float(token)
+    if not math.isfinite(value):
+        raise NonStandardJSONConstantError(token)
+    return value
+
 def _load_strict_json(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys, parse_constant=_reject_nonstandard_constant)
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys, parse_float=_parse_finite_float, parse_constant=_reject_nonstandard_constant)
 
 def _git_blob_sha1(data: bytes) -> str:
     digest = hashlib.sha1()
@@ -171,11 +178,7 @@ def blocking_entries(registry, repo_root: Path) -> list[str]:
         raise ValueError("invalid CIV-1 roster registry structure")
     if source_ready(repo_root):
         return []
-    return [
-        entry["asset_path"]
-        for entry in registry["entries"]
-        if entry["asset_path"].startswith(CIV1_PREFIX)
-    ]
+    return [entry["asset_path"] for entry in registry["entries"] if entry["asset_path"].startswith(CIV1_PREFIX)]
 
 def main() -> int:
     parser = argparse.ArgumentParser()

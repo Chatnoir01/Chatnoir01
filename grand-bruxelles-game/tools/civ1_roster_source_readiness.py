@@ -128,10 +128,12 @@ def source_ready(repo_root: Path) -> bool:
     return _status_consistent(status, repo_root)
 
 def _canonical_asset_path(value: object) -> str | None:
-    if not isinstance(value, str) or not value or "\\" in value:
+    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
         return None
     pure = PurePosixPath(value)
     if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != value:
+        return None
+    if len(pure.parts) < 2 or value.endswith("/") or pure.name in ("", ".", ".."):
         return None
     return value
 

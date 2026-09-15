@@ -9,6 +9,8 @@ SCRIPT = PROJECT / "game" / "tests" / "automatic_road_359177328_source_context_b
 WORKFLOW = REPO / ".github" / "workflows" / "grand-bruxelles-automatic-road-359177328-source-context-balance.yml"
 EXPECTED_MARKER = "AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_DIAGNOSTIC_GREEN:"
 TABLE_MARKER = "AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_CLASSIFICATION_TABLE_GREEN:"
+VETO_TEST = "python3 tests/test_automatic_road_359177328_human_review_veto.py"
+MEASURE_STEP = "Measure bilateral source context from production selection"
 
 def main() -> int:
     script = SCRIPT.read_text(encoding="utf-8")
@@ -20,6 +22,13 @@ def main() -> int:
     assert "--quit-after" not in workflow
     for marker in ("SCRIPT ERROR: Parse Error:", "SCRIPT ERROR: Compile Error:", "ERROR: Failed to load script"):
         assert workflow.count(marker) >= 2
+    # The source diagnostic says the human REJECT remains binding. Prove that claim
+    # operationally: the canonical strict veto must run and pass before Godot can
+    # perform any source-context measurement.
+    assert VETO_TEST in workflow
+    assert workflow.index(VETO_TEST) < workflow.index(MEASURE_STEP)
+    assert "automatic_road_359177328_human_review.json" in workflow
+    assert "test_automatic_road_359177328_human_review_veto.py" in workflow
     assert "func _classify_source_context(left_hits: int, right_hits: int, coverage_clamped: bool) -> Dictionary:" in script
     assert "func _verify_classification_truth_table() -> bool:" in script and TABLE_MARKER in script
     assert "source_coverage_insufficient_for_visual_void_claim" in script

@@ -170,10 +170,16 @@ def test_real_slice_matches_catalog_and_contains_lemonnier() -> None:
 
 
 def main() -> int:
-    test_synthetic_determinism_and_source_binding()
-    test_duplicate_source_ownership_fails_closed()
-    test_runtime_index_json_contract_fails_closed()
-    test_real_slice_matches_catalog_and_contains_lemonnier()
+    stages = (
+        ("synthetic-determinism-source-binding", test_synthetic_determinism_and_source_binding),
+        ("duplicate-source-ownership", test_duplicate_source_ownership_fails_closed),
+        ("json-contract-fail-closed", test_runtime_index_json_contract_fails_closed),
+        ("real-locked-slice", test_real_slice_matches_catalog_and_contains_lemonnier),
+    )
+    for name, test in stages:
+        print(f"ROAD_RUNTIME_INDEX_STAGE_START: {name}", flush=True)
+        test()
+        print(f"ROAD_RUNTIME_INDEX_STAGE_OK: {name}", flush=True)
     print("ROAD_RUNTIME_INDEX_TEST_OK")
     return 0
 

@@ -4,7 +4,11 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 RUNTIME = PROJECT / "game" / "scripts" / "anneessens_osm_furniture_runtime.gd"
 FUNCTION = "func _is_authoritative_production_scene(candidate: Node3D) -> bool:"
-CANONICAL = 'res://game/main.tscn'
+CANONICAL = "res://game/main.tscn"
+CANONICAL_GUARDS = (
+    'if candidate.scene_file_path != "res://game/main.tscn":\n        return false',
+    'if candidate.scene_file_path == "res://game/main.tscn":',
+)
 
 
 def main() -> int:
@@ -19,9 +23,13 @@ def main() -> int:
     current_index = predicate.find(current_guard)
     assert current_index >= 0, "SceneTree.current_scene authority must remain first-class"
 
-    path_index = predicate.find("candidate.scene_file_path")
-    assert path_index >= 0, "automatic fallback must inspect candidate.scene_file_path"
-    assert CANONICAL in predicate, "automatic fallback must bind to canonical packed main.tscn"
+    guard_matches = [(guard, predicate.find(guard)) for guard in CANONICAL_GUARDS]
+    guard_matches = [(guard, index) for guard, index in guard_matches if index >= 0]
+    assert guard_matches, (
+        "automatic fallback must enforce an exact candidate.scene_file_path == "
+        f"{CANONICAL!r} guard, not merely mention the path"
+    )
+    _, path_index = min(guard_matches, key=lambda item: item[1])
     assert current_index < path_index, "packed-scene fallback must not override current_scene authority"
 
     direct_index = predicate.find("if parent == tree.root:")

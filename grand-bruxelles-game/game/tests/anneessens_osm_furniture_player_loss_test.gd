@@ -75,7 +75,9 @@ func _run() -> void:
         _fail("near-player baseline resurrected unsourced tree collision")
         return
 
-    main.remove_child(player)
+    # Queue the in-tree Player directly. Removing it first and then queue_free()ing
+    # an already detached Node trips Godot's !is_inside_tree() lifecycle diagnostic,
+    # which is unrelated to the runtime's fail-closed Player-loss contract.
     player.queue_free()
     for _frame: int in range(8):
         await process_frame

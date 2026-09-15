@@ -128,10 +128,16 @@ def source_ready(repo_root: Path) -> bool:
     return _status_consistent(status, repo_root)
 
 def registry_consistent(registry) -> bool:
-    return (
-        isinstance(registry, dict)
-        and registry.get("schema") == REGISTRY_SCHEMA
-        and isinstance(registry.get("entries"), list)
+    if not isinstance(registry, dict) or registry.get("schema") != REGISTRY_SCHEMA:
+        return False
+    entries = registry.get("entries")
+    if not isinstance(entries, list):
+        return False
+    return all(
+        isinstance(entry, dict)
+        and isinstance(entry.get("asset_path"), str)
+        and bool(entry["asset_path"])
+        for entry in entries
     )
 
 def blocking_entries(registry, repo_root: Path) -> list[str]:
@@ -139,14 +145,11 @@ def blocking_entries(registry, repo_root: Path) -> list[str]:
         raise ValueError("invalid CIV-1 roster registry structure")
     if source_ready(repo_root):
         return []
-    blocked = []
-    for entry in registry["entries"]:
-        if not isinstance(entry, dict):
-            continue
-        asset_path = entry.get("asset_path")
-        if isinstance(asset_path, str) and asset_path.startswith(CIV1_PREFIX):
-            blocked.append(asset_path)
-    return blocked
+    return [
+        entry["asset_path"]
+        for entry in registry["entries"]
+        if entry["asset_path"].startswith(CIV1_PREFIX)
+    ]
 
 def main() -> int:
     parser = argparse.ArgumentParser()

@@ -1,0 +1,203 @@
+{
+  "bbox": [
+    153000.0,
+    173500.0,
+    153500.0,
+    174000.0
+  ],
+  "cell_id": "bxl-e153000-n173500-s500",
+  "collisions": {
+    "status": "not_validated"
+  },
+  "crs": "EPSG:31370",
+  "crs_evidence": {
+    "bbox": [
+      153000.0,
+      173500.0,
+      153500.0,
+      174000.0
+    ],
+    "contract": "manifest.crs + Lambert72-like positive ordered bbox",
+    "evidence_digest": "b41613fc1c94306de9f84f3ddfd80b2fc29384f984d31193c91d2d90690b59ba",
+    "gate_ready": true,
+    "source_crs": "EPSG:31370",
+    "status": "validated"
+  },
+  "format": "grand-bruxelles-cell-maturity-v1",
+  "geometry": {
+    "authoritative_geometry_ready": true,
+    "building_feature_count": 123,
+    "layers": [
+      "buildings"
+    ],
+    "source_manifest": "data/urbis/remaining_brussels/cells/bxl-e153000-n173500-s500/manifest.json"
+  },
+  "heights": {
+    "status": "evidence_pending"
+  },
+  "maturity": {
+    "gates": {
+      "clutter": false,
+      "collisions": false,
+      "crs": true,
+      "facade": false,
+      "heights": false,
+      "license": false,
+      "materials": false,
+      "mobility": false,
+      "performance": false,
+      "photo_match": false,
+      "region_scalable": false,
+      "runtime_geometry": true,
+      "source_requirements": true,
+      "streaming": false,
+      "terrain": false,
+      "verification": true
+    },
+    "state": "data_ready"
+  },
+  "maturity_digest": "931d63e72c4eec0207c50b633462b8d17ddb295aa248ec9a9275c8f91c97473a",
+  "performance": {
+    "budget_pass": false,
+    "status": "not_measured_as_streamed_cell"
+  },
+  "photo_match": {
+    "open_major_mismatches": null,
+    "status": "not_evaluated"
+  },
+  "provenance": {
+    "buildings_source_digest": "298ac6a9664b9f70bed15cdc81bd3d83df3689812589794b30ec60b2a832f22c",
+    "crs_evidence_digest": "b41613fc1c94306de9f84f3ddfd80b2fc29384f984d31193c91d2d90690b59ba",
+    "primary": "UrbIS WFS / Paradigm",
+    "source_manifest_digest": "2804377a864af3dcb6893c0ecea185380840e26cd3da523ba873dfba97160b05",
+    "source_records_present": true,
+    "source_requirements_digest": "dd450284da9aa8e20692e469a938861dfef0e8c7d7bbf88a80f652316932abed",
+    "verification_evidence_digest": "fae415329bf42b0d1424bfeedf396f277c202f3b8ad46c5a9518c54815d1dc1b"
+  },
+  "runtime_geometry_evidence": {
+    "candidate_digest": "7bc3c255675321977186542d3ad4c587721134afd46579a1cb57f18dd9009eb3",
+    "candidate_format": "grand-bruxelles-runtime-candidate-bundle-v1",
+    "candidate_root_format": "grand-bruxelles-urbis-built-cell-candidate-v1",
+    "cell_id": "bxl-e153000-n173500-s500",
+    "collision_authorized": false,
+    "contract": "sealed QA-only runtime candidate validated against current durable authoritative source hashes",
+    "evidence_digest": "66a0dc409b6648b026f9b410122d91a04a571ecbbcbbdda71f27033d6549d1bb",
+    "gate_ready": true,
+    "jouable_promotion_authorized": false,
+    "output_sha256": {
+      "manifest.json": "88ad9e4d66ec7b6346fe384b91744afbc36d99c9bd83916141831d527eca583f",
+      "runtime/cell.game.json": "1a102200bfc9cee0d0f10ad04ceff448860f68fdeade1362374d40747f7b42a9",
+      "runtime/network.game.json": "1ec02cb3dfcbbc4111badee19d7fb353fdbda5872347e0c96aaf2ab9dcf4a46e"
+    },
+    "production_discovery_eligible": false,
+    "requires_explicit_validated_promotion": true,
+    "runtime_mount_authorized": false,
+    "source_hashes_current": {
+      "manifest.json": "69d2b1794eb0672c6983f573cfd59852c12d9c7b5ccd8b8d5dc6eb1e87a2a5a2",
+      "raw/buildings.geojson": "32b703c47e87d5e87d19ff52f27113db53482f8e769e9183cf37b9631cc6dd3a",
+      "raw/street_axes.geojson": "ba3cd023855f3b23409e6fb59f8f9db49a68fab9aa9ee2dcf4241a804988c04b",
+      "raw/street_surfaces.geojson": "51e2a29af1f5022d7fda54775827c34d15217e585869d4330d54233d36108fcf",
+      "raw/train_network.geojson": "d8da8063ab0333d8b26f585ad17fb4a4984f5a48322ecbc2e2aa8ec3892f75ee",
+      "raw/tram_network.geojson": "7c0a8357ecd8087baf7f0bfdca1f2d5ef729057c6fda46d9e0f24ff0d0b75ea5"
+    },
+    "source_manifest_sha256": "69d2b1794eb0672c6983f573cfd59852c12d9c7b5ccd8b8d5dc6eb1e87a2a5a2",
+    "stats": {
+      "buildings": 123,
+      "street_segments": 135,
+      "street_surfaces": 77,
+      "train_segments": 0,
+      "tram_segments": 1,
+      "unclassified_rail_segments": 0
+    },
+    "status": "validated",
+    "terrain_runtime_authorized": false,
+    "validation_digest": "b3a5229028b5b508b404e5dec47753513a43484afdf6c4aa8436a137840d078b",
+    "validation_format": "grand-bruxelles-runtime-candidate-validation-v1"
+  },
+  "source_requirements": {
+    "blockers": [],
+    "complete": true,
+    "contract": "manifest.layers[*].file",
+    "gate_ready": true,
+    "required_file_count": 5,
+    "requirements": [
+      {
+        "actual_features": 123,
+        "content_digest": "298ac6a9664b9f70bed15cdc81bd3d83df3689812589794b30ec60b2a832f22c",
+        "declared_features": 123,
+        "file": "raw/buildings.geojson",
+        "layer": "buildings",
+        "status": "validated"
+      },
+      {
+        "actual_features": 32,
+        "content_digest": "6c31cadce3326a078e5d4db788f390fae6b20682cbfa17087f3f3ce4b31a4a2c",
+        "declared_features": 32,
+        "file": "raw/street_axes.geojson",
+        "layer": "street_axes",
+        "status": "validated"
+      },
+      {
+        "actual_features": 77,
+        "content_digest": "0c346a744766d2c038cd68f139dadfa113f3b924da10b4c362a9a1c4c75d1fec",
+        "declared_features": 77,
+        "file": "raw/street_surfaces.geojson",
+        "layer": "street_surfaces",
+        "status": "validated"
+      },
+      {
+        "actual_features": 4,
+        "content_digest": "ee82a8fe0105c480ac2d115fbe23d185610b7d278906b61a3d9d298ff6539402",
+        "declared_features": 4,
+        "file": "raw/train_network.geojson",
+        "layer": "train_network",
+        "status": "validated"
+      },
+      {
+        "actual_features": 4,
+        "content_digest": "c9ed6bb81ce68e8fafbf6972e572ca0e46f18696c993b97292683cebf646d1c5",
+        "declared_features": 4,
+        "file": "raw/tram_network.geojson",
+        "layer": "tram_network",
+        "status": "validated"
+      }
+    ],
+    "requirements_digest": "0a988bcf0e8c0f216a17f3272c53815fb15489773722efbd9735d6a48f4b21f4",
+    "status": "validated"
+  },
+  "streaming": {
+    "status": "not_validated"
+  },
+  "terrain": {
+    "status": "evidence_pending"
+  },
+  "uncertainties": [
+    "collision quality not validated",
+    "streaming behavior not validated",
+    "terrain evidence not acquired",
+    "building height evidence not acquired",
+    "shared materials not validated",
+    "player-facing facade treatment not validated",
+    "clutter baseline or explicit deferral not validated",
+    "traffic/pedestrian branchability or absence rationale not validated",
+    "asset/source licensing not validated for this cell",
+    "hero-independent regional scalability not validated",
+    "photo-match not evaluated for this cell",
+    "streamed-cell performance not measured"
+  ],
+  "verification_evidence": {
+    "blockers": [],
+    "checks": {
+      "authoritative_geometry_ready": true,
+      "building_feature_count_matches": true,
+      "canonical_ownership_valid": true,
+      "crs_contract_valid": true,
+      "source_identity_valid": true,
+      "source_requirements_complete": true
+    },
+    "contract": "deterministic authoritative source bootstrap checks",
+    "evidence_digest": "fae415329bf42b0d1424bfeedf396f277c202f3b8ad46c5a9518c54815d1dc1b",
+    "gate_ready": true,
+    "status": "validated"
+  }
+}

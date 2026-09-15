@@ -1,0 +1,45 @@
+{
+  "archives": [
+    {
+      "archive_bytes": 13603560,
+      "sha256": "8401652eb5d662550a76f80105f8be975cd4271fe30cbdaec85721122b0d40f8",
+      "tile": "147169",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_147169_20211009_50.zip",
+      "zip": {
+        "file_count": 2,
+        "members_digest": "33c43a85012e886b440437abed090599c22315ac93c90076628871c532549f90",
+        "tiff_member": "UrbDSM_2021_147169.tif",
+        "uncompressed_bytes": 16000359
+      }
+    }
+  ],
+  "bbox": [
+    147500.0,
+    169500.0,
+    148000.0,
+    170000.0
+  ],
+  "cell_id": "bxl-e147500-n169500-s500",
+  "crs": "EPSG:31370",
+  "dataset_id": "8c2d921e-6a53-11ed-bfb5-010101010000",
+  "expected_1km_tile_codes": [
+    "147169"
+  ],
+  "format": "grand-bruxelles-cell-elevation-archive-validation-v1",
+  "kind": "dsm",
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "archive_integrity_only_raster_not_validated",
+    "terrain_gate": false
+  },
+  "remaining_validation": [
+    "raster_crs",
+    "raster_bounds",
+    "pixel_resolution",
+    "geotransform",
+    "dsm_dtm_alignment",
+    "raster_value_quality"
+  ],
+  "status": "official_archives_downloaded_hashed_and_zip_structure_validated",
+  "validation_digest": "85a027474c80283ba166fe73f6fc4cbbdf265af055d1242b491d2eab3c8cc363"
+}

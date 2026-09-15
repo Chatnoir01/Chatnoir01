@@ -1,0 +1,43 @@
+{
+  "bbox": [
+    147000.0,
+    171000.0,
+    147500.0,
+    171500.0
+  ],
+  "blockers": [],
+  "candidate_package_digest": "28e7f1d948d74b0cbbd8cf27751a59ec5f82e15b8c06bcdc3431462cbd7a4583",
+  "cell_id": "bxl-e147000-n171000-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-elevation-candidate-frontier-v1",
+  "frontier_digest": "05094fe6d45a80c60c12a4f00be389c082e0fd95d2762079b6eb0d5c60e95b2e",
+  "heights": {
+    "building_sample_target_count": 851,
+    "candidate_height_count": 0,
+    "next_gate": "sample_per_building_dsm_minus_dtm_and_cross_validate",
+    "promotion_policy": "no_building_height_candidate_until_per_building_sampling_and_independent_secondary_validation",
+    "runtime_approved": false,
+    "source_delta_p50_m": 5.7720184326171875,
+    "source_delta_p95_m": 16.238050460815426,
+    "source_pair_ready": true,
+    "source_pair_valid_ratio": 1.0
+  },
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "candidate_frontier_only_measured_runtime_and_secondary_validation_gates_remain_required",
+    "terrain_gate": false
+  },
+  "next_action": "assess_terrain_lod_and_building_height_samples",
+  "runtime_promotion_allowed": false,
+  "source_evidence_digest": "45f86ff18ab035c0f0930218fdbc49438a5e9195e2615aec39b0d2926d0de16b",
+  "terrain": {
+    "next_gate": "measure_terrain_lod_reconstruction_error",
+    "promotion_policy": "no_runtime_terrain_until_lod_error_seams_normals_collision_and_performance_are_validated",
+    "resolution_m": null,
+    "runtime_approved": false,
+    "source_p50_m": 29.54500961303711,
+    "source_ready": true,
+    "source_span_m": 15.574331283569336,
+    "source_valid_ratio": 1.0
+  }
+}

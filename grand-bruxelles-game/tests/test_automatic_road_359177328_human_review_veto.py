@@ -25,12 +25,15 @@ EXPECTED_REASONS = [
     "built urban mass remains sparse and distant ahead, so the automatic destination is not yet a convincing dense corridor arrival",
 ]
 
+def _require(condition, message):
+    if not condition: raise ValueError(message)
+
 @contextmanager
 def _raises_value_error(match=None):
     try: yield
     except ValueError as exc:
-        if match is not None and re.search(match, str(exc)) is None: raise AssertionError(f"ValueError did not match {match!r}: {exc}") from exc
-    else: raise AssertionError("expected ValueError")
+        if match is not None and re.search(match, str(exc)) is None: raise RuntimeError(f"ValueError did not match {match!r}: {exc}") from exc
+    else: raise RuntimeError("expected ValueError")
 
 def _reject_duplicate_keys(pairs):
     result = {}
@@ -63,7 +66,7 @@ def _nonzero_hex(value, pattern, field):
 
 def main():
     canonical = REVIEW_PATH.read_bytes(); review = _load_review_bytes(canonical)
-    assert set(review) == EXPECTED_REVIEW_KEYS
+    _require(set(review) == EXPECTED_REVIEW_KEYS, "human review schema drift")
     duplicate = canonical.replace(b'"verdict": "REJECT",', b'"verdict": "REJECT",\n  "verdict": "KEEP",', 1)
     with _raises_value_error("duplicate JSON key: verdict"): _load_review_bytes(duplicate)
     for bad in (b"NaN",b"Infinity",b"-Infinity",b"1e309",b"-1e309"):
@@ -73,17 +76,17 @@ def main():
         for replacement in (b"true",raw+b".0"):
             mutated=_load_review_bytes(canonical.replace(needle,b'"'+field.encode()+b'": '+replacement,1))
             with _raises_value_error(field): _positive_int(mutated,field)
-    assert review["schema"] == "grand-bruxelles-automatic-road-359177328-human-review-v1"
-    assert review["destination"] == "road-359177328" and _positive_int(review,"osm_id") == 359177328
-    assert review["source_name"] == "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan"
-    assert _positive_int(review,"width") == 1280 and _positive_int(review,"height") == 720
+    _require(review["schema"] == "grand-bruxelles-automatic-road-359177328-human-review-v1", "unexpected review schema")
+    _require(review["destination"] == "road-359177328" and _positive_int(review,"osm_id") == 359177328, "destination identity drift")
+    _require(review["source_name"] == "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan", "source name drift")
+    _require(_positive_int(review,"width") == 1280 and _positive_int(review,"height") == 720, "review frame dimensions drift")
     for field in ("repository_id","head_repository_id","workflow_run_id","artifact_id"): _positive_int(review,field)
     _nonzero_hex(review["reviewed_head_sha"],GIT_SHA1_RE,"reviewed_head_sha"); _nonzero_hex(review["png_sha256"],SHA256_RE,"png_sha256"); _nonzero_hex(review["artifact_digest"],DIGEST_RE,"artifact_digest")
-    for field, expected in EXPECTED_IDENTITY.items(): assert review[field] == expected, f"immutable evidence identity drift: {field}"
-    assert review["full_frame_inspected"] is True and review["verdict"] == "REJECT"
-    assert review["rejection_reasons"] == EXPECTED_REASONS
-    assert review["rejection_reason_codes"] == ["foreground_open_area_dominance","urban_mass_sparse_or_distant"]
-    for field in ("camera_changed","source_geometry_changed","resolver_thresholds_lowered","destination_advertisable","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","visual_acceptance","jouable_authorized"): assert review[field] is False
-    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_VETO_GREEN immutable_evidence_identity=true"); return 0
+    for field, expected in EXPECTED_IDENTITY.items(): _require(review[field] == expected, f"immutable evidence identity drift: {field}")
+    _require(review["full_frame_inspected"] is True and review["verdict"] == "REJECT", "human REJECT no longer binding")
+    _require(review["rejection_reasons"] == EXPECTED_REASONS, "human rejection prose drift")
+    _require(review["rejection_reason_codes"] == ["foreground_open_area_dominance","urban_mass_sparse_or_distant"], "human rejection codes drift")
+    for field in ("camera_changed","source_geometry_changed","resolver_thresholds_lowered","destination_advertisable","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","visual_acceptance","jouable_authorized"): _require(review[field] is False, f"authorization/change rail opened: {field}")
+    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_VETO_GREEN immutable_evidence_identity=true optimization_safe=true"); return 0
 
 if __name__ == "__main__": raise SystemExit(main())

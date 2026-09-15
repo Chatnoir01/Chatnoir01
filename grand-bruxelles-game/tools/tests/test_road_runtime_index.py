@@ -146,6 +146,21 @@ def test_runtime_index_json_contract_fails_closed() -> None:
         assert_contract_rejects(backslash_drift, "non-canonical source path", expected_catalog_sha256)
 
 
+def test_catalog_identity_binding_fails_closed() -> None:
+    source_root = ROOT / "data" / "osm"
+    catalog = module._catalog_module.build_catalog(source_root)
+    module._catalog_module.validate_contract(catalog)
+    index = module.build_runtime_index(catalog)
+    mutated = copy.deepcopy(index)
+    mutated["catalog_sha256"] = "0" * 64
+    try:
+        module.validate_contract(mutated)
+    except SystemExit as exc:
+        assert "catalog identity drift" in str(exc), str(exc)
+    else:
+        raise AssertionError("runtime index accepted catalog_sha256 not bound to locked catalog identity")
+
+
 def test_real_slice_matches_catalog_and_contains_lemonnier() -> None:
     source_root = ROOT / "data" / "osm"
     catalog = module._catalog_module.build_catalog(source_root)
@@ -174,6 +189,7 @@ def main() -> int:
         ("synthetic-determinism-source-binding", test_synthetic_determinism_and_source_binding),
         ("duplicate-source-ownership", test_duplicate_source_ownership_fails_closed),
         ("json-contract-fail-closed", test_runtime_index_json_contract_fails_closed),
+        ("catalog-identity-binding", test_catalog_identity_binding_fails_closed),
         ("real-locked-slice", test_real_slice_matches_catalog_and_contains_lemonnier),
     )
     for name, test in stages:

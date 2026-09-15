@@ -57,7 +57,7 @@ def _has_symlink_component(base: Path, parts: tuple[str, ...]) -> bool:
     return False
 
 def _canonical_path_text(value: object) -> str | None:
-    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
+    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value or ":" in value:
         return None
     if value != value.strip() or unicodedata.normalize("NFC", value) != value:
         return None
@@ -184,7 +184,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("registry", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
-    args = parser.parse_args()
+    args=parser.parse_args()
     try:
         registry = _load_strict_json(args.registry)
         blocked = blocking_entries(registry, args.repo_root)

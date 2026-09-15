@@ -43,6 +43,9 @@ def main() -> None:
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"."}]}), "dot identity must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/"}]}), "directory-like identity must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb\u0000alias"}]}), "NUL identity must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":" grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}), "leading whitespace identity must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb "}]}), "trailing whitespace identity must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb\nshadow"}]}), "control-character identity must fail closed"
         duplicate = {"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"},{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}
         assert not registry_consistent(duplicate), "duplicate asset identity must fail closed"
 

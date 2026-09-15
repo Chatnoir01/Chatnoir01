@@ -54,7 +54,7 @@ def _canonical_path_text(value: object) -> str | None:
         return None
     if value != value.strip() or unicodedata.normalize("NFC", value) != value:
         return None
-    if any(unicodedata.category(char) in ("Cc", "Cf") for char in value):
+    if any(unicodedata.category(char) in ("Cc", "Cf", "Zs", "Zl", "Zp") for char in value):
         return None
     pure = PurePosixPath(value)
     if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != value:

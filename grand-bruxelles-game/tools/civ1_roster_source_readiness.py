@@ -13,6 +13,8 @@ STATUS_PATH = Path("grand-bruxelles-game/assets/characters/civilians/civ1/source
 SOURCE_ROOT = PurePosixPath("assets/characters/civilians/civ1/source")
 REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 REQUIRED_READY_FLAGS = ("production_authorized", "activation_ready", "source_package_present")
+WINDOWS_FORBIDDEN_CHARS = frozenset('<>:"|?*')
+WINDOWS_RESERVED_STEMS = frozenset({"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))})
 
 class DuplicateJSONKeyError(ValueError):
     pass
@@ -56,8 +58,14 @@ def _has_symlink_component(base: Path, parts: tuple[str, ...]) -> bool:
             return True
     return False
 
+def _windows_portable_component(part: str) -> bool:
+    if not part or part.endswith((" ", ".")) or any(char in WINDOWS_FORBIDDEN_CHARS for char in part):
+        return False
+    stem = part.split(".", 1)[0].upper()
+    return stem not in WINDOWS_RESERVED_STEMS
+
 def _canonical_path_text(value: object) -> str | None:
-    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value or ":" in value:
+    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
         return None
     if value != value.strip() or unicodedata.normalize("NFC", value) != value:
         return None
@@ -65,6 +73,8 @@ def _canonical_path_text(value: object) -> str | None:
         return None
     pure = PurePosixPath(value)
     if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != value:
+        return None
+    if not all(_windows_portable_component(part) for part in pure.parts):
         return None
     return value
 

@@ -22,6 +22,12 @@ def _raises_value_error(match=None):
     except ValueError as exc:
         if match is not None and re.search(match,str(exc)) is None: raise RuntimeError(f"ValueError did not match {match!r}: {exc}") from exc
     else: raise RuntimeError("expected ValueError")
+def _replace_once(raw, needle, replacement, witness):
+    count=raw.count(needle)
+    _require(count==1,f"mutation witness {witness} expected exactly one canonical target, found {count}")
+    mutated=raw.replace(needle,replacement,1)
+    _require(mutated!=raw,f"mutation witness {witness} did not alter canonical receipt")
+    return mutated
 def _reject_duplicate_keys(pairs):
     result={}
     for key,value in pairs:
@@ -50,14 +56,15 @@ def _nonzero_hex(value,pattern,field):
 def main():
     canonical=REVIEW_PATH.read_bytes(); review=_load_review_bytes(canonical)
     _require(set(review)==EXPECTED_REVIEW_KEYS,"human review schema drift")
-    duplicate=canonical.replace(b'"verdict": "REJECT",',b'"verdict": "REJECT",\n  "verdict": "KEEP",',1)
+    duplicate=_replace_once(canonical,b'"verdict": "REJECT",',b'"verdict": "REJECT",\n  "verdict": "KEEP",',"duplicate-verdict")
     with _raises_value_error("duplicate JSON key: verdict"): _load_review_bytes(duplicate)
     for bad in (b"NaN",b"Infinity",b"-Infinity",b"1e309",b"-1e309"):
-        with _raises_value_error(): _load_review_bytes(canonical.replace(b'"width": 1280',b'"width": '+bad,1))
+        mutated=_replace_once(canonical,b'"width": 1280',b'"width": '+bad,"width-"+bad.decode())
+        with _raises_value_error(): _load_review_bytes(mutated)
     for field,raw in (("osm_id",b"359177328"),("width",b"1280"),("height",b"720"),("workflow_run_id",b"34862748645"),("artifact_id",b"10355542176"),("repository_id",b"793866273"),("head_repository_id",b"793866273")):
         needle=b'"'+field.encode()+b'": '+raw
         for replacement in (b"true",raw+b".0"):
-            mutated=_load_review_bytes(canonical.replace(needle,b'"'+field.encode()+b'": '+replacement,1))
+            mutated=_load_review_bytes(_replace_once(canonical,needle,b'"'+field.encode()+b'": '+replacement,field+"-"+replacement.decode()))
             with _raises_value_error(field): _positive_int(mutated,field)
     _require(review["schema"]=="grand-bruxelles-automatic-road-359177328-human-review-v1","unexpected review schema")
     _require(review["destination"]=="road-359177328" and _positive_int(review,"osm_id")==359177328,"destination identity drift")
@@ -74,5 +81,5 @@ def main():
         optimized=subprocess.run([sys.executable,"-O",str(Path(__file__).resolve())],capture_output=True,text=True,check=False)
         _require(optimized.returncode==0,"optimized Python veto execution failed: "+optimized.stdout+optimized.stderr)
         _require("optimization_mode=true" in optimized.stdout,"optimized Python veto proof marker missing")
-    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_VETO_GREEN immutable_evidence_identity=true optimization_safe=true optimization_mode="+("false" if __debug__ else "true")); return 0
+    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_VETO_GREEN immutable_evidence_identity=true optimization_safe=true mutation_witnesses_exact=true optimization_mode="+("false" if __debug__ else "true")); return 0
 if __name__=="__main__": raise SystemExit(main())

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import unicodedata
 from pathlib import Path, PurePosixPath
 
 CIV1_PREFIX = "grand-bruxelles-game/assets/characters/civilians/civ1/"
@@ -129,6 +130,10 @@ def source_ready(repo_root: Path) -> bool:
 
 def _canonical_asset_path(value: object) -> str | None:
     if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
+        return None
+    if value != value.strip() or unicodedata.normalize("NFC", value) != value:
+        return None
+    if any(unicodedata.category(char) in ("Cc", "Cf") for char in value):
         return None
     pure = PurePosixPath(value)
     if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != value:

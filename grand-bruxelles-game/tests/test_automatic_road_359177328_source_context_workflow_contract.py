@@ -22,6 +22,12 @@ def main() -> int:
     assert "--quit-after" not in workflow
     for marker in ("SCRIPT ERROR: Parse Error:", "SCRIPT ERROR: Compile Error:", "ERROR: Failed to load script"):
         assert workflow.count(marker) >= 2
+    # Both pull_request and workflow_dispatch must prove checkout identity and an
+    # exact live-main merge base. A manual run must never bypass provenance.
+    assert "if: github.event_name == 'pull_request'" not in workflow
+    assert 'git fetch origin main --no-tags' in workflow
+    assert 'test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"' in workflow
+    assert 'test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"' in workflow
     # The source diagnostic says the human REJECT remains binding. Prove that claim
     # operationally: the canonical strict veto must run and pass before Godot can
     # perform any source-context measurement.

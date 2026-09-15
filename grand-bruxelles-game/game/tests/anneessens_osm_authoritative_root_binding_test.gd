@@ -32,9 +32,6 @@ func _run() -> void:
         _fail("AnneessensOsmFurnitureRuntime autoload missing")
         return
 
-    # Lock the intended production identity contract as well as its behavior.
-    # This prevents a future implementation from merely special-casing this decoy
-    # while continuing to authorize arbitrary root children by node name.
     var runtime_source := FileAccess.get_file_as_string(RUNTIME_PATH)
     if runtime_source.is_empty():
         _fail("runtime source unavailable for identity contract")
@@ -43,9 +40,8 @@ func _run() -> void:
         _fail("runtime does not bind fallback ownership to canonical packed scene identity")
         return
 
-    # Both automatic fallback topologies accepted by the runtime are adversarially
-    # reproduced here: a direct root child and a Main nested one Viewport below root.
-    # Neither may become Shared Environment owner from node naming/anchors alone.
+    # Adversarial phase: both automatic fallback topologies expose production-like
+    # names and anchors but no canonical PackedScene identity. Neither may bind.
     var root_decoy := _make_forged_main()
     root.add_child(root_decoy)
 
@@ -67,6 +63,15 @@ func _run() -> void:
     if int(runtime.call("tree_count")) != 0:
         _fail("runtime allocated trees for forged Main fallback topology")
         return
+
+    # End the adversarial phase before mounting the canonical scene. Keeping a
+    # sibling named Main alive can force Godot to rename a subsequently added Main,
+    # which tests sibling-name collision rather than the runtime authority contract.
+    root.remove_child(root_decoy)
+    root_decoy.queue_free()
+    root.remove_child(viewport)
+    viewport.queue_free()
+    await process_frame
 
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -93,12 +98,6 @@ func _run() -> void:
     for _frame: int in range(24):
         await process_frame
 
-    if root_decoy.get_node_or_null("AnneessensOsmFurniture") != null:
-        _fail("forged root-level Main acquired furniture after real production scene appeared")
-        return
-    if viewport_decoy.get_node_or_null("AnneessensOsmFurniture") != null:
-        _fail("forged Viewport Main acquired furniture after real production scene appeared")
-        return
     var furniture_root := scene.get_node_or_null("AnneessensOsmFurniture")
     if furniture_root == null:
         _fail("authoritative Main did not receive Anneessens furniture")

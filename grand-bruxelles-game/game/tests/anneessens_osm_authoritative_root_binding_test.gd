@@ -2,6 +2,7 @@ extends SceneTree
 
 const EXPECTED_TREE_COUNT := 7
 const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
+const RUNTIME_PATH := "res://game/scripts/anneessens_osm_furniture_runtime.gd"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -19,6 +20,17 @@ func _run() -> void:
     var runtime := root.get_node_or_null("AnneessensOsmFurnitureRuntime")
     if runtime == null:
         _fail("AnneessensOsmFurnitureRuntime autoload missing")
+        return
+
+    # Lock the intended production identity contract as well as its behavior.
+    # This prevents a future implementation from merely special-casing this decoy
+    # while continuing to authorize arbitrary root children by node name.
+    var runtime_source := FileAccess.get_file_as_string(RUNTIME_PATH)
+    if runtime_source.is_empty():
+        _fail("runtime source unavailable for identity contract")
+        return
+    if "scene_file_path" not in runtime_source or "res://game/main.tscn" not in runtime_source:
+        _fail("runtime does not bind fallback ownership to canonical packed scene identity")
         return
 
     # A tooling/sandbox root can legitimately contain production-like child names,

@@ -36,6 +36,12 @@ def main() -> None:
         assert not registry_consistent({"schema":SCHEMA,"entries":[{}]}), "entry without asset_path must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":7}]}), "non-string asset_path must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":""}]}), "empty asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game\\assets\\characters\\civilians\\civ1\\civ1.glb"}]}), "backslash asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"/grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}), "absolute asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/../civ1.glb"}]}), "parent traversal asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets//characters/civilians/civ1/civ1.glb"}]}), "non-canonical asset_path must fail closed"
+        duplicate = {"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"},{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}
+        assert not registry_consistent(duplicate), "duplicate asset identity must fail closed"
 
         valid = {"schema":SCHEMA,"entries":[]}
         assert registry_consistent(valid)

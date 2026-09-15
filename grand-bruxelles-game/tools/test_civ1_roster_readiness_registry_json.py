@@ -2,7 +2,7 @@
 from __future__ import annotations
 import tempfile
 from pathlib import Path
-from civ1_roster_source_readiness import _load_strict_json
+from civ1_roster_source_readiness import _load_strict_json, registry_consistent
 
 
 def main() -> None:
@@ -24,6 +24,14 @@ def main() -> None:
         else:
             raise AssertionError("readiness registry must reject non-standard JSON constants")
 
+        assert not registry_consistent(None), "null registry must fail closed"
+        assert not registry_consistent([]), "array registry must fail closed"
+        assert not registry_consistent({}), "missing schema/entries must fail closed"
+        assert not registry_consistent({"schema":"wrong","entries":[]}), "wrong schema must fail closed"
+        assert not registry_consistent({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":{}}), "non-list entries must fail closed"
+
+        valid = {"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]}
+        assert registry_consistent(valid)
         path.write_text('{"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]}', encoding="utf-8")
         loaded = _load_strict_json(path)
         assert loaded["entries"] == []

@@ -177,6 +177,8 @@ func _is_authoritative_production_scene(candidate: Node3D) -> bool:
         return false
     if tree.current_scene == candidate:
         return true
+    if candidate.scene_file_path != "res://game/main.tscn":
+        return false
     var parent := candidate.get_parent()
     if parent == tree.root:
         return str(candidate.name) == "Main"

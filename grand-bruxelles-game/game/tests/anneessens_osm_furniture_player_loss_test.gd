@@ -1,6 +1,7 @@
 extends SceneTree
 
 const RUNTIME_SCRIPT := preload("res://game/scripts/anneessens_osm_furniture_runtime.gd")
+const MAIN_SCENE := preload("res://game/main.tscn")
 const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const COLLISION_POLICY := "disabled_until_source_backed_trunk_profile"
 
@@ -40,29 +41,29 @@ func _run() -> void:
     runtime.name = "AnneessensOsmFurnitureRuntimePlayerLossProbe"
     root.add_child(runtime)
 
-    var main := Node3D.new()
-    main.name = "Main"
+    var main := MAIN_SCENE.instantiate() as Node3D
+    if main == null:
+        _fail("canonical res://game/main.tscn did not instantiate as Node3D")
+        return
+    if main.scene_file_path != "res://game/main.tscn":
+        _fail("canonical Main lost PackedScene identity")
+        return
     root.add_child(main)
 
-    var brussels_osm := Node3D.new()
-    brussels_osm.name = "BrusselsOSM"
-    main.add_child(brussels_osm)
-
-    var urbis_midi := Node3D.new()
-    urbis_midi.name = "UrbISMidiExact"
-    main.add_child(urbis_midi)
-
-    var player := Node3D.new()
-    player.name = "Player"
-    player.position = ANNEESSENS
-    main.add_child(player)
+    var brussels_osm := main.get_node_or_null("BrusselsOSM") as Node3D
+    var urbis_midi := main.get_node_or_null("UrbISMidiExact") as Node3D
+    var player := main.get_node_or_null("Player") as Node3D
+    if brussels_osm == null or urbis_midi == null or player == null:
+        _fail("canonical Main is missing required BrusselsOSM/UrbISMidiExact/Player anchors")
+        return
+    player.global_position = ANNEESSENS
 
     for _frame: int in range(24):
         await process_frame
 
     var furniture_root := main.get_node_or_null("AnneessensOsmFurniture") as Node3D
     if furniture_root == null:
-        _fail("authoritative Main did not receive Anneessens furniture")
+        _fail("canonical Main did not receive Anneessens furniture")
         return
     if int(runtime.call("tree_count")) != 7:
         _fail("expected exactly seven source-backed Anneessens tree positions")
@@ -74,11 +75,24 @@ func _run() -> void:
         _fail("near-player baseline resurrected unsourced tree collision")
         return
 
+    # Model anchor loss strictly as a topology mutation. Keep the removed witness
+    # alive inside the SceneTree under a neutral quarantine owner so the test does
+    # not couple Shared Environment semantics to Godot's detached-node destruction
+    # diagnostics. Main/Player must stop resolving while the old object remains valid.
+    var quarantine := Node.new()
+    quarantine.name = "PlayerLossWitnessQuarantine"
+    root.add_child(quarantine)
     main.remove_child(player)
-    player.queue_free()
+    quarantine.add_child(player)
     for _frame: int in range(8):
         await process_frame
 
+    if main.get_node_or_null("Player") != null:
+        _fail("Player anchor still resolves after explicit removal")
+        return
+    if not is_instance_valid(player) or not player.is_inside_tree():
+        _fail("quarantined Player witness unexpectedly left the SceneTree")
+        return
     if furniture_root.visible:
         _fail("furniture remained visible after required Player anchor disappeared")
         return
@@ -107,5 +121,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true visual_reactivated=true source=OSM license=ODbL-1.0")
+    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true quarantined_old_player=true visual_reactivated=true source=OSM license=ODbL-1.0")
     quit(0)

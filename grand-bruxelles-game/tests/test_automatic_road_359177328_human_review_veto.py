@@ -9,6 +9,21 @@ GIT_SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EXPECTED_REVIEW_KEYS = {"schema","reviewed_head_sha","workflow_run_id","artifact_id","artifact_name","artifact_digest","repository_id","head_repository_id","png_name","png_sha256","destination","osm_id","source_name","width","height","full_frame_inspected","verdict","rejection_reasons","rejection_reason_codes","camera_changed","source_geometry_changed","resolver_thresholds_lowered","destination_advertisable","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","visual_acceptance","jouable_authorized"}
+EXPECTED_IDENTITY = {
+    "reviewed_head_sha": "0d51b1bc8bb471a5dab3b78b0eaab3258c61b76b",
+    "workflow_run_id": 34862748645,
+    "artifact_id": 10355542176,
+    "artifact_name": "automatic-road-359177328-player-witness",
+    "artifact_digest": "sha256:6b016361f3397c17fc53108c7c2e4e0a6561d116505906c838033a706299aa0e",
+    "repository_id": 793866273,
+    "head_repository_id": 793866273,
+    "png_name": "automatic_road_359177328_player.png",
+    "png_sha256": "d27b7de31e8a4b866ab8d257af1be8e66198b35f3f10f3b3e53084e7e6b452c7",
+}
+EXPECTED_REASONS = [
+    "large continuous open urban void dominates the left side of the player frame",
+    "built urban mass remains sparse and distant ahead, so the automatic destination is not yet a convincing dense corridor arrival",
+]
 
 @contextmanager
 def _raises_value_error(match=None):
@@ -64,9 +79,11 @@ def main():
     assert _positive_int(review,"width") == 1280 and _positive_int(review,"height") == 720
     for field in ("repository_id","head_repository_id","workflow_run_id","artifact_id"): _positive_int(review,field)
     _nonzero_hex(review["reviewed_head_sha"],GIT_SHA1_RE,"reviewed_head_sha"); _nonzero_hex(review["png_sha256"],SHA256_RE,"png_sha256"); _nonzero_hex(review["artifact_digest"],DIGEST_RE,"artifact_digest")
+    for field, expected in EXPECTED_IDENTITY.items(): assert review[field] == expected, f"immutable evidence identity drift: {field}"
     assert review["full_frame_inspected"] is True and review["verdict"] == "REJECT"
+    assert review["rejection_reasons"] == EXPECTED_REASONS
     assert review["rejection_reason_codes"] == ["foreground_open_area_dominance","urban_mass_sparse_or_distant"]
     for field in ("camera_changed","source_geometry_changed","resolver_thresholds_lowered","destination_advertisable","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","visual_acceptance","jouable_authorized"): assert review[field] is False
-    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_VETO_GREEN"); return 0
+    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_VETO_GREEN immutable_evidence_identity=true"); return 0
 
 if __name__ == "__main__": raise SystemExit(main())

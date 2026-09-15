@@ -36,6 +36,9 @@ jobs:
       - name: Character CIV-1 source readiness regression
         working-directory: grand-bruxelles-game/tools
         run: python3 test_civ1_roster_source_readiness.py
+      - name: Character CIV-1 source path identity regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_source_path_identity.py
       - name: Character CIV-1 strict JSON readiness regression
         working-directory: grand-bruxelles-game/tools
         run: python3 test_civ1_roster_source_readiness_nonstandard_json.py

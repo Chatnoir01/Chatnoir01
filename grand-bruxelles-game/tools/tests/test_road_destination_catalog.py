@@ -19,6 +19,7 @@ core = importlib.util.module_from_spec(core_spec)
 core_spec.loader.exec_module(core)
 canonical_module = cases.module
 REAL_CASE = "test_real_slice_contains_shipped_direct_entry_roads"
+SOURCE_SET_CASE = "test_locked_source_selection_ignores_unlisted_compatible_documents"
 
 
 def discovered_cases() -> list[tuple[str, object]]:
@@ -36,9 +37,21 @@ def run_case(name: str, test) -> None:
         test()
     else:
         cases.module = core
+        original_source_validator = None
+        if name == SOURCE_SET_CASE:
+            # This synthetic case isolates allowlist/set-drift semantics. Its tiny
+            # documents intentionally do not model the production provenance,
+            # corridor and accounting contract; those are exercised by REAL_CASE.
+            # Keep the production validator unchanged and bypass only payload-shape
+            # validation inside this one fixture so the intended set-drift witness
+            # can reach the exact gate it asserts.
+            original_source_validator = cases.lock_module.validate_source_payload
+            cases.lock_module.validate_source_payload = lambda _path, _payload: None
         try:
             test()
         finally:
+            if original_source_validator is not None:
+                cases.lock_module.validate_source_payload = original_source_validator
             cases.module = canonical_module
     print(f"ROAD_DESTINATION_CATALOG_CASE_OK: {name}", flush=True)
 

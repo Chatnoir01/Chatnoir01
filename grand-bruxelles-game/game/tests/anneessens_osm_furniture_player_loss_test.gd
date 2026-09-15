@@ -75,17 +75,23 @@ func _run() -> void:
         _fail("near-player baseline resurrected unsourced tree collision")
         return
 
-    # Model anchor loss as an explicit topology mutation, then destroy the detached
-    # witness synchronously. queue_free() is intentionally not used on a detached
-    # Node because Godot reports !is_inside_tree() for that lifecycle shape; the
-    # contract under test is runtime reaction to Player absence, not deletion API.
+    # Model anchor loss strictly as a topology mutation. Keep the removed witness
+    # alive inside the SceneTree under a neutral quarantine owner so the test does
+    # not couple Shared Environment semantics to Godot's detached-node destruction
+    # diagnostics. Main/Player must stop resolving while the old object remains valid.
+    var quarantine := Node.new()
+    quarantine.name = "PlayerLossWitnessQuarantine"
+    root.add_child(quarantine)
     main.remove_child(player)
-    player.free()
+    quarantine.add_child(player)
     for _frame: int in range(8):
         await process_frame
 
     if main.get_node_or_null("Player") != null:
         _fail("Player anchor still resolves after explicit removal")
+        return
+    if not is_instance_valid(player) or not player.is_inside_tree():
+        _fail("quarantined Player witness unexpectedly left the SceneTree")
         return
     if furniture_root.visible:
         _fail("furniture remained visible after required Player anchor disappeared")
@@ -115,5 +121,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true visual_reactivated=true source=OSM license=ODbL-1.0")
+    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true quarantined_old_player=true visual_reactivated=true source=OSM license=ODbL-1.0")
     quit(0)

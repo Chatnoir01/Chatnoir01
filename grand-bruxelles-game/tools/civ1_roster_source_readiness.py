@@ -49,12 +49,23 @@ def _has_symlink_component(base: Path, parts: tuple[str, ...]) -> bool:
             return True
     return False
 
+def _canonical_path_text(value: object) -> str | None:
+    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
+        return None
+    if value != value.strip() or unicodedata.normalize("NFC", value) != value:
+        return None
+    if any(unicodedata.category(char) in ("Cc", "Cf") for char in value):
+        return None
+    pure = PurePosixPath(value)
+    if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != value:
+        return None
+    return value
+
 def _source_file(repo_root: Path, source_path: str) -> Path | None:
-    if not isinstance(source_path, str) or not source_path or "\\" in source_path:
+    canonical = _canonical_path_text(source_path)
+    if canonical is None:
         return None
-    pure = PurePosixPath(source_path)
-    if pure.is_absolute() or pure.as_posix() != source_path or ".." in pure.parts:
-        return None
+    pure = PurePosixPath(canonical)
     root_parts = SOURCE_ROOT.parts
     if len(pure.parts) <= len(root_parts) or pure.parts[:len(root_parts)] != root_parts:
         return None
@@ -74,11 +85,13 @@ def _source_manifest_integrity(status: dict, repo_root: Path) -> bool:
     manifest = status.get("source_manifest")
     if not isinstance(source_paths, list) or not source_paths:
         return False
-    if not all(isinstance(path, str) and path for path in source_paths):
+    if not all(_canonical_path_text(path) is not None for path in source_paths):
         return False
     if len(set(source_paths)) != len(source_paths):
         return False
     if not isinstance(manifest, dict) or not manifest or set(source_paths) != set(manifest):
+        return False
+    if not all(_canonical_path_text(path) is not None for path in manifest):
         return False
     for source_path in source_paths:
         record = manifest.get(source_path)
@@ -129,18 +142,13 @@ def source_ready(repo_root: Path) -> bool:
     return _status_consistent(status, repo_root)
 
 def _canonical_asset_path(value: object) -> str | None:
-    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
+    canonical = _canonical_path_text(value)
+    if canonical is None:
         return None
-    if value != value.strip() or unicodedata.normalize("NFC", value) != value:
+    pure = PurePosixPath(canonical)
+    if len(pure.parts) < 2 or canonical.endswith("/") or pure.name in ("", ".", ".."):
         return None
-    if any(unicodedata.category(char) in ("Cc", "Cf") for char in value):
-        return None
-    pure = PurePosixPath(value)
-    if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != value:
-        return None
-    if len(pure.parts) < 2 or value.endswith("/") or pure.name in ("", ".", ".."):
-        return None
-    return value
+    return canonical
 
 def registry_consistent(registry) -> bool:
     if not isinstance(registry, dict) or registry.get("schema") != REGISTRY_SCHEMA:

@@ -25,22 +25,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Test road destination catalog
+      - name: Catalog case - geometry source binding
         working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_catalog_must_rebind_to_locked_source_geometry
+      - name: Catalog case - semantic tamper
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_catalog_semantic_tamper_fails_closed
+      - name: Catalog case - conflicting duplicate
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_conflicting_duplicate_fails_closed
+      - name: Catalog case - missing lookup identity
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_drivable_without_lookup_identity_is_rejected_explicitly
+      - name: Catalog case - locked digest drift
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_locked_source_selection_rejects_digest_drift
+      - name: Catalog case - unlisted compatible source
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_locked_source_selection_ignores_unlisted_compatible_documents
+      - name: Catalog case - real locked slice
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_real_slice_contains_shipped_direct_entry_roads
+      - name: Catalog case - numeric identity types
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_source_json_numeric_identity_types_fail_closed
+      - name: Catalog case - source path digest binding
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_source_path_must_bind_to_locked_document_digest
+      - name: Catalog case - synthetic determinism
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py --case test_synthetic_determinism_and_duplicate_coalescing
 
       - name: Test road destination catalog JSON contract
         working-directory: grand-bruxelles-game
         run: python3 tools/tests/test_road_destination_catalog_json_contract.py
-
       - name: Test road destination catalog source path
         working-directory: grand-bruxelles-game
         run: python3 tools/tests/test_road_destination_catalog_source_path.py
-
       - name: Test road destination catalog source structure
         working-directory: grand-bruxelles-game
         run: python3 tools/tests/test_road_destination_catalog_source_structure.py
-
       - name: Test road runtime index
         working-directory: grand-bruxelles-game
         run: python3 tools/tests/test_road_runtime_index.py
@@ -52,19 +76,13 @@ jobs:
           probe='data/osm/__road_destination_unlisted_probe.game.json'
           cp data/osm/vertical_slice_01.game.json "$probe"
           trap 'rm -f "$probe" /tmp/road-builder-lock-probe.json /tmp/road-builder-lock-probe.log' EXIT
-          if python3 tools/build_road_destination_catalog.py \
-            --source-root data/osm \
-            --output /tmp/road-builder-lock-probe.json \
-            > /tmp/road-builder-lock-probe.log 2>&1; then
+          if python3 tools/build_road_destination_catalog.py --source-root data/osm --output /tmp/road-builder-lock-probe.json > /tmp/road-builder-lock-probe.log 2>&1; then
             cat /tmp/road-builder-lock-probe.log
             echo 'RED: direct road destination builder accepted an unlisted compatible source document' >&2
             exit 1
           fi
           cat /tmp/road-builder-lock-probe.log
-          grep -q 'ROAD_DESTINATION_SOURCE_LOCK_FAIL: compatible source set drift' /tmp/road-builder-lock-probe.log || {
-            echo 'RED: builder failed for the wrong reason; expected source-lock fail-close' >&2
-            exit 1
-          }
+          grep -q 'ROAD_DESTINATION_SOURCE_LOCK_FAIL: compatible source set drift' /tmp/road-builder-lock-probe.log || exit 1
           echo 'ROAD_DESTINATION_DIRECT_BUILDER_LOCK_GREEN'
 
       - name: Build deterministic catalog and runtime index twice
@@ -90,8 +108,7 @@ jobs:
           catalog = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
           index = json.loads(Path('artifacts/road-catalog/runtime-index-a.json').read_text(encoding='utf-8'))
           assert catalog['format'] == 'grand-bruxelles-road-destination-catalog-v1'
-          assert catalog['road_record_count'] >= catalog['drivable_record_count']
-          assert catalog['drivable_record_count'] >= 140
+          assert catalog['road_record_count'] >= catalog['drivable_record_count'] >= 140
           assert catalog['eligible_record_count'] >= 139
           assert catalog['entry_count'] >= 139
           assert catalog['rejected_drivable_record_count'] == catalog['drivable_record_count'] - catalog['eligible_record_count']
@@ -110,13 +127,7 @@ jobs:
           assert descriptor['path'] == 'data/osm/vertical_slice_01.game.json'
           assert descriptor['sha256'] == catalog['source_document_sha256'][descriptor['path']]
           assert len(descriptor['road_ids']) == catalog['entry_count']
-          print(
-              'ROAD_DESTINATION_CATALOG_GATE_GREEN: '
-              f"entries={catalog['entry_count']} drivable_records={catalog['drivable_record_count']} "
-              f"eligible_records={catalog['eligible_record_count']} rejected_drivable={catalog['rejected_drivable_record_count']} "
-              f"duplicate_records={catalog['duplicate_record_count']} catalog_sha256={catalog['catalog_sha256']} "
-              f"runtime_source_sha256={descriptor['sha256']}"
-          )
+          print('ROAD_DESTINATION_CATALOG_GATE_GREEN')
           PY
 
       - name: Compare committed runtime index with deterministic rebuild

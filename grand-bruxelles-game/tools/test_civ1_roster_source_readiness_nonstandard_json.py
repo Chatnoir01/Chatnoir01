@@ -39,15 +39,14 @@ def main() -> None:
         status.write_text(canonical, encoding="utf-8")
         assert source_ready(root) is True, "control ready status must remain accepted"
 
-        # Python's json decoder accepts NaN/Infinity/-Infinity by default even
-        # though RFC 8259 JSON does not. source_status.json is an authorization
-        # record, so non-standard numeric constants anywhere in the document
-        # must fail closed instead of being silently accepted as extra metadata.
-        for token in ("NaN", "Infinity", "-Infinity"):
+        # RFC 8259 excludes NaN/Infinity, and finite-syntax overflow such as 1e309
+        # decodes to +inf with Python's default float parser. Authorization records
+        # must fail closed on both forms anywhere in the document.
+        for token in ("NaN", "Infinity", "-Infinity", "1e309", "-1e309"):
             nonstandard = canonical[:-1] + f', "non_standard_numeric": {token}' + "}"
             status.write_text(nonstandard, encoding="utf-8")
             assert source_ready(root) is False, (
-                f"CIV-1 readiness must reject non-standard JSON constant {token}"
+                f"CIV-1 readiness must reject non-finite decoded JSON number {token}"
             )
 
     print("CIV1_ROSTER_SOURCE_READINESS_NONSTANDARD_JSON_GREEN")

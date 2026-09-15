@@ -53,5 +53,5 @@ func _run()->void:
  var camera:=player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
  if camera==null: _fail("production player camera missing"); return
  var coverage_clamped:=building_radius<MAX_VISUAL_PROBE_M
- print("AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_DIAGNOSTIC_GREEN: classification=source_coverage_insufficient_for_visual_void_claim coverage_sufficient_for_visual_void_claim=false coverage_clamped=%s probe_length_m=%.3f source_slice_covers_probe_length=true human_visual_reject_still_binding=true destination_advertisable=false runtime_mount_authorized=false safe_spawn_authorized=false visual_acceptance=false jouable=false"%[str(coverage_clamped).to_lower(),building_radius])
+ print("AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_DIAGNOSTIC_GREEN: classification=coverage_insufficient_for_full_visual_probe sampled_visual_void=false coverage_sufficient_for_visual_void_claim=false coverage_clamped=%s probe_length_m=%.3f requested_visual_probe_m=%.3f source_slice_covers_probe_length=true human_visual_reject_still_binding=true destination_advertisable=false runtime_mount_authorized=false safe_spawn_authorized=false visual_acceptance=false jouable=false"%[str(coverage_clamped).to_lower(),building_radius,MAX_VISUAL_PROBE_M])
  quit(0)

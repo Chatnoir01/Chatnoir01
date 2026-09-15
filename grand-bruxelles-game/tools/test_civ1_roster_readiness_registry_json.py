@@ -27,6 +27,15 @@ def main() -> None:
         else:
             raise AssertionError("readiness registry must reject non-standard JSON constants")
 
+        for overflow in ("1e309", "-1e309"):
+            path.write_text('{"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[],"metadata":' + overflow + '}', encoding="utf-8")
+            try:
+                _load_strict_json(path)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"readiness registry must reject decoded non-finite float {overflow}")
+
         assert not registry_consistent(None), "null registry must fail closed"
         assert not registry_consistent([]), "array registry must fail closed"
         assert not registry_consistent({}), "missing schema/entries must fail closed"

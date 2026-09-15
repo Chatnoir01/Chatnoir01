@@ -27,7 +27,10 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
       - name: Require workflow/source-context marker contract
         working-directory: grand-bruxelles-game
-        run: python3 tests/test_automatic_road_359177328_source_context_workflow_contract.py
+        run: |
+          set -euo pipefail
+          python3 tests/test_automatic_road_359177328_source_context_workflow_contract.py
+          python3 -O tests/test_automatic_road_359177328_source_context_workflow_contract.py
       - name: Require canonical human REJECT before source diagnosis
         working-directory: grand-bruxelles-game
         run: |

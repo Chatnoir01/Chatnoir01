@@ -5,6 +5,9 @@ from pathlib import Path
 from civ1_roster_source_readiness import _load_strict_json, registry_consistent
 
 
+SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         path = Path(td) / "registry.json"
@@ -28,10 +31,15 @@ def main() -> None:
         assert not registry_consistent([]), "array registry must fail closed"
         assert not registry_consistent({}), "missing schema/entries must fail closed"
         assert not registry_consistent({"schema":"wrong","entries":[]}), "wrong schema must fail closed"
-        assert not registry_consistent({"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":{}}), "non-list entries must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":{}}), "non-list entries must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[None]}), "non-object entry must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{}]}), "entry without asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":7}]}), "non-string asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":""}]}), "empty asset_path must fail closed"
 
-        valid = {"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]}
+        valid = {"schema":SCHEMA,"entries":[]}
         assert registry_consistent(valid)
+        assert registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/other.glb"}]})
         path.write_text('{"schema":"grand-bruxelles-civ1-roster-registry-v1","entries":[]}', encoding="utf-8")
         loaded = _load_strict_json(path)
         assert loaded["entries"] == []

@@ -36,29 +36,31 @@ def main() -> None:
             else:
                 raise AssertionError(f"readiness registry must reject decoded non-finite float {overflow}")
 
-        assert not registry_consistent(None), "null registry must fail closed"
-        assert not registry_consistent([]), "array registry must fail closed"
-        assert not registry_consistent({}), "missing schema/entries must fail closed"
-        assert not registry_consistent({"schema":"wrong","entries":[]}), "wrong schema must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":{}}), "non-list entries must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[None]}), "non-object entry must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{}]}), "entry without asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":7}]}), "non-string asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":""}]}), "empty asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game\\assets\\characters\\civilians\\civ1\\civ1.glb"}]}), "backslash asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"/grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}), "absolute asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"C:/grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}), "Windows drive-like asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1:alias.glb"}]}), "colon-bearing asset identity must fail closed for Windows portability"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/../civ1.glb"}]}), "parent traversal asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets//characters/civilians/civ1/civ1.glb"}]}), "non-canonical asset_path must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"."}]}), "dot identity must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/"}]}), "directory-like identity must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb\u0000alias"}]}), "NUL identity must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":" grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}), "leading whitespace identity must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb "}]}), "trailing whitespace identity must fail closed"
-        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb\nshadow"}]}), "control-character identity must fail closed"
+        assert not registry_consistent(None)
+        assert not registry_consistent([])
+        assert not registry_consistent({})
+        assert not registry_consistent({"schema":"wrong","entries":[]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":{}})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[None]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":7}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":""}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game\\assets\\characters\\civilians\\civ1\\civ1.glb"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"/grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"C:/grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1:alias.glb"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/../civ1.glb"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets//characters/civilians/civ1/civ1.glb"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"."}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb\u0000alias"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":" grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb "}]})
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb\nshadow"}]})
         duplicate = {"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"},{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}
         assert not registry_consistent(duplicate), "duplicate asset identity must fail closed"
+        case_alias = {"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/Civilian.glb"},{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civilian.glb"}]}
+        assert not registry_consistent(case_alias), "Windows case-insensitive asset alias must fail closed"
 
         valid = {"schema":SCHEMA,"entries":[]}
         assert registry_consistent(valid)

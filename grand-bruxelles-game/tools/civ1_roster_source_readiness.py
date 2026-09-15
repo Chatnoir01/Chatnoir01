@@ -63,11 +63,11 @@ def _canonical_path_text(value: object) -> str | None:
 
 def _source_file(repo_root: Path, source_path: str) -> Path | None:
     canonical = _canonical_path_text(source_path)
-    if canonical is None:
+    if canonical is None or canonical.endswith("/"):
         return None
     pure = PurePosixPath(canonical)
     root_parts = SOURCE_ROOT.parts
-    if len(pure.parts) <= len(root_parts) or pure.parts[:len(root_parts)] != root_parts:
+    if len(pure.parts) <= len(root_parts) or pure.parts[:len(root_parts)] != root_parts or pure.name in ("", ".", ".."):
         return None
     if _has_symlink_component(repo_root, ("grand-bruxelles-game",) + pure.parts):
         return None
@@ -85,13 +85,13 @@ def _source_manifest_integrity(status: dict, repo_root: Path) -> bool:
     manifest = status.get("source_manifest")
     if not isinstance(source_paths, list) or not source_paths:
         return False
-    if not all(_canonical_path_text(path) is not None for path in source_paths):
+    if not all(_canonical_path_text(path) is not None and _source_file(repo_root, path) is not None for path in source_paths):
         return False
     if len(set(source_paths)) != len(source_paths):
         return False
     if not isinstance(manifest, dict) or not manifest or set(source_paths) != set(manifest):
         return False
-    if not all(_canonical_path_text(path) is not None for path in manifest):
+    if not all(_canonical_path_text(path) is not None and _source_file(repo_root, path) is not None for path in manifest):
         return False
     for source_path in source_paths:
         record = manifest.get(source_path)

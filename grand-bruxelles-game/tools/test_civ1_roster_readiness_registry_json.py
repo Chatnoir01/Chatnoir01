@@ -47,6 +47,8 @@ def main() -> None:
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":""}]}), "empty asset_path must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game\\assets\\characters\\civilians\\civ1\\civ1.glb"}]}), "backslash asset_path must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"/grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}), "absolute asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"C:/grand-bruxelles-game/assets/characters/civilians/civ1/civ1.glb"}]}), "Windows drive-like asset_path must fail closed"
+        assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/civ1:alias.glb"}]}), "colon-bearing asset identity must fail closed for Windows portability"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets/characters/civilians/civ1/../civ1.glb"}]}), "parent traversal asset_path must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"grand-bruxelles-game/assets//characters/civilians/civ1/civ1.glb"}]}), "non-canonical asset_path must fail closed"
         assert not registry_consistent({"schema":SCHEMA,"entries":[{"asset_path":"."}]}), "dot identity must fail closed"

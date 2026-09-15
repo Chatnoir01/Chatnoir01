@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Run the catalog regression cases with explicit deterministic synthetic locks."""
+"""Run catalog regressions while keeping lock-bound integration explicit."""
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 from pathlib import Path
 
@@ -12,41 +11,39 @@ assert spec and spec.loader
 cases = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cases)
 
-_original_write_document = cases.write_document
-
-
-def _refresh_lock(source_root: Path) -> None:
-    repo_root = source_root.parent.parent
-    documents = {
-        path.relative_to(repo_root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(source_root.rglob("*.game.json"))
-        if path.is_file()
-    }
-    cases.write_lock(source_root, documents)
-
-
-def write_document_with_lock(path: Path, roads: list[dict]) -> None:
-    _original_write_document(path, roads)
-    source_root = next(
-        parent for parent in path.parents
-        if parent.name == "osm" and parent.parent.name == "data"
-    )
-    _refresh_lock(source_root)
-
-
-cases.write_document = write_document_with_lock
+# Synthetic catalog cases exercise catalog semantics with deliberately minimal
+# grand-bruxelles-osm-v1 fixtures. They are not source-intake integration tests:
+# the source-lock validator requires the full shipped provenance/accounting
+# contract. Keep those unit cases on the mature core implementation, then restore
+# the canonical lock-bound entrypoint for the real shipped-slice integration case.
+CORE_PATH = cases.ROOT / "tools" / "_road_destination_catalog_core.py"
+core_spec = importlib.util.spec_from_file_location("road_destination_catalog_core_test", CORE_PATH)
+assert core_spec and core_spec.loader
+core = importlib.util.module_from_spec(core_spec)
+core_spec.loader.exec_module(core)
+canonical_module = cases.module
 
 
 def main() -> int:
-    tests = [
-        getattr(cases, name) for name in sorted(dir(cases))
-        if name.startswith("test_") and callable(getattr(cases, name))
+    synthetic_tests = [
+        getattr(cases, name)
+        for name in sorted(dir(cases))
+        if name.startswith("test_")
+        and name != "test_real_slice_contains_shipped_direct_entry_roads"
+        and callable(getattr(cases, name))
     ]
-    if not tests:
-        raise AssertionError("no road destination catalog tests discovered")
-    for test in tests:
-        test()
-    print(f"ROAD_DESTINATION_CATALOG_TESTS_GREEN: tests={len(tests)}")
+    if not synthetic_tests:
+        raise AssertionError("no synthetic road destination catalog tests discovered")
+
+    cases.module = core
+    try:
+        for test in synthetic_tests:
+            test()
+    finally:
+        cases.module = canonical_module
+
+    cases.test_real_slice_contains_shipped_direct_entry_roads()
+    print(f"ROAD_DESTINATION_CATALOG_TESTS_GREEN: tests={len(synthetic_tests) + 1}")
     return 0
 
 

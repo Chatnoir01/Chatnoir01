@@ -9,33 +9,27 @@ from pathlib import Path, PurePosixPath
 CIV1_PREFIX = "grand-bruxelles-game/assets/characters/civilians/civ1/"
 STATUS_PATH = Path("grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json")
 SOURCE_ROOT = PurePosixPath("assets/characters/civilians/civ1/source")
-REQUIRED_READY_FLAGS = (
-    "production_authorized",
-    "activation_ready",
-    "source_package_present",
-)
-
+REQUIRED_READY_FLAGS = ("production_authorized", "activation_ready", "source_package_present")
 
 class DuplicateJSONKeyError(ValueError):
     pass
 
-
 class NonStandardJSONConstantError(ValueError):
     pass
 
-
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
+def _reject_duplicate_keys(pairs):
+    result = {}
     for key, value in pairs:
         if key in result:
             raise DuplicateJSONKeyError(key)
         result[key] = value
     return result
 
-
-def _reject_nonstandard_constant(token: str) -> object:
+def _reject_nonstandard_constant(token):
     raise NonStandardJSONConstantError(token)
 
+def _load_strict_json(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys, parse_constant=_reject_nonstandard_constant)
 
 def _git_blob_sha1(data: bytes) -> str:
     digest = hashlib.sha1()
@@ -43,9 +37,7 @@ def _git_blob_sha1(data: bytes) -> str:
     digest.update(data)
     return digest.hexdigest()
 
-
 def _has_symlink_component(base: Path, parts: tuple[str, ...]) -> bool:
-    """Treat every canonical Character path component as identity, not a locator."""
     current = base
     if current.is_symlink():
         return True
@@ -55,34 +47,25 @@ def _has_symlink_component(base: Path, parts: tuple[str, ...]) -> bool:
             return True
     return False
 
-
 def _source_file(repo_root: Path, source_path: str) -> Path | None:
-    if not isinstance(source_path, str) or not source_path:
-        return None
-    if "\\" in source_path:
+    if not isinstance(source_path, str) or not source_path or "\\" in source_path:
         return None
     pure = PurePosixPath(source_path)
     if pure.is_absolute() or pure.as_posix() != source_path or ".." in pure.parts:
         return None
     root_parts = SOURCE_ROOT.parts
-    if len(pure.parts) <= len(root_parts) or pure.parts[: len(root_parts)] != root_parts:
+    if len(pure.parts) <= len(root_parts) or pure.parts[:len(root_parts)] != root_parts:
         return None
-
-    lexical_parts = ("grand-bruxelles-game",) + pure.parts
-    if _has_symlink_component(repo_root, lexical_parts):
+    if _has_symlink_component(repo_root, ("grand-bruxelles-game",) + pure.parts):
         return None
-
     game_root = (repo_root / "grand-bruxelles-game").resolve()
-    lexical_root = game_root / Path(*root_parts)
-    lexical_candidate = game_root / Path(*pure.parts)
-    allowed = lexical_root.resolve()
-    candidate = lexical_candidate.resolve()
+    allowed = (game_root / Path(*root_parts)).resolve()
+    candidate = (game_root / Path(*pure.parts)).resolve()
     try:
         candidate.relative_to(allowed)
     except ValueError:
         return None
     return candidate
-
 
 def _source_manifest_integrity(status: dict, repo_root: Path) -> bool:
     source_paths = status.get("source_paths")
@@ -93,23 +76,15 @@ def _source_manifest_integrity(status: dict, repo_root: Path) -> bool:
         return False
     if len(set(source_paths)) != len(source_paths):
         return False
-    if not isinstance(manifest, dict) or not manifest:
+    if not isinstance(manifest, dict) or not manifest or set(source_paths) != set(manifest):
         return False
-    if set(source_paths) != set(manifest):
-        return False
-
     for source_path in source_paths:
         record = manifest.get(source_path)
         if not isinstance(record, dict) or record.get("license_scope_verified") is not True:
             return False
         expected_sha1 = record.get("git_blob_sha1")
         expected_size = record.get("size_bytes")
-        if (
-            not isinstance(expected_sha1, str)
-            or len(expected_sha1) != 40
-            or expected_sha1 != expected_sha1.lower()
-            or any(c not in "0123456789abcdef" for c in expected_sha1)
-        ):
+        if not isinstance(expected_sha1, str) or len(expected_sha1) != 40 or expected_sha1 != expected_sha1.lower() or any(c not in "0123456789abcdef" for c in expected_sha1):
             return False
         if not isinstance(expected_size, int) or isinstance(expected_size, bool) or expected_size < 0:
             return False
@@ -124,19 +99,13 @@ def _source_manifest_integrity(status: dict, repo_root: Path) -> bool:
             return False
     return True
 
-
-def _status_consistent(status: object, repo_root: Path) -> bool:
-    if not isinstance(status, dict):
-        return False
-    if status.get("candidate_id") != "CIV-1":
+def _status_consistent(status, repo_root: Path) -> bool:
+    if not isinstance(status, dict) or status.get("candidate_id") != "CIV-1":
         return False
     if not all(status.get(key) is True for key in REQUIRED_READY_FLAGS):
         return False
-
-    blocker = status.get("blocker")
-    if blocker not in (None, ""):
+    if status.get("blocker") not in (None, ""):
         return False
-
     character_source = status.get("character_source")
     if not isinstance(character_source, dict):
         return False
@@ -146,34 +115,18 @@ def _status_consistent(status: object, repo_root: Path) -> bool:
     unresolved = license_evidence.get("unresolved_components")
     if not isinstance(unresolved, list) or unresolved:
         return False
-
     return _source_manifest_integrity(status, repo_root)
 
-
 def source_ready(repo_root: Path) -> bool:
-    # source_status.json is the canonical authorization record. Reading through a
-    # symlink would let another file impersonate that identity, so fail closed
-    # before parsing even when the target contains otherwise valid JSON.
     if _has_symlink_component(repo_root, tuple(STATUS_PATH.parts)):
         return False
-    status_path = repo_root / STATUS_PATH
     try:
-        status = json.loads(
-            status_path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_keys,
-            parse_constant=_reject_nonstandard_constant,
-        )
-    except (
-        OSError,
-        json.JSONDecodeError,
-        DuplicateJSONKeyError,
-        NonStandardJSONConstantError,
-    ):
+        status = _load_strict_json(repo_root / STATUS_PATH)
+    except (OSError, json.JSONDecodeError, DuplicateJSONKeyError, NonStandardJSONConstantError):
         return False
     return _status_consistent(status, repo_root)
 
-
-def blocking_entries(registry: object, repo_root: Path) -> list[str]:
+def blocking_entries(registry, repo_root: Path) -> list[str]:
     if source_ready(repo_root):
         return []
     if not isinstance(registry, dict) or not isinstance(registry.get("entries"), list):
@@ -187,15 +140,14 @@ def blocking_entries(registry: object, repo_root: Path) -> list[str]:
             blocked.append(asset_path)
     return blocked
 
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("registry", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
     args = parser.parse_args()
     try:
-        registry = json.loads(args.registry.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        registry = _load_strict_json(args.registry)
+    except (OSError, json.JSONDecodeError, DuplicateJSONKeyError, NonStandardJSONConstantError) as exc:
         print(f"CIV1_ROSTER_SOURCE_READINESS_ERROR {exc}")
         return 2
     blocked = blocking_entries(registry, args.repo_root)
@@ -204,7 +156,6 @@ def main() -> int:
         return 2
     print("CIV1_ROSTER_SOURCE_READINESS_GREEN")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -1,0 +1,61 @@
+name: Grand Bruxelles Automatic Road 359177328 Source Context Balance
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/tests/automatic_road_359177328_source_context_balance_test.gd"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_source_context_workflow_contract.py"
+      - ".github/workflows/grand-bruxelles-automatic-road-359177328-source-context-balance.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  source-context-balance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact live-main merge base
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail; git fetch origin main --no-tags
+          live_main="$(git rev-parse origin/main)"; head_sha="$(git rev-parse HEAD)"; merge_base="$(git merge-base HEAD origin/main)"
+          echo "live_main=$live_main"; echo "head_sha=$head_sha"; echo "merge_base=$merge_base"
+          test "$head_sha" = "${{ github.event.pull_request.head.sha }}"; test "$merge_base" = "$live_main"
+      - name: Require workflow/source-context marker contract
+        working-directory: grand-bruxelles-game
+        run: python3 tests/test_automatic_road_359177328_source_context_workflow_contract.py
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail; GODOT_ZIP=/tmp/Godot_v4.7.1-stable_linux.x86_64.zip; GODOT_DIR=/tmp/godot
+          rm -f "$GODOT_ZIP"; rm -rf "$GODOT_DIR"; mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 20 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"; chmod +x "$GODOT_DIR/Godot_v4.7.1-stable_linux.x86_64"; "$GODOT_DIR/Godot_v4.7.1-stable_linux.x86_64" --version
+      - name: Import exact project
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path . --quit 2>&1 | tee /tmp/lemonnier-source-context-import.log
+          if grep -E 'SCRIPT ERROR: Parse Error:|SCRIPT ERROR: Compile Error:|ERROR: Failed to load script' /tmp/lemonnier-source-context-import.log; then echo "AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_IMPORT_CONTAMINATION_FAIL"; exit 1; fi
+      - name: Measure bilateral source context from production selection
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_359177328_source_context_balance_test.gd 2>&1 | tee /tmp/lemonnier-source-context-balance.log
+          grep -F 'AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_DIAGNOSTIC_GREEN:' /tmp/lemonnier-source-context-balance.log
+          if grep -E 'Node not found: "\.\./PrototypeCar"|Invalid access to property or key .*null instance' /tmp/lemonnier-source-context-balance.log; then echo "AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_RUNTIME_CONTAMINATION_FAIL"; exit 1; fi
+          if grep -E 'SCRIPT ERROR: Parse Error:|SCRIPT ERROR: Compile Error:|ERROR: Failed to load script' /tmp/lemonnier-source-context-balance.log; then echo "AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_COMPILE_CONTAMINATION_FAIL"; exit 1; fi
+      - name: Preserve exact-head source-context evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automatic-road-359177328-source-context-balance-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/lemonnier-source-context-import.log
+            /tmp/lemonnier-source-context-balance.log
+          if-no-files-found: warn
+          retention-days: 14

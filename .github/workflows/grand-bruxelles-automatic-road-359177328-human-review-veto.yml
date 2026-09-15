@@ -21,7 +21,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Require exact live-main merge base
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
@@ -32,7 +31,11 @@ jobs:
           echo "live_main=$live_main"
           echo "head_sha=$head_sha"
           echo "merge_base=$merge_base"
-          test "$head_sha" = "${{ github.event.pull_request.head.sha }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$head_sha" = "${{ github.event.pull_request.head.sha }}"
+          else
+            test "$head_sha" = "${{ github.sha }}"
+          fi
           test "$merge_base" = "$live_main"
       - name: Enforce immutable human REJECT
         working-directory: grand-bruxelles-game

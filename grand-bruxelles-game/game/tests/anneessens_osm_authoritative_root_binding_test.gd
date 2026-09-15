@@ -16,6 +16,16 @@ func _make_anchor(name_value: String) -> Node3D:
     node.name = name_value
     return node
 
+func _make_forged_main() -> Node3D:
+    var decoy := Node3D.new()
+    decoy.name = "Main"
+    decoy.add_child(_make_anchor("BrusselsOSM"))
+    decoy.add_child(_make_anchor("UrbISMidiExact"))
+    var decoy_player := _make_anchor("Player")
+    decoy_player.position = ANNEESSENS
+    decoy.add_child(decoy_player)
+    return decoy
+
 func _run() -> void:
     var runtime := root.get_node_or_null("AnneessensOsmFurnitureRuntime")
     if runtime == null:
@@ -33,26 +43,29 @@ func _run() -> void:
         _fail("runtime does not bind fallback ownership to canonical packed scene identity")
         return
 
-    # A tooling/sandbox root can legitimately contain production-like child names,
-    # including a forged Main name. Automatic Shared Environment ownership must be
-    # bound to the canonical packed production scene identity, not node naming.
-    var decoy := Node3D.new()
-    decoy.name = "Main"
-    root.add_child(decoy)
-    decoy.add_child(_make_anchor("BrusselsOSM"))
-    decoy.add_child(_make_anchor("UrbISMidiExact"))
-    var decoy_player := _make_anchor("Player")
-    decoy_player.position = ANNEESSENS
-    decoy.add_child(decoy_player)
+    # Both automatic fallback topologies accepted by the runtime are adversarially
+    # reproduced here: a direct root child and a Main nested one Viewport below root.
+    # Neither may become Shared Environment owner from node naming/anchors alone.
+    var root_decoy := _make_forged_main()
+    root.add_child(root_decoy)
+
+    var viewport := SubViewport.new()
+    viewport.name = "ForgedProductionViewport"
+    root.add_child(viewport)
+    var viewport_decoy := _make_forged_main()
+    viewport.add_child(viewport_decoy)
 
     for _frame: int in range(8):
         await process_frame
 
-    if decoy.get_node_or_null("AnneessensOsmFurniture") != null:
-        _fail("runtime mounted source-backed furniture under forged Main root")
+    if root_decoy.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("runtime mounted source-backed furniture under forged root-level Main")
+        return
+    if viewport_decoy.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("runtime mounted source-backed furniture under forged Viewport Main")
         return
     if int(runtime.call("tree_count")) != 0:
-        _fail("runtime allocated trees for forged Main root")
+        _fail("runtime allocated trees for forged Main fallback topology")
         return
 
     var packed := load("res://game/main.tscn") as PackedScene
@@ -80,8 +93,11 @@ func _run() -> void:
     for _frame: int in range(24):
         await process_frame
 
-    if decoy.get_node_or_null("AnneessensOsmFurniture") != null:
-        _fail("forged Main acquired furniture after real production scene appeared")
+    if root_decoy.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("forged root-level Main acquired furniture after real production scene appeared")
+        return
+    if viewport_decoy.get_node_or_null("AnneessensOsmFurniture") != null:
+        _fail("forged Viewport Main acquired furniture after real production scene appeared")
         return
     var furniture_root := scene.get_node_or_null("AnneessensOsmFurniture")
     if furniture_root == null:
@@ -92,5 +108,5 @@ func _run() -> void:
         _fail("authoritative Main tree count mismatch: runtime=%d root=%d expected=%d" % [count, furniture_root.get_child_count(), EXPECTED_TREE_COUNT])
         return
 
-    print("ANNEESSENS_OSM_AUTHORITATIVE_ROOT_BIND_OK: forged_main_rejected=true production_scene=res://game/main.tscn trees=%d current_scene=null" % count)
+    print("ANNEESSENS_OSM_AUTHORITATIVE_ROOT_BIND_OK: forged_root_main_rejected=true forged_viewport_main_rejected=true production_scene=res://game/main.tscn trees=%d current_scene=null" % count)
     quit(0)

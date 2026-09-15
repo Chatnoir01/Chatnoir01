@@ -13,6 +13,7 @@ on:
       - "grand-bruxelles-game/tests/test_validate_road_destination_source_lock.py"
       - "grand-bruxelles-game/tests/test_required_building_provenance_lock.py"
       - "grand-bruxelles-game/tests/test_required_building_runtime_approval_lock.py"
+      - "grand-bruxelles-game/tests/test_required_building_evidence_identity_lock.py"
       - "grand-bruxelles-game/tests/test_validate_road_destination_corridor_membership.py"
       - "grand-bruxelles-game/tests/test_road_destination_anchor_coordinate_lock.py"
       - "grand-bruxelles-game/tests/test_road_destination_origin_lock.py"
@@ -46,6 +47,7 @@ jobs:
           python3 tools/validate_required_building_urbis_crosswalk_lock.py --source data/osm/vertical_slice_01.game.json
           python3 tests/test_required_building_provenance_lock.py
           python3 tests/test_required_building_runtime_approval_lock.py
+          python3 tests/test_required_building_evidence_identity_lock.py
           python3 tests/test_validate_road_destination_corridor_membership.py
           python3 tests/test_road_destination_anchor_coordinate_lock.py
           python3 tests/test_road_destination_origin_lock.py

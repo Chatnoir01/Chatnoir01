@@ -1,0 +1,42 @@
+name: Grand Bruxelles Automatic Road 359177328 Human Review Veto
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/corridor/automatic_road_359177328_human_review.json"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_human_review_veto.py"
+      - ".github/workflows/grand-bruxelles-automatic-road-359177328-human-review-veto.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  human-review-veto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main merge base
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          live_main="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          merge_base="$(git merge-base HEAD origin/main)"
+          echo "live_main=$live_main"
+          echo "head_sha=$head_sha"
+          echo "merge_base=$merge_base"
+          test "$head_sha" = "${{ github.event.pull_request.head.sha }}"
+          test "$merge_base" = "$live_main"
+      - name: Enforce immutable human REJECT
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_automatic_road_359177328_human_review_veto.py

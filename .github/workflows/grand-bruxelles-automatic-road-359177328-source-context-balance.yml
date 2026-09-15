@@ -20,10 +20,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Require exact live-main merge base
-        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
       - name: Require workflow/source-context marker contract
         working-directory: grand-bruxelles-game

@@ -24,9 +24,16 @@ core_spec.loader.exec_module(core)
 canonical_module = cases.module
 
 
+def run_case(name: str, test) -> None:
+    """Emit durable CI breadcrumbs even when GitHub does not retain job stdout."""
+    print(f"ROAD_DESTINATION_CATALOG_CASE_START: {name}", flush=True)
+    test()
+    print(f"ROAD_DESTINATION_CATALOG_CASE_OK: {name}", flush=True)
+
+
 def main() -> int:
     synthetic_tests = [
-        getattr(cases, name)
+        (name, getattr(cases, name))
         for name in sorted(dir(cases))
         if name.startswith("test_")
         and name != "test_real_slice_contains_shipped_direct_entry_roads"
@@ -37,12 +44,15 @@ def main() -> int:
 
     cases.module = core
     try:
-        for test in synthetic_tests:
-            test()
+        for name, test in synthetic_tests:
+            run_case(name, test)
     finally:
         cases.module = canonical_module
 
-    cases.test_real_slice_contains_shipped_direct_entry_roads()
+    run_case(
+        "test_real_slice_contains_shipped_direct_entry_roads",
+        cases.test_real_slice_contains_shipped_direct_entry_roads,
+    )
     print(f"ROAD_DESTINATION_CATALOG_TESTS_GREEN: tests={len(synthetic_tests) + 1}")
     return 0
 

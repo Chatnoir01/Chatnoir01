@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Run JSON-contract regressions with an explicit lock for every source mutation."""
+"""Run synthetic JSON-contract regressions against the catalog core.
+
+These fixtures intentionally model catalog/source JSON semantics without a complete
+production provenance manifest. The canonical lock-bound entrypoint is exercised by
+the real-slice catalog regression; synthetic contract cases must not invent source
+provenance merely to reach the mature catalog validator.
+"""
 from __future__ import annotations
 
-import hashlib
 import importlib.util
-import json
 import tempfile
 from pathlib import Path
 
@@ -14,44 +18,20 @@ assert spec and spec.loader
 cases = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cases)
 
-_original_write_document = cases.write_document
+CORE_PATH = Path(__file__).resolve().parents[1] / "_road_destination_catalog_core.py"
+core_spec = importlib.util.spec_from_file_location("road_destination_catalog_json_contract_core", CORE_PATH)
+assert core_spec and core_spec.loader
+core = importlib.util.module_from_spec(core_spec)
+core_spec.loader.exec_module(core)
 
-
-def _refresh_lock(source_root: Path) -> None:
-    repo_root = source_root.parent.parent
-    documents = {
-        path.relative_to(repo_root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(source_root.rglob("*.game.json"))
-        if path.is_file()
-    }
-    (source_root / "road_destination_sources.lock.json").write_text(
-        json.dumps({
-            "format": "grand-bruxelles-road-destination-source-lock-v1",
-            "source_format": "grand-bruxelles-osm-v1",
-            "source": "OpenStreetMap contributors via Overpass API",
-            "license": "ODbL-1.0",
-            "evidence_artifact_id": 9733298021,
-            "evidence_catalog_sha256": "786c9cbf3b420a658066bcdc809343abb463bd242b4aef432ab2c7975fa1baef",
-            "documents": documents,
-        }),
-        encoding="utf-8",
-    )
-
-
-def write_document_with_lock(path: Path, **kwargs: object) -> None:
-    _original_write_document(path, **kwargs)
-    source_root = next(
-        parent for parent in path.parents
-        if parent.name == "osm" and parent.parent.name == "data"
-    )
-    _refresh_lock(source_root)
-
-
-cases.write_document = write_document_with_lock
+# The cases are deliberately synthetic. Keep them on the mature deterministic core
+# so source-lock/provenance validation remains reserved for canonical real-source
+# tests instead of being weakened or counterfeited in fixtures.
+cases.module = core
 
 
 def _run_duplicate_source_key_probe() -> None:
-    """Canonical source JSON must reject duplicate object keys before derivation."""
+    """Canonical source JSON semantics must reject duplicate object keys."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "data" / "osm"
         root.mkdir(parents=True, exist_ok=True)
@@ -63,9 +43,8 @@ def _run_duplicate_source_key_probe() -> None:
             '"buildings":[]}',
             encoding="utf-8",
         )
-        _refresh_lock(root)
         try:
-            cases.module.build_catalog(root)
+            core.build_catalog(root)
         except SystemExit as exc:
             assert "duplicate JSON object key" in str(exc), str(exc)
         else:

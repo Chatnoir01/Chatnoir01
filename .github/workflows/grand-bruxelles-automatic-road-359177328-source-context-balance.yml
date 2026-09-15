@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/tests/automatic_road_359177328_source_context_balance_test.gd"
+      - "grand-bruxelles-game/data/qa/corridor/automatic_road_359177328_human_review.json"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_human_review_veto.py"
       - "grand-bruxelles-game/tests/test_automatic_road_359177328_source_context_workflow_contract.py"
       - ".github/workflows/grand-bruxelles-automatic-road-359177328-source-context-balance.yml"
   workflow_dispatch:
@@ -26,6 +28,11 @@ jobs:
       - name: Require workflow/source-context marker contract
         working-directory: grand-bruxelles-game
         run: python3 tests/test_automatic_road_359177328_source_context_workflow_contract.py
+      - name: Require canonical human REJECT before source diagnosis
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tests/test_automatic_road_359177328_human_review_veto.py
       - name: Install exact official Godot 4.7.1
         run: |
           set -euo pipefail

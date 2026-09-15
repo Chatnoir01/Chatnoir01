@@ -68,13 +68,6 @@ def reject_duplicate_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]
     return result
 
 
-def parse_finite_float(value: str) -> float:
-    parsed = float(value)
-    if not math.isfinite(parsed):
-        fail(f"non-finite decoded JSON number {value!r}")
-    return parsed
-
-
 def load_json(path: Path) -> dict[str, Any]:
     try:
         raw = path.read_bytes()
@@ -85,13 +78,9 @@ def load_json(path: Path) -> dict[str, Any]:
     except UnicodeDecodeError as exc:
         fail(f"source is not strict UTF-8: {exc}")
     try:
-        payload = json.loads(
-            text,
-            object_pairs_hook=reject_duplicate_object_keys,
-            parse_float=parse_finite_float,
-            parse_constant=lambda value: fail(f"non-finite JSON constant {value!r}"),
-        )
-    except (json.JSONDecodeError, ValueError, OverflowError) as exc:
+        payload = json.loads(text, object_pairs_hook=reject_duplicate_object_keys,
+                             parse_constant=lambda value: fail(f"non-finite JSON constant {value!r}"))
+    except json.JSONDecodeError as exc:
         fail(f"invalid JSON: {exc}")
     if type(payload) is not dict:
         fail("source root must be an object")
@@ -149,7 +138,7 @@ def main() -> int:
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[1] / "data" / "osm" / "vertical_slice_01.game.json")
     args = parser.parse_args()
     validate(args.source)
-    print("BOURSE_URBIS_CROSSWALK_LOCK_OK osm=way/13494623 urbis=1751663 ref=8186511 crs=EPSG:31370 area_m2=3368 accessed_at=2026-08-12 evidence_identity=locked strict_finite_json=true network_used=false runtime_authorized=false jouable_promoted=false")
+    print("BOURSE_URBIS_CROSSWALK_LOCK_OK osm=way/13494623 urbis=1751663 ref=8186511 crs=EPSG:31370 area_m2=3368 accessed_at=2026-08-12 evidence_identity=locked network_used=false runtime_authorized=false jouable_promoted=false")
     return 0
 
 

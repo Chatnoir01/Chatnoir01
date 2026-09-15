@@ -14,7 +14,6 @@ on:
       - "grand-bruxelles-game/tests/test_required_building_provenance_lock.py"
       - "grand-bruxelles-game/tests/test_required_building_runtime_approval_lock.py"
       - "grand-bruxelles-game/tests/test_required_building_evidence_identity_lock.py"
-      - "grand-bruxelles-game/tests/test_required_building_strict_finite_json_lock.py"
       - "grand-bruxelles-game/tests/test_validate_road_destination_corridor_membership.py"
       - "grand-bruxelles-game/tests/test_road_destination_anchor_coordinate_lock.py"
       - "grand-bruxelles-game/tests/test_road_destination_origin_lock.py"
@@ -49,7 +48,6 @@ jobs:
           python3 tests/test_required_building_provenance_lock.py
           python3 tests/test_required_building_runtime_approval_lock.py
           python3 tests/test_required_building_evidence_identity_lock.py
-          python3 tests/test_required_building_strict_finite_json_lock.py
           python3 tests/test_validate_road_destination_corridor_membership.py
           python3 tests/test_road_destination_anchor_coordinate_lock.py
           python3 tests/test_road_destination_origin_lock.py

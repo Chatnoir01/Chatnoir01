@@ -17,15 +17,12 @@ func _make_foreign_nested_decoy() -> Node3D:
     var decoy := Node3D.new()
     decoy.name = "ForeignNestedMain"
     wrapper.add_child(decoy)
-
     var brussels_osm := Node3D.new()
     brussels_osm.name = "BrusselsOSM"
     decoy.add_child(brussels_osm)
-
     var urbis_midi := Node3D.new()
     urbis_midi.name = "UrbISMidiExact"
     decoy.add_child(urbis_midi)
-
     var player := Node3D.new()
     player.name = "Player"
     decoy.add_child(player)
@@ -34,23 +31,18 @@ func _make_foreign_nested_decoy() -> Node3D:
 func _make_foreign_nested_viewport_decoy() -> Node3D:
     var wrapper := Node3D.new()
     wrapper.name = "ForeignViewportOwner"
-
     var viewport := SubViewport.new()
     viewport.name = "ForeignNestedViewport"
     wrapper.add_child(viewport)
-
     var decoy := Node3D.new()
     decoy.name = "Main"
     viewport.add_child(decoy)
-
     var brussels_osm := Node3D.new()
     brussels_osm.name = "BrusselsOSM"
     decoy.add_child(brussels_osm)
-
     var urbis_midi := Node3D.new()
     urbis_midi.name = "UrbISMidiExact"
     decoy.add_child(urbis_midi)
-
     var player := Node3D.new()
     player.name = "Player"
     decoy.add_child(player)
@@ -78,8 +70,6 @@ func _run() -> void:
         _fail("runtime built furniture before a valid production mount existed")
         return
 
-    # A foreign nested node can legitimately expose the same anchor names. It must
-    # never acquire authority for source-backed Anneessens furniture or collisions.
     var foreign_wrapper := _make_foreign_nested_decoy()
     root.add_child(foreign_wrapper)
     for _frame: int in range(12):
@@ -92,8 +82,6 @@ func _run() -> void:
         _fail("foreign nested anchor clone received owned Anneessens furniture root")
         return
 
-    # A Viewport wrapper does not make an arbitrary nested Main authoritative. Only
-    # a root-level dormant viewport mount may provide the established fallback owner.
     var foreign_viewport_wrapper := _make_foreign_nested_viewport_decoy()
     root.add_child(foreign_viewport_wrapper)
     for _frame: int in range(12):
@@ -107,39 +95,42 @@ func _run() -> void:
         _fail("foreign nested viewport Main received owned Anneessens furniture root")
         return
 
-    # Preserve the already-gated legitimate dormant mount contract: Main directly
-    # under a root-level Viewport is authoritative even when current_scene is null.
+    # The dormant Viewport fallback is legitimate only for the canonical packed
+    # production scene. A synthetic node named Main is intentionally no longer
+    # sufficient after scene-identity hardening.
+    var packed := load("res://game/main.tscn") as PackedScene
+    if packed == null:
+        _fail("canonical production scene missing")
+        return
+    var main := packed.instantiate() as Node3D
+    if main == null:
+        _fail("canonical production scene did not instantiate as Node3D")
+        return
+    if main.scene_file_path != "res://game/main.tscn":
+        _fail("canonical production scene identity drifted: %s" % main.scene_file_path)
+        return
+
     var viewport := SubViewport.new()
     viewport.name = "NestedEnvironmentViewport"
     root.add_child(viewport)
-
-    var main := Node3D.new()
-    main.name = "Main"
     viewport.add_child(main)
 
-    var brussels_osm := Node3D.new()
-    brussels_osm.name = "BrusselsOSM"
-    main.add_child(brussels_osm)
-
-    var urbis_midi := Node3D.new()
-    urbis_midi.name = "UrbISMidiExact"
-    main.add_child(urbis_midi)
-
-    var player := Node3D.new()
-    player.name = "Player"
+    var player := main.get_node_or_null("Player") as Node3D
+    if player == null:
+        _fail("canonical production Player missing")
+        return
     player.position = ANNEESSENS
-    main.add_child(player)
 
     for _frame: int in range(24):
         await process_frame
 
     var tree_count := int(runtime.call("tree_count"))
     if tree_count != EXPECTED_TREES:
-        _fail("nested production mount did not bind in-range Anneessens furniture: trees=%d expected=%d" % [tree_count, EXPECTED_TREES])
+        _fail("canonical nested production mount did not bind in-range Anneessens furniture: trees=%d expected=%d" % [tree_count, EXPECTED_TREES])
         return
     var furniture_root := main.get_node_or_null("AnneessensOsmFurniture")
     if furniture_root == null:
-        _fail("Anneessens furniture was not attached to nested Main")
+        _fail("Anneessens furniture was not attached to canonical nested Main")
         return
     if foreign_main != null and foreign_main.get_node_or_null("AnneessensOsmFurniture") != null:
         _fail("foreign nested anchor clone stole furniture after authoritative Main arrived")
@@ -154,5 +145,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_NESTED_MOUNT_OK: trees=%d current_scene=null owner=root-viewport-main foreign_decoys_rejected=true in_range=true source=OSM license=ODbL-1.0" % tree_count)
+    print("ANNEESSENS_OSM_FURNITURE_NESTED_MOUNT_OK: trees=%d current_scene=null owner=canonical-root-viewport-main foreign_decoys_rejected=true in_range=true source=OSM license=ODbL-1.0" % tree_count)
     quit(0)

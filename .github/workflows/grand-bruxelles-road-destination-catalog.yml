@@ -25,15 +25,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run catalog and runtime-index regressions
+      - name: Test road destination catalog
         working-directory: grand-bruxelles-game
-        run: |
-          set -euo pipefail
-          python3 tools/tests/test_road_destination_catalog.py
-          python3 tools/tests/test_road_destination_catalog_json_contract.py
-          python3 tools/tests/test_road_destination_catalog_source_path.py
-          python3 tools/tests/test_road_destination_catalog_source_structure.py
-          python3 tools/tests/test_road_runtime_index.py
+        run: python3 tools/tests/test_road_destination_catalog.py
+
+      - name: Test road destination catalog JSON contract
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog_json_contract.py
+
+      - name: Test road destination catalog source path
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog_source_path.py
+
+      - name: Test road destination catalog source structure
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog_source_structure.py
+
+      - name: Test road runtime index
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_runtime_index.py
 
       - name: Prove direct builder rejects unlisted compatible source
         working-directory: grand-bruxelles-game

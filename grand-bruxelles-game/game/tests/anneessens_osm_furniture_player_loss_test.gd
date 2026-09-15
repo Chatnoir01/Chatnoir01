@@ -76,9 +76,9 @@ func _run() -> void:
         return
 
     # Model anchor loss strictly as a topology mutation. Keep the removed witness
-    # alive inside the SceneTree under a neutral quarantine owner so the test does
-    # not couple Shared Environment semantics to Godot's detached-node destruction
-    # diagnostics. Main/Player must stop resolving while the old object remains valid.
+    # alive inside the SceneTree under a neutral quarantine owner. This specifically
+    # proves that cached object validity cannot substitute for canonical Main/Player
+    # path ownership: the old Player stays alive, but it is no longer the anchor.
     var quarantine := Node.new()
     quarantine.name = "PlayerLossWitnessQuarantine"
     root.add_child(quarantine)
@@ -93,8 +93,11 @@ func _run() -> void:
     if not is_instance_valid(player) or not player.is_inside_tree():
         _fail("quarantined Player witness unexpectedly left the SceneTree")
         return
+    if player.get_parent() != quarantine:
+        _fail("old Player witness did not remain under neutral quarantine")
+        return
     if furniture_root.visible:
-        _fail("furniture remained visible after required Player anchor disappeared")
+        _fail("furniture followed a stale cached Player after canonical Main/Player ownership was lost")
         return
     if not _collision_policy_is_fail_closed(furniture_root):
         _fail("Player-anchor loss changed fail-closed collision policy")
@@ -107,6 +110,9 @@ func _run() -> void:
     for _frame: int in range(12):
         await process_frame
 
+    if main.get_node_or_null("Player") != replacement_player:
+        _fail("replacement Player did not become canonical Main/Player anchor")
+        return
     if not furniture_root.visible:
         _fail("furniture did not reactivate visually after a legitimate Player anchor returned")
         return
@@ -121,5 +127,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true quarantined_old_player=true visual_reactivated=true source=OSM license=ODbL-1.0")
+    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true canonical_path_ownership=true quarantined_old_player=true visual_reactivated=true source=OSM license=ODbL-1.0")
     quit(0)

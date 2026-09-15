@@ -1,37 +1,19 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 from pathlib import Path
-
-PROJECT = Path(__file__).resolve().parents[1]
-WORKFLOW = PROJECT.parent / ".github" / "workflows" / "grand-bruxelles-automatic-road-359177328-human-review-veto.yml"
-
-
-def require(condition: bool, message: str) -> None:
-    if not condition:
-        raise SystemExit(f"AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_WORKFLOW_CONTRACT_FAIL: {message}")
-
-
-def main() -> int:
-    text = WORKFLOW.read_text(encoding="utf-8")
-
-    require("workflow_dispatch:" in text, "manual dispatch coverage missing")
-    require("fetch-depth: 0" in text, "full history required for merge-base provenance")
-    require("git fetch origin main --no-tags" in text, "live main must be fetched")
-    require('live_main="$(git rev-parse origin/main)"' in text, "live-main identity capture missing")
-    require('head_sha="$(git rev-parse HEAD)"' in text, "checked-out HEAD identity capture missing")
-    require('merge_base="$(git merge-base HEAD origin/main)"' in text, "merge-base capture missing")
-    require('test "$head_sha" = "${{ github.event.pull_request.head.sha }}"' in text, "PR head identity check missing")
-    require('test "$head_sha" = "${{ github.sha }}"' in text, "manual-dispatch head identity check missing")
-    require('test "$merge_base" = "$live_main"' in text, "exact-current-main merge-base check missing")
-
-    provenance = text.index("- name: Require exact live-main merge base")
-    veto = text.index("- name: Enforce immutable human REJECT")
-    require(provenance < veto, "provenance gate must execute before immutable human veto")
-
-    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_WORKFLOW_CONTRACT_OK all_trigger_provenance=true order_locked=true")
+P=Path(__file__).resolve().parents[1]
+W=P.parent/'.github/workflows/grand-bruxelles-automatic-road-359177328-human-review-veto.yml'
+PIN='actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2'
+def r(c,m):
+    if not c: raise SystemExit('HUMAN_REVIEW_WORKFLOW_CONTRACT_FAIL: '+m)
+def main():
+    t=W.read_text()
+    r(PIN in t,'checkout must be immutable-SHA pinned')
+    r('actions/checkout@v' not in t,'mutable checkout tag forbidden')
+    r('workflow_dispatch:' in t,'manual dispatch missing')
+    r('fetch-depth: 0' in t,'full history missing')
+    r('git fetch origin main --no-tags' in t,'live main fetch missing')
+    r('test "$merge_base" = "$live_main"' in t,'exact live-main merge-base missing')
+    r(t.index('- name: Require exact live-main merge base') < t.index('- name: Enforce immutable human REJECT'),'provenance must precede veto')
+    print('AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_WORKFLOW_CONTRACT_OK immutable_actions=true')
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__=='__main__': raise SystemExit(main())

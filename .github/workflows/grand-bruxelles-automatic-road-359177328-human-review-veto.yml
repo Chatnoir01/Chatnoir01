@@ -1,5 +1,4 @@
 name: Grand Bruxelles Automatic Road 359177328 Human Review Veto
-
 on:
   pull_request:
     paths:
@@ -8,16 +7,14 @@ on:
       - "grand-bruxelles-game/tests/test_automatic_road_359177328_human_review_workflow_contract.py"
       - ".github/workflows/grand-bruxelles-automatic-road-359177328-human-review-veto.yml"
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   human-review-veto:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -29,24 +26,11 @@ jobs:
           live_main="$(git rev-parse origin/main)"
           head_sha="$(git rev-parse HEAD)"
           merge_base="$(git merge-base HEAD origin/main)"
-          echo "live_main=$live_main"
-          echo "head_sha=$head_sha"
-          echo "merge_base=$merge_base"
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            test "$head_sha" = "${{ github.event.pull_request.head.sha }}"
-          else
-            test "$head_sha" = "${{ github.sha }}"
-          fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then test "$head_sha" = "${{ github.event.pull_request.head.sha }}"; else test "$head_sha" = "${{ github.sha }}"; fi
           test "$merge_base" = "$live_main"
       - name: Require human-veto workflow provenance contract
         working-directory: grand-bruxelles-game
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tests/test_automatic_road_359177328_human_review_workflow_contract.py
+        run: python3 tests/test_automatic_road_359177328_human_review_workflow_contract.py
       - name: Enforce immutable human REJECT
         working-directory: grand-bruxelles-game
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tests/test_automatic_road_359177328_human_review_veto.py
+        run: python3 tests/test_automatic_road_359177328_human_review_veto.py

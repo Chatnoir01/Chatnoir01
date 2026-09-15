@@ -20,6 +20,8 @@ def main() -> None:
             "assets/characters/civilians/civ1/source/body\n.glb",
             "assets/characters/civilians/civ1/source/body\u200b.glb",
             unicodedata.normalize("NFD", canonical),
+            "assets/characters/civilians/civ1/source/body.glb/",
+            "assets/characters/civilians/civ1/source/body.glb/.",
         )
         for source_path in ambiguous:
             assert _source_file(root, source_path) is None, (

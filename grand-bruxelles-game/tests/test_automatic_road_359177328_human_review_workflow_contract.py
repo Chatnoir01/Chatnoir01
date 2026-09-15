@@ -11,9 +11,12 @@ def main():
     r('actions/checkout@v' not in t,'mutable checkout tag forbidden')
     r('workflow_dispatch:' in t,'manual dispatch missing')
     r('fetch-depth: 0' in t,'full history missing')
+    r('ref: ${{ github.event.pull_request.head.sha || github.sha }}' in t,'checkout must bind to event head identity')
     r('git fetch origin main --no-tags' in t,'live main fetch missing')
+    r('if [ "${{ github.event_name }}" = "pull_request" ]; then test "$head_sha" = "${{ github.event.pull_request.head.sha }}"; else test "$head_sha" = "${{ github.sha }}"; fi' in t,'checked-out head identity verification missing')
     r('test "$merge_base" = "$live_main"' in t,'exact live-main merge-base missing')
+    r("if: github.event_name == 'pull_request'" not in t,'pull-request-only provenance guard forbidden')
     r(t.index('- name: Require exact live-main merge base') < t.index('- name: Enforce immutable human REJECT'),'provenance must precede veto')
-    print('AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_WORKFLOW_CONTRACT_OK immutable_actions=true')
+    print('AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_WORKFLOW_CONTRACT_OK immutable_actions=true head_identity_locked=true')
     return 0
 if __name__=='__main__': raise SystemExit(main())

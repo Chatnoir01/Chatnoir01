@@ -25,6 +25,13 @@ def main() -> None:
             "assets/characters/civilians/civ1/source/body\u00a0variant.glb",
             "assets/characters/civilians/civ1/source/body\u2028variant.glb",
             "assets/characters/civilians/civ1/source/body\u2029variant.glb",
+            "assets/characters/civilians/civ1/source/body./variant.glb",
+            "assets/characters/civilians/civ1/source/CON.glb",
+            "assets/characters/civilians/civ1/source/body?.glb",
+            "assets/characters/civilians/civ1/source/body*.glb",
+            "assets/characters/civilians/civ1/source/body|variant.glb",
+            "assets/characters/civilians/civ1/source/body<variant>.glb",
+            'assets/characters/civilians/civ1/source/body"variant.glb',
         )
         for source_path in ambiguous:
             assert _source_file(root, source_path) is None, (

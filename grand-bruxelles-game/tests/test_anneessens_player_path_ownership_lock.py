@@ -51,3 +51,29 @@ def test_process_must_reconcile_path_ownership_before_activation_sync() -> None:
     # Keep this ordering lock so a later refactor cannot perform the identity check only
     # after stale cached coordinates have already driven visibility/build decisions.
     assert "_player.is_inside_tree()" in process_body
+
+
+def test_missing_canonical_player_must_fail_closed_before_activation_sync() -> None:
+    source = RUNTIME.read_text(encoding="utf-8")
+    process_body = _function_body(source, "func _process(_delta: float) -> void:")
+
+    canonical_lookup = '_scene.get_node_or_null("Player") as Node3D'
+    lookup_index = process_body.index(canonical_lookup)
+    deactivate_index = process_body.index("_apply_tree_activation(false)", lookup_index)
+    sync_index = process_body.index("_sync_build_and_activation()")
+
+    # A removed Main/Player path is an ownership loss even when the old object remains
+    # alive elsewhere. The process loop must resolve the path, deactivate fail-closed,
+    # and only then permit activation synchronization for a canonical replacement.
+    assert lookup_index < deactivate_index < sync_index
+    canonical_null_guards = (
+        "not is_instance_valid(canonical_player)",
+        "canonical_player == null",
+        "not is_instance_valid(scene_player)",
+        "scene_player == null",
+        "not is_instance_valid(current_player)",
+        "current_player == null",
+    )
+    assert any(guard in process_body for guard in canonical_null_guards), (
+        "_process must explicitly fail closed when Main/Player has no canonical path owner"
+    )

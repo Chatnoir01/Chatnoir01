@@ -14,7 +14,7 @@ SOURCE_ROOT = PurePosixPath("assets/characters/civilians/civ1/source")
 REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 REQUIRED_READY_FLAGS = ("production_authorized", "activation_ready", "source_package_present")
 WINDOWS_FORBIDDEN_CHARS = frozenset('<>:"|?*')
-WINDOWS_RESERVED_STEMS = frozenset({"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))})
+WINDOWS_RESERVED_STEMS = frozenset({"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10)), *(f"COM{i}" for i in "¹²³"), *(f"LPT{i}" for i in "¹²³")})
 
 class DuplicateJSONKeyError(ValueError):
     pass

@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 CIV1_PREFIX = "grand-bruxelles-game/assets/characters/civilians/civ1/"
 STATUS_PATH = Path("grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json")
 SOURCE_ROOT = PurePosixPath("assets/characters/civilians/civ1/source")
+REGISTRY_SCHEMA = "grand-bruxelles-civ1-roster-registry-v1"
 REQUIRED_READY_FLAGS = ("production_authorized", "activation_ready", "source_package_present")
 
 class DuplicateJSONKeyError(ValueError):
@@ -126,10 +127,17 @@ def source_ready(repo_root: Path) -> bool:
         return False
     return _status_consistent(status, repo_root)
 
+def registry_consistent(registry) -> bool:
+    return (
+        isinstance(registry, dict)
+        and registry.get("schema") == REGISTRY_SCHEMA
+        and isinstance(registry.get("entries"), list)
+    )
+
 def blocking_entries(registry, repo_root: Path) -> list[str]:
+    if not registry_consistent(registry):
+        raise ValueError("invalid CIV-1 roster registry structure")
     if source_ready(repo_root):
-        return []
-    if not isinstance(registry, dict) or not isinstance(registry.get("entries"), list):
         return []
     blocked = []
     for entry in registry["entries"]:
@@ -147,10 +155,10 @@ def main() -> int:
     args = parser.parse_args()
     try:
         registry = _load_strict_json(args.registry)
-    except (OSError, json.JSONDecodeError, DuplicateJSONKeyError, NonStandardJSONConstantError) as exc:
+        blocked = blocking_entries(registry, args.repo_root)
+    except (OSError, json.JSONDecodeError, DuplicateJSONKeyError, NonStandardJSONConstantError, ValueError) as exc:
         print(f"CIV1_ROSTER_SOURCE_READINESS_ERROR {exc}")
         return 2
-    blocked = blocking_entries(registry, args.repo_root)
     if blocked:
         print("CIV1_ROSTER_SOURCE_NOT_READY " + json.dumps(sorted(set(blocked))))
         return 2

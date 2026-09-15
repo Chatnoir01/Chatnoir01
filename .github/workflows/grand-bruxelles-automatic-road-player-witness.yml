@@ -5,14 +5,17 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
       - "grand-bruxelles-game/game/tests/automatic_road_direct_spawn_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/automatic_road_359177328_source_context_balance_test.gd"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_source_context_workflow_contract.py"
+      - "grand-bruxelles-game/data/qa/corridor/automatic_road_359177328_human_review.json"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_human_review_veto.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_player_witness_workflow_contract.py"
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
       - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - ".github/workflows/grand-bruxelles-automatic-road-player-witness.yml"
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   player-witness:
     runs-on: ubuntu-24.04
@@ -34,18 +37,29 @@ jobs:
           echo "live_main=$live_main"
           echo "pr_head=$PR_HEAD_SHA"
           echo "merge_base=$merge_base"
-          test "$merge_base" = "$live_main" || {
-            echo "AUTOMATIC_ROAD_PLAYER_WITNESS_STALE_MAIN live_main=$live_main pr_head=$PR_HEAD_SHA merge_base=$merge_base"
-            exit 1
-          }
+          test "$merge_base" = "$live_main" || { echo "AUTOMATIC_ROAD_PLAYER_WITNESS_STALE_MAIN live_main=$live_main pr_head=$PR_HEAD_SHA merge_base=$merge_base"; exit 1; }
+      - name: Require player-witness workflow contract
+        working-directory: grand-bruxelles-game
+        run: python3 tests/test_automatic_road_player_witness_workflow_contract.py
+      - name: Bind canonical human veto before capture
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tests/test_automatic_road_359177328_human_review_veto.py
+          echo "AUTOMATIC_ROAD_359177328_HUMAN_VETO_BOUND"
       - name: Install display dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
-      - name: Install Godot 4.7.1
+      - name: Install exact official Godot 4.7.1
         run: |
           set -euo pipefail
-          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
-          unzip -q /tmp/godot.zip -d /tmp/godot
-          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          GODOT_ZIP=/tmp/Godot_v4.7.1-stable_linux.x86_64.zip
+          GODOT_DIR=/tmp/godot
+          GODOT_URL=https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          rm -f "$GODOT_ZIP"; rm -rf "$GODOT_DIR"; mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 20 "$GODOT_URL" --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          chmod +x "$GODOT_DIR/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT_DIR/Godot_v4.7.1-stable_linux.x86_64" --version
       - name: Import project
         run: |
           set -o pipefail
@@ -65,43 +79,15 @@ jobs:
           png="grand-bruxelles-game/artifacts/visual/automatic_road_359177328_player.png"
           diagnostic="grand-bruxelles-game/artifacts/visual/automatic_road_359177328_player_animation_diagnostic.json"
           stage="/tmp/automatic-road-player-evidence"
-          rm -rf "$stage"
-          mkdir -p "$stage"
-          if [[ -s /tmp/automatic-road-player-witness.log ]]; then
-            cp /tmp/automatic-road-player-witness.log "$stage/automatic-road-player-witness.log"
-          else
-            printf '%s\n' "AUTOMATIC_ROAD_PLAYER_WITNESS_DIAGNOSTIC_MISSING: runtime log was not produced" > "$stage/automatic-road-player-witness.log"
-          fi
-          if [[ -s "$diagnostic" ]]; then
-            cp "$diagnostic" "$stage/automatic_road_359177328_player_animation_diagnostic.json"
-          else
-            printf '%s\n' '{"schema":"grand-bruxelles-automatic-road-player-animation-diagnostic-v1","status":"diagnostic_missing","qa_witness_accepted":false,"playability_claimed":false,"destination_advertisable":false,"jouable_authorized":false}' > "$stage/automatic_road_359177328_player_animation_diagnostic.json"
-          fi
+          rm -rf "$stage"; mkdir -p "$stage"
+          if [[ -s /tmp/automatic-road-player-witness.log ]]; then cp /tmp/automatic-road-player-witness.log "$stage/automatic-road-player-witness.log"; else printf '%s\n' "AUTOMATIC_ROAD_PLAYER_WITNESS_DIAGNOSTIC_MISSING: runtime log was not produced" > "$stage/automatic-road-player-witness.log"; fi
+          if [[ -s "$diagnostic" ]]; then cp "$diagnostic" "$stage/automatic_road_359177328_player_animation_diagnostic.json"; else printf '%s\n' '{"schema":"grand-bruxelles-automatic-road-player-animation-diagnostic-v1","status":"diagnostic_missing","qa_witness_accepted":false,"playability_claimed":false,"destination_advertisable":false,"jouable_authorized":false}' > "$stage/automatic_road_359177328_player_animation_diagnostic.json"; fi
           python3 - "$stage/automatic_road_359177328_player_animation_diagnostic.json" <<'PY'
           import json, sys
-          p = sys.argv[1]
-          d = json.load(open(p, encoding="utf-8"))
-          assert d.get("schema") == "grand-bruxelles-automatic-road-player-animation-diagnostic-v1"
-          for key in ("qa_witness_accepted", "playability_claimed", "destination_advertisable", "jouable_authorized"):
-              assert d.get(key) is False, key
-          print("AUTOMATIC_ROAD_PLAYER_ANIMATION_DIAGNOSTIC_OK", d.get("status"), d.get("reason", ""))
+          d=json.load(open(sys.argv[1],encoding="utf-8")); assert d.get("schema")=="grand-bruxelles-automatic-road-player-animation-diagnostic-v1"
+          for key in ("qa_witness_accepted","playability_claimed","destination_advertisable","jouable_authorized"): assert d.get(key) is False,key
           PY
-          if [[ -s "$png" ]]; then
-            python3 - "$png" <<'PY'
-          import struct, sys
-          p = sys.argv[1]
-          with open(p, "rb") as f:
-              if f.read(8) != b"\x89PNG\r\n\x1a\n": raise SystemExit("witness is not a PNG")
-              length = struct.unpack(">I", f.read(4))[0]; kind = f.read(4)
-              if kind != b"IHDR" or length != 13: raise SystemExit("missing PNG IHDR")
-              width, height = struct.unpack(">II", f.read(8))
-          if (width, height) != (1280, 720): raise SystemExit(f"unexpected witness dimensions: {width}x{height}")
-          print(f"AUTOMATIC_ROAD_PLAYER_WITNESS_FILE_OK: {width}x{height} path={p}")
-          PY
-            cp "$png" "$stage/automatic_road_359177328_player.png"
-          else
-            echo "AUTOMATIC_ROAD_PLAYER_WITNESS_HOLD: no PNG staged because fail-closed capture did not reach visual acceptance"
-          fi
+          if [[ -s "$png" ]]; then cp "$png" "$stage/automatic_road_359177328_player.png"; fi
           cd "$stage"
           find . -maxdepth 1 -type f ! -name evidence-sha256.txt -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > evidence-sha256.txt
           test "$(wc -l < evidence-sha256.txt)" -ge 2

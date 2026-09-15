@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/data/qa/corridor/automatic_road_359177328_human_review.json"
       - "grand-bruxelles-game/tests/test_automatic_road_359177328_human_review_veto.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_human_review_workflow_contract.py"
       - ".github/workflows/grand-bruxelles-automatic-road-359177328-human-review-veto.yml"
   workflow_dispatch:
 
@@ -37,6 +38,12 @@ jobs:
             test "$head_sha" = "${{ github.sha }}"
           fi
           test "$merge_base" = "$live_main"
+      - name: Require human-veto workflow provenance contract
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_automatic_road_359177328_human_review_workflow_contract.py
       - name: Enforce immutable human REJECT
         working-directory: grand-bruxelles-game
         shell: bash

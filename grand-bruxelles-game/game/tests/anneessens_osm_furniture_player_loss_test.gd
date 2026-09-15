@@ -75,13 +75,18 @@ func _run() -> void:
         _fail("near-player baseline resurrected unsourced tree collision")
         return
 
-    # Queue the in-tree Player directly. Removing it first and then queue_free()ing
-    # an already detached Node trips Godot's !is_inside_tree() lifecycle diagnostic,
-    # which is unrelated to the runtime's fail-closed Player-loss contract.
-    player.queue_free()
+    # Model anchor loss as an explicit topology mutation, then destroy the detached
+    # witness synchronously. queue_free() is intentionally not used on a detached
+    # Node because Godot reports !is_inside_tree() for that lifecycle shape; the
+    # contract under test is runtime reaction to Player absence, not deletion API.
+    main.remove_child(player)
+    player.free()
     for _frame: int in range(8):
         await process_frame
 
+    if main.get_node_or_null("Player") != null:
+        _fail("Player anchor still resolves after explicit removal")
+        return
     if furniture_root.visible:
         _fail("furniture remained visible after required Player anchor disappeared")
         return

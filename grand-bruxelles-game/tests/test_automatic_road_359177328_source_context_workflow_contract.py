@@ -11,6 +11,7 @@ EXPECTED_MARKER = "AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_DIAGNOSTIC_GREEN:"
 TABLE_MARKER = "AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_CLASSIFICATION_TABLE_GREEN:"
 VETO_TEST = "python3 tests/test_automatic_road_359177328_human_review_veto.py"
 MEASURE_STEP = "Measure bilateral source context from production selection"
+PINNED_CHECKOUT = "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
 
 
 def require(condition: bool, message: str) -> None:
@@ -28,6 +29,11 @@ def main() -> int:
     require("--quit-after" not in workflow, "timed import is forbidden")
     for marker in ("SCRIPT ERROR: Parse Error:", "SCRIPT ERROR: Compile Error:", "ERROR: Failed to load script"):
         require(workflow.count(marker) >= 2, f"error marker not guarded twice: {marker}")
+    # Third-party workflow code is part of the provenance boundary. A mutable
+    # checkout tag can move without this branch changing, so require the same
+    # immutable v4.2.2 commit already used by the sibling human-veto workflow.
+    require(PINNED_CHECKOUT in workflow, "checkout action must be pinned to immutable v4.2.2 commit")
+    require("actions/checkout@v4" not in workflow, "mutable checkout tag forbidden")
     # Both pull_request and workflow_dispatch must prove checkout identity and an
     # exact live-main merge base. A manual run must never bypass provenance.
     require("if: github.event_name == 'pull_request'" not in workflow, "pull-request-only provenance guard forbidden")
@@ -47,7 +53,7 @@ def main() -> int:
     require("bilateral_source_context_present_within_covered_radius" in script, "covered-radius bilateral classification missing")
     require("human_visual_reject_still_binding=true" in script, "binding human reject marker missing")
     require("destination_advertisable=false" in script and "visual_acceptance=false" in script and "jouable=false" in script, "closed promotion rails missing")
-    print("AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_WORKFLOW_CONTRACT_GREEN optimization_safe=true")
+    print("AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_WORKFLOW_CONTRACT_GREEN optimization_safe=true immutable_checkout=true")
     return 0
 
 if __name__ == "__main__":

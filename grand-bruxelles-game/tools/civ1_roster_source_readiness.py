@@ -127,18 +127,29 @@ def source_ready(repo_root: Path) -> bool:
         return False
     return _status_consistent(status, repo_root)
 
+def _canonical_asset_path(value: object) -> str | None:
+    if not isinstance(value, str) or not value or "\\" in value:
+        return None
+    pure = PurePosixPath(value)
+    if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != value:
+        return None
+    return value
+
 def registry_consistent(registry) -> bool:
     if not isinstance(registry, dict) or registry.get("schema") != REGISTRY_SCHEMA:
         return False
     entries = registry.get("entries")
     if not isinstance(entries, list):
         return False
-    return all(
-        isinstance(entry, dict)
-        and isinstance(entry.get("asset_path"), str)
-        and bool(entry["asset_path"])
-        for entry in entries
-    )
+    identities = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            return False
+        asset_path = _canonical_asset_path(entry.get("asset_path"))
+        if asset_path is None:
+            return False
+        identities.append(asset_path)
+    return len(identities) == len(set(identities))
 
 def blocking_entries(registry, repo_root: Path) -> list[str]:
     if not registry_consistent(registry):

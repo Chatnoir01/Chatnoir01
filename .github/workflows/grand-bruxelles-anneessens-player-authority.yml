@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-anneessens-player-authority.yml"
       - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
       - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_authoritative_runtime.gd"
       - "grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py"
   workflow_dispatch:

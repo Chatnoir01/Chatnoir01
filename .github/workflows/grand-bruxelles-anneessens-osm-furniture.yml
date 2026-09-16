@@ -16,6 +16,7 @@ on:
       - "grand-bruxelles-game/game/tests/anneessens_osm_position_shape_contract_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_furniture_player_loss_test.gd"
       - "grand-bruxelles-game/game/tests/anneessens_street_tree_witness_test.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py"
   workflow_dispatch:
 
 permissions:
@@ -40,6 +41,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git fetch --no-tags origin "$EXPECTED_BASE"
           test "$(git merge-base HEAD FETCH_HEAD)" = "$EXPECTED_BASE"
+      - name: Prove canonical Player publication boundary contract
+        run: python3 -m pytest -q grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py
       - name: Install display dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1

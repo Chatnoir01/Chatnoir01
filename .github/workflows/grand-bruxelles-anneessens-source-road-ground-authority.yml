@@ -1,0 +1,38 @@
+name: Grand Bruxelles Anneessens Source Road Ground Authority
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/anneessens_automatic_road_ground_support_test.gd"
+      - "grand-bruxelles-game/game/tests/test_anneessens_source_road_ground_authority.py"
+      - ".github/workflows/grand-bruxelles-anneessens-source-road-ground-authority.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-road-ground-authority:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and exact checked-out head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "$PR_HEAD_SHA" origin/main)"
+          echo "live_main=$live_main"
+          echo "pr_head=$PR_HEAD_SHA"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main"
+      - name: Require source-backed road ground authority
+        run: python3 -m pytest -q grand-bruxelles-game/game/tests/test_anneessens_source_road_ground_authority.py

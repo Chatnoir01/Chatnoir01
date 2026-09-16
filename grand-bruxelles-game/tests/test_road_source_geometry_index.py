@@ -69,6 +69,12 @@ def test_centerline_length_rejects_degenerate_and_overflow_geometry() -> None:
             module.centerline_length_m(points)
 
 
+def test_centerline_length_rejects_zero_length_segment_inside_valid_geometry() -> None:
+    points = [[0.0, 0.0], [3.0, 4.0], [3.0, 4.0], [3.0, 8.0]]
+    with pytest.raises(SystemExit, match="ROAD_SOURCE_GEOMETRY_INDEX_FAIL: road centerline contains zero-length segment index=1"):
+        module.centerline_length_m(points)
+
+
 def test_serialization_is_byte_deterministic(tmp_path: Path) -> None:
     payload = module.build_index(ROOT / "data" / "osm")
     expected = module.serialize_index(payload)

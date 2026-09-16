@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import math
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +47,14 @@ def test_locked_geometry_index_is_deterministic_and_source_only() -> None:
         assert len(entry["bbox"]) == 4
         min_x, min_z, max_x, max_z = entry["bbox"]
         assert min_x <= max_x and min_z <= max_z
+        assert type(entry["centerline_length_m"]) is float
+        assert math.isfinite(entry["centerline_length_m"])
+        assert entry["centerline_length_m"] > 0.0
+
+
+def test_centerline_length_is_exact_geometry_derived() -> None:
+    points = [[0.0, 0.0], [3.0, 4.0], [3.0, 8.0]]
+    assert module.centerline_length_m(points) == 9.0
 
 
 def test_serialization_is_byte_deterministic(tmp_path: Path) -> None:

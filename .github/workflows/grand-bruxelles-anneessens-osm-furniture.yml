@@ -43,7 +43,7 @@ jobs:
           git fetch --no-tags origin "$EXPECTED_BASE"
           test "$(git merge-base HEAD FETCH_HEAD)" = "$EXPECTED_BASE"
       - name: Prove canonical Player publication boundary contract
-        run: python3 -m pytest -q grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py
+        run: python3 grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py
       - name: Install display dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1

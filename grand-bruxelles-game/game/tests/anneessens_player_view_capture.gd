@@ -69,6 +69,16 @@ func _run() -> void:
         return
     _hide_dynamic(scene)
 
+    # Exercise the production activation authority with the existing canonical
+    # Main/Player. Visibility remains disabled for deterministic evidence, but the
+    # authoritative node identity and coordinates are real and must drive runtime
+    # activation before the capture wait begins.
+    var player := scene.get_node_or_null("Player") as Node3D
+    if player == null or not player.is_inside_tree():
+        _fail("canonical Main/Player unavailable for Anneessens activation witness")
+        return
+    player.global_position = ANNEESSENS_SPAWN
+
     for _frame: int in range(WAIT_FRAMES):
         await process_frame
 

@@ -61,3 +61,20 @@ def test_contract_targets_actual_project_autoload() -> None:
     project = Path("grand-bruxelles-game/project.godot").read_text(encoding="utf-8")
     expected = 'AnneessensOsmFurnitureRuntime="*res://game/scripts/anneessens_osm_furniture_authoritative_runtime.gd"'
     assert expected in project
+
+
+def main() -> None:
+    tests = (
+        test_activation_consumer_reconciles_canonical_player_before_reading_position,
+        test_activation_consumer_fails_closed_when_canonical_player_is_missing_or_detached,
+        test_process_has_no_second_player_coordinate_or_lookup_authority,
+        test_publication_follows_canonical_decision_synchronously,
+        test_contract_targets_actual_project_autoload,
+    )
+    for test in tests:
+        test()
+    print(f"ANNEESSENS_PLAYER_AUTHORITY_CONTRACT_OK tests={len(tests)}")
+
+
+if __name__ == "__main__":
+    main()

@@ -52,6 +52,15 @@ def test_destination_advertising_guard_is_unique() -> None:
     assert body.count(guard) == 1, "destination advertising guard must exist exactly once in the loader"
 
 
+def test_destination_advertising_has_one_loader_semantic() -> None:
+    """No alternate default or dead advertising read may coexist with the canonical fail-closed guard."""
+    body = _load_runtime_index_body()
+    assert body.count('"destination_advertisable"') == 1, (
+        "loader must have exactly one destination_advertisable read; alternate defaults or dead reads "
+        "would make the promotion boundary ambiguous"
+    )
+
+
 def test_current_source_only_index_omits_advertising_authority_as_negative_control() -> None:
     """Do not repair the defect by editing current data; loader absence semantics must stay fail-closed."""
     payload = json.loads(RUNTIME_INDEX.read_text(encoding="utf-8"))

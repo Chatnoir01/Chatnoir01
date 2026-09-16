@@ -1,0 +1,31 @@
+name: Grand Bruxelles Road Runtime Index Unique Document
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_unique_document_contract.py"
+      - ".github/workflows/grand-bruxelles-road-runtime-index-unique-document.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unique-document-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact event head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+      - name: Run unique source-document descriptor regression
+        working-directory: grand-bruxelles-game
+        run: python -m pytest -q tests/test_automatic_road_runtime_index_unique_document_contract.py

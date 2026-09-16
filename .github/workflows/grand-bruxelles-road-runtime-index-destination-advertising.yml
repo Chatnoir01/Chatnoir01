@@ -62,6 +62,7 @@ jobs:
               "test_destination_advertising_guard_runs_before_runtime_index_validity_can_be_set",
               "test_current_source_only_index_omits_advertising_authority_as_negative_control",
               "test_current_source_only_authorization_flags_are_exact_booleans",
+              "test_loader_rejects_coercible_legacy_authorization_values",
           ]
           for name in tests:
               getattr(module, name)()

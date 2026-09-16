@@ -17,8 +17,10 @@ def assert_contract_rejects(index,fragment,sha):
  else: raise AssertionError(fragment)
 def synthetic_catalog(source_root:Path):
  # Synthetic runtime-index fixtures intentionally model only catalog/index semantics.
+ # Use the preserved pre-lock core callable: _core.build_catalog is deliberately rebound
+ # to the canonical lock-bound entrypoint by build_road_destination_catalog.py.
  # Production source provenance/accounting is exercised separately by real_slice().
- return module._catalog_module._core.build_catalog(source_root)
+ return module._catalog_module._core_build_catalog(source_root)
 def synthetic():
  with tempfile.TemporaryDirectory() as tmp:
   root=Path(tmp)/'data'/'osm'; expected=write_document(root/'slice.game.json',[road(20),road(10)]); catalog=synthetic_catalog(root); a=module.build_runtime_index(catalog); b=module.build_runtime_index(catalog); assert a==b; d=a['documents'][0]; assert d['sha256']==expected and d['road_ids']==[10,20]

@@ -69,8 +69,11 @@ def geometry_sha256(points: list[list[float]]) -> str:
 
 def centerline_length_m(points: list[list[float]]) -> float:
     length = 0.0
-    for start, end in zip(points, points[1:]):
-        length += math.hypot(end[0] - start[0], end[1] - start[1])
+    for index, (start, end) in enumerate(zip(points, points[1:])):
+        segment_length = math.hypot(end[0] - start[0], end[1] - start[1])
+        if segment_length == 0.0:
+            fail(f"road centerline contains zero-length segment index={index}")
+        length += segment_length
     if not math.isfinite(length) or length <= 0.0:
         fail("road centerline has no positive finite source length")
     return length

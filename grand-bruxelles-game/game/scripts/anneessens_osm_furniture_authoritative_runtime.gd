@@ -21,15 +21,16 @@ func _sync_build_and_activation() -> void:
     if _tearing_down or not is_instance_valid(_scene):
         return
 
-    # Main/Player is the sole authority at the point where player coordinates are
-    # consumed. A cached Player that was reparented elsewhere can remain valid and
-    # inside the SceneTree, so validity/liveness alone must never preserve ownership.
+    # Main/Player is the sole authority immediately before coordinates are consumed.
+    # A reparented cached Player can remain valid and inside SceneTree, so identity
+    # must be reconciled against the canonical path on every activation decision.
     var canonical_player := _scene.get_node_or_null("Player") as Node3D
     if canonical_player == null or not canonical_player.is_inside_tree():
         _player = null
         _apply_tree_activation(false)
         return
-    _player = canonical_player
+    if _player != canonical_player:
+        _player = canonical_player
 
     var activation_radius_value: Variant = _validated_activation_radius_m()
     if activation_radius_value == null:
@@ -38,6 +39,8 @@ func _sync_build_and_activation() -> void:
     var player_position := canonical_player.global_position
     var active := Vector2(player_position.x - ANNEESSENS.x, player_position.z - ANNEESSENS.z).length() <= float(activation_radius_value)
     if active and not is_instance_valid(_root):
+        # Publication is synchronous: the canonical Player cannot be replaced by a
+        # SceneTree callback between this decision and the inherited build call.
         _build_once()
     if is_instance_valid(_root):
         _apply_tree_activation(active)
@@ -56,6 +59,5 @@ func _process(_delta: float) -> void:
     if is_instance_valid(_root) and _root.get_parent() != _scene:
         _release_owned_root()
 
-    # Do not maintain a second Player authority here. The consumer reconciles the
-    # canonical path and liveness immediately before reading global_position.
+    # No second Player cache authority here; reconcile at the coordinate consumer.
     _sync_build_and_activation()

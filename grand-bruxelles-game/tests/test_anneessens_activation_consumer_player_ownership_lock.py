@@ -60,3 +60,14 @@ def test_activation_consumer_fails_closed_when_canonical_player_path_is_missing(
         "activation consumer must explicitly fail closed when Main/Player has no canonical owner"
     )
     assert lookup_index < deactivate_index < position_index
+
+
+def test_build_path_does_not_reconsume_mutable_cached_player_coordinates() -> None:
+    source = RUNTIME.read_text(encoding="utf-8")
+    build_body = _function_body(source, "func _build_once() -> void:")
+
+    assert "_player.global_position" not in build_body, (
+        "_build_once must not re-read mutable cached Player coordinates after the canonical "
+        "activation consumer has reconciled ownership; activation state must be decided by the "
+        "single canonical authority and passed into publication instead"
+    )

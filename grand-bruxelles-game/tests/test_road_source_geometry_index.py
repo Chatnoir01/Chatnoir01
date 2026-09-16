@@ -6,6 +6,8 @@ import importlib.util
 import math
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "build_road_source_geometry_index.py"
 _spec = importlib.util.spec_from_file_location("road_source_geometry_index", SCRIPT)
@@ -55,6 +57,16 @@ def test_locked_geometry_index_is_deterministic_and_source_only() -> None:
 def test_centerline_length_is_exact_geometry_derived() -> None:
     points = [[0.0, 0.0], [3.0, 4.0], [3.0, 8.0]]
     assert module.centerline_length_m(points) == 9.0
+
+
+def test_centerline_length_rejects_degenerate_and_overflow_geometry() -> None:
+    invalid = (
+        [[1.0, 2.0], [1.0, 2.0]],
+        [[0.0, 0.0], [1e308, 1e308], [-1e308, -1e308]],
+    )
+    for points in invalid:
+        with pytest.raises(SystemExit, match="ROAD_SOURCE_GEOMETRY_INDEX_FAIL: road centerline has no positive finite source length"):
+            module.centerline_length_m(points)
 
 
 def test_serialization_is_byte_deterministic(tmp_path: Path) -> None:

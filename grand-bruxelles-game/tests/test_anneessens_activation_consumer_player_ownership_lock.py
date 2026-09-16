@@ -85,10 +85,25 @@ def test_activation_consumer_requires_canonical_player_live_before_position_read
 
 def test_build_path_does_not_reconsume_mutable_cached_player_coordinates() -> None:
     source = RUNTIME.read_text(encoding="utf-8")
-    build_body = _function_body(source, "func _build_once() -> void:")
+    build_body = _function_body(source, "func _build_once(active: bool) -> void:")
 
     assert "_player.global_position" not in build_body, (
         "_build_once must not re-read mutable cached Player coordinates after the canonical "
-        "activation consumer has reconciled ownership; activation state must be decided by the "
-        "single canonical authority and passed into publication instead"
+        "activation consumer has reconciled ownership"
+    )
+
+
+def test_activation_decision_is_passed_into_atomic_publication() -> None:
+    source = RUNTIME.read_text(encoding="utf-8")
+    sync_body = _function_body(source, "func _sync_build_and_activation() -> void:")
+    build_body = _function_body(source, "func _build_once(active: bool) -> void:")
+
+    assert "_build_once(active)" in sync_body, (
+        "canonical activation must be passed directly into atomic root publication"
+    )
+    assert "candidate_root.visible = active" in build_body, (
+        "atomic publication must consume the already-authorized activation decision"
+    )
+    assert "global_position" not in build_body, (
+        "publication must not introduce a second coordinate authority"
     )

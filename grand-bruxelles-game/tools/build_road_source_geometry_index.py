@@ -67,6 +67,18 @@ def geometry_sha256(points: list[list[float]]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def centerline_length_m(points: list[list[float]]) -> float:
+    length = 0.0
+    for index, (start, end) in enumerate(zip(points, points[1:])):
+        segment_length = math.hypot(end[0] - start[0], end[1] - start[1])
+        if segment_length == 0.0:
+            fail(f"road centerline contains zero-length segment index={index}")
+        length += segment_length
+    if not math.isfinite(length) or length <= 0.0:
+        fail("road centerline has no positive finite source length")
+    return length
+
+
 def serialize_index(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
@@ -113,14 +125,30 @@ def build_index(source_root: Path) -> dict[str, Any]:
             digest = geometry_sha256(points)
             if digest != expected.get("geometry_sha256") or len(points) != expected.get("point_count"):
                 fail(f"catalog geometry binding drift osm_id={osm_id}")
+            source_identity = {
+                "name": road.get("name"),
+                "class": road.get("class"),
+                "width": finite_number(road.get("width"), f"{relative} road {osm_id} width"),
+                "drivable": road.get("drivable"),
+            }
+            expected_identity = {
+                "name": expected.get("name"),
+                "class": expected.get("class"),
+                "width": expected.get("width"),
+                "drivable": expected.get("drivable"),
+            }
+            if source_identity != expected_identity or source_identity["drivable"] is not True:
+                fail(f"catalog road identity binding drift osm_id={osm_id}")
             xs = [point[0] for point in points]
             zs = [point[1] for point in points]
             observed[osm_id] = {
                 "osm_id": osm_id,
+                **source_identity,
                 "source_path": relative,
                 "source_sha256": actual_digest,
                 "geometry_sha256": digest,
                 "point_count": len(points),
+                "centerline_length_m": centerline_length_m(points),
                 "bbox": [min(xs), min(zs), max(xs), max(zs)],
             }
 

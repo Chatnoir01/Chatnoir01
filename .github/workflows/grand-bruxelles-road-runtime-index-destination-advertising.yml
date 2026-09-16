@@ -64,6 +64,7 @@ jobs:
               "test_current_source_only_authorization_flags_are_exact_booleans",
               "test_loader_rejects_coercible_legacy_authorization_values",
               "test_loader_requires_exact_boolean_source_lookup_authority",
+              "test_loader_requires_exact_boolean_top_level_source_lookup_authority",
           ]
           for name in tests:
               getattr(module, name)()

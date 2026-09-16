@@ -63,7 +63,7 @@ def canonical_points(raw: Any, label: str) -> list[list[float]]:
 
 
 def geometry_sha256(points: list[list[float]]) -> str:
-    encoded = json.dumps(points, ensure_ascii=False, sort_keys=True, separators=(",", ","))
+    encoded = json.dumps(points, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

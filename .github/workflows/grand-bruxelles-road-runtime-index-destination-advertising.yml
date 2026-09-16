@@ -1,0 +1,62 @@
+name: Grand Bruxelles Road Runtime Index Destination Advertising
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_destination_advertising_contract.py"
+      - ".github/workflows/grand-bruxelles-road-runtime-index-destination-advertising.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  destination-advertising-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact event head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head and PR base ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_head="${{ github.event.pull_request.head.sha }}"
+          expected_base="${{ github.event.pull_request.base.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected_head"
+          git cat-file -e "${expected_base}^{commit}"
+          test "$(git merge-base "$expected_head" "$expected_base")" = "$expected_base"
+      - name: Verify checked-out dispatch head
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - name: Run destination-advertising fail-closed regression
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          path = Path("tests/test_automatic_road_runtime_index_destination_advertising_contract.py")
+          spec = importlib.util.spec_from_file_location("road_destination_advertising_contract", path)
+          if spec is None or spec.loader is None:
+              raise RuntimeError(f"cannot load regression module: {path}")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          tests = [
+              "test_source_lookup_index_rejects_destination_advertising_authority",
+              "test_destination_advertising_guard_precedes_document_registration",
+              "test_destination_advertising_guard_is_separate_from_legacy_authorization_loop",
+          ]
+          for name in tests:
+              getattr(module, name)()
+              print(f"PASS {path}:{name}")
+          PY

@@ -69,6 +69,12 @@ func _run() -> void:
         return
     _hide_dynamic(scene)
 
+    var player := scene.get_node_or_null("Player") as Node3D
+    if player == null or not player.is_inside_tree():
+        _fail("canonical Main/Player unavailable for activation witness")
+        return
+    player.global_position = ANNEESSENS_SPAWN
+
     for _frame: int in range(WAIT_FRAMES):
         await process_frame
 

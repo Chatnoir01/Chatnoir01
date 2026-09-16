@@ -44,6 +44,10 @@ def main() -> int:
     assert "_apply_tree_activation(false)" in sync[resolve_at:position_at], (
         "activation consumer must fail closed when canonical Main/Player is absent"
     )
+    assert "is_inside_tree()" in sync[resolve_at:position_at], (
+        "activation consumer must prove the freshly resolved canonical Player is inside the SceneTree "
+        "before consuming coordinates; path identity alone is insufficient during deferred teardown"
+    )
 
     print("ANNEESSENS_PROCESS_DELEGATES_PLAYER_RECONCILIATION_LOCK_OK")
     return 0

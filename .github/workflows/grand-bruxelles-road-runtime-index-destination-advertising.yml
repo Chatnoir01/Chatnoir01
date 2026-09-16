@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_destination_advertising_contract.py"
       - ".github/workflows/grand-bruxelles-road-runtime-index-destination-advertising.yml"
   workflow_dispatch:
@@ -56,6 +57,7 @@ jobs:
               "test_destination_advertising_guard_precedes_document_registration",
               "test_destination_advertising_guard_is_separate_from_legacy_authorization_loop",
               "test_destination_advertising_guard_is_unique",
+              "test_current_source_only_index_omits_advertising_authority_as_negative_control",
           ]
           for name in tests:
               getattr(module, name)()

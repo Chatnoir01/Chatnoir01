@@ -88,3 +88,21 @@ def test_current_source_only_index_omits_advertising_authority_as_negative_contr
         "current source-only data must remain an absence negative-control; "
         "the runtime loader, not a data rewrite, owns fail-closed default semantics"
     )
+
+
+def test_current_source_only_authorization_flags_are_exact_booleans() -> None:
+    """The negative-control manifest must not hide coercible authorization values."""
+    payload = json.loads(RUNTIME_INDEX.read_text(encoding="utf-8"))
+    authorization = payload.get("authorization")
+    assert isinstance(authorization, dict)
+    assert authorization.get("source_lookup_only") is True
+    for key in (
+        "render_authorized",
+        "collision_authorized",
+        "runtime_mount_authorized",
+        "safe_spawn_authorized",
+        "jouable_authorized",
+    ):
+        assert key in authorization, f"missing explicit source-only authorization flag: {key}"
+        assert type(authorization[key]) is bool, f"{key} must be an exact JSON boolean"
+        assert authorization[key] is False, f"{key} must remain false in source-lookup-only data"

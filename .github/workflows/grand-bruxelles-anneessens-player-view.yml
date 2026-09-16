@@ -84,8 +84,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          ANNEESSENS_CAPTURE_PATH="res://artifacts/visual/anneessens_head.png" timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/anneessens_player_view_capture.gd 2>&1 | tee /tmp/anneessens-head.log
+          ANNEESSENS_REQUIRE_FURNITURE_WITNESS=1 ANNEESSENS_CAPTURE_PATH="res://artifacts/visual/anneessens_head.png" timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/anneessens_player_view_capture.gd 2>&1 | tee /tmp/anneessens-head.log
           grep -q "ANNEESSENS_PLAYER_VIEW_CAPTURE_OK" /tmp/anneessens-head.log
+          grep -Eq "ANNEESSENS_FURNITURE_WITNESS: count=[1-9][0-9]* required=true" /tmp/anneessens-head.log
       - name: Seal camera/source invariants and measure A/B
         shell: bash
         run: |

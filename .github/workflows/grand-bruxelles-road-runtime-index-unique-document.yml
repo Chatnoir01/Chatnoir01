@@ -20,11 +20,25 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Verify checked-out head
+          fetch-depth: 0
+      - name: Verify exact head and PR base ancestry
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          expected_head="${{ github.event.pull_request.head.sha }}"
+          expected_base="${{ github.event.pull_request.base.sha }}"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$expected_head"
+          git cat-file -e "${expected_base}^{commit}"
+          actual_merge_base="$(git merge-base "$expected_head" "$expected_base")"
+          test "$actual_merge_base" = "$expected_base"
+      - name: Verify checked-out dispatch head
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.sha }}"
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$expected"
       - name: Run unique source-document descriptor regression

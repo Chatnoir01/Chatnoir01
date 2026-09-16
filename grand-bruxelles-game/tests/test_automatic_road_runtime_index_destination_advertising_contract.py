@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "game" / "scripts" / "automatic_road_direct_spawn.gd"
+RUNTIME_INDEX = ROOT / "data" / "runtime" / "road_destination_runtime_index.json"
 
 
 def _load_runtime_index_body() -> str:
@@ -48,3 +50,15 @@ def test_destination_advertising_guard_is_unique() -> None:
     body = _load_runtime_index_body()
     guard = 'if bool(auth.get("destination_advertisable", true)):\n        return false'
     assert body.count(guard) == 1, "destination advertising guard must exist exactly once in the loader"
+
+
+def test_current_source_only_index_omits_advertising_authority_as_negative_control() -> None:
+    """Do not repair the defect by editing current data; loader absence semantics must stay fail-closed."""
+    payload = json.loads(RUNTIME_INDEX.read_text(encoding="utf-8"))
+    authorization = payload.get("authorization")
+    assert isinstance(authorization, dict)
+    assert authorization.get("source_lookup_only") is True
+    assert "destination_advertisable" not in authorization, (
+        "current source-only data must remain an absence negative-control; "
+        "the runtime loader, not a data rewrite, owns fail-closed default semantics"
+    )

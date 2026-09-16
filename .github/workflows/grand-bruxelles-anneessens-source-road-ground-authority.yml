@@ -35,4 +35,19 @@ jobs:
           echo "merge_base=$merge_base"
           test "$merge_base" = "$live_main"
       - name: Require source-backed road ground authority
-        run: python3 -m pytest -q grand-bruxelles-game/game/tests/test_anneessens_source_road_ground_authority.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          path = Path("grand-bruxelles-game/game/tests/test_anneessens_source_road_ground_authority.py")
+          spec = importlib.util.spec_from_file_location("source_road_ground_authority", path)
+          if spec is None or spec.loader is None:
+              raise RuntimeError(f"cannot load {path}")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.test_automatic_road_ground_requires_source_road_authority()
+          print(f"PASS {path}:test_automatic_road_ground_requires_source_road_authority")
+          PY

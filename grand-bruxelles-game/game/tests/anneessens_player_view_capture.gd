@@ -69,6 +69,15 @@ func _run() -> void:
         return
     _hide_dynamic(scene)
 
+    # Activation evidence must exercise the same canonical Main/Player consumed by
+    # production. This changes no camera, source geometry, threshold or placement;
+    # the hidden Player is only positioned at the already frozen Anneessens witness.
+    var player := scene.get_node_or_null("Player") as Node3D
+    if player == null or not player.is_inside_tree():
+        _fail("canonical Main/Player unavailable for Anneessens activation witness")
+        return
+    player.global_position = ANNEESSENS_SPAWN
+
     for _frame: int in range(WAIT_FRAMES):
         await process_frame
 

@@ -78,6 +78,18 @@ def test_destination_advertising_has_one_loader_semantic() -> None:
     )
 
 
+def test_destination_advertising_guard_runs_before_runtime_index_validity_can_be_set() -> None:
+    """Promotion authorization must be resolved before the loader can ever mark the index valid."""
+    body = _load_runtime_index_body()
+    guard = _strict_guard()
+    valid_assignment = "_runtime_index_valid = not _road_source_path_by_id.is_empty()"
+    assert guard in body
+    assert valid_assignment in body
+    assert body.index(guard) < body.index(valid_assignment), (
+        "destination advertising guard must execute before runtime index validity can become true"
+    )
+
+
 def test_current_source_only_index_omits_advertising_authority_as_negative_control() -> None:
     """Do not repair the defect by editing current data; loader absence semantics must stay fail-closed."""
     payload = json.loads(RUNTIME_INDEX.read_text(encoding="utf-8"))

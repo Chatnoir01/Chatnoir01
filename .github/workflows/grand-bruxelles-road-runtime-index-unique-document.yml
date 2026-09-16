@@ -1,0 +1,72 @@
+name: Grand Bruxelles Road Runtime Index Unique Document
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_unique_document_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_duplicate_guard_order.py"
+      - ".github/workflows/grand-bruxelles-road-runtime-index-unique-document.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unique-document-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact event head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head and PR base ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_head="${{ github.event.pull_request.head.sha }}"
+          expected_base="${{ github.event.pull_request.base.sha }}"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$expected_head"
+          git cat-file -e "${expected_base}^{commit}"
+          actual_merge_base="$(git merge-base "$expected_head" "$expected_base")"
+          test "$actual_merge_base" = "$expected_base"
+      - name: Verify checked-out dispatch head
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+      - name: Run unique source-document descriptor regression
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          tests = [
+              ("tests/test_automatic_road_runtime_index_unique_document_contract.py", [
+                  "test_runtime_index_rejects_duplicate_source_document_descriptors",
+              ]),
+              ("tests/test_automatic_road_runtime_index_duplicate_guard_order.py", [
+                  "test_duplicate_source_path_guard_precedes_descriptor_registration",
+                  "test_duplicate_guard_is_not_digest_conditional",
+              ]),
+          ]
+          for index, (path_text, names) in enumerate(tests):
+              path = Path(path_text)
+              spec = importlib.util.spec_from_file_location(f"road_runtime_index_contract_{index}", path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError(f"cannot load regression module: {path}")
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              for name in names:
+                  getattr(module, name)()
+                  print(f"PASS {path}:{name}")
+          PY

@@ -190,7 +190,7 @@ func _load_runtime_index() -> bool:
         var road_ids: Variant = descriptor.get("road_ids", [])
         if source_path.is_empty() or expected_sha.is_empty() or not road_ids is Array or road_ids.is_empty():
             return false
-        if _source_sha_by_path.has(source_path) and str(_source_sha_by_path[source_path]) != expected_sha:
+        if _source_sha_by_path.has(source_path):
             return false
         _source_sha_by_path[source_path] = expected_sha
         for raw_id: Variant in road_ids:

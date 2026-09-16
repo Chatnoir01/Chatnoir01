@@ -67,6 +67,15 @@ def geometry_sha256(points: list[list[float]]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def centerline_length_m(points: list[list[float]]) -> float:
+    length = 0.0
+    for start, end in zip(points, points[1:]):
+        length += math.hypot(end[0] - start[0], end[1] - start[1])
+    if not math.isfinite(length) or length <= 0.0:
+        fail("road centerline has no positive finite source length")
+    return length
+
+
 def serialize_index(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
@@ -136,6 +145,7 @@ def build_index(source_root: Path) -> dict[str, Any]:
                 "source_sha256": actual_digest,
                 "geometry_sha256": digest,
                 "point_count": len(points),
+                "centerline_length_m": centerline_length_m(points),
                 "bbox": [min(xs), min(zs), max(xs), max(zs)],
             }
 

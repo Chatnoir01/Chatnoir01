@@ -12,7 +12,7 @@ import importlib.util
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 FORMAT = "grand-bruxelles-road-source-geometry-index-v1"
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -35,7 +35,7 @@ AUTHORIZATION = {
 }
 
 
-def fail(message: str) -> "NoReturn":
+def fail(message: str) -> NoReturn:
     raise SystemExit(f"ROAD_SOURCE_GEOMETRY_INDEX_FAIL: {message}")
 
 
@@ -63,8 +63,12 @@ def canonical_points(raw: Any, label: str) -> list[list[float]]:
 
 
 def geometry_sha256(points: list[list[float]]) -> str:
-    encoded = json.dumps(points, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    encoded = json.dumps(points, ensure_ascii=False, sort_keys=True, separators=(",", ","))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def serialize_index(payload: dict[str, Any]) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
 def build_index(source_root: Path) -> dict[str, Any]:
@@ -79,10 +83,14 @@ def build_index(source_root: Path) -> dict[str, Any]:
     observed: dict[int, dict[str, Any]] = {}
     for document_path in locked_documents:
         relative = document_path.relative_to(repo_root).as_posix()
-        raw_text = document_path.read_text(encoding="utf-8")
-        actual_digest = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+        raw_bytes = document_path.read_bytes()
+        actual_digest = hashlib.sha256(raw_bytes).hexdigest()
         if source_digests.get(relative) != actual_digest:
             fail(f"source digest drift {relative}")
+        try:
+            raw_text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            fail(f"invalid UTF-8 {relative}: {exc}")
         try:
             document = json.loads(raw_text)
         except json.JSONDecodeError as exc:
@@ -122,14 +130,13 @@ def build_index(source_root: Path) -> dict[str, Any]:
         extra = sorted(set(observed) - expected_ids)
         fail(f"catalog/source identity mismatch missing={missing} extra={extra}")
 
-    payload = {
+    return {
         "format": FORMAT,
         "catalog_sha256": catalog["catalog_sha256"],
         "entry_count": len(observed),
         "entries": {str(osm_id): observed[osm_id] for osm_id in sorted(observed)},
         "authorization": dict(AUTHORIZATION),
     }
-    return payload
 
 
 def main() -> int:
@@ -139,7 +146,7 @@ def main() -> int:
     args = parser.parse_args()
     payload = build_index(args.source_root)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+    args.output.write_bytes(serialize_index(payload))
     print(f"ROAD_SOURCE_GEOMETRY_INDEX_OK: entries={payload['entry_count']} catalog_sha256={payload['catalog_sha256']}")
     return 0
 

@@ -1,0 +1,33 @@
+{
+  "schema": "grand-bruxelles-road-destination-factory-catalog-v1",
+  "derivation": {
+    "source_registry": "data/source_plans/brussels_missing_road_source_registry.json",
+    "acquisition_evidence_lock": "data/source_plans/brussels_missing_road_source_acquisition_evidence.lock.json",
+    "rule": "municipality readiness only; road identities/cells require materialized locked source artifacts"
+  },
+  "accounting": {
+    "expected_municipalities": 16,
+    "acquired_artifact_locked": 7,
+    "remote_acquisition_unresolved": 9,
+    "road_identity_materialized": 0,
+    "cell_assignment_materialized": 0
+  },
+  "municipalities": [
+    {"niscode":"21002","id":"auderghem","osm_relation_id":58263,"source_status":"ACQUIRED_ARTIFACT_LOCKED","artifact_name":"road-source-21002-auderghem","source_file":null,"road_identity_status":"NOT_MATERIALIZED_FROM_SOURCE_ARTIFACT","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21003","id":"berchem_sainte_agathe","osm_relation_id":60140,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21005","id":"etterbeek","osm_relation_id":58252,"source_status":"ACQUIRED_ARTIFACT_LOCKED","artifact_name":"road-source-21005-etterbeek","source_file":null,"road_identity_status":"NOT_MATERIALIZED_FROM_SOURCE_ARTIFACT","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21006","id":"evere","osm_relation_id":60144,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21007","id":"forest","osm_relation_id":58249,"source_status":"ACQUIRED_ARTIFACT_LOCKED","artifact_name":"road-source-21007-forest","source_file":null,"road_identity_status":"NOT_MATERIALIZED_FROM_SOURCE_ARTIFACT","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21008","id":"ganshoren","osm_relation_id":58257,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21009","id":"ixelles","osm_relation_id":58250,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21010","id":"jette","osm_relation_id":58258,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21011","id":"koekelberg","osm_relation_id":58256,"source_status":"ACQUIRED_ARTIFACT_LOCKED","artifact_name":"road-source-21011-koekelberg","source_file":null,"road_identity_status":"NOT_MATERIALIZED_FROM_SOURCE_ARTIFACT","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21012","id":"molenbeek_saint_jean","osm_relation_id":58255,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21014","id":"saint_josse_ten_noode","osm_relation_id":58262,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21015","id":"schaerbeek","osm_relation_id":58260,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21016","id":"uccle","osm_relation_id":58253,"source_status":"ACQUIRED_ARTIFACT_LOCKED","artifact_name":"road-source-21016-uccle","source_file":null,"road_identity_status":"NOT_MATERIALIZED_FROM_SOURCE_ARTIFACT","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21017","id":"watermael_boitsfort","osm_relation_id":58264,"source_status":"ACQUIRED_ARTIFACT_LOCKED","artifact_name":"road-source-21017-watermael_boitsfort","source_file":null,"road_identity_status":"NOT_MATERIALIZED_FROM_SOURCE_ARTIFACT","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21018","id":"woluwe_saint_lambert","osm_relation_id":60167,"source_status":"REMOTE_ACQUISITION_UNRESOLVED","artifact_name":null,"source_file":null,"road_identity_status":"SOURCE_UNRESOLVED","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false},
+    {"niscode":"21019","id":"woluwe_saint_pierre","osm_relation_id":60168,"source_status":"ACQUIRED_ARTIFACT_LOCKED","artifact_name":"road-source-21019-woluwe_saint_pierre","source_file":null,"road_identity_status":"NOT_MATERIALIZED_FROM_SOURCE_ARTIFACT","cell_status":"NOT_ASSIGNED","registration_authorized":false,"render_authorized":false,"collision_authorized":false,"runtime_ready":false,"jouable":false}
+  ]
+}

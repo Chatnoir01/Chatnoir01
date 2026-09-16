@@ -1,0 +1,62 @@
+name: Grand Bruxelles Spatial Crosswalk Origin Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-spatial-crosswalk-origin-evidence.yml"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_evidence.lock.json"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_precondition.lock.json"
+      - "grand-bruxelles-game/data/source_plans/brussels_locked_road_source_measurements.lock.json"
+      - "grand-bruxelles-game/data/source_plans/brussels_spatial_crosswalk_origin_artifact_receipt.lock.json"
+      - "grand-bruxelles-game/data/qa/city_machine/midi_onboarding_candidate.json"
+      - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_evidence.py"
+      - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_measurement_semantic_identity.py"
+      - "grand-bruxelles-game/tools/city_machine/validate_spatial_crosswalk_origin_artifact_receipt.py"
+      - "grand-bruxelles-game/tests/test_brussels_spatial_crosswalk_origin_evidence.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_measurement_semantic_identity.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_evidence_semantic_pin.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_evidence_midi_bridge_schema.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_precondition_schema.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_measurement_blob_binding.py"
+      - "grand-bruxelles-game/tests/test_spatial_crosswalk_origin_artifact_receipt_failclosed.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  origin-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact-current-main ancestry and exact checked-out head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch origin main --no-tags
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" "$MAIN_SHA")" = "$MAIN_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Validate locked origin measurement semantic identity
+        working-directory: grand-bruxelles-game
+        run: python3 tools/city_machine/validate_spatial_crosswalk_origin_measurement_semantic_identity.py
+      - name: Validate locked origin artifact receipt
+        working-directory: grand-bruxelles-game
+        run: python3 tools/city_machine/validate_spatial_crosswalk_origin_artifact_receipt.py
+      - name: Validate locked origin evidence through production CLI
+        working-directory: grand-bruxelles-game
+        run: python3 tools/city_machine/validate_spatial_crosswalk_origin_evidence.py
+      - name: Prove origin-evidence fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python3 -m pytest -q tests/test_brussels_spatial_crosswalk_origin_evidence.py tests/test_spatial_crosswalk_origin_measurement_semantic_identity.py tests/test_spatial_crosswalk_origin_evidence_semantic_pin.py tests/test_spatial_crosswalk_origin_evidence_midi_bridge_schema.py tests/test_spatial_crosswalk_origin_precondition_schema.py tests/test_spatial_crosswalk_origin_measurement_blob_binding.py tests/test_spatial_crosswalk_origin_artifact_receipt_failclosed.py

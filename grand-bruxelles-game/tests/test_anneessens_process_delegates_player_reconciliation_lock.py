@@ -16,6 +16,7 @@ def main() -> int:
     source = RUNTIME.read_text(encoding="utf-8")
     process = body(source, "_process")
     sync = body(source, "_sync_build_and_activation")
+    build = body(source, "_build_once")
 
     # There must be one authority reconciliation point: the activation consumer.
     # _process() may handle scene/root lifecycle, but must not independently decide
@@ -47,6 +48,19 @@ def main() -> int:
     assert "is_inside_tree()" in sync[resolve_at:position_at], (
         "activation consumer must prove the freshly resolved canonical Player is inside the SceneTree "
         "before consuming coordinates; path identity alone is insufficient during deferred teardown"
+    )
+
+    # Publication must consume the activation decision already proven by sync. Re-reading
+    # a mutable Player cache inside _build_once() creates a second authority boundary and
+    # permits replacement/removal between validation and root publication.
+    assert "_player.global_position" not in build, (
+        "_build_once must not re-read cached Player coordinates after canonical activation proof"
+    )
+    assert "func _build_once(active: bool)" in build, (
+        "_build_once must receive the already-proven activation decision from the canonical consumer"
+    )
+    assert "_build_once(active)" in sync, (
+        "activation consumer must pass its single proven decision into root publication"
     )
 
     print("ANNEESSENS_PROCESS_DELEGATES_PLAYER_RECONCILIATION_LOCK_OK")

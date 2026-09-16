@@ -62,6 +62,27 @@ def test_activation_consumer_fails_closed_when_canonical_player_path_is_missing(
     assert lookup_index < deactivate_index < position_index
 
 
+def test_activation_consumer_requires_canonical_player_live_before_position_read() -> None:
+    source = RUNTIME.read_text(encoding="utf-8")
+    sync_body = _function_body(source, "func _sync_build_and_activation() -> void:")
+
+    canonical_lookup = '_scene.get_node_or_null("Player") as Node3D'
+    lookup_index = sync_body.index(canonical_lookup)
+    position_index = sync_body.index("global_position")
+
+    liveness_forms = (
+        "not canonical_player.is_inside_tree()",
+        "not scene_player.is_inside_tree()",
+        "not current_player.is_inside_tree()",
+    )
+    live_guard = next((form for form in liveness_forms if form in sync_body), None)
+    assert live_guard is not None, (
+        "activation consumer must prove the current Main/Player path owner is live in SceneTree "
+        "before any coordinate read"
+    )
+    assert lookup_index < sync_body.index(live_guard) < position_index
+
+
 def test_build_path_does_not_reconsume_mutable_cached_player_coordinates() -> None:
     source = RUNTIME.read_text(encoding="utf-8")
     build_body = _function_body(source, "func _build_once() -> void:")

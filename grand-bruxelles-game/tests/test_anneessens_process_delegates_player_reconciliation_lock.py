@@ -19,7 +19,7 @@ def main() -> int:
 
     # There must be one authority reconciliation point: the activation consumer.
     # _process() may handle scene/root lifecycle, but must not independently decide
-    # whether a cached Player remains authoritative.
+    # whether a cached Player remains authoritative or consume its coordinates.
     assert '_scene.get_node_or_null("Player")' not in process, (
         "_process still performs independent Player reconciliation; delegate to "
         "_sync_build_and_activation so stale cached Player identity cannot diverge"
@@ -27,6 +27,9 @@ def main() -> int:
     assert "_player.is_inside_tree()" not in process, (
         "_process still treats SceneTree membership as Player authority; a reparented "
         "Player remains inside the tree but is no longer canonical Main/Player"
+    )
+    assert "_player.global_position" not in process, (
+        "_process must not consume cached Player coordinates before canonical reconciliation"
     )
     assert "_sync_build_and_activation()" in process, "_process must delegate activation"
 

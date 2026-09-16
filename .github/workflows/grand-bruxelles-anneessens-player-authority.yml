@@ -7,7 +7,9 @@ on:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
       - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_authoritative_runtime.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_player_view_capture.gd"
       - "grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py"
+      - "grand-bruxelles-game/tests/test_anneessens_player_view_exercises_activation.py"
   workflow_dispatch:
 
 permissions:
@@ -38,3 +40,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py
+
+      - name: Prove player-view witness exercises canonical activation
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tests/test_anneessens_player_view_exercises_activation.py

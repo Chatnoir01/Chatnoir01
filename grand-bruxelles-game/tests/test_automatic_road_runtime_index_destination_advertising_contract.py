@@ -134,12 +134,24 @@ def test_loader_rejects_coercible_legacy_authorization_values() -> None:
 
 
 def test_loader_requires_exact_boolean_source_lookup_authority() -> None:
-    """The positive source-lookup rail must not accept truthy strings/numbers as authorization."""
+    """The authorization dictionary positive rail must not accept truthy strings/numbers."""
     body = _load_runtime_index_body()
     assert 'var source_lookup_only: Variant = auth.get("source_lookup_only", false)' in body, (
-        "source_lookup_only still relies on truthiness coercion; strings or numeric values can become source authority"
+        "authorization.source_lookup_only still relies on truthiness coercion"
     )
     assert 'typeof(source_lookup_only) != TYPE_BOOL or not bool(source_lookup_only)' in body, (
-        "source_lookup_only must be an explicit JSON boolean true before any document registration"
+        "authorization.source_lookup_only must be an explicit JSON boolean true before document registration"
     )
     assert body.index('var source_lookup_only: Variant = auth.get("source_lookup_only", false)') < body.index("var documents: Variant")
+
+
+def test_loader_requires_exact_boolean_top_level_source_lookup_authority() -> None:
+    """The top-level source-only declaration must also reject truthy non-booleans."""
+    body = _load_runtime_index_body()
+    declaration = 'var index_source_lookup_only: Variant = index.get("source_lookup_only", false)'
+    guard = 'typeof(index_source_lookup_only) != TYPE_BOOL or not bool(index_source_lookup_only)'
+    assert declaration in body, (
+        "top-level source_lookup_only still relies on truthiness coercion; strings or numeric values can cross the loader boundary"
+    )
+    assert guard in body, "top-level source_lookup_only must be an explicit JSON boolean true"
+    assert body.index(declaration) < body.index('var authorization: Variant = index.get("authorization", {})')

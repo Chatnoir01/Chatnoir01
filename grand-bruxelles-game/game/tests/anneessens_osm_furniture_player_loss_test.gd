@@ -103,9 +103,12 @@ func _run() -> void:
         _fail("Player-anchor loss changed fail-closed collision policy")
         return
 
+    # A replacement path owner must become the sole activation authority. Start it
+    # deliberately outside the frozen 170m radius while the quarantined stale Player
+    # remains at Anneessens: stale coordinates must not reactivate the furniture.
     var replacement_player := Node3D.new()
     replacement_player.name = "Player"
-    replacement_player.position = ANNEESSENS
+    replacement_player.position = ANNEESSENS + Vector3(400.0, 0.0, 0.0)
     main.add_child(replacement_player)
     for _frame: int in range(12):
         await process_frame
@@ -113,8 +116,19 @@ func _run() -> void:
     if main.get_node_or_null("Player") != replacement_player:
         _fail("replacement Player did not become canonical Main/Player anchor")
         return
+    if furniture_root.visible:
+        _fail("stale quarantined Player reactivated furniture while canonical replacement was outside radius")
+        return
+    if not _collision_policy_is_fail_closed(furniture_root):
+        _fail("far replacement Player changed fail-closed collision policy")
+        return
+
+    replacement_player.global_position = ANNEESSENS
+    for _frame: int in range(12):
+        await process_frame
+
     if not furniture_root.visible:
-        _fail("furniture did not reactivate visually after a legitimate Player anchor returned")
+        _fail("furniture did not reactivate visually after canonical replacement Player entered radius")
         return
     if not _collision_policy_is_fail_closed(furniture_root):
         _fail("Player-anchor reactivation resurrected unsourced tree collision")
@@ -127,5 +141,5 @@ func _run() -> void:
         _fail("license provenance changed")
         return
 
-    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true canonical_path_ownership=true quarantined_old_player=true visual_reactivated=true source=OSM license=ODbL-1.0")
+    print("ANNEESSENS_OSM_FURNITURE_PLAYER_LOSS_OK: trees=7 collisions=0 fail_closed=true canonical_path_ownership=true quarantined_old_player=true far_replacement_stays_hidden=true visual_reactivated=true source=OSM license=ODbL-1.0")
     quit(0)

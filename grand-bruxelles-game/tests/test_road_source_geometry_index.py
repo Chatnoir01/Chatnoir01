@@ -17,6 +17,7 @@ def test_locked_geometry_index_is_deterministic_and_source_only() -> None:
     source_root = ROOT / "data" / "osm"
     first = module.build_index(source_root)
     second = module.build_index(source_root)
+    catalog = module._catalog.build_catalog(source_root)
     assert first == second
     assert first["format"] == "grand-bruxelles-road-source-geometry-index-v1"
     assert first["entry_count"] == len(first["entries"]) > 0
@@ -30,6 +31,12 @@ def test_locked_geometry_index_is_deterministic_and_source_only() -> None:
     }
     for key, entry in first["entries"].items():
         assert key == str(entry["osm_id"])
+        expected = catalog["entries"][key]
+        assert entry["name"] == expected["name"]
+        assert entry["class"] == expected["class"]
+        assert entry["width"] == expected["width"]
+        assert entry["drivable"] is True
+        assert entry["source_path"] in expected["source_paths"]
         assert entry["source_path"].startswith("data/osm/")
         assert entry["source_path"].endswith(".game.json")
         source_path = ROOT / entry["source_path"]

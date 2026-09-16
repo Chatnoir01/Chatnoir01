@@ -54,6 +54,7 @@ jobs:
           spec.loader.exec_module(module)
           tests = [
               "test_source_lookup_index_rejects_destination_advertising_authority",
+              "test_destination_advertising_requires_exact_boolean_false",
               "test_destination_advertising_guard_precedes_document_registration",
               "test_destination_advertising_guard_is_separate_from_legacy_authorization_loop",
               "test_destination_advertising_guard_is_unique",

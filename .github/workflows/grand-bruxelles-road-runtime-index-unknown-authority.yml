@@ -30,7 +30,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$expected_head"
           git cat-file -e "${expected_base}^{commit}"
           test "$(git merge-base "$expected_head" "$expected_base")" = "$expected_base"
-      - name: Run unknown-authority fail-closed regression
+      - name: Run unknown-authority fail-closed regressions
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
@@ -44,6 +44,12 @@ jobs:
               raise RuntimeError(f"cannot load {path}")
           module = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
-          module.test_runtime_index_rejects_unknown_authorization_keys_before_documents()
-          print(f"PASS {path}:test_runtime_index_rejects_unknown_authorization_keys_before_documents")
+          tests = (
+              "test_runtime_index_rejects_unknown_authorization_keys_before_documents",
+              "test_runtime_index_authorization_schema_is_explicit_and_complete",
+              "test_unknown_authority_rejection_precedes_all_authority_map_mutation",
+          )
+          for name in tests:
+              getattr(module, name)()
+              print(f"PASS {path}:{name}")
           PY

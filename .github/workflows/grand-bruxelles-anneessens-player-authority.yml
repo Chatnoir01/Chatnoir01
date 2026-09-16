@@ -1,0 +1,39 @@
+name: Grand Bruxelles Anneessens Player Authority
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-anneessens-player-authority.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_authoritative_runtime.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-player-authority:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact PR head and base ancestry
+        if: github.event_name == 'pull_request'
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin "$EXPECTED_BASE"
+          test "$(git merge-base HEAD FETCH_HEAD)" = "$EXPECTED_BASE"
+
+      - name: Prove canonical Player activation authority contract
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tests/test_anneessens_activation_consumer_player_ownership_lock.py

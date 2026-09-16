@@ -59,14 +59,16 @@ def test_centerline_length_is_exact_geometry_derived() -> None:
     assert module.centerline_length_m(points) == 9.0
 
 
-def test_centerline_length_rejects_degenerate_and_overflow_geometry() -> None:
-    invalid = (
-        [[1.0, 2.0], [1.0, 2.0]],
-        [[0.0, 0.0], [1e308, 1e308], [-1e308, -1e308]],
-    )
-    for points in invalid:
-        with pytest.raises(SystemExit, match="ROAD_SOURCE_GEOMETRY_INDEX_FAIL: road centerline has no positive finite source length"):
-            module.centerline_length_m(points)
+def test_centerline_length_rejects_degenerate_geometry_at_segment_gate() -> None:
+    points = [[1.0, 2.0], [1.0, 2.0]]
+    with pytest.raises(SystemExit, match="ROAD_SOURCE_GEOMETRY_INDEX_FAIL: road centerline contains zero-length segment index=0"):
+        module.centerline_length_m(points)
+
+
+def test_centerline_length_rejects_overflow_geometry() -> None:
+    points = [[0.0, 0.0], [1e308, 1e308], [-1e308, -1e308]]
+    with pytest.raises(SystemExit, match="ROAD_SOURCE_GEOMETRY_INDEX_FAIL: road centerline has no positive finite source length"):
+        module.centerline_length_m(points)
 
 
 def test_centerline_length_rejects_zero_length_segment_inside_valid_geometry() -> None:

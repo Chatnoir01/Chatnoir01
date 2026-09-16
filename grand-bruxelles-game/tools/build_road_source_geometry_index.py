@@ -113,10 +113,25 @@ def build_index(source_root: Path) -> dict[str, Any]:
             digest = geometry_sha256(points)
             if digest != expected.get("geometry_sha256") or len(points) != expected.get("point_count"):
                 fail(f"catalog geometry binding drift osm_id={osm_id}")
+            source_identity = {
+                "name": road.get("name"),
+                "class": road.get("class"),
+                "width": finite_number(road.get("width"), f"{relative} road {osm_id} width"),
+                "drivable": road.get("drivable"),
+            }
+            expected_identity = {
+                "name": expected.get("name"),
+                "class": expected.get("class"),
+                "width": expected.get("width"),
+                "drivable": expected.get("drivable"),
+            }
+            if source_identity != expected_identity or source_identity["drivable"] is not True:
+                fail(f"catalog road identity binding drift osm_id={osm_id}")
             xs = [point[0] for point in points]
             zs = [point[1] for point in points]
             observed[osm_id] = {
                 "osm_id": osm_id,
+                **source_identity,
                 "source_path": relative,
                 "source_sha256": actual_digest,
                 "geometry_sha256": digest,

@@ -28,6 +28,7 @@ jobs:
       - name: Catalog regressions
         working-directory: grand-bruxelles-game
         run: |
+          set -euo pipefail
           python3 tools/tests/test_road_destination_catalog.py
           python3 tools/tests/test_road_destination_catalog_json_contract.py
           python3 tools/tests/test_road_destination_catalog_source_path.py
@@ -56,8 +57,20 @@ jobs:
           probe='data/osm/__road_destination_unlisted_probe.game.json'
           cp data/osm/vertical_slice_01.game.json "$probe"
           trap 'rm -f "$probe" /tmp/road-builder-lock-probe.json /tmp/road-builder-lock-probe.log' EXIT
-          if python3 tools/build_road_destination_catalog.py --source-root data/osm --output /tmp/road-builder-lock-probe.json > /tmp/road-builder-lock-probe.log 2>&1; then exit 1; fi
-          grep -q 'ROAD_DESTINATION_SOURCE_LOCK_FAIL: compatible source set drift' /tmp/road-builder-lock-probe.log
+          if python3 tools/build_road_destination_catalog.py \
+            --source-root data/osm \
+            --output /tmp/road-builder-lock-probe.json \
+            > /tmp/road-builder-lock-probe.log 2>&1; then
+            cat /tmp/road-builder-lock-probe.log
+            echo 'RED: direct road destination builder accepted an unlisted compatible source document' >&2
+            exit 1
+          fi
+          cat /tmp/road-builder-lock-probe.log
+          grep -q 'ROAD_DESTINATION_SOURCE_LOCK_FAIL: compatible source set drift' /tmp/road-builder-lock-probe.log || {
+            echo 'RED: builder failed for the wrong reason; expected source-lock fail-close' >&2
+            exit 1
+          }
+          echo 'ROAD_DESTINATION_DIRECT_BUILDER_LOCK_GREEN'
 
       - name: Build deterministic catalog and runtime index twice
         working-directory: grand-bruxelles-game
@@ -79,23 +92,53 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          catalog=json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text())
-          index=json.loads(Path('artifacts/road-catalog/runtime-index-a.json').read_text())
-          assert index['catalog_sha256']==catalog['catalog_sha256']
-          assert index['source_lookup_only'] is True
+          catalog = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
+          index = json.loads(Path('artifacts/road-catalog/runtime-index-a.json').read_text(encoding='utf-8'))
+          assert catalog['format'] == 'grand-bruxelles-road-destination-catalog-v1'
+          assert catalog['road_record_count'] >= catalog['drivable_record_count']
+          assert catalog['drivable_record_count'] >= 140
+          assert catalog['eligible_record_count'] >= 139
+          assert catalog['entry_count'] >= 139
+          assert catalog['rejected_drivable_record_count'] == catalog['drivable_record_count'] - catalog['eligible_record_count']
+          assert catalog['duplicate_record_count'] == catalog['eligible_record_count'] - catalog['entry_count']
+          auth = catalog['authorization']
+          assert auth['source_lookup_only'] is True
           for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
-              assert index['authorization'][key] is False
-          print('ROAD_DESTINATION_CATALOG_GATE_GREEN')
+              assert auth[key] is False, key
+          for road_id in ('359177328','487501805','1382734012'):
+              assert road_id in catalog['entries'], road_id
+          assert index['format'] == 'grand-bruxelles-road-runtime-index-v1'
+          assert index['source_lookup_only'] is True
+          assert index['catalog_sha256'] == catalog['catalog_sha256']
+          assert len(index['documents']) == 1
+          descriptor = index['documents'][0]
+          assert descriptor['path'] == 'data/osm/vertical_slice_01.game.json'
+          assert descriptor['sha256'] == catalog['source_document_sha256'][descriptor['path']]
+          assert len(descriptor['road_ids']) == catalog['entry_count']
+          print(
+              'ROAD_DESTINATION_CATALOG_GATE_GREEN: '
+              f"entries={catalog['entry_count']} drivable_records={catalog['drivable_record_count']} "
+              f"eligible_records={catalog['eligible_record_count']} rejected_drivable={catalog['rejected_drivable_record_count']} "
+              f"duplicate_records={catalog['duplicate_record_count']} catalog_sha256={catalog['catalog_sha256']} "
+              f"runtime_source_sha256={descriptor['sha256']}"
+          )
           PY
 
       - name: Compare committed runtime index with deterministic rebuild
         working-directory: grand-bruxelles-game
-        run: cmp data/runtime/road_destination_runtime_index.json artifacts/road-catalog/runtime-index-a.json
+        run: |
+          set -euo pipefail
+          cmp data/runtime/road_destination_runtime_index.json artifacts/road-catalog/runtime-index-a.json
+          echo 'ROAD_RUNTIME_INDEX_COMMITTED_MATCH_GREEN'
 
       - name: Upload catalog evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: brussels-road-destination-catalog
-          path: grand-bruxelles-game/artifacts/road-catalog/
+          path: |
+            grand-bruxelles-game/artifacts/road-catalog/catalog-a.json
+            grand-bruxelles-game/artifacts/road-catalog/catalog-file.sha256
+            grand-bruxelles-game/artifacts/road-catalog/runtime-index-a.json
+            grand-bruxelles-game/artifacts/road-catalog/runtime-index-file.sha256
           if-no-files-found: warn

@@ -31,3 +31,13 @@ def test_destination_advertising_guard_precedes_document_registration() -> None:
     assert guard in body
     assert body.index(guard) < body.index("var documents: Variant")
     assert body.index(guard) < body.index("_source_sha_by_path[source_path] = expected_sha")
+
+
+def test_destination_advertising_guard_is_separate_from_legacy_authorization_loop() -> None:
+    """Keep advertising promotion explicit rather than silently widening the legacy authority list."""
+    body = _load_runtime_index_body()
+    legacy_loop = 'for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:'
+    guard = 'if bool(auth.get("destination_advertisable", true)):\n        return false'
+    assert legacy_loop in body
+    assert guard in body
+    assert body.index(legacy_loop) < body.index(guard) < body.index("var documents: Variant")

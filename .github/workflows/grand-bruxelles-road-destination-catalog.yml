@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run catalog and runtime-index regressions
+      - name: Catalog regressions
         working-directory: grand-bruxelles-game
         run: |
           set -euo pipefail
@@ -33,7 +33,22 @@ jobs:
           python3 tools/tests/test_road_destination_catalog_json_contract.py
           python3 tools/tests/test_road_destination_catalog_source_path.py
           python3 tools/tests/test_road_destination_catalog_source_structure.py
-          python3 tools/tests/test_road_runtime_index.py
+
+      - name: Runtime index - synthetic determinism/source binding
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_runtime_index.py --stage synthetic-determinism-source-binding
+      - name: Runtime index - duplicate source ownership
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_runtime_index.py --stage duplicate-source-ownership
+      - name: Runtime index - JSON contract fail closed
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_runtime_index.py --stage json-contract-fail-closed
+      - name: Runtime index - catalog identity binding
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_runtime_index.py --stage catalog-identity-binding
+      - name: Runtime index - real locked slice
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_runtime_index.py --stage real-locked-slice
 
       - name: Prove direct builder rejects unlisted compatible source
         working-directory: grand-bruxelles-game

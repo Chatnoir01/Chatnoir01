@@ -41,3 +41,10 @@ def test_destination_advertising_guard_is_separate_from_legacy_authorization_loo
     assert legacy_loop in body
     assert guard in body
     assert body.index(legacy_loop) < body.index(guard) < body.index("var documents: Variant")
+
+
+def test_destination_advertising_guard_is_unique() -> None:
+    """One explicit promotion boundary avoids ambiguous duplicate guards or dead copies."""
+    body = _load_runtime_index_body()
+    guard = 'if bool(auth.get("destination_advertisable", true)):\n        return false'
+    assert body.count(guard) == 1, "destination advertising guard must exist exactly once in the loader"

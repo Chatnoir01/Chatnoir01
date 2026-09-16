@@ -118,3 +118,16 @@ def test_current_source_only_authorization_flags_are_exact_booleans() -> None:
         assert key in authorization, f"missing explicit source-only authorization flag: {key}"
         assert type(authorization[key]) is bool, f"{key} must be an exact JSON boolean"
         assert authorization[key] is False, f"{key} must remain false in source-lookup-only data"
+
+
+def test_loader_rejects_coercible_legacy_authorization_values() -> None:
+    """All closed authorization rails must use exact booleans; numeric/string false-like values are invalid."""
+    body = _load_runtime_index_body()
+    legacy_loop = 'for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:'
+    assert legacy_loop in body
+    assert 'var forbidden_value: Variant = auth.get(forbidden, true)' in body, (
+        "legacy authorization rails still rely on truthiness coercion; values such as 0 or empty strings can pass as false"
+    )
+    assert 'typeof(forbidden_value) != TYPE_BOOL or bool(forbidden_value)' in body, (
+        "legacy authorization rails must reject every non-boolean JSON value before document registration"
+    )

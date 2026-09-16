@@ -57,6 +57,7 @@ jobs:
               "test_destination_advertising_guard_precedes_document_registration",
               "test_destination_advertising_guard_is_separate_from_legacy_authorization_loop",
               "test_destination_advertising_guard_is_unique",
+              "test_destination_advertising_has_one_loader_semantic",
               "test_current_source_only_index_omits_advertising_authority_as_negative_control",
           ]
           for name in tests:

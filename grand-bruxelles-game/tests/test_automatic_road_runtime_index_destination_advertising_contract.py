@@ -131,3 +131,15 @@ def test_loader_rejects_coercible_legacy_authorization_values() -> None:
     assert 'typeof(forbidden_value) != TYPE_BOOL or bool(forbidden_value)' in body, (
         "legacy authorization rails must reject every non-boolean JSON value before document registration"
     )
+
+
+def test_loader_requires_exact_boolean_source_lookup_authority() -> None:
+    """The positive source-lookup rail must not accept truthy strings/numbers as authorization."""
+    body = _load_runtime_index_body()
+    assert 'var source_lookup_only: Variant = auth.get("source_lookup_only", false)' in body, (
+        "source_lookup_only still relies on truthiness coercion; strings or numeric values can become source authority"
+    )
+    assert 'typeof(source_lookup_only) != TYPE_BOOL or not bool(source_lookup_only)' in body, (
+        "source_lookup_only must be an explicit JSON boolean true before any document registration"
+    )
+    assert body.index('var source_lookup_only: Variant = auth.get("source_lookup_only", false)') < body.index("var documents: Variant")

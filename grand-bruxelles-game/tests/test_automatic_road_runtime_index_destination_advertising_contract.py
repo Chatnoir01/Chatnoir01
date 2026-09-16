@@ -14,6 +14,14 @@ def _load_runtime_index_body() -> str:
     return text[start:end]
 
 
+def _strict_guard() -> str:
+    return (
+        'var destination_advertisable: Variant = auth.get("destination_advertisable", true)\n'
+        '    if typeof(destination_advertisable) != TYPE_BOOL or bool(destination_advertisable):\n'
+        '        return false'
+    )
+
+
 def test_source_lookup_index_rejects_destination_advertising_authority() -> None:
     """A source-lookup-only index must never be accepted as destination-advertisable."""
     body = _load_runtime_index_body()
@@ -21,15 +29,24 @@ def test_source_lookup_index_rejects_destination_advertising_authority() -> None
         "runtime index loader does not fail closed on destination_advertisable; "
         "a source-lookup-only manifest can claim advertising authority without invalidating the index"
     )
-    assert 'bool(auth.get("destination_advertisable", true))' in body, (
-        "destination advertising must be explicitly false, not merely absent or ignored"
+    assert 'auth.get("destination_advertisable", true)' in body, (
+        "destination advertising must default fail-closed when absent"
+    )
+
+
+def test_destination_advertising_requires_exact_boolean_false() -> None:
+    """JSON numbers/strings/null must not coerce into authorization semantics."""
+    body = _load_runtime_index_body()
+    assert _strict_guard() in body, (
+        "destination_advertisable must be an explicit JSON boolean false; coercible values such as 0, "
+        "empty strings, or null must fail closed"
     )
 
 
 def test_destination_advertising_guard_precedes_document_registration() -> None:
     """Authorization must fail before any source/road authority map can mutate."""
     body = _load_runtime_index_body()
-    guard = 'if bool(auth.get("destination_advertisable", true)):\n        return false'
+    guard = _strict_guard()
     assert guard in body
     assert body.index(guard) < body.index("var documents: Variant")
     assert body.index(guard) < body.index("_source_sha_by_path[source_path] = expected_sha")
@@ -39,7 +56,7 @@ def test_destination_advertising_guard_is_separate_from_legacy_authorization_loo
     """Keep advertising promotion explicit rather than silently widening the legacy authority list."""
     body = _load_runtime_index_body()
     legacy_loop = 'for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:'
-    guard = 'if bool(auth.get("destination_advertisable", true)):\n        return false'
+    guard = _strict_guard()
     assert legacy_loop in body
     assert guard in body
     assert body.index(legacy_loop) < body.index(guard) < body.index("var documents: Variant")
@@ -48,7 +65,7 @@ def test_destination_advertising_guard_is_separate_from_legacy_authorization_loo
 def test_destination_advertising_guard_is_unique() -> None:
     """One explicit promotion boundary avoids ambiguous duplicate guards or dead copies."""
     body = _load_runtime_index_body()
-    guard = 'if bool(auth.get("destination_advertisable", true)):\n        return false'
+    guard = _strict_guard()
     assert body.count(guard) == 1, "destination advertising guard must exist exactly once in the loader"
 
 

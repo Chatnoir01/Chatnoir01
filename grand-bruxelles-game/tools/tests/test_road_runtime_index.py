@@ -15,18 +15,22 @@ def assert_contract_rejects(index,fragment,sha):
  try: module.validate_contract(index,expected_catalog_sha256=sha)
  except SystemExit as exc: assert fragment in str(exc),str(exc)
  else: raise AssertionError(fragment)
+def synthetic_catalog(source_root:Path):
+ # Synthetic runtime-index fixtures intentionally model only catalog/index semantics.
+ # Production source provenance/accounting is exercised separately by real_slice().
+ return module._catalog_module._core.build_catalog(source_root)
 def synthetic():
  with tempfile.TemporaryDirectory() as tmp:
-  root=Path(tmp)/'data'/'osm'; expected=write_document(root/'slice.game.json',[road(20),road(10)]); catalog=module._catalog_module.build_catalog(root); a=module.build_runtime_index(catalog); b=module.build_runtime_index(catalog); assert a==b; d=a['documents'][0]; assert d['sha256']==expected and d['road_ids']==[10,20]
+  root=Path(tmp)/'data'/'osm'; expected=write_document(root/'slice.game.json',[road(20),road(10)]); catalog=synthetic_catalog(root); a=module.build_runtime_index(catalog); b=module.build_runtime_index(catalog); assert a==b; d=a['documents'][0]; assert d['sha256']==expected and d['road_ids']==[10,20]
 def duplicate():
  with tempfile.TemporaryDirectory() as tmp:
-  root=Path(tmp)/'data'/'osm'; write_document(root/'a.game.json',[road(42)]); write_document(root/'b.game.json',[road(42)]); catalog=module._catalog_module.build_catalog(root)
+  root=Path(tmp)/'data'/'osm'; write_document(root/'a.game.json',[road(42)]); write_document(root/'b.game.json',[road(42)]); catalog=synthetic_catalog(root)
   try: module.build_runtime_index(catalog)
   except SystemExit as exc: assert 'exactly one runtime source document' in str(exc)
   else: raise AssertionError('duplicate runtime source ownership accepted')
 def json_contract():
  with tempfile.TemporaryDirectory() as tmp:
-  root=Path(tmp)/'data'/'osm'; write_document(root/'slice.game.json',[road(42)]); catalog=module._catalog_module.build_catalog(root); index=module.build_runtime_index(catalog); sha=index['catalog_sha256']
+  root=Path(tmp)/'data'/'osm'; write_document(root/'slice.game.json',[road(42)]); catalog=synthetic_catalog(root); index=module.build_runtime_index(catalog); sha=index['catalog_sha256']
   x=copy.deepcopy(index); x['safe_spawn_ready']=True; assert_contract_rejects(x,'field set drift',sha)
   x=copy.deepcopy(index); x['authorization']['rendered']=True; assert_contract_rejects(x,'authorization field set drift',sha)
   x=copy.deepcopy(index); x['documents'][0]['municipality']='Bruxelles'; assert_contract_rejects(x,'descriptor field set drift',sha)

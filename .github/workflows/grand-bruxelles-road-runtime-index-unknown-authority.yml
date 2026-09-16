@@ -1,0 +1,49 @@
+name: Grand Bruxelles Road Runtime Index Unknown Authority
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_unknown_authority_contract.py"
+      - ".github/workflows/grand-bruxelles-road-runtime-index-unknown-authority.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unknown-authority-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact event head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head and PR base ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_head="${{ github.event.pull_request.head.sha }}"
+          expected_base="${{ github.event.pull_request.base.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected_head"
+          git cat-file -e "${expected_base}^{commit}"
+          test "$(git merge-base "$expected_head" "$expected_base")" = "$expected_base"
+      - name: Run unknown-authority fail-closed regression
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path("tests/test_automatic_road_runtime_index_unknown_authority_contract.py")
+          spec = importlib.util.spec_from_file_location("unknown_authority_contract", path)
+          if spec is None or spec.loader is None:
+              raise RuntimeError(f"cannot load {path}")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.test_runtime_index_rejects_unknown_authorization_keys_before_documents()
+          print(f"PASS {path}:test_runtime_index_rejects_unknown_authorization_keys_before_documents")
+          PY

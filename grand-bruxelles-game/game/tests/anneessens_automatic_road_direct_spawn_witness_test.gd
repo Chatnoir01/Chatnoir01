@@ -144,14 +144,20 @@ func _trace_visual_blockers(camera: Camera3D) -> void:
         var collider_path := "<non-node>"
         var collider_class := "<unknown>"
         var collider_name := "<unknown>"
+        var collider_owner := ""
+        var collider_source_path := ""
+        var collider_osm_ids := ""
         if collider != null:
             collider_class = collider.get_class()
             if collider is Node:
                 var collider_node := collider as Node
                 collider_path = str(collider_node.get_path())
                 collider_name = collider_node.name
+                collider_owner = str(collider_node.get_meta("grand_bruxelles_owner", ""))
+                collider_source_path = str(collider_node.get_meta("source_path", collider_node.get_meta("grand_bruxelles_source_path", "")))
+                collider_osm_ids = str(collider_node.get_meta("road_support_osm_ids", []))
         var position: Vector3 = hit.get("position", Vector3.ZERO)
-        print("ANNEESSENS_VISUAL_BLOCKER_TRACE: sample=(%.0f,%.0f) hit=true collider_path=%s collider_name=%s collider_class=%s hit=(%.3f,%.3f,%.3f) distance_m=%.3f" % [sample.x, sample.y, collider_path, collider_name, collider_class, position.x, position.y, position.z, origin.distance_to(position)])
+        print("ANNEESSENS_VISUAL_BLOCKER_TRACE: sample=(%.0f,%.0f) hit=true collider_path=%s collider_name=%s collider_class=%s owner=%s source_path=%s road_support_osm_ids=%s hit=(%.3f,%.3f,%.3f) distance_m=%.3f" % [sample.x, sample.y, collider_path, collider_name, collider_class, collider_owner, collider_source_path, collider_osm_ids, position.x, position.y, position.z, origin.distance_to(position)])
 
 func _capture(viewport: SubViewport) -> bool:
     RenderingServer.force_draw()

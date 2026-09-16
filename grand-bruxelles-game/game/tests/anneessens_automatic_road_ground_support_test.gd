@@ -4,12 +4,10 @@ const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
 const ANNEESSENS_OSM_ID := 1382734012
 const ROAD_SUPPORT_COLLISION_MASK := 1 << 19
-const CANONICAL_GROUND_COLLISION_MASK := 1
-const SAFE_GROUND_COLLISION_MASK := ROAD_SUPPORT_COLLISION_MASK | CANONICAL_GROUND_COLLISION_MASK
+const SAFE_GROUND_COLLISION_MASK := ROAD_SUPPORT_COLLISION_MASK
 const ROAD_SUPPORT_OWNER_META := "grand_bruxelles_owner"
 const ROAD_SUPPORT_OWNER_ID := "generic_osm_surface_collision_runtime"
 const ROAD_SUPPORT_OSM_IDS_META := "road_support_osm_ids"
-const CANONICAL_GROUND_NAME := "Ground"
 const MAX_RAY_HITS := 32
 const GROUND_EPSILON_M := 0.01
 
@@ -52,18 +50,6 @@ func _authorized_support(collider: Object) -> Dictionary:
     if collider == null or not collider is Node:
         return {}
     var node := collider as Node
-    if str(node.name) == CANONICAL_GROUND_NAME:
-        if not node is CollisionObject3D:
-            return {}
-        var body := node as CollisionObject3D
-        if (body.collision_layer & CANONICAL_GROUND_COLLISION_MASK) == 0:
-            return {}
-        return {
-            "kind": "canonical_ground",
-            "path": str(node.get_path()),
-            "name": str(node.name),
-            "layer": body.collision_layer,
-        }
     if str(node.get_meta(ROAD_SUPPORT_OWNER_META, "")) != ROAD_SUPPORT_OWNER_ID:
         return {}
     if not node is CollisionObject3D:
@@ -144,7 +130,7 @@ func _run() -> void:
     await physics_frame
     var support := _support_below(player)
     if support.is_empty():
-        _fail("no independently verified authorized support collider below resolved spawn")
+        _fail("no independently verified source-road support collider below resolved spawn")
         return
     var observed_ground_y := float(support.get("y", INF))
     if not is_finite(observed_ground_y) or absf(observed_ground_y - expected_ground_y) > GROUND_EPSILON_M:

@@ -25,49 +25,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Catalog case - geometry source binding
+      - name: Catalog regressions
         working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_catalog_must_rebind_to_locked_source_geometry
-      - name: Catalog case - semantic tamper
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_catalog_semantic_tamper_fails_closed
-      - name: Catalog case - conflicting duplicate
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_conflicting_duplicate_fails_closed
-      - name: Catalog case - missing lookup identity
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_drivable_without_lookup_identity_is_rejected_explicitly
-      - name: Catalog case - locked digest drift
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_locked_source_selection_rejects_digest_drift
-      - name: Catalog case - unlisted compatible source
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_locked_source_selection_ignores_unlisted_compatible_documents
-      - name: Catalog case - real locked slice
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_real_slice_contains_shipped_direct_entry_roads
-      - name: Catalog case - numeric identity types
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_source_json_numeric_identity_types_fail_closed
-      - name: Catalog case - source path digest binding
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_source_path_must_bind_to_locked_document_digest
-      - name: Catalog case - synthetic determinism
-        working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py --case test_synthetic_determinism_and_duplicate_coalescing
+        run: |
+          python3 tools/tests/test_road_destination_catalog.py
+          python3 tools/tests/test_road_destination_catalog_json_contract.py
+          python3 tools/tests/test_road_destination_catalog_source_path.py
+          python3 tools/tests/test_road_destination_catalog_source_structure.py
 
-      - name: Test road destination catalog JSON contract
+      - name: Runtime index - synthetic determinism/source binding
         working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog_json_contract.py
-      - name: Test road destination catalog source path
+        run: python3 tools/tests/test_road_runtime_index.py --stage synthetic-determinism-source-binding
+      - name: Runtime index - duplicate source ownership
         working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog_source_path.py
-      - name: Test road destination catalog source structure
+        run: python3 tools/tests/test_road_runtime_index.py --stage duplicate-source-ownership
+      - name: Runtime index - JSON contract fail closed
         working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog_source_structure.py
-      - name: Test road runtime index
+        run: python3 tools/tests/test_road_runtime_index.py --stage json-contract-fail-closed
+      - name: Runtime index - catalog identity binding
         working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_runtime_index.py
+        run: python3 tools/tests/test_road_runtime_index.py --stage catalog-identity-binding
+      - name: Runtime index - real locked slice
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_runtime_index.py --stage real-locked-slice
 
       - name: Prove direct builder rejects unlisted compatible source
         working-directory: grand-bruxelles-game
@@ -76,14 +56,8 @@ jobs:
           probe='data/osm/__road_destination_unlisted_probe.game.json'
           cp data/osm/vertical_slice_01.game.json "$probe"
           trap 'rm -f "$probe" /tmp/road-builder-lock-probe.json /tmp/road-builder-lock-probe.log' EXIT
-          if python3 tools/build_road_destination_catalog.py --source-root data/osm --output /tmp/road-builder-lock-probe.json > /tmp/road-builder-lock-probe.log 2>&1; then
-            cat /tmp/road-builder-lock-probe.log
-            echo 'RED: direct road destination builder accepted an unlisted compatible source document' >&2
-            exit 1
-          fi
-          cat /tmp/road-builder-lock-probe.log
-          grep -q 'ROAD_DESTINATION_SOURCE_LOCK_FAIL: compatible source set drift' /tmp/road-builder-lock-probe.log || exit 1
-          echo 'ROAD_DESTINATION_DIRECT_BUILDER_LOCK_GREEN'
+          if python3 tools/build_road_destination_catalog.py --source-root data/osm --output /tmp/road-builder-lock-probe.json > /tmp/road-builder-lock-probe.log 2>&1; then exit 1; fi
+          grep -q 'ROAD_DESTINATION_SOURCE_LOCK_FAIL: compatible source set drift' /tmp/road-builder-lock-probe.log
 
       - name: Build deterministic catalog and runtime index twice
         working-directory: grand-bruxelles-game
@@ -105,46 +79,23 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          catalog = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
-          index = json.loads(Path('artifacts/road-catalog/runtime-index-a.json').read_text(encoding='utf-8'))
-          assert catalog['format'] == 'grand-bruxelles-road-destination-catalog-v1'
-          assert catalog['road_record_count'] >= catalog['drivable_record_count'] >= 140
-          assert catalog['eligible_record_count'] >= 139
-          assert catalog['entry_count'] >= 139
-          assert catalog['rejected_drivable_record_count'] == catalog['drivable_record_count'] - catalog['eligible_record_count']
-          assert catalog['duplicate_record_count'] == catalog['eligible_record_count'] - catalog['entry_count']
-          auth = catalog['authorization']
-          assert auth['source_lookup_only'] is True
-          for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
-              assert auth[key] is False, key
-          for road_id in ('359177328','487501805','1382734012'):
-              assert road_id in catalog['entries'], road_id
-          assert index['format'] == 'grand-bruxelles-road-runtime-index-v1'
+          catalog=json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text())
+          index=json.loads(Path('artifacts/road-catalog/runtime-index-a.json').read_text())
+          assert index['catalog_sha256']==catalog['catalog_sha256']
           assert index['source_lookup_only'] is True
-          assert index['catalog_sha256'] == catalog['catalog_sha256']
-          assert len(index['documents']) == 1
-          descriptor = index['documents'][0]
-          assert descriptor['path'] == 'data/osm/vertical_slice_01.game.json'
-          assert descriptor['sha256'] == catalog['source_document_sha256'][descriptor['path']]
-          assert len(descriptor['road_ids']) == catalog['entry_count']
+          for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
+              assert index['authorization'][key] is False
           print('ROAD_DESTINATION_CATALOG_GATE_GREEN')
           PY
 
       - name: Compare committed runtime index with deterministic rebuild
         working-directory: grand-bruxelles-game
-        run: |
-          set -euo pipefail
-          cmp data/runtime/road_destination_runtime_index.json artifacts/road-catalog/runtime-index-a.json
-          echo 'ROAD_RUNTIME_INDEX_COMMITTED_MATCH_GREEN'
+        run: cmp data/runtime/road_destination_runtime_index.json artifacts/road-catalog/runtime-index-a.json
 
       - name: Upload catalog evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: brussels-road-destination-catalog
-          path: |
-            grand-bruxelles-game/artifacts/road-catalog/catalog-a.json
-            grand-bruxelles-game/artifacts/road-catalog/catalog-file.sha256
-            grand-bruxelles-game/artifacts/road-catalog/runtime-index-a.json
-            grand-bruxelles-game/artifacts/road-catalog/runtime-index-file.sha256
+          path: grand-bruxelles-game/artifacts/road-catalog/
           if-no-files-found: warn

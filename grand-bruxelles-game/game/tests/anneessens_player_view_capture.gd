@@ -43,6 +43,21 @@ func _nearest_road(scene: Node3D) -> CSGBox3D:
                 best = road
     return best
 
+func _visible_furniture_witness_count(scene: Node3D, camera: Camera3D) -> int:
+    var furniture_root := scene.get_node_or_null("AnneessensOsmFurniture") as Node3D
+    if furniture_root == null or not furniture_root.is_inside_tree() or not furniture_root.visible:
+        return 0
+    var visible_count := 0
+    for child: Node in furniture_root.get_children():
+        if not child is Node3D or not child.is_in_group("osm_environment_furniture"):
+            continue
+        var spatial := child as Node3D
+        # Use a representative crown-height point rather than the ground pivot so
+        # the proof matches what can actually contribute pixels to the player frame.
+        if camera.is_position_in_frustum(spatial.global_position + Vector3(0.0, 1.5, 0.0)):
+            visible_count += 1
+    return visible_count
+
 func _run() -> void:
     var output_path := OS.get_environment("ANNEESSENS_CAPTURE_PATH")
     if output_path.is_empty():
@@ -104,6 +119,15 @@ func _run() -> void:
 
     for _frame: int in range(12):
         await process_frame
+
+    # A numerically valid screenshot is not visual evidence for this change unless
+    # source-owned Anneessens furniture can actually contribute pixels to the fixed
+    # player frame. Fail closed instead of accepting an occluded/blank A/B.
+    var visible_furniture_witnesses := _visible_furniture_witness_count(scene, camera)
+    if visible_furniture_witnesses <= 0:
+        _fail("fixed player frame contains no in-frustum Anneessens OSM furniture witness")
+        return
+
     RenderingServer.force_draw()
     await process_frame
     var image := root.get_texture().get_image()
@@ -117,5 +141,5 @@ func _run() -> void:
         _fail("could not save capture")
         return
 
-    print("ANNEESSENS_PLAYER_VIEW_CAPTURE_OK: output=%s size=%dx%d spawn=(%.3f,%.3f,%.3f) road=%s road_pos=(%.3f,%.3f,%.3f) road_distance=%.3f fov=%.1f authority=root_current_scene camera_changed=false source_geometry_changed=false threshold_changed=false visual_acceptance=false jouable_authorized=false" % [output_path, WIDTH, HEIGHT, camera.position.x, camera.position.y, camera.position.z, road.name, road.global_position.x, road.global_position.y, road.global_position.z, road_distance, camera.fov])
+    print("ANNEESSENS_PLAYER_VIEW_CAPTURE_OK: output=%s size=%dx%d spawn=(%.3f,%.3f,%.3f) road=%s road_pos=(%.3f,%.3f,%.3f) road_distance=%.3f fov=%.1f furniture_witnesses=%d authority=root_current_scene camera_changed=false source_geometry_changed=false threshold_changed=false visual_acceptance=false jouable_authorized=false" % [output_path, WIDTH, HEIGHT, camera.position.x, camera.position.y, camera.position.z, road.name, road.global_position.x, road.global_position.y, road.global_position.z, road_distance, camera.fov, visible_furniture_witnesses])
     quit(0)

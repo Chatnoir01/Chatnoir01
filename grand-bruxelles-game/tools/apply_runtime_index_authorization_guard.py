@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the preregistered runtime-index authorization repair without reconstructing the GDScript.
-
-Fail closed unless the input blob is exactly the reviewed pre-repair blob and every
-replacement anchor occurs exactly once. This tool intentionally changes only the
-_load_runtime_index authorization block.
-"""
+"""Apply the preregistered runtime-index authorization repair byte-for-byte."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "game" / "scripts" / "automatic_road_direct_spawn.gd"
-EXPECTED_PRE_REPAIR_SHA256 = "b92efc5a26f7f4ad3c62bcedf9b3f12f9d2b948f03124db6d31eb3a8c15cb73b"
+EXPECTED_PRE_REPAIR_GIT_BLOB_SHA1 = "cf2b5e742e8967dc23f58a303412dd56df9bb9da"
 
 OLD = '''    if not bool(index.get("source_lookup_only", false)):
         return false
@@ -56,34 +51,32 @@ NEW = '''    var index_source_lookup_only: Variant = index.get("source_lookup_on
 '''
 
 
-def digest(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+def git_blob_sha1(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--write", action="store_true", help="replace the reviewed anchor in place")
-    parser.add_argument("--allow-current-sha", action="store_true", help="use the current file SHA as the precondition; for connector-reviewed exact-head use only")
+    parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
-
     raw = TARGET.read_bytes()
+    current_blob = git_blob_sha1(raw)
+    if current_blob != EXPECTED_PRE_REPAIR_GIT_BLOB_SHA1:
+        raise SystemExit(f"refusing unexpected git_blob_sha1={current_blob}")
     text = raw.decode("utf-8")
-    current_sha = digest(raw)
-    if not args.allow_current_sha and current_sha != EXPECTED_PRE_REPAIR_SHA256:
-        raise SystemExit(f"refusing unexpected input sha256={current_sha}")
     if text.count(OLD) != 1:
         raise SystemExit(f"refusing anchor_count={text.count(OLD)}")
-    repaired = text.replace(OLD, NEW, 1)
+    prefix, suffix = text.split(OLD)
+    repaired = prefix + NEW + suffix
     if repaired.count(NEW) != 1 or repaired.count(OLD) != 0:
         raise SystemExit("replacement postcondition failed")
-    before_prefix, before_suffix = text.split(OLD)
-    after_prefix, after_suffix = repaired.split(NEW)
-    if before_prefix != after_prefix or before_suffix != after_suffix:
+    if not repaired.startswith(prefix) or not repaired.endswith(suffix):
         raise SystemExit("byte-preservation postcondition failed")
-    print(f"input_sha256={current_sha}")
-    print(f"output_sha256={digest(repaired.encode('utf-8'))}")
+    print(f"input_git_blob_sha1={current_blob}")
+    print(f"output_git_blob_sha1={git_blob_sha1(repaired.encode('utf-8'))}")
     if args.write:
-        TARGET.write_text(repaired, encoding="utf-8", newline="")
+        TARGET.write_bytes(repaired.encode("utf-8"))
         print(f"wrote={TARGET}")
     else:
         print("dry_run=true")

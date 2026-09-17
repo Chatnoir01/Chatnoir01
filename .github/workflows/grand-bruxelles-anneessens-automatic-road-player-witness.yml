@@ -183,6 +183,9 @@ jobs:
             "$(cat /tmp/anneessens-live-main-sha)"
           python3 grand-bruxelles-game/game/tests/finalize_anneessens_human_review_policy.py \
             /tmp/anneessens-auto-road-player-evidence
+          cd /tmp/anneessens-auto-road-player-evidence
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 4
+          sha256sum --check --strict evidence-sha256.txt
       - name: Upload exact Anneessens player-view evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -8,6 +8,7 @@ Shared Environment must not silently absorb its stale implementation history.
 from __future__ import annotations
 
 import json
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -94,9 +95,10 @@ def prove_strict_parser_fail_closed() -> None:
 
 
 def require_unicode_scalars(value: object, path: str = "$") -> None:
-    """Reject lone UTF-16 surrogate code points anywhere in parsed provenance."""
+    """Reject surrogate and invisible/control Unicode code points anywhere in provenance."""
     if type(value) is str:
         require(not any(0xD800 <= ord(ch) <= 0xDFFF for ch in value), f"invalid Unicode scalar in {path}")
+        require(not any(unicodedata.category(ch).startswith("C") for ch in value), f"Unicode control/format code point in {path}")
     elif type(value) is dict:
         for key, child in value.items():
             require_unicode_scalars(key, f"{path}.<key>")
@@ -106,8 +108,22 @@ def require_unicode_scalars(value: object, path: str = "$") -> None:
             require_unicode_scalars(child, f"{path}[{index}]")
 
 
+def prove_unicode_provenance_fail_closed() -> None:
+    """Prove invisible formatting/control characters cannot hide provenance identity drift."""
+    for escaped in ("\\u200b", "\\u202e", "\\u2066", "\\u0000"):
+        parsed = load_strict_json(f'{{"heritage_record":"A001/31241{escaped}"}}')
+        require(type(parsed) is dict, "Unicode-control regression setup drift")
+        try:
+            require_unicode_scalars(parsed)
+        except SystemExit as exc:
+            require("Unicode control/format code point" in str(exc), f"Unicode-control rejection drift: {exc}")
+        else:
+            require(False, f"Unicode-control provenance accepted: {escaped}")
+
+
 def main() -> None:
     prove_strict_parser_fail_closed()
+    prove_unicode_provenance_fail_closed()
     require(RECEIPT.is_file(), "receipt missing")
     data = load_strict_json(RECEIPT.read_text(encoding="utf-8"))
     require_unicode_scalars(data)

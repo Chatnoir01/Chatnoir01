@@ -52,7 +52,26 @@ def load_strict_json(text: str) -> object:
     )
 
 
+def require_parser_rejects(text: str, expected_fragment: str) -> None:
+    try:
+        load_strict_json(text)
+    except SystemExit as exc:
+        require(expected_fragment in str(exc), f"parser rejection drift: {exc}")
+        return
+    require(False, f"strict parser accepted forbidden JSON: {text}")
+
+
+def prove_strict_parser_fail_closed() -> None:
+    """Executable regression proofs for ambiguity/non-standard JSON rejection."""
+    require_parser_rejects('{"owner_pr":880,"owner_pr":2179}', "duplicate JSON key: owner_pr")
+    require_parser_rejects('{"source_basis":{"heritage_record":"A001/31241","heritage_record":"spoof"}}', "duplicate JSON key: heritage_record")
+    for constant in ("NaN", "Infinity", "-Infinity"):
+        require_parser_rejects(f'{{"changed_gt3":{constant}}}', f"non-standard JSON constant: {constant}")
+    require(load_strict_json('{"owner_pr":880,"authorized":false}') == {"owner_pr": 880, "authorized": False}, "strict parser valid-control drift")
+
+
 def main() -> None:
+    prove_strict_parser_fail_closed()
     require(RECEIPT.is_file(), "receipt missing")
     data = load_strict_json(RECEIPT.read_text(encoding="utf-8"))
     require(type(data) is dict, "receipt must be an object")

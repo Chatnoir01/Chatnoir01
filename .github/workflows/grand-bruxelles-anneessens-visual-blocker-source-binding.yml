@@ -1,0 +1,54 @@
+name: Grand Bruxelles Anneessens Visual Blocker Source Binding
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/docs/provenance/anneessens_visual_blocker_256376389.md"
+      - "grand-bruxelles-game/game/tests/anneessens_osm_building_runtime_conformance_test.gd"
+      - "grand-bruxelles-game/game/tests/test_anneessens_visual_blocker_source_binding.py"
+      - ".github/workflows/grand-bruxelles-anneessens-visual-blocker-source-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-binding:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+      - name: Require exact current main ancestry and checked-out head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "$PR_HEAD_SHA" origin/main)"
+          echo "live_main=$live_main"
+          echo "pr_head=$PR_HEAD_SHA"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main"
+      - name: Bind measured blocker to canonical OSM source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          path = Path("grand-bruxelles-game/game/tests/test_anneessens_visual_blocker_source_binding.py")
+          spec = importlib.util.spec_from_file_location("anneessens_visual_blocker_source_binding", path)
+          if spec is None or spec.loader is None:
+              raise RuntimeError(f"cannot load {path}")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.test_visual_blocker_is_bound_to_canonical_osm_source()
+          print(f"PASS {path}:test_visual_blocker_is_bound_to_canonical_osm_source")
+          PY

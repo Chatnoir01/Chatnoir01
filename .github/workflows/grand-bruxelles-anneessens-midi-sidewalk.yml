@@ -62,6 +62,21 @@ jobs:
           timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/anneessens_midi_sidewalk_witness_test.gd 2>&1 | tee /tmp/anneessens-sidewalk.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_MIDI_SIDEWALK_FAIL" /tmp/anneessens-sidewalk.log; then exit 1; fi
           grep -q "ANNEESSENS_MIDI_SIDEWALK_OK" /tmp/anneessens-sidewalk.log
+      - name: Require complete evidence bundle
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly BEFORE="grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_before.png"
+          readonly AFTER="grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_after.png"
+          test -s "$BEFORE"
+          test -s "$AFTER"
+          test -s /tmp/anneessens-sidewalk.log
+          test -s /tmp/anneessens-sidewalk-import.log
+          file "$BEFORE" | grep -q 'PNG image data, 1280 x 720'
+          file "$AFTER" | grep -q 'PNG image data, 1280 x 720'
+          sha256sum "$BEFORE" "$AFTER" /tmp/anneessens-sidewalk.log /tmp/anneessens-sidewalk-import.log > /tmp/anneessens-sidewalk-evidence.sha256
+          test "$(wc -l < /tmp/anneessens-sidewalk-evidence.sha256)" -eq 4
       - name: Upload Anneessens evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,4 +87,5 @@ jobs:
             grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_after.png
             /tmp/anneessens-sidewalk.log
             /tmp/anneessens-sidewalk-import.log
-          if-no-files-found: warn
+            /tmp/anneessens-sidewalk-evidence.sha256
+          if-no-files-found: error

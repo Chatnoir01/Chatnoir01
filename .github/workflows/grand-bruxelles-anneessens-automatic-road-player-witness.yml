@@ -33,23 +33,22 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Require exact checkout and branch built from live main
-        if: github.event_name == 'pull_request'
         shell: bash
         env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           checked_out="$(git rev-parse HEAD)"
-          test "$checked_out" = "$PR_HEAD_SHA"
+          test "$checked_out" = "$EXPECTED_HEAD_SHA"
           git fetch --no-tags origin main
           live_main="$(git rev-parse origin/main)"
-          merge_base="$(git merge-base "$PR_HEAD_SHA" origin/main)"
+          merge_base="$(git merge-base "$EXPECTED_HEAD_SHA" origin/main)"
           echo "live_main=$live_main"
-          echo "pr_head=$PR_HEAD_SHA"
+          echo "expected_head=$EXPECTED_HEAD_SHA"
           echo "checked_out=$checked_out"
           echo "merge_base=$merge_base"
           printf '%s\n' "$live_main" > /tmp/anneessens-live-main-sha
-          printf '%s\n' "$PR_HEAD_SHA" > /tmp/anneessens-pr-head-sha
+          printf '%s\n' "$EXPECTED_HEAD_SHA" > /tmp/anneessens-pr-head-sha
           test "$merge_base" = "$live_main"
       - name: Prove Anneessens witness contract
         run: |

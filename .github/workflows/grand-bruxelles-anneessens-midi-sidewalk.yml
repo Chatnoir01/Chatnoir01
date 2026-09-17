@@ -62,30 +62,36 @@ jobs:
           timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/anneessens_midi_sidewalk_witness_test.gd 2>&1 | tee /tmp/anneessens-sidewalk.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_MIDI_SIDEWALK_FAIL" /tmp/anneessens-sidewalk.log; then exit 1; fi
           grep -q "ANNEESSENS_MIDI_SIDEWALK_OK" /tmp/anneessens-sidewalk.log
-      - name: Require complete evidence bundle
+      - name: Require and stage complete evidence bundle
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           readonly BEFORE="grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_before.png"
           readonly AFTER="grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_after.png"
+          readonly BUNDLE="$RUNNER_TEMP/anneessens-midi-sidewalk-evidence"
           test -s "$BEFORE"
           test -s "$AFTER"
           test -s /tmp/anneessens-sidewalk.log
           test -s /tmp/anneessens-sidewalk-import.log
           file "$BEFORE" | grep -q 'PNG image data, 1280 x 720'
           file "$AFTER" | grep -q 'PNG image data, 1280 x 720'
-          sha256sum "$BEFORE" "$AFTER" /tmp/anneessens-sidewalk.log /tmp/anneessens-sidewalk-import.log > /tmp/anneessens-sidewalk-evidence.sha256
-          test "$(wc -l < /tmp/anneessens-sidewalk-evidence.sha256)" -eq 4
+          rm -rf "$BUNDLE"
+          mkdir -p "$BUNDLE"
+          cp "$BEFORE" "$BUNDLE/anneessens_sidewalk_before.png"
+          cp "$AFTER" "$BUNDLE/anneessens_sidewalk_after.png"
+          cp /tmp/anneessens-sidewalk.log "$BUNDLE/anneessens-sidewalk.log"
+          cp /tmp/anneessens-sidewalk-import.log "$BUNDLE/anneessens-sidewalk-import.log"
+          (
+            cd "$BUNDLE"
+            sha256sum anneessens_sidewalk_before.png anneessens_sidewalk_after.png anneessens-sidewalk.log anneessens-sidewalk-import.log > anneessens-sidewalk-evidence.sha256
+            sha256sum --check --strict anneessens-sidewalk-evidence.sha256
+            test "$(find . -maxdepth 1 -type f | wc -l)" -eq 5
+          )
       - name: Upload Anneessens evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: anneessens-midi-sidewalk-evidence
-          path: |
-            grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_before.png
-            grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_after.png
-            /tmp/anneessens-sidewalk.log
-            /tmp/anneessens-sidewalk-import.log
-            /tmp/anneessens-sidewalk-evidence.sha256
+          path: ${{ runner.temp }}/anneessens-midi-sidewalk-evidence/
           if-no-files-found: error

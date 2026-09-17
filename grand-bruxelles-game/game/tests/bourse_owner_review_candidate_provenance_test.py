@@ -32,9 +32,29 @@ def require_exact_string(value: object, expected: str, label: str) -> None:
     require(type(value) is str and value == expected, f"{label} drift")
 
 
+def reject_duplicate_object_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        require(key not in result, f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def reject_nonstandard_constant(value: str) -> object:
+    raise SystemExit(f"BOURSE_OWNER_REVIEW_PROVENANCE_FAIL: non-standard JSON constant: {value}")
+
+
+def load_strict_json(text: str) -> object:
+    return json.loads(
+        text,
+        object_pairs_hook=reject_duplicate_object_pairs,
+        parse_constant=reject_nonstandard_constant,
+    )
+
+
 def main() -> None:
     require(RECEIPT.is_file(), "receipt missing")
-    data = json.loads(RECEIPT.read_text(encoding="utf-8"))
+    data = load_strict_json(RECEIPT.read_text(encoding="utf-8"))
     require(type(data) is dict, "receipt must be an object")
     require(set(data) == EXPECTED_KEYS, "receipt keyset drift")
     require_exact_string(data["schema"], "grand-bruxelles-bourse-owner-review-provenance-v1", "schema")

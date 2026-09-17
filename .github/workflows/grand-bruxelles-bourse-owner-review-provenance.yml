@@ -1,0 +1,36 @@
+name: Grand Bruxelles Bourse Owner Review Provenance
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/bourse_owner_review_candidate_provenance.json"
+      - "grand-bruxelles-game/game/tests/bourse_owner_review_candidate_provenance_test.py"
+      - ".github/workflows/grand-bruxelles-bourse-owner-review-provenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require exact head and exact current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN" = "8938792700837c6e53bf9661f0c304dfeba84897"
+          test "$(git merge-base HEAD origin/main)" = "$LIVE_MAIN"
+      - name: Validate Bourse owner-review boundary
+        run: python3 grand-bruxelles-game/game/tests/bourse_owner_review_candidate_provenance_test.py

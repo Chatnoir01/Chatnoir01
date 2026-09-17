@@ -102,3 +102,10 @@ def test_loader_requires_exact_boolean_top_level_source_lookup_authority() -> No
     guard = 'typeof(index_source_lookup_only) != TYPE_BOOL or not bool(index_source_lookup_only)'
     assert declaration in body and guard in body
     assert body.index(declaration) < body.index('var authorization: Variant = index.get("authorization", {})')
+
+
+def test_loader_contains_no_residual_coercive_authorization_guards() -> None:
+    body = _load_runtime_index_body()
+    assert 'if not bool(index.get("source_lookup_only", false)):' not in body
+    assert 'if not bool(auth.get("source_lookup_only", false)):' not in body
+    assert 'if bool(auth.get(forbidden, true)):' not in body

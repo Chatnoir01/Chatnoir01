@@ -50,9 +50,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pytest -q \
-            tests/test_automatic_road_runtime_index_destination_advertising_contract.py \
-            tests/test_automatic_road_runtime_index_unknown_authority_contract.py
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          paths = [
+              Path("tests/test_automatic_road_runtime_index_destination_advertising_contract.py"),
+              Path("tests/test_automatic_road_runtime_index_unknown_authority_contract.py"),
+          ]
+          for path in paths:
+              spec = importlib.util.spec_from_file_location(path.stem, path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError(path)
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              tests = sorted(name for name in dir(module) if name.startswith("test_"))
+              if not tests:
+                  raise RuntimeError(f"no tests discovered: {path}")
+              for name in tests:
+                  getattr(module, name)()
+                  print(f"PASS {path}:{name}")
+          PY
       - name: Prove simulation changed only reviewed runtime target
         shell: bash
         run: |

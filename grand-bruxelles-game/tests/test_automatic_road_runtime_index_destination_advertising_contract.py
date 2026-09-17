@@ -50,8 +50,11 @@ def test_destination_advertising_guard_is_unique() -> None:
     assert _load_runtime_index_body().count(_strict_guard()) == 1
 
 
-def test_destination_advertising_has_one_loader_semantic() -> None:
-    assert _load_runtime_index_body().count('"destination_advertisable"') == 1
+def test_destination_advertising_has_one_guard_semantic_plus_schema_membership() -> None:
+    body = _load_runtime_index_body()
+    assert body.count('auth.get("destination_advertisable", true)') == 1
+    assert body.count('"destination_advertisable"') == 2
+    assert body.index('"destination_advertisable"') < body.index('auth.get("destination_advertisable", true)')
 
 
 def test_destination_advertising_guard_runs_before_runtime_index_validity_can_be_set() -> None:

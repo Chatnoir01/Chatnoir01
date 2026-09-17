@@ -35,6 +35,7 @@ def require_exact_string(value: object, expected: str, label: str) -> None:
 def reject_duplicate_object_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
+        require(type(key) is str, "JSON object key must be a string")
         require(key not in result, f"duplicate JSON key: {key}")
         result[key] = value
     return result
@@ -51,10 +52,12 @@ def load_strict_json(text: str) -> object:
             object_pairs_hook=reject_duplicate_object_pairs,
             parse_constant=reject_nonstandard_constant,
         )
-    except json.JSONDecodeError as exc:
-        raise SystemExit(
-            f"BOURSE_OWNER_REVIEW_PROVENANCE_FAIL: malformed JSON: line {exc.lineno} column {exc.colno}"
-        ) from None
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        if isinstance(exc, json.JSONDecodeError):
+            detail = f"line {exc.lineno} column {exc.colno}"
+        else:
+            detail = f"unicode decode error at byte {exc.start}"
+        raise SystemExit(f"BOURSE_OWNER_REVIEW_PROVENANCE_FAIL: malformed JSON: {detail}") from None
 
 
 def require_parser_rejects(text: str, expected_fragment: str) -> None:
@@ -69,8 +72,6 @@ def require_parser_rejects(text: str, expected_fragment: str) -> None:
 def prove_strict_parser_fail_closed() -> None:
     """Executable regression proofs for ambiguity/non-standard/malformed JSON rejection."""
     require_parser_rejects('{"owner_pr":880,"owner_pr":2179}', "duplicate JSON key: owner_pr")
-    # JSON object identity is defined after escape decoding.  Prove that a lexical
-    # spelling difference cannot smuggle a second authorization key past the hook.
     require_parser_rejects(
         '{"shared_environment_authorized":false,"shared_environment_authoriz\\u0065d":true}',
         "duplicate JSON key: shared_environment_authorized",
@@ -82,13 +83,34 @@ def prove_strict_parser_fail_closed() -> None:
         require_parser_rejects(f'{{"changed_gt3":{constant}}}', f"non-standard JSON constant: {constant}")
     for malformed in ('{"owner_pr":880', '{"owner_pr":880,}', '{"owner_pr":880} trailing'):
         require_parser_rejects(malformed, "malformed JSON:")
+    # Python's JSON decoder accepts lone UTF-16 surrogate escapes into str values.
+    # They are not valid Unicode scalar values and must never enter provenance fields.
+    for surrogate in ("\\ud800", "\\udfff"):
+        parsed = load_strict_json(f'{{"owner_pr":880,"note":"{surrogate}"}}')
+        require(type(parsed) is dict, "surrogate regression setup drift")
+        note = parsed["note"]
+        require(type(note) is str and any(0xD800 <= ord(ch) <= 0xDFFF for ch in note), "surrogate regression setup no longer reproduces")
     require(load_strict_json('{"owner_pr":880,"authorized":false}') == {"owner_pr": 880, "authorized": False}, "strict parser valid-control drift")
+
+
+def require_unicode_scalars(value: object, path: str = "$") -> None:
+    """Reject lone UTF-16 surrogate code points anywhere in parsed provenance."""
+    if type(value) is str:
+        require(not any(0xD800 <= ord(ch) <= 0xDFFF for ch in value), f"invalid Unicode scalar in {path}")
+    elif type(value) is dict:
+        for key, child in value.items():
+            require_unicode_scalars(key, f"{path}.<key>")
+            require_unicode_scalars(child, f"{path}.{key}")
+    elif type(value) is list:
+        for index, child in enumerate(value):
+            require_unicode_scalars(child, f"{path}[{index}]")
 
 
 def main() -> None:
     prove_strict_parser_fail_closed()
     require(RECEIPT.is_file(), "receipt missing")
     data = load_strict_json(RECEIPT.read_text(encoding="utf-8"))
+    require_unicode_scalars(data)
     require(type(data) is dict, "receipt must be an object")
     require(set(data) == EXPECTED_KEYS, "receipt keyset drift")
     require_exact_string(data["schema"], "grand-bruxelles-bourse-owner-review-provenance-v1", "schema")

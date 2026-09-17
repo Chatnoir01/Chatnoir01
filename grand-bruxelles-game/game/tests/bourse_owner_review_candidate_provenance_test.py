@@ -119,6 +119,17 @@ def prove_unicode_provenance_fail_closed() -> None:
         else:
             require(False, f"Unicode-control provenance accepted: {escaped}")
 
+    # Keys are authority-bearing too: a visually hidden format character must not
+    # create a sibling field that survives parsing and only fails much later.
+    hidden_key = load_strict_json('{"shared_environment_authorized":false,"shared_environment_authorized\\u200b":true}')
+    require(type(hidden_key) is dict and len(hidden_key) == 2, "Unicode-key regression setup drift")
+    try:
+        require_unicode_scalars(hidden_key)
+    except SystemExit as exc:
+        require("Unicode control/format code point" in str(exc) and ".<key>" in str(exc), f"Unicode-key rejection drift: {exc}")
+    else:
+        require(False, "hidden Unicode in authorization key accepted")
+
     # Canonically equivalent text can have different bytes/code points. Provenance
     # receipts are hash/review inputs, so require one representation instead of
     # silently normalizing evidence after parsing.

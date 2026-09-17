@@ -79,7 +79,7 @@ jobs:
           test "$(wc -l < /tmp/anneessens-sidewalk-evidence.sha256)" -eq 4
       - name: Upload Anneessens evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: anneessens-midi-sidewalk-evidence
           path: |

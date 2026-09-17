@@ -1,0 +1,61 @@
+name: Grand Bruxelles Road Runtime Index Repair Simulation
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/apply_runtime_index_authorization_guard.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_destination_advertising_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_unknown_authority_contract.py"
+      - ".github/workflows/grand-bruxelles-road-runtime-index-repair-simulation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repair-simulation:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact event head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head and live-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" origin/main)" = "$live_main"
+      - name: Apply reviewed repair in disposable runner checkout
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="$(git hash-object game/scripts/automatic_road_direct_spawn.gd)"
+          test "$before" = "cf2b5e742e8967dc23f58a303412dd56df9bb9da"
+          python3 tools/apply_runtime_index_authorization_guard.py --write
+          after="$(git hash-object game/scripts/automatic_road_direct_spawn.gd)"
+          test "$after" != "$before"
+          echo "pre_repair_blob=$before"
+          echo "simulated_repair_blob=$after"
+          git diff --check -- game/scripts/automatic_road_direct_spawn.gd
+      - name: Require focused contracts GREEN on simulated repair
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pytest -q \
+            tests/test_automatic_road_runtime_index_destination_advertising_contract.py \
+            tests/test_automatic_road_runtime_index_unknown_authority_contract.py
+      - name: Prove simulation changed only reviewed runtime target
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          test "$changed" = "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"

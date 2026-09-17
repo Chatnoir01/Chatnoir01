@@ -1,0 +1,51 @@
+name: Grand Bruxelles Road Runtime Index Apply Repair
+
+on:
+  push:
+    branches:
+      - qa/road-runtime-index-advertising-89387927
+    paths:
+      - ".github/workflows/grand-bruxelles-road-runtime-index-apply-repair.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-bounded-repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: "${{ github.sha }}"
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base HEAD origin/main)"
+          echo "live_main=$live_main"
+          echo "head=$GITHUB_SHA"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main"
+      - name: Apply preregistered byte-preserving repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/apply_runtime_index_authorization_guard.py --write
+          git diff --check
+          changed="$(git diff --name-only)"
+          test "$changed" = "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - name: Commit exact repair only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd
+          test "$(git diff --cached --name-only)" = "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+          git commit -m "fix(destination): fail closed on runtime-index authorization"
+          git push origin HEAD:qa/road-runtime-index-advertising-89387927

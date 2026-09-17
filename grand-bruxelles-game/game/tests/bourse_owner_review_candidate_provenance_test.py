@@ -69,6 +69,12 @@ def require_parser_rejects(text: str, expected_fragment: str) -> None:
 def prove_strict_parser_fail_closed() -> None:
     """Executable regression proofs for ambiguity/non-standard/malformed JSON rejection."""
     require_parser_rejects('{"owner_pr":880,"owner_pr":2179}', "duplicate JSON key: owner_pr")
+    # JSON object identity is defined after escape decoding.  Prove that a lexical
+    # spelling difference cannot smuggle a second authorization key past the hook.
+    require_parser_rejects(
+        '{"shared_environment_authorized":false,"shared_environment_authoriz\\u0065d":true}',
+        "duplicate JSON key: shared_environment_authorized",
+    )
     require_parser_rejects('{"source_basis":{"heritage_record":"A001/31241","heritage_record":"spoof"}}', "duplicate JSON key: heritage_record")
     require_parser_rejects('{"shared_environment_authorized":false,"shared_environment_authorized":true}', "duplicate JSON key: shared_environment_authorized")
     require_parser_rejects('{"frozen_gate":{"bbox_px":[616,426],"bbox_px":[1,1]}}', "duplicate JSON key: bbox_px")

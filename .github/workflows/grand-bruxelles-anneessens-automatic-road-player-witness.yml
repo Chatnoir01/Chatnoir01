@@ -187,7 +187,7 @@ jobs:
           test "$(find . -maxdepth 1 -type f | wc -l)" -eq 4
           sha256sum --check --strict evidence-sha256.txt
       - name: Upload exact Anneessens player-view evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: automatic-road-1382734012-player-witness

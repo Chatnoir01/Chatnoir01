@@ -1,0 +1,48 @@
+name: Grand Bruxelles Road Runtime Index Unknown Authority
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_unknown_authority_contract.py"
+      - ".github/workflows/grand-bruxelles-road-runtime-index-unknown-authority.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unknown-authority-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact event head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head and live-main ancestry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          test "$(git merge-base "$PR_HEAD_SHA" origin/main)" = "$live_main"
+      - name: Run unknown-authority fail-closed regressions
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path("tests/test_automatic_road_runtime_index_unknown_authority_contract.py")
+          spec = importlib.util.spec_from_file_location("unknown_authority_contract", path)
+          if spec is None or spec.loader is None: raise RuntimeError(path)
+          module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          for name in sorted(name for name in dir(module) if name.startswith("test_")):
+              getattr(module, name)(); print(f"PASS {path}:{name}")
+          PY

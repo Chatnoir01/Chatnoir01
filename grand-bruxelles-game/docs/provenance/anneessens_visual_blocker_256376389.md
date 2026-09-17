@@ -30,14 +30,21 @@ distance_m=20.626
 
 This pins the severe near-field right-side occluder observed in the retained human REJECT to generated BrusselsOSM building node `Building_256376389_0`, 20.626 m from the frozen production camera ray at screen sample `(1100,360)`.
 
+## Canonical source resolution
+
+Independent current-main source/runtime conformance already resolves this generated token exactly. `game/tests/anneessens_osm_building_runtime_conformance_test.gd` binds `TARGET_OSM_ID := 256376389` to `SOURCE_PATH := res://data/osm/vertical_slice_01.game.json`, requires exactly one source building with OSM `256376389`, and requires exactly one generated `CSGPolygon3D` whose name begins `Building_256376389`. It further proves the runtime solid preserves the source-derived five-vertex footprint, 14.0 m height/depth, center `(-285.4966,-185.4604)`, and collision.
+
+Therefore the blocker identity is now source-resolved as OSM `256376389` from `data/osm/vertical_slice_01.game.json`; source identity proven=true. This resolution is identity/provenance evidence only. It does not authorize changing that source geometry or its collision to rescue the rejected frame.
+
 ## Ownership boundary
 
-The measured collider currently exposes no `grand_bruxelles_owner`, `source_path`/`grand_bruxelles_source_path`, or `road_support_osm_ids` metadata. The numeric token `256376389` is therefore a generated-node identity witness only; this receipt does **not** promote it to a canonical OSM/source identity without an independent source lookup.
+The measured collider still exposes no `grand_bruxelles_owner`, `source_path`/`grand_bruxelles_source_path`, or `road_support_osm_ids` metadata. Those missing runtime metadata fields must not be fabricated. Canonical identity comes from the independent source/runtime conformance contract above, not from interpreting the generated node token in isolation.
 
-Do not move/delete/resize this building, change the camera/FOV, alter culling, lower a visual threshold, or assign synthetic provenance to make the Anneessens frame pass. The next legitimate action is to resolve `256376389` against the canonical building/source intake used by `BrusselsOSM/GeneratedBuildings`, then route any geometry/material correction to that source owner. If that lookup cannot be proven, preserve the geometry and keep the visual verdict rejected.
+Do not move/delete/resize this building, change the camera/FOV, alter culling, lower a visual threshold, or assign synthetic provenance to make the Anneessens frame pass. Any future geometry/material correction must first respect the canonical OSM source and route through the appropriate source/Environment ownership boundary.
 
 ## Authorization
 
+- `geometry_change_authorized=false`
 - `visual_acceptance=false`
 - `destination_advertisable=false`
 - `jouable_authorized=false`

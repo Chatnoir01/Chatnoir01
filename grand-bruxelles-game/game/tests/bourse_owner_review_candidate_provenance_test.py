@@ -45,11 +45,16 @@ def reject_nonstandard_constant(value: str) -> object:
 
 
 def load_strict_json(text: str) -> object:
-    return json.loads(
-        text,
-        object_pairs_hook=reject_duplicate_object_pairs,
-        parse_constant=reject_nonstandard_constant,
-    )
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=reject_duplicate_object_pairs,
+            parse_constant=reject_nonstandard_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"BOURSE_OWNER_REVIEW_PROVENANCE_FAIL: malformed JSON: line {exc.lineno} column {exc.colno}"
+        ) from None
 
 
 def require_parser_rejects(text: str, expected_fragment: str) -> None:
@@ -62,13 +67,15 @@ def require_parser_rejects(text: str, expected_fragment: str) -> None:
 
 
 def prove_strict_parser_fail_closed() -> None:
-    """Executable regression proofs for ambiguity/non-standard JSON rejection."""
+    """Executable regression proofs for ambiguity/non-standard/malformed JSON rejection."""
     require_parser_rejects('{"owner_pr":880,"owner_pr":2179}', "duplicate JSON key: owner_pr")
     require_parser_rejects('{"source_basis":{"heritage_record":"A001/31241","heritage_record":"spoof"}}', "duplicate JSON key: heritage_record")
     require_parser_rejects('{"shared_environment_authorized":false,"shared_environment_authorized":true}', "duplicate JSON key: shared_environment_authorized")
     require_parser_rejects('{"frozen_gate":{"bbox_px":[616,426],"bbox_px":[1,1]}}', "duplicate JSON key: bbox_px")
     for constant in ("NaN", "Infinity", "-Infinity"):
         require_parser_rejects(f'{{"changed_gt3":{constant}}}', f"non-standard JSON constant: {constant}")
+    for malformed in ('{"owner_pr":880', '{"owner_pr":880,}', '{"owner_pr":880} trailing'):
+        require_parser_rejects(malformed, "malformed JSON:")
     require(load_strict_json('{"owner_pr":880,"authorized":false}') == {"owner_pr": 880, "authorized": False}, "strict parser valid-control drift")
 
 

@@ -166,17 +166,27 @@ func _load_runtime_index() -> bool:
     var index := _parse_document(RUNTIME_INDEX_PATH)
     if index.is_empty() or str(index.get("format", "")) != RUNTIME_INDEX_FORMAT:
         return false
-    if not bool(index.get("source_lookup_only", false)):
+    var index_source_lookup_only: Variant = index.get("source_lookup_only", false)
+    if typeof(index_source_lookup_only) != TYPE_BOOL or not bool(index_source_lookup_only):
         return false
     var authorization: Variant = index.get("authorization", {})
     if not authorization is Dictionary:
         return false
     var auth := authorization as Dictionary
-    if not bool(auth.get("source_lookup_only", false)):
+    var allowed_authorization_keys: Array[String] = ["source_lookup_only", "render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized", "destination_advertisable"]
+    for authorization_key: Variant in auth.keys():
+        if typeof(authorization_key) != TYPE_STRING or not allowed_authorization_keys.has(str(authorization_key)):
+            return false
+    var source_lookup_only: Variant = auth.get("source_lookup_only", false)
+    if typeof(source_lookup_only) != TYPE_BOOL or not bool(source_lookup_only):
         return false
     for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:
-        if bool(auth.get(forbidden, true)):
+        var forbidden_value: Variant = auth.get(forbidden, true)
+        if typeof(forbidden_value) != TYPE_BOOL or bool(forbidden_value):
             return false
+    var destination_advertisable: Variant = auth.get("destination_advertisable", true)
+    if typeof(destination_advertisable) != TYPE_BOOL or bool(destination_advertisable):
+        return false
 
     var documents: Variant = index.get("documents", [])
     if not documents is Array or documents.is_empty():

@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_transactional_load_contract.py"
       - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_source_digest_registration_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_verified_digest_staging_contract.py"
       - ".github/workflows/grand-bruxelles-road-runtime-index-transactional-load.yml"
   workflow_dispatch:
 
@@ -44,6 +45,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import importlib.util
+          import runpy
           from pathlib import Path
 
           def load(name: str, path: Path):
@@ -67,4 +69,8 @@ jobs:
           print(f"PASS {digest_path}:test_runtime_index_verifies_source_bytes_before_registration")
           digest.test_per_road_lookup_keeps_defense_in_depth_digest_check()
           print(f"PASS {digest_path}:test_per_road_lookup_keeps_defense_in_depth_digest_check")
+
+          staging_path = Path("tests/test_automatic_road_runtime_index_verified_digest_staging_contract.py")
+          runpy.run_path(str(staging_path), run_name="__main__")
+          print(f"PASS {staging_path}:verified digest staging before road intake")
           PY

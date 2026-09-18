@@ -33,4 +33,7 @@ jobs:
           test "$LIVE_MAIN" = "8938792700837c6e53bf9661f0c304dfeba84897"
           test "$(git merge-base HEAD origin/main)" = "$LIVE_MAIN"
       - name: Validate Bourse owner-review boundary
-        run: python3 grand-bruxelles-game/game/tests/bourse_owner_review_candidate_provenance_test.py
+        env:
+          PYTHONHASHSEED: "0"
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -I -B grand-bruxelles-game/game/tests/bourse_owner_review_candidate_provenance_test.py

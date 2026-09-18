@@ -41,8 +41,8 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         # Empty authoritative scenes must not self-reschedule forever. Recovery is
         # event-driven by the retained SceneTree.node_added watcher when roads arrive.
         self.assertNotIn("_schedule_bind()", empty_build)
-        self.assertIn("func _on_node_added(node: Node) -> void:", text)
-        node_added = text.split("func _on_node_added(node: Node) -> void:", 1)[1].split("func ", 1)[0]
+        self.assertIn("func _on_node_added(_node: Node) -> void:", text)
+        node_added = text.split("func _on_node_added(_node: Node) -> void:", 1)[1].split("func ", 1)[0]
         self.assertIn("_schedule_bind()", node_added)
 
 

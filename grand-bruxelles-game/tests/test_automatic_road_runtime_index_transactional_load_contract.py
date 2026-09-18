@@ -102,8 +102,11 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     # is proven to have those exact bytes before either canonical lookup map is
     # published. Deferring this check to per-road lookup would expose an index
     # whose registration succeeded even though its source bundle is already stale.
-    source_digest_read = "FileAccess.get_sha256(source_path).to_lower()"
-    assert source_digest_read in body, "runtime-index load must hash each canonical source document"
+    source_digest_read = "var actual_sha := FileAccess.get_sha256(source_path).to_lower()"
+    source_digest_guard = "if actual_sha.is_empty() or actual_sha != expected_sha:\n            return false"
+    assert body.count(source_digest_read) == 1, "runtime-index load must hash each canonical source document exactly once"
+    assert body.count(source_digest_guard) == 1, "runtime-index load must compare source bytes to the descriptor digest and fail closed"
     digest_read_pos = body.index(source_digest_read)
-    assert documents < digest_read_pos < source_write, "source bytes must be verified before descriptor staging"
-    assert digest_read_pos < source_commit and digest_read_pos < road_commit, "source digest must validate before canonical publication"
+    digest_guard_pos = body.index(source_digest_guard)
+    assert documents < digest_read_pos < digest_guard_pos < source_write, "source bytes must be verified before descriptor staging"
+    assert digest_guard_pos < source_commit and digest_guard_pos < road_commit, "source digest comparison must complete before canonical publication"

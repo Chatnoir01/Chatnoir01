@@ -24,9 +24,6 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     clear_sources = "_source_sha_by_path.clear()"
     parse_index = "var index := _parse_document(RUNTIME_INDEX_PATH)"
 
-    # A retry after a previously valid in-memory index must never expose stale
-    # canonical registrations while the replacement index is being validated.
-    # Freeze the fail-closed reset boundary before any parsing or staging work.
     for label, token in (
         ("attempted guard", attempted_guard),
         ("attempt marker", attempted_commit),
@@ -73,10 +70,6 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     source_commit = body.index(commit_sources)
     road_commit = body.index(commit_roads)
 
-    # Staging maps are one-load scratch state: create them only after the index
-    # has been parsed/reset, but before document traversal starts. This prevents
-    # accidental reuse of canonical dictionaries as staging aliases and makes
-    # the transactional lifetime explicit in the loader itself.
     parse_pos = body.index(parse_index)
     assert parse_pos < staged_sources_decl < documents
     assert parse_pos < staged_roads_decl < documents
@@ -88,19 +81,23 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     assert source_write < road_commit, "road map must commit only after all source staging mutations"
     assert road_write < source_commit, "source map must commit only after all road staging mutations"
 
-    # Both canonical commits must be function-scope statements after the nested
-    # document/road validation loops. An indented commit could publish a valid
-    # prefix and then return false on a later descriptor or road.
     source_commit_line = next(line for line in body.splitlines() if commit_sources in line)
     road_commit_line = next(line for line in body.splitlines() if commit_roads in line)
     assert source_commit_line == "    " + commit_sources
     assert road_commit_line == "    " + commit_roads
 
-    # Canonical maps must never be populated or consulted for duplicate
-    # detection while a later descriptor/road can still invalidate the load.
-    # Otherwise staging would accidentally stop rejecting duplicates because
-    # the canonical maps are intentionally empty until the final commit.
     assert "_source_sha_by_path.has(source_path)" not in body
     assert "_road_source_path_by_id.has(osm_id)" not in body
     assert "_source_sha_by_path[source_path] = expected_sha" not in body
     assert "_road_source_path_by_id[osm_id] = source_path" not in body
+
+    # The staged road set is the actual publishable payload. Validate that it is
+    # non-empty before either canonical dictionary is committed, rather than
+    # committing empty maps and deriving failure only afterwards. This keeps a
+    # failed load observably atomic even if future callers inspect the maps.
+    nonempty_guard = "if staged_road_source_path_by_id.is_empty():\n        return false"
+    assert nonempty_guard in body, "empty staged runtime index must fail before canonical publication"
+    assert body.count(nonempty_guard) == 1, "staged nonempty guard must have one canonical boundary"
+    guard_pos = body.index(nonempty_guard)
+    assert road_write < guard_pos < source_commit
+    assert road_write < guard_pos < road_commit

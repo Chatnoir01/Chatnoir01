@@ -6,8 +6,9 @@ const SIDEWALK_NARROW_M := 1.85
 const SIDEWALK_WIDE_M := 2.55
 const SIDEWALK_HEIGHT_M := 0.12
 const SIDEWALK_GAP_M := 0.10
-const SOURCE_NAME := "OpenStreetMap contributors via Overpass API"
-const SOURCE_LICENSE := "ODbL-1.0"
+const PROXY_SOURCE := "authored_proxy"
+const PROXY_LICENSE := "project-authored"
+const ALIGNMENT_REFERENCE := "rendered GeneratedRoads nodes (unverified source identity)"
 const CANONICAL_PRODUCTION_SCENE := "res://game/main.tscn"
 
 var _scene: Node3D = null
@@ -158,8 +159,9 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _root.name = "AnneessensMidiSidewalkKit"
     _root.visible = _sidewalks_enabled
     _root.set_meta("zone", "anneessens")
-    _root.set_meta("source", SOURCE_NAME)
-    _root.set_meta("license", SOURCE_LICENSE)
+    _root.set_meta("source", PROXY_SOURCE)
+    _root.set_meta("license", PROXY_LICENSE)
+    _root.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
     _root.set_meta("road_alignment_source_backed", false)
     _root.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
     _root.set_meta("sidewalk_presence_source_backed", false)
@@ -170,7 +172,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _root.set_meta("collision_authorized", false)
     _root.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
     _root.set_meta("authored_proxy", true)
-    _root.set_meta("presentation_recipe", "authored_midi_sidewalk_proxy_from_osm_road_alignment")
+    _root.set_meta("presentation_recipe", "authored_midi_sidewalk_proxy_from_unverified_rendered_road_alignment")
     _scene.add_child(_root)
     _build_from_existing_osm_roads()
     if manual:
@@ -215,8 +217,9 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.material = material
         pavement.use_collision = false
         pavement.set_meta("source_road", road.name)
-        pavement.set_meta("source", SOURCE_NAME)
-        pavement.set_meta("license", SOURCE_LICENSE)
+        pavement.set_meta("source", PROXY_SOURCE)
+        pavement.set_meta("license", PROXY_LICENSE)
+        pavement.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
         pavement.set_meta("road_alignment_source_backed", false)
         pavement.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
         pavement.set_meta("sidewalk_presence_source_backed", false)

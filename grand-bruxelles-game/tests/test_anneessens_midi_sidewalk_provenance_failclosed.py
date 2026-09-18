@@ -28,7 +28,7 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         self.assertIn('node.set_meta("collision_authorized", false)', text)
         self.assertIn('node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")', text)
 
-    def test_empty_generated_roads_releases_false_binding_for_retry(self) -> None:
+    def test_empty_generated_roads_releases_false_binding_for_event_driven_retry(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
         self.assertIn("func _build_from_existing_osm_roads() -> bool:", text)
         self.assertIn("return _sidewalk_count > 0", text)
@@ -38,8 +38,12 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         self.assertIn("_scene = null", empty_build)
         self.assertIn("_manual_binding = false", empty_build)
         self.assertIn("_start_watching()", empty_build)
-        self.assertIn("_schedule_bind()", empty_build)
-        self.assertLess(empty_build.index("_scene = null"), empty_build.index("_schedule_bind()"))
+        # Empty authoritative scenes must not self-reschedule forever. Recovery is
+        # event-driven by the retained SceneTree.node_added watcher when roads arrive.
+        self.assertNotIn("_schedule_bind()", empty_build)
+        self.assertIn("func _on_node_added(node: Node) -> void:", text)
+        node_added = text.split("func _on_node_added(node: Node) -> void:", 1)[1].split("func ", 1)[0]
+        self.assertIn("_schedule_bind()", node_added)
 
 
 if __name__ == "__main__":

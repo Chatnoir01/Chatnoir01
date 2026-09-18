@@ -95,6 +95,17 @@ def build_runtime_index(catalog: dict[str, Any]) -> dict[str, Any]:
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: eligible road must resolve to exactly one runtime source document: osm_id={osm_id} source_paths={source_paths!r}")
         source_path = require_runtime_source_path(source_paths[0], f"source path osm_id={osm_id}")
         road_ids_by_path.setdefault(source_path, []).append(osm_id)
+    canonical_digest_paths: set[str] = set()
+    for raw_source_path, raw_digest in source_digests.items():
+        source_path = require_runtime_source_path(raw_source_path, "catalog source digest path")
+        if source_path in canonical_digest_paths:
+            raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: duplicate catalog source digest path {source_path!r}")
+        canonical_digest_paths.add(source_path)
+        require_sha256(raw_digest, f"catalog source digest {source_path!r}")
+    if canonical_digest_paths != set(road_ids_by_path):
+        missing = sorted(set(road_ids_by_path) - canonical_digest_paths)
+        extra = sorted(canonical_digest_paths - set(road_ids_by_path))
+        raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: catalog source digest keyset drift missing={missing!r} extra={extra!r}")
     documents = []
     for source_path in sorted(road_ids_by_path):
         documents.append({"path": source_path, "road_ids": sorted(road_ids_by_path[source_path]), "sha256": require_sha256(source_digests.get(source_path), f"runtime source {source_path!r}")})

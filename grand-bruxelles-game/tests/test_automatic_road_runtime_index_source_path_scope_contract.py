@@ -77,16 +77,12 @@ def test_runtime_index_source_paths_are_confined_to_canonical_osm_game_documents
 
 def test_runtime_index_source_paths_reject_invisible_format_spoofing() -> None:
     body = _source_path_helper()
-    # These format characters are invisible but NFC-stable. Without explicit rejection,
-    # a descriptor can look like the canonical OSM path in review while naming different bytes.
     for codepoint, label in ((8203, "ZERO WIDTH SPACE"), (8288, "WORD JOINER"), (65279, "ZERO WIDTH NO-BREAK SPACE/BOM")):
         assert f"codepoint == {codepoint}" in body, f"missing fail-closed rejection for {label} U+{codepoint:04X}"
 
 
 def test_runtime_index_source_paths_reject_bidi_reordering_controls() -> None:
     body = _source_path_helper()
-    # Bidi overrides/isolates can reorder the visible spelling of a descriptor without
-    # changing its bytes. Require the canonical helper to reject both Unicode ranges.
     assert "(codepoint >= 8234 and codepoint <= 8238)" in body, (
         "runtime-index source paths must reject U+202A..U+202E bidi embedding/override controls"
     )
@@ -97,8 +93,6 @@ def test_runtime_index_source_paths_reject_bidi_reordering_controls() -> None:
 
 def test_runtime_index_source_paths_reject_unicode_tag_controls() -> None:
     body = _source_path_helper()
-    # Unicode TAG characters are default-ignorable format controls and can make a
-    # source descriptor look canonical in review while its bytes name another path.
     assert "(codepoint >= 917504 and codepoint <= 917631)" in body, (
         "runtime-index source paths must reject U+E0000..U+E007F Unicode TAG controls"
     )
@@ -106,9 +100,6 @@ def test_runtime_index_source_paths_reject_unicode_tag_controls() -> None:
 
 def test_runtime_index_source_paths_reject_control_and_line_separator_classes() -> None:
     body = _source_path_helper()
-    # Embedded C0/C1 controls and Unicode line/paragraph separators are not removed by
-    # edge trimming and can make logs/review output disagree with the actual path bytes.
-    # Keep these classes explicitly fail-closed at the same canonical codepoint boundary.
     for marker, label in (
         ("codepoint < 32", "C0 controls"),
         ("codepoint == 127", "DEL"),
@@ -117,3 +108,16 @@ def test_runtime_index_source_paths_reject_control_and_line_separator_classes() 
         ("codepoint == 8233", "PARAGRAPH SEPARATOR U+2029"),
     ):
         assert marker in body, f"missing fail-closed rejection for {label}"
+
+
+def test_runtime_index_source_paths_reject_slash_confusables() -> None:
+    body = _source_path_helper()
+    # These NFC-stable characters are visually slash-like but are not path separators.
+    # A descriptor such as data/osm/foo∕bar.game.json can otherwise pass the ASCII
+    # root/suffix checks while rendering deceptively like a nested canonical path.
+    for codepoint, label in (
+        (8260, "FRACTION SLASH U+2044"),
+        (8725, "DIVISION SLASH U+2215"),
+        (65295, "FULLWIDTH SOLIDUS U+FF0F"),
+    ):
+        assert f"codepoint == {codepoint}" in body, f"missing fail-closed rejection for {label}"

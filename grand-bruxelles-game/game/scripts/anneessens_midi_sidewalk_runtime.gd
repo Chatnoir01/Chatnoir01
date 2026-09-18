@@ -137,7 +137,6 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
         _scene = null
         _manual_binding = false
         _start_watching()
-        _schedule_bind()
         return
     if manual: _stop_watching()
     else: _start_watching()

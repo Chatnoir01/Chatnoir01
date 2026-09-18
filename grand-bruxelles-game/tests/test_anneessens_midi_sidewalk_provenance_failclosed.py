@@ -18,7 +18,11 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         self.assertIn("_add_sidewalk_pair(road, material)", text)
         self.assertIn("pavement.global_position = road.global_position + lateral * offset * side", text)
         self.assertIn("pavement.global_rotation = road.global_rotation", text)
-        self.assertGreaterEqual(text.count("pavement.use_collision = false"), 2)
+        # Collision must fail closed both at creation and when visibility is toggled.
+        # Do not require duplicate spelling of the same assignment: the toggle path
+        # operates through the typed child cast rather than the local pavement name.
+        self.assertIn("pavement.use_collision = false", text)
+        self.assertIn("(child as CSGBox3D).use_collision = false", text)
         self.assertNotIn("pavement.use_collision = _sidewalks_enabled", text)
         self.assertIn('node.set_meta("collision_source_backed", false)', text)
         self.assertIn('node.set_meta("collision_authorized", false)', text)

@@ -11,6 +11,7 @@ end = text.index("\n\nfunc runtime_index_road_count()", start)
 loader = text[start:end]
 
 required = [
+    "if staged_source_sha_by_path.has(source_path):",
     "if not FileAccess.file_exists(source_path):",
     "var actual_sha := FileAccess.get_sha256(source_path).to_lower()",
     "if actual_sha.is_empty() or actual_sha != expected_sha:",
@@ -21,7 +22,9 @@ for needle in required:
     assert needle in loader, f"missing verified-digest registration contract: {needle}"
 
 positions = [loader.index(needle) for needle in required]
-assert positions == sorted(positions), "source authentication must precede staging and road-id intake"
+assert positions == sorted(positions), (
+    "duplicate rejection and source authentication must precede staging and road-id intake"
+)
 assert "staged_source_sha_by_path[source_path] = expected_sha" not in loader, (
     "declared digest must never become staged authority before byte authentication"
 )
@@ -33,4 +36,4 @@ lookup = text[lookup_start:lookup_end]
 assert "FileAccess.get_sha256(path).to_lower()" in lookup
 assert "actual_sha != expected_sha" in lookup
 
-print("PASS: runtime-index staging requires verified source digest before road intake")
+print("PASS: duplicate rejection and verified source digest precede runtime-index road intake")

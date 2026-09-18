@@ -9,6 +9,7 @@ const SIDEWALK_GAP_M := 0.10
 const PROXY_SOURCE := "authored_proxy"
 const PROXY_LICENSE := "project-authored"
 const ALIGNMENT_REFERENCE := "rendered GeneratedRoads nodes (unverified source identity)"
+const PROXY_RECIPE := "authored_midi_sidewalk_proxy_from_unverified_rendered_road_alignment"
 const CANONICAL_PRODUCTION_SCENE := "res://game/main.tscn"
 
 var _scene: Node3D = null
@@ -146,6 +147,22 @@ func _try_bind() -> void:
 func bind_scene(scene: Node3D) -> void:
     _bind_scene(scene, true)
 
+func _apply_proxy_contract(node: Node) -> void:
+    node.set_meta("source", PROXY_SOURCE)
+    node.set_meta("license", PROXY_LICENSE)
+    node.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
+    node.set_meta("road_alignment_source_backed", false)
+    node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
+    node.set_meta("sidewalk_presence_source_backed", false)
+    node.set_meta("visual_dimensions_source_backed", false)
+    node.set_meta("vertical_profile_source_backed", false)
+    node.set_meta("material_identity_source_backed", false)
+    node.set_meta("collision_source_backed", false)
+    node.set_meta("collision_authorized", false)
+    node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
+    node.set_meta("authored_proxy", true)
+    node.set_meta("presentation_recipe", PROXY_RECIPE)
+
 func _bind_scene(scene: Node3D, manual: bool) -> void:
     if scene == null or (_tearing_down and not manual):
         return
@@ -159,20 +176,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _root.name = "AnneessensMidiSidewalkKit"
     _root.visible = _sidewalks_enabled
     _root.set_meta("zone", "anneessens")
-    _root.set_meta("source", PROXY_SOURCE)
-    _root.set_meta("license", PROXY_LICENSE)
-    _root.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
-    _root.set_meta("road_alignment_source_backed", false)
-    _root.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
-    _root.set_meta("sidewalk_presence_source_backed", false)
-    _root.set_meta("visual_dimensions_source_backed", false)
-    _root.set_meta("vertical_profile_source_backed", false)
-    _root.set_meta("material_identity_source_backed", false)
-    _root.set_meta("collision_source_backed", false)
-    _root.set_meta("collision_authorized", false)
-    _root.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
-    _root.set_meta("authored_proxy", true)
-    _root.set_meta("presentation_recipe", "authored_midi_sidewalk_proxy_from_unverified_rendered_road_alignment")
+    _apply_proxy_contract(_root)
     _scene.add_child(_root)
     _build_from_existing_osm_roads()
     if manual:
@@ -217,20 +221,7 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.material = material
         pavement.use_collision = false
         pavement.set_meta("source_road", road.name)
-        pavement.set_meta("source", PROXY_SOURCE)
-        pavement.set_meta("license", PROXY_LICENSE)
-        pavement.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
-        pavement.set_meta("road_alignment_source_backed", false)
-        pavement.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
-        pavement.set_meta("sidewalk_presence_source_backed", false)
-        pavement.set_meta("visual_dimensions_source_backed", false)
-        pavement.set_meta("vertical_profile_source_backed", false)
-        pavement.set_meta("material_identity_source_backed", false)
-        pavement.set_meta("collision_source_backed", false)
-        pavement.set_meta("collision_authorized", false)
-        pavement.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
-        pavement.set_meta("authored_proxy", true)
-        pavement.set_meta("recipe", "Midi")
+        _apply_proxy_contract(pavement)
         _root.add_child(pavement)
         pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)
         pavement.global_rotation = road.global_rotation

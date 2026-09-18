@@ -18,15 +18,23 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         self.assertIn("_add_sidewalk_pair(road, material)", text)
         self.assertIn("pavement.global_position = road.global_position + lateral * offset * side", text)
         self.assertIn("pavement.global_rotation = road.global_rotation", text)
-        # Collision must fail closed both at creation and when visibility is toggled.
-        # Do not require duplicate spelling of the same assignment: the toggle path
-        # operates through the typed child cast rather than the local pavement name.
-        self.assertIn("pavement.use_collision = false", text)
-        self.assertIn("(child as CSGBox3D).use_collision = false", text)
         self.assertNotIn("pavement.use_collision = _sidewalks_enabled", text)
         self.assertIn('node.set_meta("collision_source_backed", false)', text)
         self.assertIn('node.set_meta("collision_authorized", false)', text)
         self.assertIn('node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")', text)
+
+        add_pair = text.split("func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:", 1)[1].split("func diagnostic_sidewalk_count", 1)[0]
+        self.assertIn(
+            "pavement.use_collision = false",
+            add_pair,
+            "Every newly created authored sidewalk proxy must start collision-disabled.",
+        )
+        visibility_toggle = text.split("func set_sidewalks_enabled(enabled: bool) -> void:", 1)[1]
+        self.assertIn(
+            "pavement.use_collision = false",
+            visibility_toggle,
+            "Visibility toggles must preserve fail-closed collision state rather than authorize proxy collision.",
+        )
 
     def test_empty_generated_roads_releases_false_binding_for_event_driven_retry(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")

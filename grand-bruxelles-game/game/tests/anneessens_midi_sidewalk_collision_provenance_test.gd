@@ -50,6 +50,15 @@ func _run() -> void:
     if kit.get_meta("sidewalk_presence_source_backed", true) != false:
         _fail("root must remain explicit that sidewalk presence is not source-backed")
         return
+    if String(kit.get_meta("source", "")) != "authored_proxy":
+        _fail("authored proxy root must not present OpenStreetMap as its direct source")
+        return
+    if String(kit.get_meta("alignment_reference", "")) != "rendered GeneratedRoads nodes (unverified source identity)":
+        _fail("proxy root must state its actual alignment reference")
+        return
+    if String(kit.get_meta("license", "")) != "project-authored":
+        _fail("authored proxy root must not inherit ODbL attribution as if it were source geometry")
+        return
 
     var sidewalks := 0
     for child: Node in kit.get_children():
@@ -58,6 +67,12 @@ func _run() -> void:
             var pavement := child as CSGBox3D
             if pavement.get_meta("vertical_profile_source_backed", true) != false:
                 _fail("proxy sidewalk unexpectedly claims source-backed vertical profile")
+                return
+            if String(pavement.get_meta("source", "")) != "authored_proxy":
+                _fail("proxy sidewalk must not present OpenStreetMap as its direct source")
+                return
+            if String(pavement.get_meta("alignment_reference", "")) != "rendered GeneratedRoads nodes (unverified source identity)":
+                _fail("proxy sidewalk must state its actual alignment reference")
                 return
             if pavement.use_collision:
                 _fail("authored proxy with unverified vertical profile must not own player collision: %s" % pavement.name)
@@ -73,5 +88,5 @@ func _run() -> void:
         _fail("unverified authored proxy reports collision ownership")
         return
 
-    print("ANNEESSENS_SIDEWALK_COLLISION_PROVENANCE_OK: sidewalks=%d collisions=0 visual_proxy_retained=true" % sidewalks)
+    print("ANNEESSENS_SIDEWALK_COLLISION_PROVENANCE_OK: sidewalks=%d collisions=0 visual_proxy_retained=true source=authored_proxy" % sidewalks)
     quit(0)

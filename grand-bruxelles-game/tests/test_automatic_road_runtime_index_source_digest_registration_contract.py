@@ -49,7 +49,7 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
     existence_guard = "if not FileAccess.file_exists(source_path):\n            return false"
     digest_read = "var actual_sha := FileAccess.get_sha256(source_path).to_lower()"
     digest_guard = "if actual_sha.is_empty() or actual_sha != expected_sha:\n            return false"
-    source_stage = "staged_source_sha_by_path[source_path] = expected_sha"
+    source_stage = "staged_source_sha_by_path[source_path] = actual_sha"
     road_id_intake = "for raw_id: Variant in road_ids:"
     road_stage = "staged_road_source_path_by_id[osm_id] = source_path"
     source_publish = "_source_sha_by_path = staged_source_sha_by_path"
@@ -64,6 +64,10 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
     )
     assert loader.count(digest_guard) == 1, (
         "runtime-index registration must fail closed when source bytes are missing or stale"
+    )
+    assert loader.count(source_stage) == 1, (
+        "runtime-index registration must stage the digest derived from verified source bytes, "
+        "not merely copy the catalog-declared digest"
     )
     assert loader.count(road_id_intake) == 1, (
         "runtime-index registration must have one deterministic road-id intake loop per descriptor"

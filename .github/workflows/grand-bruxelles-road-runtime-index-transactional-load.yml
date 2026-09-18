@@ -6,6 +6,7 @@ on:
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
       - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_transactional_load_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_source_digest_registration_contract.py"
       - ".github/workflows/grand-bruxelles-road-runtime-index-transactional-load.yml"
   workflow_dispatch:
 
@@ -36,7 +37,7 @@ jobs:
           echo "expected_head=$EXPECTED_HEAD_SHA"
           echo "merge_base=$merge_base"
           test "$merge_base" = "$live_main"
-      - name: Require atomic runtime-index registration
+      - name: Require atomic runtime-index registration and verified source bytes
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
@@ -44,12 +45,24 @@ jobs:
           python3 - <<'PY'
           import importlib.util
           from pathlib import Path
-          path = Path("tests/test_automatic_road_runtime_index_transactional_load_contract.py")
-          spec = importlib.util.spec_from_file_location("transactional_load", path)
-          if spec is None or spec.loader is None:
-              raise RuntimeError(f"cannot load {path}")
-          module = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(module)
-          module.test_runtime_index_registration_is_transactional_until_full_validation()
-          print(f"PASS {path}:test_runtime_index_registration_is_transactional_until_full_validation")
+
+          def load(name: str, path: Path):
+              spec = importlib.util.spec_from_file_location(name, path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError(f"cannot load {path}")
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              return module
+
+          transactional_path = Path("tests/test_automatic_road_runtime_index_transactional_load_contract.py")
+          transactional = load("transactional_load", transactional_path)
+          transactional.test_runtime_index_registration_is_transactional_until_full_validation()
+          print(f"PASS {transactional_path}:test_runtime_index_registration_is_transactional_until_full_validation")
+
+          digest_path = Path("tests/test_automatic_road_runtime_index_source_digest_registration_contract.py")
+          digest = load("source_digest_registration", digest_path)
+          digest.test_runtime_index_verifies_source_bytes_before_registration()
+          print(f"PASS {digest_path}:test_runtime_index_verifies_source_bytes_before_registration")
+          digest.test_per_road_lookup_keeps_defense_in_depth_digest_check()
+          print(f"PASS {digest_path}:test_per_road_lookup_keeps_defense_in_depth_digest_check")
           PY

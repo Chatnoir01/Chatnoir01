@@ -7,22 +7,9 @@ RUNTIME = Path(__file__).resolve().parents[1] / "game" / "scripts" / "anneessens
 class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
     def test_unverified_rendered_roads_do_not_claim_source_backed_alignment(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-        self.assertNotIn(
-            'set_meta("road_alignment_source_backed", true)',
-            text,
-            "Rendered Road_* nodes are not accompanied by an exact provenance contract; "
-            "the sidewalk kit must fail closed rather than manufacture a source-backed claim.",
-        )
-        self.assertIn(
-            'node.set_meta("road_alignment_source_backed", false)',
-            text,
-            "The centralized proxy contract must expose the fail-closed alignment verdict.",
-        )
-        self.assertIn(
-            'node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")',
-            text,
-            "The centralized proxy contract must make the fail-closed reason explicit.",
-        )
+        self.assertNotIn('set_meta("road_alignment_source_backed", true)', text)
+        self.assertIn('node.set_meta("road_alignment_source_backed", false)', text)
+        self.assertIn('node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")', text)
         self.assertIn("_apply_proxy_contract(_root)", text)
         self.assertIn("_apply_proxy_contract(pavement)", text)
 
@@ -31,20 +18,24 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         self.assertIn("_add_sidewalk_pair(road, material)", text)
         self.assertIn("pavement.global_position = road.global_position + lateral * offset * side", text)
         self.assertIn("pavement.global_rotation = road.global_rotation", text)
-        self.assertGreaterEqual(
-            text.count("pavement.use_collision = false"),
-            2,
-            "Creation and visibility toggles must both keep the authored proxy collision disabled.",
-        )
+        self.assertGreaterEqual(text.count("pavement.use_collision = false"), 2)
         self.assertNotIn("pavement.use_collision = _sidewalks_enabled", text)
         self.assertIn('node.set_meta("collision_source_backed", false)', text)
         self.assertIn('node.set_meta("collision_authorized", false)', text)
-        self.assertIn(
-            'node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")',
-            text,
-        )
-        self.assertIn("_apply_proxy_contract(_root)", text)
-        self.assertIn("_apply_proxy_contract(pavement)", text)
+        self.assertIn('node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")', text)
+
+    def test_empty_generated_roads_releases_false_binding_for_retry(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+        self.assertIn("func _build_from_existing_osm_roads() -> bool:", text)
+        self.assertIn("return _sidewalk_count > 0", text)
+        self.assertIn("if not _build_from_existing_osm_roads():", text)
+        empty_build = text.split("if not _build_from_existing_osm_roads():", 1)[1].split("if manual:", 1)[0]
+        self.assertIn("_release_owned_root()", empty_build)
+        self.assertIn("_scene = null", empty_build)
+        self.assertIn("_manual_binding = false", empty_build)
+        self.assertIn("_start_watching()", empty_build)
+        self.assertIn("_schedule_bind()", empty_build)
+        self.assertLess(empty_build.index("_scene = null"), empty_build.index("_schedule_bind()"))
 
 
 if __name__ == "__main__":

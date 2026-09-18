@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import unicodedata
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -50,10 +51,24 @@ def require_sha256(value: Any, label: str) -> str:
     return text
 
 
+def _unsafe_source_path_codepoint(codepoint: int) -> bool:
+    return (
+        codepoint < 32
+        or codepoint == 127
+        or 128 <= codepoint <= 159
+        or codepoint in (8203, 8288, 65279, 8232, 8233)
+        or 8234 <= codepoint <= 8238
+        or 8294 <= codepoint <= 8297
+        or 917504 <= codepoint <= 917631
+    )
+
+
 def require_runtime_source_path(value: Any, label: str) -> str:
     source_path = require_json_string(value, label)
+    if source_path != unicodedata.normalize("NFC", source_path) or any(_unsafe_source_path_codepoint(ord(ch)) for ch in source_path):
+        raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: ambiguous Unicode source path {source_path!r}")
     parsed = PurePosixPath(source_path)
-    if source_path != source_path.strip() or "\\" in source_path or parsed.is_absolute() or parsed.parts[:2] != ("data", "osm") or any(part in ("", ".", "..") for part in parsed.parts) or parsed.as_posix() != source_path or parsed.suffixes[-2:] != [".game", ".json"]:
+    if source_path != source_path.strip() or "\\" in source_path or source_path.startswith("res://") or parsed.is_absolute() or parsed.parts[:2] != ("data", "osm") or any(part in ("", ".", "..") for part in parsed.parts) or parsed.as_posix() != source_path or parsed.suffixes[-2:] != [".game", ".json"]:
         raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: non-canonical source path {source_path!r}")
     return source_path
 

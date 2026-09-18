@@ -1,13 +1,45 @@
+import hashlib
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "game" / "scripts" / "automatic_road_direct_spawn.gd"
+RUNTIME_INDEX = ROOT / "data" / "runtime" / "road_destination_runtime_index.json"
 
 
 def _function_body(text: str, name: str, next_name: str) -> str:
     start = text.index(f"func {name}")
     end = text.index(f"\nfunc {next_name}", start)
     return text[start:end]
+
+
+def test_runtime_index_locked_source_bytes_match_declared_sha256() -> None:
+    index = json.loads(RUNTIME_INDEX.read_text(encoding="utf-8"))
+    documents = index["documents"]
+    assert documents, "runtime index must contain at least one locked source document"
+
+    seen_paths: set[str] = set()
+    seen_road_ids: set[int] = set()
+    for descriptor in documents:
+        source_rel = descriptor["path"]
+        expected_sha = descriptor["sha256"]
+        road_ids = descriptor["road_ids"]
+
+        assert source_rel not in seen_paths, f"duplicate runtime-index source path: {source_rel}"
+        seen_paths.add(source_rel)
+        source_path = ROOT / source_rel
+        assert source_path.is_file(), f"locked runtime-index source is missing: {source_rel}"
+        actual_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        assert actual_sha == expected_sha, (
+            f"locked runtime-index source bytes drifted for {source_rel}: "
+            f"expected {expected_sha}, got {actual_sha}"
+        )
+
+        assert road_ids, f"locked runtime-index source has no road ids: {source_rel}"
+        for road_id in road_ids:
+            assert isinstance(road_id, int) and not isinstance(road_id, bool) and road_id > 0
+            assert road_id not in seen_road_ids, f"road id {road_id} is assigned to multiple source documents"
+            seen_road_ids.add(road_id)
 
 
 def test_runtime_index_verifies_source_bytes_before_registration() -> None:

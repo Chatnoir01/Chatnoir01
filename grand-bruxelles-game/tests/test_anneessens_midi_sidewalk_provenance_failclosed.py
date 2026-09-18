@@ -13,16 +13,18 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
             "Rendered Road_* nodes are not accompanied by an exact provenance contract; "
             "the sidewalk kit must fail closed rather than manufacture a source-backed claim.",
         )
-        self.assertGreaterEqual(
-            text.count('set_meta("road_alignment_source_backed", false)'),
-            2,
-            "Both the kit root and generated pavement pieces must expose the fail-closed provenance verdict.",
+        self.assertIn(
+            'node.set_meta("road_alignment_source_backed", false)',
+            text,
+            "The centralized proxy contract must expose the fail-closed alignment verdict.",
         )
         self.assertIn(
-            'set_meta("road_alignment_provenance_status", "unverified_rendered_road")',
+            'node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")',
             text,
-            "The runtime must make the reason for the fail-closed verdict explicit.",
+            "The centralized proxy contract must make the fail-closed reason explicit.",
         )
+        self.assertIn("_apply_proxy_contract(_root)", text)
+        self.assertIn("_apply_proxy_contract(pavement)", text)
 
     def test_visual_geometry_contract_is_untouched_while_collision_fails_closed(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
@@ -35,12 +37,14 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
             "Creation and visibility toggles must both keep the authored proxy collision disabled.",
         )
         self.assertNotIn("pavement.use_collision = _sidewalks_enabled", text)
-        self.assertGreaterEqual(text.count('set_meta("collision_source_backed", false)'), 2)
-        self.assertGreaterEqual(text.count('set_meta("collision_authorized", false)'), 2)
-        self.assertGreaterEqual(
-            text.count('set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")'),
-            2,
+        self.assertIn('node.set_meta("collision_source_backed", false)', text)
+        self.assertIn('node.set_meta("collision_authorized", false)', text)
+        self.assertIn(
+            'node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")',
+            text,
         )
+        self.assertIn("_apply_proxy_contract(_root)", text)
+        self.assertIn("_apply_proxy_contract(pavement)", text)
 
 
 if __name__ == "__main__":

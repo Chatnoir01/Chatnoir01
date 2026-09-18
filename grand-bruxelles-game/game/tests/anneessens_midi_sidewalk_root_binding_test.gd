@@ -2,8 +2,9 @@ extends SceneTree
 
 const ANNEESSENS := Vector2(-272.04, -217.07)
 const DETAIL_RADIUS_M := 150.0
-const EXPECTED_SOURCE := "OpenStreetMap contributors via Overpass API"
-const EXPECTED_LICENSE := "ODbL-1.0"
+const EXPECTED_SOURCE := "authored_proxy"
+const EXPECTED_LICENSE := "project-authored"
+const EXPECTED_ALIGNMENT_REFERENCE := "rendered GeneratedRoads nodes (unverified source identity)"
 const EXPECTED_ALIGNMENT_STATUS := "unverified_rendered_road"
 const EXPECTED_COLLISION_POLICY := "disabled_until_source_backed_vertical_profile"
 
@@ -33,10 +34,13 @@ func _expected_sidewalk_count(scene: Node3D) -> int:
 
 func _assert_proxy_contract(node: Node, label: String) -> bool:
     if str(node.get_meta("source", "")) != EXPECTED_SOURCE:
-        _fail("%s source provenance mismatch" % label)
+        _fail("%s authored-proxy source identity mismatch" % label)
         return false
     if str(node.get_meta("license", "")) != EXPECTED_LICENSE:
-        _fail("%s source license mismatch" % label)
+        _fail("%s authored-proxy license identity mismatch" % label)
+        return false
+    if str(node.get_meta("alignment_reference", "")) != EXPECTED_ALIGNMENT_REFERENCE:
+        _fail("%s rendered-road alignment reference mismatch" % label)
         return false
     if bool(node.get_meta("road_alignment_source_backed", true)):
         _fail("%s unverified rendered-road alignment was promoted as source-backed" % label)
@@ -172,5 +176,5 @@ func _run() -> void:
     if not _assert_bound_scene(runtime, viewport_scene, viewport_expected, "root-subviewport-main"):
         return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: direct_root=true root_subviewport_main=true sidewalks=%d proxy_collisions=0 toggle_collision_fail_closed=true current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true road_alignment_source_backed=false road_alignment_provenance_status=%s" % [viewport_expected, EXPECTED_ALIGNMENT_STATUS])
+    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: direct_root=true root_subviewport_main=true sidewalks=%d proxy_collisions=0 toggle_collision_fail_closed=true current_scene=null source=authored_proxy license=project-authored authored_proxy=true road_alignment_source_backed=false road_alignment_provenance_status=%s" % [viewport_expected, EXPECTED_ALIGNMENT_STATUS])
     quit(0)

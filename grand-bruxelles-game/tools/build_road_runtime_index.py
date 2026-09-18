@@ -2,7 +2,7 @@
 """Build the deterministic runtime OSM road-source index from the source catalog.
 
 The runtime index is source lookup metadata only. It MUST NOT authorize render,
-collision, runtime mounting, safe spawn, or JOUABLE promotion.
+collision, runtime mounting, safe spawn, destination advertising, or JOUABLE promotion.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ TOOLS_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = TOOLS_DIR.parent
 CATALOG_SCRIPT = TOOLS_DIR / "build_road_destination_catalog.py"
 INDEX_FIELDS = frozenset({"authorization", "catalog_sha256", "documents", "format", "source_lookup_only"})
-AUTHORIZATION_FIELDS = frozenset({"collision_authorized", "jouable_authorized", "render_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "source_lookup_only"})
+AUTHORIZATION_FIELDS = frozenset({"collision_authorized", "destination_advertisable", "jouable_authorized", "render_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "source_lookup_only"})
 DOCUMENT_FIELDS = frozenset({"path", "road_ids", "sha256"})
 
 _spec = importlib.util.spec_from_file_location("road_destination_catalog", CATALOG_SCRIPT)
@@ -26,7 +26,7 @@ if _spec is None or _spec.loader is None:
 _catalog_module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_catalog_module)
 
-AUTHORIZATION = {"collision_authorized": False, "jouable_authorized": False, "render_authorized": False, "runtime_mount_authorized": False, "safe_spawn_authorized": False, "source_lookup_only": True}
+AUTHORIZATION = {"collision_authorized": False, "destination_advertisable": False, "jouable_authorized": False, "render_authorized": False, "runtime_mount_authorized": False, "safe_spawn_authorized": False, "source_lookup_only": True}
 
 
 def require_json_string(value: Any, label: str) -> str:
@@ -112,7 +112,7 @@ def validate_contract(index: dict[str, Any], *, expected_catalog_sha256: str | N
         raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: authorization field set drift")
     if authorization.get("source_lookup_only") is not True:
         raise SystemExit("ROAD_RUNTIME_INDEX_FAIL: source-only authorization rail missing")
-    for forbidden in ("render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"):
+    for forbidden in ("render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized", "destination_advertisable"):
         if authorization.get(forbidden) is not False:
             raise SystemExit(f"ROAD_RUNTIME_INDEX_FAIL: {forbidden} must stay false")
     documents = index.get("documents")

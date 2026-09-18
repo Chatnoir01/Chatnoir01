@@ -1,0 +1,100 @@
+name: Grand Bruxelles Road Runtime Index Authorization Keyset
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_authorization_keyset_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_document_keyset_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_document_exact_schema_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_catalog_digest_contract.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_runtime_index_source_path_scope_contract.py"
+      - ".github/workflows/grand-bruxelles-road-runtime-index-authorization-keyset.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authorization-keyset:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require exact current main ancestry and checked-out head
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "$EXPECTED_HEAD_SHA" origin/main)"
+          echo "live_main=$live_main"
+          echo "expected_head=$EXPECTED_HEAD_SHA"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main"
+      - name: Reject unknown runtime-index authority and document keys
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          def load(name: str, path: Path):
+              spec = importlib.util.spec_from_file_location(name, path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError(f"cannot load {path}")
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              return module
+
+          auth_path = Path("tests/test_automatic_road_runtime_index_authorization_keyset_contract.py")
+          auth = load("authorization_keyset", auth_path)
+          auth.test_runtime_index_rejects_unknown_authorization_keys_before_documents()
+          print(f"PASS {auth_path}:test_runtime_index_rejects_unknown_authorization_keys_before_documents")
+          auth.test_runtime_index_rejects_unknown_top_level_keys_before_authorization()
+          print(f"PASS {auth_path}:test_runtime_index_rejects_unknown_top_level_keys_before_authorization")
+          auth.test_runtime_index_format_is_exact_string_before_schema_or_authority()
+          print(f"PASS {auth_path}:test_runtime_index_format_is_exact_string_before_schema_or_authority")
+          auth.test_runtime_index_top_level_source_lookup_only_is_exact_boolean_before_authorization()
+          print(f"PASS {auth_path}:test_runtime_index_top_level_source_lookup_only_is_exact_boolean_before_authorization")
+          auth.test_runtime_index_top_level_schema_is_exact_before_authorization()
+          print(f"PASS {auth_path}:test_runtime_index_top_level_schema_is_exact_before_authorization")
+
+          document_path = Path("tests/test_automatic_road_runtime_index_document_keyset_contract.py")
+          document = load("document_keyset", document_path)
+          document.test_runtime_index_rejects_unknown_document_descriptor_keys_before_registration()
+          print(f"PASS {document_path}:test_runtime_index_rejects_unknown_document_descriptor_keys_before_registration")
+
+          exact_document_path = Path("tests/test_automatic_road_runtime_index_document_exact_schema_contract.py")
+          exact_document = load("document_exact_schema", exact_document_path)
+          exact_document.test_runtime_index_document_descriptor_is_exact_closed_schema()
+          print(f"PASS {exact_document_path}:test_runtime_index_document_descriptor_is_exact_closed_schema")
+
+          digest_path = Path("tests/test_automatic_road_runtime_index_catalog_digest_contract.py")
+          digest = load("catalog_digest", digest_path)
+          digest.test_runtime_index_catalog_digest_is_typed_and_canonical_before_documents()
+          print(f"PASS {digest_path}:test_runtime_index_catalog_digest_is_typed_and_canonical_before_documents")
+
+          scope_path = Path("tests/test_automatic_road_runtime_index_source_path_scope_contract.py")
+          scope = load("source_path_scope", scope_path)
+          scope.test_runtime_index_source_paths_are_confined_to_canonical_osm_game_documents()
+          print(f"PASS {scope_path}:test_runtime_index_source_paths_are_confined_to_canonical_osm_game_documents")
+          scope.test_runtime_index_source_paths_reject_invisible_format_spoofing()
+          print(f"PASS {scope_path}:test_runtime_index_source_paths_reject_invisible_format_spoofing")
+          scope.test_runtime_index_source_paths_reject_bidi_reordering_controls()
+          print(f"PASS {scope_path}:test_runtime_index_source_paths_reject_bidi_reordering_controls")
+          scope.test_runtime_index_source_paths_reject_unicode_tag_controls()
+          print(f"PASS {scope_path}:test_runtime_index_source_paths_reject_unicode_tag_controls")
+          scope.test_runtime_index_source_paths_reject_control_and_line_separator_classes()
+          print(f"PASS {scope_path}:test_runtime_index_source_paths_reject_control_and_line_separator_classes")
+          PY

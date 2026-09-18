@@ -178,19 +178,24 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _root.set_meta("zone", "anneessens")
     _apply_proxy_contract(_root)
     _scene.add_child(_root)
-    _build_from_existing_osm_roads()
+    if not _build_from_existing_osm_roads():
+        _release_owned_root()
+        _scene = null
+        _manual_binding = false
+        _start_watching()
+        return
     if manual:
         _stop_watching()
     else:
         _start_watching()
 
-func _build_from_existing_osm_roads() -> void:
+func _build_from_existing_osm_roads() -> bool:
     if not is_instance_valid(_scene) or not is_instance_valid(_root):
-        return
+        return false
     var roads := _scene.get_node_or_null("BrusselsOSM/GeneratedRoads")
     if roads == null:
         push_warning("Anneessens Midi sidewalk kit: GeneratedRoads unavailable")
-        return
+        return false
 
     var material := StandardMaterial3D.new()
     material.albedo_color = Color(0.40, 0.385, 0.36, 1.0)
@@ -206,6 +211,7 @@ func _build_from_existing_osm_roads() -> void:
         if road.size.z < 1.0 or road.size.x < 2.0:
             continue
         _add_sidewalk_pair(road, material)
+    return _sidewalk_count > 0
 
 func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
     var width := SIDEWALK_WIDE_M if road.size.x >= 8.5 else SIDEWALK_NARROW_M

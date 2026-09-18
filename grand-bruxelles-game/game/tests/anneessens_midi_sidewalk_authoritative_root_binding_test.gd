@@ -36,6 +36,12 @@ func _make_main_fixture() -> Node3D:
 func _run() -> void:
     var runtime := SIDEWALK_RUNTIME.new()
     runtime.name = "AnneessensMidiSidewalkAuthorityWitness"
+    # This witness validates authority classification only. Keep the runtime in
+    # explicit/manual mode before entering the tree so _ready() cannot schedule
+    # production sidewalk construction while fixtures are being classified.
+    # That construction is covered by the binding/lifecycle witnesses; allowing
+    # it here makes canonical main.tscn classification depend on CSG build cost.
+    runtime._manual_binding = true
     root.add_child(runtime)
     await process_frame
 

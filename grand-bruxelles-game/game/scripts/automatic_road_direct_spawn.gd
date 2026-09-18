@@ -123,11 +123,15 @@ func _canonical_runtime_source_path(raw_path: Variant) -> String:
         return ""
     var raw_source_path := str(raw_path)
     var source_path := raw_source_path.strip_edges()
-    if source_path.is_empty() or source_path != raw_source_path or source_path.contains("\\"):
+    if source_path.is_empty() or source_path != raw_source_path:
         return ""
-    if source_path.begins_with("res://"):
-        source_path = source_path.trim_prefix("res://")
-    elif source_path.begins_with("/") or source_path.contains("://"):
+    if raw_source_path.contains("\\"):
+        return ""
+    if raw_source_path.begins_with("res://"):
+        return ""
+    if raw_source_path != raw_source_path.unicode_normalize(String.UNICODE_NORMALIZATION_NFC):
+        return ""
+    if source_path.begins_with("/") or source_path.contains("://"):
         return ""
     if source_path.is_empty() or source_path.begins_with("/") or source_path.ends_with("/") or source_path.contains("//"):
         return ""
@@ -137,6 +141,15 @@ func _canonical_runtime_source_path(raw_path: Variant) -> String:
     for segment: String in segments:
         if segment.is_empty() or segment == "." or segment == ".." or segment.contains(":"):
             return ""
+    for codepoint: int in source_path.to_utf32_buffer():
+        if codepoint < 32 or codepoint == 127 or (codepoint >= 128 and codepoint <= 159) or codepoint == 8203 or codepoint == 8288 or codepoint == 65279 or codepoint == 8232 or codepoint == 8233 or (codepoint >= 8234 and codepoint <= 8238) or (codepoint >= 8294 and codepoint <= 8297) or (codepoint >= 917504 and codepoint <= 917631):
+            return ""
+        if codepoint == 8260 or codepoint == 8725 or codepoint == 65295 or codepoint == 10741 or codepoint == 65340:
+            return ""
+    if not source_path.begins_with("data/osm/"):
+        return ""
+    if not source_path.ends_with(".game.json"):
+        return ""
     return "res://" + "/".join(segments)
 
 
@@ -164,19 +177,59 @@ func _load_runtime_index() -> bool:
     _source_sha_by_path.clear()
 
     var index := _parse_document(RUNTIME_INDEX_PATH)
-    if index.is_empty() or str(index.get("format", "")) != RUNTIME_INDEX_FORMAT:
+    if index.is_empty():
         return false
-    if not bool(index.get("source_lookup_only", false)):
+    var runtime_index_format: Variant = index.get("format", "")
+    if typeof(runtime_index_format) != TYPE_STRING or runtime_index_format != RUNTIME_INDEX_FORMAT:
         return false
+    var allowed_index_keys := {
+        "format": true,
+        "source_lookup_only": true,
+        "catalog_sha256": true,
+        "authorization": true,
+        "documents": true,
+    }
+    if index.size() != allowed_index_keys.size():
+        return false
+    for raw_key: Variant in index.keys():
+        if typeof(raw_key) != TYPE_STRING or not allowed_index_keys.has(str(raw_key)):
+            return false
+    var index_source_lookup_only: Variant = index.get("source_lookup_only", false)
+    if typeof(index_source_lookup_only) != TYPE_BOOL or not index_source_lookup_only:
+        return false
+    var catalog_sha256: Variant = index.get("catalog_sha256", "")
+    if typeof(catalog_sha256) != TYPE_STRING or _canonical_sha256(catalog_sha256).is_empty():
+        return false
+    var staged_source_sha_by_path: Dictionary = {}
+    var staged_road_source_path_by_id: Dictionary = {}
     var authorization: Variant = index.get("authorization", {})
     if not authorization is Dictionary:
         return false
     var auth := authorization as Dictionary
-    if not bool(auth.get("source_lookup_only", false)):
+    var allowed_authorization_keys := {
+        "source_lookup_only": true,
+        "render_authorized": true,
+        "collision_authorized": true,
+        "runtime_mount_authorized": true,
+        "safe_spawn_authorized": true,
+        "jouable_authorized": true,
+        "destination_advertisable": true,
+    }
+    if auth.size() != allowed_authorization_keys.size():
+        return false
+    for raw_key: Variant in auth.keys():
+        if typeof(raw_key) != TYPE_STRING or not allowed_authorization_keys.has(str(raw_key)):
+            return false
+    var auth_source_lookup_only: Variant = auth.get("source_lookup_only", false)
+    if typeof(auth_source_lookup_only) != TYPE_BOOL or not auth_source_lookup_only:
         return false
     for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:
-        if bool(auth.get(forbidden, true)):
+        var forbidden_value: Variant = auth.get(forbidden, true)
+        if typeof(forbidden_value) != TYPE_BOOL or forbidden_value:
             return false
+    var destination_advertisable: Variant = auth.get("destination_advertisable", true)
+    if typeof(destination_advertisable) != TYPE_BOOL or destination_advertisable:
+        return false
 
     var documents: Variant = index.get("documents", [])
     if not documents is Array or documents.is_empty():
@@ -185,20 +238,34 @@ func _load_runtime_index() -> bool:
         if not raw_document is Dictionary:
             return false
         var descriptor := raw_document as Dictionary
+        var allowed_document_keys := {
+            "path": true,
+            "sha256": true,
+            "road_ids": true,
+        }
+        if descriptor.size() != allowed_document_keys.size():
+            return false
+        for raw_key: Variant in descriptor.keys():
+            if typeof(raw_key) != TYPE_STRING or not allowed_document_keys.has(str(raw_key)):
+                return false
         var source_path := _canonical_runtime_source_path(descriptor.get("path", ""))
         var expected_sha := _canonical_sha256(descriptor.get("sha256", ""))
         var road_ids: Variant = descriptor.get("road_ids", [])
         if source_path.is_empty() or expected_sha.is_empty() or not road_ids is Array or road_ids.is_empty():
             return false
-        if _source_sha_by_path.has(source_path):
+        if staged_source_sha_by_path.has(source_path):
             return false
-        _source_sha_by_path[source_path] = expected_sha
+        staged_source_sha_by_path[source_path] = expected_sha
         for raw_id: Variant in road_ids:
             var osm_id := _exact_json_osm_id(raw_id)
-            if osm_id <= 0 or _road_source_path_by_id.has(osm_id):
+            if osm_id <= 0 or staged_road_source_path_by_id.has(osm_id):
                 return false
-            _road_source_path_by_id[osm_id] = source_path
+            staged_road_source_path_by_id[osm_id] = source_path
 
+    if staged_road_source_path_by_id.is_empty():
+        return false
+    _source_sha_by_path = staged_source_sha_by_path
+    _road_source_path_by_id = staged_road_source_path_by_id
     _runtime_index_valid = not _road_source_path_by_id.is_empty()
     return _runtime_index_valid
 

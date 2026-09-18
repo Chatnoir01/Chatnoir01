@@ -14,6 +14,7 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
     text = RUNTIME.read_text(encoding="utf-8")
     loader = _function_body(text, "_load_runtime_index() -> bool:", "runtime_index_road_count()")
 
+    existence_guard = "if not FileAccess.file_exists(source_path):\n            return false"
     digest_read = "var actual_sha := FileAccess.get_sha256(source_path).to_lower()"
     digest_guard = "if actual_sha.is_empty() or actual_sha != expected_sha:\n            return false"
     source_stage = "staged_source_sha_by_path[source_path] = expected_sha"
@@ -21,6 +22,9 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
     source_publish = "_source_sha_by_path = staged_source_sha_by_path"
     road_publish = "_road_source_path_by_id = staged_road_source_path_by_id"
 
+    assert loader.count(existence_guard) == 1, (
+        "runtime-index registration must reject a missing canonical source before hashing or staging it"
+    )
     assert loader.count(digest_read) == 1, (
         "runtime-index registration must hash every canonical source document exactly once; "
         "a digest check deferred to _source_bundle_by_id() is too late"
@@ -29,6 +33,7 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
         "runtime-index registration must fail closed when source bytes are missing or stale"
     )
 
+    existence_pos = loader.index(existence_guard)
     read_pos = loader.index(digest_read)
     guard_pos = loader.index(digest_guard)
     source_stage_pos = loader.index(source_stage)
@@ -36,7 +41,7 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
     source_publish_pos = loader.index(source_publish)
     road_publish_pos = loader.index(road_publish)
 
-    assert read_pos < guard_pos < source_stage_pos
+    assert existence_pos < read_pos < guard_pos < source_stage_pos
     assert guard_pos < road_stage_pos
     assert guard_pos < source_publish_pos
     assert guard_pos < road_publish_pos

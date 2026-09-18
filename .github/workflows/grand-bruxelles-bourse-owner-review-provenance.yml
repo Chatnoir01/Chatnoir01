@@ -36,4 +36,8 @@ jobs:
         env:
           PYTHONHASHSEED: "0"
           PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 -I -B grand-bruxelles-game/game/tests/bourse_owner_review_candidate_provenance_test.py
+          PYTHONNOUSERSITE: "1"
+        run: |
+          set -euo pipefail
+          unset PYTHONPATH PYTHONHOME
+          python3 -I -B grand-bruxelles-game/game/tests/bourse_owner_review_candidate_provenance_test.py

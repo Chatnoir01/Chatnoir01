@@ -46,6 +46,16 @@ def reject_nonstandard_constant(value: str) -> object:
     raise SystemExit(f"BOURSE_OWNER_REVIEW_PROVENANCE_FAIL: non-standard JSON constant: {value}")
 
 
+def decode_strict_utf8(payload: bytes) -> str:
+    """Decode receipt bytes on the same fail-closed rail as JSON syntax errors."""
+    try:
+        return payload.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(
+            f"BOURSE_OWNER_REVIEW_PROVENANCE_FAIL: malformed UTF-8 at byte {exc.start}"
+        ) from None
+
+
 def load_strict_json(text: str) -> object:
     try:
         return json.loads(
@@ -53,11 +63,8 @@ def load_strict_json(text: str) -> object:
             object_pairs_hook=reject_duplicate_object_pairs,
             parse_constant=reject_nonstandard_constant,
         )
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        if isinstance(exc, json.JSONDecodeError):
-            detail = f"line {exc.lineno} column {exc.colno}"
-        else:
-            detail = f"unicode decode error at byte {exc.start}"
+    except json.JSONDecodeError as exc:
+        detail = f"line {exc.lineno} column {exc.colno}"
         raise SystemExit(f"BOURSE_OWNER_REVIEW_PROVENANCE_FAIL: malformed JSON: {detail}") from None
 
 
@@ -71,7 +78,16 @@ def require_parser_rejects(text: str, expected_fragment: str) -> None:
 
 
 def prove_strict_parser_fail_closed() -> None:
-    """Executable regression proofs for ambiguity/non-standard/malformed JSON rejection."""
+    """Executable regression proofs for encoding/ambiguity/non-standard/malformed rejection."""
+    for payload in (b'{"owner_pr":880,"note":"\xff"}', b"\x80{}", b'{"owner_pr":\xc3}'): 
+        try:
+            decode_strict_utf8(payload)
+        except SystemExit as exc:
+            require("malformed UTF-8 at byte" in str(exc), f"UTF-8 rejection drift: {exc}")
+        else:
+            require(False, f"invalid UTF-8 receipt accepted: {payload!r}")
+    require(decode_strict_utf8(b'{"owner_pr":880}') == '{"owner_pr":880}', "UTF-8 valid-control drift")
+
     require_parser_rejects('{"owner_pr":880,"owner_pr":2179}', "duplicate JSON key: owner_pr")
     require_parser_rejects(
         '{"shared_environment_authorized":false,"shared_environment_authoriz\\u0065d":true}',
@@ -119,8 +135,6 @@ def prove_unicode_provenance_fail_closed() -> None:
         else:
             require(False, f"Unicode-control provenance accepted: {escaped}")
 
-    # Keys are authority-bearing too: a visually hidden format character must not
-    # create a sibling field that survives parsing and only fails much later.
     hidden_key = load_strict_json('{"shared_environment_authorized":false,"shared_environment_authorized\\u200b":true}')
     require(type(hidden_key) is dict and len(hidden_key) == 2, "Unicode-key regression setup drift")
     try:
@@ -130,9 +144,6 @@ def prove_unicode_provenance_fail_closed() -> None:
     else:
         require(False, "hidden Unicode in authorization key accepted")
 
-    # Canonically equivalent text can have different bytes/code points. Provenance
-    # receipts are hash/review inputs, so require one representation instead of
-    # silently normalizing evidence after parsing.
     decomposed = load_strict_json('{"heritage_fact":"Cafe\\u0301"}')
     require(type(decomposed) is dict, "NFC regression setup drift")
     require(unicodedata.normalize("NFC", decomposed["heritage_fact"]) == "Caf\u00e9", "NFC regression setup no longer reproduces")
@@ -148,7 +159,7 @@ def main() -> None:
     prove_strict_parser_fail_closed()
     prove_unicode_provenance_fail_closed()
     require(RECEIPT.is_file(), "receipt missing")
-    data = load_strict_json(RECEIPT.read_text(encoding="utf-8"))
+    data = load_strict_json(decode_strict_utf8(RECEIPT.read_bytes()))
     require_unicode_scalars(data)
     require(type(data) is dict, "receipt must be an object")
     require(set(data) == EXPECTED_KEYS, "receipt keyset drift")

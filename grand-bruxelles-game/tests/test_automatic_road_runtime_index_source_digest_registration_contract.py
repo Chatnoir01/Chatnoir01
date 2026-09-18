@@ -18,6 +18,7 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
     digest_read = "var actual_sha := FileAccess.get_sha256(source_path).to_lower()"
     digest_guard = "if actual_sha.is_empty() or actual_sha != expected_sha:\n            return false"
     source_stage = "staged_source_sha_by_path[source_path] = expected_sha"
+    road_id_intake = "for raw_id: Variant in road_ids:"
     road_stage = "staged_road_source_path_by_id[osm_id] = source_path"
     source_publish = "_source_sha_by_path = staged_source_sha_by_path"
     road_publish = "_road_source_path_by_id = staged_road_source_path_by_id"
@@ -32,17 +33,21 @@ def test_runtime_index_verifies_source_bytes_before_registration() -> None:
     assert loader.count(digest_guard) == 1, (
         "runtime-index registration must fail closed when source bytes are missing or stale"
     )
+    assert loader.count(road_id_intake) == 1, (
+        "runtime-index registration must have one deterministic road-id intake loop per descriptor"
+    )
 
     existence_pos = loader.index(existence_guard)
     read_pos = loader.index(digest_read)
     guard_pos = loader.index(digest_guard)
     source_stage_pos = loader.index(source_stage)
+    road_id_intake_pos = loader.index(road_id_intake)
     road_stage_pos = loader.index(road_stage)
     source_publish_pos = loader.index(source_publish)
     road_publish_pos = loader.index(road_publish)
 
     assert existence_pos < read_pos < guard_pos < source_stage_pos
-    assert guard_pos < road_stage_pos
+    assert guard_pos < road_id_intake_pos < road_stage_pos
     assert guard_pos < source_publish_pos
     assert guard_pos < road_publish_pos
 

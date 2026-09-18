@@ -24,13 +24,19 @@ jobs:
           persist-credentials: false
       - name: Require exact head and exact current main
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
         run: |
           set -euo pipefail
-          EXPECTED_HEAD="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git fetch --no-tags origin main
           LIVE_MAIN="$(git rev-parse origin/main)"
-          test "$LIVE_MAIN" = "8938792700837c6e53bf9661f0c304dfeba84897"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            test -n "$EXPECTED_BASE"
+            test "$LIVE_MAIN" = "$EXPECTED_BASE"
+          fi
           test "$(git merge-base HEAD origin/main)" = "$LIVE_MAIN"
       - name: Validate Bourse owner-review boundary
         env:

@@ -43,7 +43,7 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     staged_roads = "var staged_road_source_path_by_id: Dictionary = {}"
     staged_source_duplicate_check = "staged_source_sha_by_path.has(source_path)"
     staged_road_duplicate_check = "staged_road_source_path_by_id.has(osm_id)"
-    staged_source_write = "staged_source_sha_by_path[source_path] = expected_sha"
+    staged_source_write = "staged_source_sha_by_path[source_path] = actual_sha"
     staged_road_write = "staged_road_source_path_by_id[osm_id] = source_path"
     commit_sources = "_source_sha_by_path = staged_source_sha_by_path"
     commit_roads = "_road_source_path_by_id = staged_road_source_path_by_id"
@@ -53,7 +53,7 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
         ("staged road map", staged_roads),
         ("staged source duplicate check", staged_source_duplicate_check),
         ("staged road duplicate check", staged_road_duplicate_check),
-        ("staged source registration", staged_source_write),
+        ("verified source registration", staged_source_write),
         ("staged road registration", staged_road_write),
         ("source-map commit", commit_sources),
         ("road-map commit", commit_roads),
@@ -90,6 +90,9 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     assert "_road_source_path_by_id.has(osm_id)" not in body
     assert "_source_sha_by_path[source_path] = expected_sha" not in body
     assert "_road_source_path_by_id[osm_id] = source_path" not in body
+    assert "staged_source_sha_by_path[source_path] = expected_sha" not in body, (
+        "descriptor digest must not become staged runtime authority; only authenticated bytes may be staged"
+    )
 
     nonempty_guard = "if staged_road_source_path_by_id.is_empty():\n        return false"
     assert nonempty_guard in body, "empty staged runtime index must fail before canonical publication"
@@ -98,15 +101,21 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     assert road_write < guard_pos < source_commit
     assert road_write < guard_pos < road_commit
 
-    # A descriptor's declared SHA is authority only if the referenced source file
-    # is proven to have those exact bytes before either canonical lookup map is
-    # published. Deferring this check to per-road lookup would expose an index
-    # whose registration succeeded even though its source bundle is already stale.
+    # A descriptor's declared SHA is only a comparison target. Runtime authority
+    # must be derived from the bytes that were actually authenticated before either
+    # canonical lookup map is published.
+    source_exists_guard = "if not FileAccess.file_exists(source_path):\n            return false"
     source_digest_read = "var actual_sha := FileAccess.get_sha256(source_path).to_lower()"
     source_digest_guard = "if actual_sha.is_empty() or actual_sha != expected_sha:\n            return false"
+    assert body.count(source_exists_guard) == 1, "runtime-index load must require the canonical source document before hashing"
     assert body.count(source_digest_read) == 1, "runtime-index load must hash each canonical source document exactly once"
     assert body.count(source_digest_guard) == 1, "runtime-index load must compare source bytes to the descriptor digest and fail closed"
+    exists_pos = body.index(source_exists_guard)
     digest_read_pos = body.index(source_digest_read)
     digest_guard_pos = body.index(source_digest_guard)
-    assert documents < digest_read_pos < digest_guard_pos < source_write, "source bytes must be verified before descriptor staging"
-    assert digest_guard_pos < source_commit and digest_guard_pos < road_commit, "source digest comparison must complete before canonical publication"
+    assert documents < source_duplicate_check < exists_pos < digest_read_pos < digest_guard_pos < source_write, (
+        "duplicate rejection and source-byte authentication must complete before verified digest staging"
+    )
+    assert digest_guard_pos < source_commit and digest_guard_pos < road_commit, (
+        "source digest comparison must complete before canonical publication"
+    )

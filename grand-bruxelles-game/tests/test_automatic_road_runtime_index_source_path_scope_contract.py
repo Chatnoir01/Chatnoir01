@@ -121,3 +121,15 @@ def test_runtime_index_source_paths_reject_slash_confusables() -> None:
         (65295, "FULLWIDTH SOLIDUS U+FF0F"),
     ):
         assert f"codepoint == {codepoint}" in body, f"missing fail-closed rejection for {label}"
+
+
+def test_runtime_index_source_paths_reject_reverse_solidus_confusables() -> None:
+    body = _source_path_helper()
+    # Keep the source-path grammar ASCII-exact. These NFC-stable reverse-solidus
+    # lookalikes can make a flat filename look like a Windows-style nested path
+    # in review/log surfaces while remaining different bytes to the loader.
+    for codepoint, label in (
+        (10741, "REVERSE SOLIDUS OPERATOR U+29F5"),
+        (65340, "FULLWIDTH REVERSE SOLIDUS U+FF3C"),
+    ):
+        assert f"codepoint == {codepoint}" in body, f"missing fail-closed rejection for {label}"

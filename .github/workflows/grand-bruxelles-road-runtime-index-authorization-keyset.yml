@@ -97,4 +97,6 @@ jobs:
           print(f"PASS {scope_path}:test_runtime_index_source_paths_reject_unicode_tag_controls")
           scope.test_runtime_index_source_paths_reject_control_and_line_separator_classes()
           print(f"PASS {scope_path}:test_runtime_index_source_paths_reject_control_and_line_separator_classes")
+          scope.test_runtime_index_source_paths_reject_slash_confusables()
+          print(f"PASS {scope_path}:test_runtime_index_source_paths_reject_slash_confusables")
           PY

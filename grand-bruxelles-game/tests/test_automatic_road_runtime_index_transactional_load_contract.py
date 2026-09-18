@@ -91,13 +91,19 @@ def test_runtime_index_registration_is_transactional_until_full_validation() -> 
     assert "_source_sha_by_path[source_path] = expected_sha" not in body
     assert "_road_source_path_by_id[osm_id] = source_path" not in body
 
-    # The staged road set is the actual publishable payload. Validate that it is
-    # non-empty before either canonical dictionary is committed, rather than
-    # committing empty maps and deriving failure only afterwards. This keeps a
-    # failed load observably atomic even if future callers inspect the maps.
     nonempty_guard = "if staged_road_source_path_by_id.is_empty():\n        return false"
     assert nonempty_guard in body, "empty staged runtime index must fail before canonical publication"
     assert body.count(nonempty_guard) == 1, "staged nonempty guard must have one canonical boundary"
     guard_pos = body.index(nonempty_guard)
     assert road_write < guard_pos < source_commit
     assert road_write < guard_pos < road_commit
+
+    # A descriptor's declared SHA is authority only if the referenced source file
+    # is proven to have those exact bytes before either canonical lookup map is
+    # published. Deferring this check to per-road lookup would expose an index
+    # whose registration succeeded even though its source bundle is already stale.
+    source_digest_read = "FileAccess.get_sha256(source_path).to_lower()"
+    assert source_digest_read in body, "runtime-index load must hash each canonical source document"
+    digest_read_pos = body.index(source_digest_read)
+    assert documents < digest_read_pos < source_write, "source bytes must be verified before descriptor staging"
+    assert digest_read_pos < source_commit and digest_read_pos < road_commit, "source digest must validate before canonical publication"

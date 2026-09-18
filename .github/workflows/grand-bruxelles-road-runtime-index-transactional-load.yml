@@ -61,6 +61,8 @@ jobs:
 
           digest_path = Path("tests/test_automatic_road_runtime_index_source_digest_registration_contract.py")
           digest = load("source_digest_registration", digest_path)
+          digest.test_runtime_index_locked_source_bytes_match_declared_sha256()
+          print(f"PASS {digest_path}:test_runtime_index_locked_source_bytes_match_declared_sha256")
           digest.test_runtime_index_verifies_source_bytes_before_registration()
           print(f"PASS {digest_path}:test_runtime_index_verifies_source_bytes_before_registration")
           digest.test_per_road_lookup_keeps_defense_in_depth_digest_check()

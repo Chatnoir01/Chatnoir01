@@ -158,6 +158,7 @@ func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("license", PROXY_LICENSE)
     node.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
     node.set_meta("road_alignment_source_backed", false)
+    node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
     node.set_meta("sidewalk_presence_source_backed", false)
     node.set_meta("visual_dimensions_source_backed", false)
     node.set_meta("vertical_profile_source_backed", false)

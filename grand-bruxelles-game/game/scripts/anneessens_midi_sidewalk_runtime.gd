@@ -166,6 +166,14 @@ func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("authored_proxy", true)
     node.set_meta("presentation_recipe", PROXY_RECIPE)
 
+func _apply_proxy_material_contract(material: Material) -> void:
+    material.set_meta("source", PROXY_SOURCE)
+    material.set_meta("license", PROXY_LICENSE)
+    material.set_meta("material_identity_source_backed", false)
+    material.set_meta("material_identity_status", "generic_authored_proxy")
+    material.set_meta("material_reuse_scope", "anneessens_proxy_only")
+    material.set_meta("brussels_material_family_authorized", false)
+
 func _bind_scene(scene: Node3D, manual: bool) -> void:
     if scene == null or (_tearing_down and not manual):
         return
@@ -206,6 +214,7 @@ func _build_from_existing_osm_roads() -> bool:
     var material := StandardMaterial3D.new()
     material.albedo_color = Color(0.40, 0.385, 0.36, 1.0)
     material.roughness = 0.92
+    _apply_proxy_material_contract(material)
 
     for child: Node in roads.get_children():
         if not child is CSGBox3D or not child.name.begins_with("Road_"):

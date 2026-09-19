@@ -14,6 +14,7 @@ WINDOWS_FORBIDDEN_CHARS=frozenset('<>:"|?*')
 WINDOWS_RESERVED_STEMS=frozenset({"CON","PRN","AUX","NUL","CONIN$","CONOUT$",*(f"COM{i}" for i in range(1,10)),*(f"LPT{i}" for i in range(1,10)),*(f"COM{i}" for i in "¹²³"),*(f"LPT{i}" for i in "¹²³")})
 WINDOWS_MAX_COMPONENT_UTF16_UNITS=255
 MAX_STATUS_BYTES=1 << 20
+MAX_SOURCE_PAYLOAD_BYTES=512 << 20
 class DuplicateJSONKeyError(ValueError): pass
 class NonStandardJSONConstantError(ValueError): pass
 def _reject_duplicate_keys(pairs):
@@ -98,7 +99,7 @@ def _source_manifest_integrity(status,repo_root):
         if not isinstance(license_id,str) or license_id not in ALLOWED_SOURCE_LICENSES: return False
         expected_sha1=record.get("git_blob_sha1"); expected_size=record.get("size_bytes")
         if not isinstance(expected_sha1,str) or len(expected_sha1)!=40 or expected_sha1!=expected_sha1.lower() or any(c not in "0123456789abcdef" for c in expected_sha1): return False
-        if not isinstance(expected_size,int) or isinstance(expected_size,bool) or expected_size<=0: return False
+        if not isinstance(expected_size,int) or isinstance(expected_size,bool) or expected_size<=0 or expected_size>MAX_SOURCE_PAYLOAD_BYTES: return False
         candidate=_source_file(repo_root,source_path)
         if candidate is None: return False
         try: data=_read_regular_single_link(candidate,expected_size)

@@ -15,6 +15,7 @@ WINDOWS_RESERVED_STEMS=frozenset({"CON","PRN","AUX","NUL","CONIN$","CONOUT$",*(f
 WINDOWS_MAX_COMPONENT_UTF16_UNITS=255
 MAX_STATUS_BYTES=1 << 20
 MAX_SOURCE_PAYLOAD_BYTES=512 << 20
+MAX_TOTAL_SOURCE_BYTES=1 << 30
 MAX_SOURCE_FILES=64
 class DuplicateJSONKeyError(ValueError): pass
 class NonStandardJSONConstantError(ValueError): pass
@@ -81,10 +82,17 @@ def _read_regular_single_link(path,max_bytes=None):
 def _source_manifest_integrity(status,repo_root):
     source_paths=status.get("source_paths"); manifest=status.get("source_manifest")
     if not isinstance(source_paths,list) or not source_paths or len(source_paths)>MAX_SOURCE_FILES: return False
-    if not all(_canonical_path_text(p) is not None and _source_file(repo_root,p) is not None for p in source_paths): return False
-    if len({p.casefold() for p in source_paths})!=len(source_paths): return False
+    if len({p.casefold() for p in source_paths if isinstance(p,str)})!=len(source_paths): return False
     if not isinstance(manifest,dict) or not manifest or len(manifest)>MAX_SOURCE_FILES or set(source_paths)!=set(manifest): return False
-    if len({p.casefold() for p in manifest})!=len(manifest): return False
+    if len({p.casefold() for p in manifest if isinstance(p,str)})!=len(manifest): return False
+    total_source_bytes=0
+    for record in manifest.values():
+        if not isinstance(record,dict): return False
+        expected_size=record.get("size_bytes")
+        if not isinstance(expected_size,int) or isinstance(expected_size,bool) or expected_size<=0 or expected_size>MAX_SOURCE_PAYLOAD_BYTES: return False
+        total_source_bytes += expected_size
+        if total_source_bytes>MAX_TOTAL_SOURCE_BYTES: return False
+    if not all(_canonical_path_text(p) is not None and _source_file(repo_root,p) is not None for p in source_paths): return False
     if not all(_canonical_path_text(p) is not None and _source_file(repo_root,p) is not None for p in manifest): return False
     upstream_identities=[]
     for source_path in source_paths:
@@ -100,7 +108,6 @@ def _source_manifest_integrity(status,repo_root):
         if not isinstance(license_id,str) or license_id not in ALLOWED_SOURCE_LICENSES: return False
         expected_sha1=record.get("git_blob_sha1"); expected_size=record.get("size_bytes")
         if not isinstance(expected_sha1,str) or len(expected_sha1)!=40 or expected_sha1!=expected_sha1.lower() or any(c not in "0123456789abcdef" for c in expected_sha1): return False
-        if not isinstance(expected_size,int) or isinstance(expected_size,bool) or expected_size<=0 or expected_size>MAX_SOURCE_PAYLOAD_BYTES: return False
         candidate=_source_file(repo_root,source_path)
         if candidate is None: return False
         try: data=_read_regular_single_link(candidate,expected_size)

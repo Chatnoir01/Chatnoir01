@@ -133,7 +133,7 @@ def source_ready(repo_root):
         raw=_read_regular_single_link(status_path,MAX_STATUS_BYTES)
         if raw is None or not raw: return False
         status=_loads_strict_json(raw.decode("utf-8"))
-    except (OSError,UnicodeDecodeError,json.JSONDecodeError,DuplicateJSONKeyError,NonStandardJSONConstantError): return False
+    except (OSError,UnicodeDecodeError,json.JSONDecodeError,ValueError): return False
     return _status_consistent(status,repo_root)
 def _canonical_asset_path(value):
     canonical=_canonical_path_text(value)

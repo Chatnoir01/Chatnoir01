@@ -57,8 +57,16 @@ jobs:
           SOURCE_AUTH_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
         run: |
           set -euo pipefail
-          python -m pytest -q \
+          python -m pytest -q --junitxml=source-auth-junit.xml \
             tests/test_automatic_road_runtime_index_live_byte_authority.py \
             tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py \
             tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py \
             tests/test_automatic_road_runtime_index_scope_preservation.py
+      - name: Retain exact-head source-auth evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-runtime-index-source-auth-${{ github.event.pull_request.head.sha || github.sha }}
+          path: grand-bruxelles-game/source-auth-junit.xml
+          if-no-files-found: error
+          retention-days: 14

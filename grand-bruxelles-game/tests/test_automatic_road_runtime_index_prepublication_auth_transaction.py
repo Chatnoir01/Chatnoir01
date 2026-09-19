@@ -33,6 +33,29 @@ def test_failed_validation_has_no_incremental_canonical_authority() -> None:
     assert body.index(publish_roads) < valid
 
 
+def test_staging_never_consults_partially_built_canonical_maps() -> None:
+    body = _loader_body()
+    publish_source = body.index("_source_sha_by_path = staged_source_sha_by_path")
+    publish_roads = body.index("_road_source_path_by_id = staged_road_source_path_by_id")
+    first_publish = min(publish_source, publish_roads)
+    staging = body[:first_publish]
+
+    # Canonical maps are only reset before validation. Duplicate detection and
+    # all descriptor accumulation must consult transaction-local maps so a
+    # failed descriptor can never make partial authority observable or affect
+    # later validation decisions.
+    assert staging.count("_source_sha_by_path") == 1
+    assert staging.count("_road_source_path_by_id") == 1
+    assert "_source_sha_by_path.clear()" in staging
+    assert "_road_source_path_by_id.clear()" in staging
+    assert "_source_sha_by_path.has(" not in staging
+    assert "_road_source_path_by_id.has(" not in staging
+    assert "_source_sha_by_path[" not in staging
+    assert "_road_source_path_by_id[" not in staging
+    assert "staged_source_sha_by_path.has(source_path)" in staging
+    assert "staged_road_source_path_by_id.has(osm_id)" in staging
+
+
 def test_failed_validation_latches_empty_canonical_authority() -> None:
     body = _loader_body()
     attempted_guard = body.index("if _runtime_index_attempted:")

@@ -181,8 +181,11 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     if not _build_from_existing_osm_roads():
         _release_owned_root()
         _scene = null
-        _manual_binding = false
-        _start_watching()
+        if manual:
+            _stop_watching()
+        else:
+            _manual_binding = false
+            _start_watching()
         return
     if manual:
         _stop_watching()

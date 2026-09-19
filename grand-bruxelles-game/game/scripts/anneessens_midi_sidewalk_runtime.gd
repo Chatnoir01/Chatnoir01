@@ -147,6 +147,12 @@ func _try_bind() -> void:
 func bind_scene(scene: Node3D) -> void:
     _bind_scene(scene, true)
 
+func _apply_material_identity_contract(target: Object) -> void:
+    target.set_meta("material_identity_source_backed", false)
+    target.set_meta("material_identity_status", "generic_authored_proxy")
+    target.set_meta("material_reuse_scope", "anneessens_proxy_only")
+    target.set_meta("brussels_material_family_authorized", false)
+
 func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("source", PROXY_SOURCE)
     node.set_meta("license", PROXY_LICENSE)
@@ -156,10 +162,7 @@ func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("sidewalk_presence_source_backed", false)
     node.set_meta("visual_dimensions_source_backed", false)
     node.set_meta("vertical_profile_source_backed", false)
-    node.set_meta("material_identity_source_backed", false)
-    node.set_meta("material_identity_status", "generic_authored_proxy")
-    node.set_meta("material_reuse_scope", "anneessens_proxy_only")
-    node.set_meta("brussels_material_family_authorized", false)
+    _apply_material_identity_contract(node)
     node.set_meta("collision_source_backed", false)
     node.set_meta("collision_authorized", false)
     node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
@@ -169,10 +172,7 @@ func _apply_proxy_contract(node: Node) -> void:
 func _apply_proxy_material_contract(material: Material) -> void:
     material.set_meta("source", PROXY_SOURCE)
     material.set_meta("license", PROXY_LICENSE)
-    material.set_meta("material_identity_source_backed", false)
-    material.set_meta("material_identity_status", "generic_authored_proxy")
-    material.set_meta("material_reuse_scope", "anneessens_proxy_only")
-    material.set_meta("brussels_material_family_authorized", false)
+    _apply_material_identity_contract(material)
 
 func _bind_scene(scene: Node3D, manual: bool) -> void:
     if scene == null or (_tearing_down and not manual):

@@ -67,6 +67,16 @@ def main() -> int:
         }
         assert not readiness._source_manifest_integrity(too_many_doc, root), "manifest cardinality must be bounded before filesystem traversal or payload reads"
 
+        # A status can stay far below MAX_STATUS_BYTES while containing an integer
+        # literal beyond CPython's int conversion digit limit. Readiness is a
+        # fail-closed gate: hostile numeric syntax must return False, never raise.
+        status.write_text('{"size_bytes":' + ('9' * 5000) + '}', encoding="utf-8")
+        try:
+            huge_integer_ready = readiness.source_ready(root)
+        except ValueError as exc:
+            raise AssertionError("oversized JSON integer must fail closed instead of escaping source_ready") from exc
+        assert not huge_integer_ready, "oversized JSON integer must be rejected"
+
         with status.open("wb") as stream:
             stream.truncate(bounds.MAX_STATUS_BYTES + 1)
         assert not bounds.status_within_bound(root), "oversized sparse status must fail before JSON read"

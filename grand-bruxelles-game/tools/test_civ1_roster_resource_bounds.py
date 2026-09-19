@@ -52,6 +52,14 @@ def main() -> int:
         }
         assert not readiness._source_manifest_integrity(oversized_doc, root), "manifest must not authorize an unbounded source payload read"
 
+        aggregate_paths = [f"assets/characters/civilians/civ1/source/chunk-{index}.glb" for index in range(3)]
+        aggregate_doc = {
+            "source_paths": aggregate_paths,
+            "source_manifest": {path: {"size_bytes": readiness.MAX_SOURCE_PAYLOAD_BYTES} for path in aggregate_paths},
+        }
+        assert sum(record["size_bytes"] for record in aggregate_doc["source_manifest"].values()) > readiness.MAX_TOTAL_SOURCE_BYTES
+        assert not readiness._source_manifest_integrity(aggregate_doc, root), "aggregate manifest bytes must be bounded before filesystem traversal or payload reads"
+
         too_many_paths = [f"assets/characters/civilians/civ1/source/part-{index:03d}.glb" for index in range(readiness.MAX_SOURCE_FILES + 1)]
         too_many_doc = {
             "source_paths": too_many_paths,

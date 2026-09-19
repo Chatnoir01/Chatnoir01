@@ -50,3 +50,27 @@ def test_failed_validation_latches_empty_canonical_authority() -> None:
     valid = body.index("_runtime_index_valid = true")
     assert publish_source < valid
     assert publish_roads < valid
+
+
+def test_all_validation_failures_precede_atomic_publication() -> None:
+    body = _loader_body()
+    publish_source = body.index("_source_sha_by_path = staged_source_sha_by_path")
+    publish_roads = body.index("_road_source_path_by_id = staged_road_source_path_by_id")
+    first_publish = min(publish_source, publish_roads)
+    last_failure = body.rindex("return false")
+    assert last_failure < first_publish
+    assert "if staged_road_source_path_by_id.is_empty():\n        return false" in body
+    nonempty_guard = body.index("if staged_road_source_path_by_id.is_empty():")
+    assert nonempty_guard < first_publish
+
+
+def test_publication_is_terminal_success_path() -> None:
+    body = _loader_body()
+    publish_source = body.index("_source_sha_by_path = staged_source_sha_by_path")
+    publish_roads = body.index("_road_source_path_by_id = staged_road_source_path_by_id")
+    valid = body.index("_runtime_index_valid = true")
+    success_return = body.rindex("return _runtime_index_valid")
+    assert publish_source < valid < success_return
+    assert publish_roads < valid < success_return
+    tail = body[min(publish_source, publish_roads):]
+    assert "return false" not in tail

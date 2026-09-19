@@ -24,32 +24,25 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         self.assertIn('node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")', text)
 
         add_pair = text.split("func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:", 1)[1].split("func diagnostic_sidewalk_count", 1)[0]
-        self.assertIn(
-            "pavement.use_collision = false",
-            add_pair,
-            "Every newly created authored sidewalk proxy must start collision-disabled.",
-        )
+        self.assertIn("pavement.use_collision = false", add_pair)
         visibility_toggle = text.split("func set_sidewalks_enabled(enabled: bool) -> void:", 1)[1]
-        self.assertIn(
-            "pavement.use_collision = false",
-            visibility_toggle,
-            "Visibility toggles must preserve fail-closed collision state rather than authorize proxy collision.",
-        )
+        self.assertIn("pavement.use_collision = false", visibility_toggle)
 
-    def test_empty_generated_roads_releases_false_binding_for_event_driven_retry(self) -> None:
+    def test_empty_generated_roads_preserves_manual_isolation_and_auto_retry(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-        self.assertIn("func _build_from_existing_osm_roads() -> bool:", text)
-        self.assertIn("return _sidewalk_count > 0", text)
-        self.assertIn("if not _build_from_existing_osm_roads():", text)
-        empty_build = text.split("if not _build_from_existing_osm_roads():", 1)[1].split("if manual:", 1)[0]
+        bind = text.split("func _bind_scene(scene: Node3D, manual: bool) -> void:", 1)[1].split("func _build_from_existing_osm_roads", 1)[0]
+        empty_build = bind.split("if not _build_from_existing_osm_roads():", 1)[1].split("        return", 1)[0]
         self.assertIn("_release_owned_root()", empty_build)
         self.assertIn("_scene = null", empty_build)
-        self.assertIn("_manual_binding = false", empty_build)
-        self.assertIn("_start_watching()", empty_build)
-        # Empty authoritative scenes must not self-reschedule forever. Recovery is
-        # event-driven by the retained SceneTree.node_added watcher when roads arrive.
+        self.assertIn("if manual:", empty_build)
+        manual_failure = empty_build.split("if manual:", 1)[1].split("else:", 1)[0]
+        automatic_failure = empty_build.split("else:", 1)[1]
+        self.assertIn("_stop_watching()", manual_failure)
+        self.assertNotIn("_manual_binding = false", manual_failure)
+        self.assertNotIn("_start_watching()", manual_failure)
+        self.assertIn("_manual_binding = false", automatic_failure)
+        self.assertIn("_start_watching()", automatic_failure)
         self.assertNotIn("_schedule_bind()", empty_build)
-        self.assertIn("func _on_node_added(_node: Node) -> void:", text)
         node_added = text.split("func _on_node_added(_node: Node) -> void:", 1)[1].split("func ", 1)[0]
         self.assertIn("_schedule_bind()", node_added)
 

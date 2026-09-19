@@ -1,0 +1,100 @@
+{
+  "bbox": [
+    141500.0,
+    167000.0,
+    142000.0,
+    167500.0
+  ],
+  "cell_id": "bxl-e141500-n167000-s500",
+  "crs": "EPSG:31370",
+  "dsm": {
+    "kind": "dsm",
+    "rasters": [
+      {
+        "archive_sha256": "232ea9e1f141232aada4a07a09e0c3210418eb4315cce46e12d5f38cd59d5189",
+        "raster": {
+          "bounds": [
+            141000.1341350079,
+            167000.0715624727,
+            142000.1341350079,
+            168000.0715624727
+          ],
+          "count": 1,
+          "crs_basis": "authoritative_source_manifest",
+          "crs_epsg": 31370,
+          "dtype": "float32",
+          "embedded_crs_epsg": null,
+          "filename": "UrbDSM_2021_141167.tif",
+          "height": 2000,
+          "nodata": -3.4028234663852886e+38,
+          "resolution": [
+            0.5,
+            0.5
+          ],
+          "transform": [
+            0.5,
+            0.0,
+            141000.1341350079,
+            0.0,
+            -0.5,
+            168000.0715624727
+          ],
+          "width": 2000
+        },
+        "tile": "141167"
+      }
+    ]
+  },
+  "dtm": {
+    "kind": "dtm",
+    "rasters": [
+      {
+        "archive_sha256": "5569a6fc478b7aae9549201593972e0f5d8d27fd8cb1c6e8ac032b3910a9dd6d",
+        "raster": {
+          "bounds": [
+            141000.1341350079,
+            167000.0715624727,
+            142000.1341350079,
+            168000.0715624727
+          ],
+          "count": 1,
+          "crs_basis": "authoritative_source_manifest",
+          "crs_epsg": 31370,
+          "dtype": "float32",
+          "embedded_crs_epsg": null,
+          "filename": "UrbDTM_2021_141167.tif",
+          "height": 2000,
+          "nodata": -3.4028234663852886e+38,
+          "resolution": [
+            0.5,
+            0.5
+          ],
+          "transform": [
+            0.5,
+            0.0,
+            141000.1341350079,
+            0.0,
+            -0.5,
+            168000.0715624727
+          ],
+          "width": 2000
+        },
+        "tile": "141167"
+      }
+    ]
+  },
+  "format": "grand-bruxelles-cell-elevation-raster-validation-v1",
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "raster_geometry_valid_but_derived_evidence_not_yet_validated",
+    "terrain_gate": false
+  },
+  "remaining_validation": [
+    "raster_value_quality",
+    "terrain_surface_derivation",
+    "building_height_derivation",
+    "secondary_height_validation"
+  ],
+  "status": "official_rasters_geospatially_validated_and_pair_aligned",
+  "validation_digest": "fe186b5c085963bcc91c44b3f918b3cb04d115ab88a2909c8382c86ed1125a51"
+}

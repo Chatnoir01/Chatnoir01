@@ -1,0 +1,75 @@
+{
+  "authorization": {
+    "candidate_only": true,
+    "collision_authorized": false,
+    "jouable_promotion_authorized": false,
+    "runtime_mount_authorized": false,
+    "terrain_runtime_authorized": false
+  },
+  "bbox": [
+    147500.0,
+    173500.0,
+    148000.0,
+    174000.0
+  ],
+  "cell_id": "bxl-e147500-n173500-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-urbis-built-cell-candidate-v1",
+  "layers": {
+    "buildings": {
+      "features": 824,
+      "file": "raw/buildings.geojson",
+      "invalid_ownership_features": 0,
+      "ownership": "canonical_centroid_global_500m_cell",
+      "ownership_filtered": 61,
+      "wfs_name": "urbisvector:Buildings"
+    },
+    "street_axes": {
+      "features": 67,
+      "file": "raw/street_axes.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:StreetAxes"
+    },
+    "street_surfaces": {
+      "features": 255,
+      "file": "raw/street_surfaces.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:StreetSurfaces"
+    },
+    "train_network": {
+      "features": 12,
+      "file": "raw/train_network.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:TrainNetwork"
+    },
+    "tram_network": {
+      "features": 12,
+      "file": "raw/tram_network.geojson",
+      "ownership": "bbox_intersection_source_unclipped",
+      "wfs_name": "urbisvector:TramNetwork"
+    }
+  },
+  "promotion": {
+    "production_discovery_eligible": false,
+    "production_manifest_format": "grand-bruxelles-urbis-built-cell-v1",
+    "requires_explicit_validated_promotion": true,
+    "state": "qa_candidate_only"
+  },
+  "runtime": {
+    "geometry_file": "runtime/cell.game.json",
+    "geometry_format": "grand-bruxelles-urbis-cell-runtime-v1",
+    "geometry_stats": {
+      "buildings": 824,
+      "street_surfaces": 253
+    },
+    "network_file": "runtime/network.game.json",
+    "network_format": "grand-bruxelles-urbis-network-cell-runtime-v2",
+    "network_stats": {
+      "street_segments": 183,
+      "train_segments": 0,
+      "tram_segments": 103,
+      "unclassified_rail_segments": 0
+    }
+  },
+  "source_manifest_digest": "81fae6690dc55d43ca29b8d063a0aa48781f788cdebdde83a0c6d50338bcbab3"
+}

@@ -1,0 +1,62 @@
+name: Road Runtime-Index Source Auth
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/**'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_live_byte_authority.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_scope_preservation.py'
+      - '.github/workflows/road-runtime-index-source-auth.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'grand-bruxelles-game/game/**'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_live_byte_authority.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_scope_preservation.py'
+      - '.github/workflows/road-runtime-index-source-auth.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-auth:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out head
+        shell: bash
+        working-directory: .
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+          echo "checked_out_sha=$actual_sha"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run runtime-index source-auth regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_automatic_road_runtime_index_live_byte_authority.py \
+            tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py \
+            tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py \
+            tests/test_automatic_road_runtime_index_scope_preservation.py

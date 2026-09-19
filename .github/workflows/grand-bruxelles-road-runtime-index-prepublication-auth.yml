@@ -1,0 +1,38 @@
+name: Grand Bruxelles Road Runtime-Index Prepublication Auth
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/osm/**/*.json'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py'
+      - '.github/workflows/grand-bruxelles-road-runtime-index-prepublication-auth.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepublication-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact event head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact checked-out head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='${{ github.event.pull_request.head.sha || github.sha }}'
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+      - name: Run fail-closed prepublication source-auth regressions
+        working-directory: grand-bruxelles-game
+        run: >-
+          python -m pytest -q
+          tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py
+          tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py

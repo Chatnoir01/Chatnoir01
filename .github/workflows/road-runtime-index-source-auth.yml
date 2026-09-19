@@ -10,6 +10,7 @@ on:
       - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py'
       - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py'
       - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_scope_preservation.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_lookup_reauth.py'
       - '.github/workflows/road-runtime-index-source-auth.yml'
   push:
     branches: [main]
@@ -21,6 +22,7 @@ on:
       - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py'
       - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py'
       - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_scope_preservation.py'
+      - 'grand-bruxelles-game/tests/test_automatic_road_runtime_index_lookup_reauth.py'
       - '.github/workflows/road-runtime-index-source-auth.yml'
 
 permissions:
@@ -61,7 +63,8 @@ jobs:
             tests/test_automatic_road_runtime_index_live_byte_authority.py \
             tests/test_automatic_road_runtime_index_prepublication_auth_live_main.py \
             tests/test_automatic_road_runtime_index_prepublication_auth_transaction.py \
-            tests/test_automatic_road_runtime_index_scope_preservation.py
+            tests/test_automatic_road_runtime_index_scope_preservation.py \
+            tests/test_automatic_road_runtime_index_lookup_reauth.py
       - name: Retain exact-head source-auth evidence
         if: always()
         uses: actions/upload-artifact@v4

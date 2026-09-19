@@ -44,6 +44,9 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertIn('func _apply_proxy_material_contract(material: Material) -> void:', text)
         self.assertIn('material.set_meta("source", PROXY_SOURCE)', text)
         self.assertIn('material.set_meta("license", PROXY_LICENSE)', text)
+        self.assertIn('material.set_meta("presentation_recipe", PROXY_RECIPE)', text)
+        self.assertIn('material.set_meta("alignment_reference", ALIGNMENT_REFERENCE)', text)
+        self.assertIn('material.set_meta("road_alignment_source_backed", false)', text)
         self.assertIn('_apply_material_identity_contract(material)', text)
         self.assertIn('_apply_proxy_material_contract(material)', text)
 

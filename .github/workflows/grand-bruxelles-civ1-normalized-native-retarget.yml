@@ -1,0 +1,166 @@
+name: Grand Bruxelles CIV-1 Normalized Native Retarget
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd"
+      - "grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd"
+      - "grand-bruxelles-game/tools/build_civ1_right_foot_grounded_candidate.py"
+      - "grand-bruxelles-game/tests/test_civ1_normalized_native_retarget_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-normalized-native-retarget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  normalized-native-retarget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_normalized_native_retarget_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1normalized/source /tmp/civ1normalized/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1normalized/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1normalized/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1normalized/source/vitruvian_body.glb /tmp/civ1normalized/source/civ1_body.glb --require-animations | tee /tmp/civ1normalized/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1normalized/source/civ1_body.glb' | sha256sum -c -
+          test "$(stat -c '%s' /tmp/civ1normalized/source/civ1_body.glb)" = "6780124"
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1normalized/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1normalized/quaternius.zip' | sha256sum -c -
+          test "$(stat -c '%s' /tmp/civ1normalized/quaternius.zip)" = "38687957"
+          mkdir -p /tmp/civ1normalized/quaternius
+          unzip -q /tmp/civ1normalized/quaternius.zip -d /tmp/civ1normalized/quaternius
+          LICENSE_FILE="$(find /tmp/civ1normalized/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1normalized/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1normalized/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1normalized/engine
+          GODOT_BIN=/tmp/civ1normalized/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1normalized/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1normalized/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Build versioned selected Y-blend candidate
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/build_civ1_right_foot_grounded_candidate.py \
+            grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd \
+            /tmp/civ1normalized/gb_civ1_grounded_candidate.gd | tee /tmp/civ1normalized/evidence/candidate-build.log
+          grep -Fq 'CIV1_RIGHT_FOOT_GROUNDED_CANDIDATE_BUILT alpha=0.75' /tmp/civ1normalized/evidence/candidate-build.log
+          grep -Fq 'source_global_reference_direction_y_blend_preserve_target_length' /tmp/civ1normalized/gb_civ1_grounded_candidate.gd
+          grep -Fq 'target_right_foot_y_blend_alpha' /tmp/civ1normalized/gb_civ1_grounded_candidate.gd
+
+      - name: Import once then run baseline and versioned grounded candidate
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1normalized/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1normalized/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1NormalizedNativeRetarget"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1normalized/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd "$PROJECT_ROOT/gb_civ1_native_retarget.gd"
+          cp /tmp/civ1normalized/gb_civ1_grounded_candidate.gd "$PROJECT_ROOT/gb_civ1_grounded_candidate.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1normalized/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_native_retarget.gd -- /tmp/civ1normalized/evidence/baseline-native.json 2>&1 | tee /tmp/civ1normalized/evidence/baseline-probe.log
+          grep -Fq 'CIV1_NATIVE_RETARGET_OK' /tmp/civ1normalized/evidence/baseline-probe.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_grounded_candidate.gd -- /tmp/civ1normalized/evidence/normalized-native.json 2>&1 | tee /tmp/civ1normalized/evidence/normalized-probe.log
+          grep -Fq 'CIV1_RIGHT_FOOT_REFERENCE_AB_OK' /tmp/civ1normalized/evidence/normalized-probe.log
+
+      - name: Validate unchanged strict bilateral comparator and phase improvement
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1normalized/evidence/classification.log
+          import json
+          from pathlib import Path
+          baseline=json.loads(Path('/tmp/civ1normalized/evidence/baseline-native.json').read_text())
+          p=json.loads(Path('/tmp/civ1normalized/evidence/normalized-native.json').read_text())
+          v=p['godot_version']
+          assert baseline['format']=='grand-bruxelles-civ1-native-retarget-v3'
+          assert p['format']=='grand-bruxelles-civ1-right-foot-reference-ab-v4'
+          assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
+          assert p['sample_count']==121
+          assert p['support_band_fraction']==0.10
+          assert p['source_animation']==baseline['source_animation']=='UAL1_Standard/Sprint'
+          assert p['mapped_required_bones']==baseline['mapped_required_bones']==19
+          assert p['retarget_modifier']==baseline['retarget_modifier']=='RetargetModifier3D'
+          assert p['use_global_pose'] is False and baseline['use_global_pose'] is False
+          assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          assert p['reference_normalization_method']=='source_global_reference_direction_y_blend_preserve_target_length'
+          assert abs(float(p['target_right_foot_y_blend_alpha'])-0.75) < 1e-9
+          assert p['reference_normalization_applied'] is True
+          assert p['target_right_foot_length_preserved'] is True
+          assert p['pose_reset_applied'] is True
+          assert p['source_bilateral_motion_verified'] is True
+          assert p['target_bilateral_motion_verified'] is True
+          assert p['target_support_candidate_measurement_ready'] is True
+          manual_baseline_left_median_mps = 6.845175
+          manual_baseline_left_p90_mps = 33.326307
+          manual_baseline_right_median_mps = 6.812484
+          manual_baseline_right_p90_mps = 36.403685
+          left=p['target_left_support_candidate']; right=p['target_right_support_candidate']
+          strict_bilateral_improvement=(left['median_horizontal_speed_mps'] < manual_baseline_left_median_mps and left['p90_horizontal_speed_mps'] < manual_baseline_left_p90_mps and right['median_horizontal_speed_mps'] < manual_baseline_right_median_mps and right['p90_horizontal_speed_mps'] < manual_baseline_right_p90_mps)
+          assert strict_bilateral_improvement is True
+          source_right=p['source_right_support_candidate']; baseline_right=baseline['target_right_support_candidate']
+          source_low=set(source_right['low_height_sample_indices']); baseline_low=set(baseline_right['low_height_sample_indices']); normalized_low=set(right['low_height_sample_indices'])
+          source_phase_overlap_improved=len(source_low & normalized_low) > len(source_low & baseline_low)
+          assert source_phase_overlap_improved is True
+          def primary_center(candidate):
+              windows=candidate['low_height_windows']; assert windows
+              primary=max(windows,key=lambda w:int(w['sample_count'])); assert primary['wraps_cycle'] is False
+              return (float(primary['start_index'])+float(primary['end_index']))/2.0
+          source_center=primary_center(source_right); baseline_center_error=abs(primary_center(baseline_right)-source_center); normalized_center_error=abs(primary_center(right)-source_center)
+          primary_phase_center_improved=normalized_center_error < baseline_center_error
+          assert primary_phase_center_improved is True
+          assert p['diagnostic_only'] is True
+          assert p['run_alias_selected'] is False
+          assert p['world_ground_assumed'] is False
+          assert p['grounding_verified'] is False
+          assert p['foot_slide_verified'] is False
+          assert p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False
+          print('strict_bilateral_improvement',strict_bilateral_improvement)
+          print('source_phase_overlap_improved',source_phase_overlap_improved)
+          print('primary_phase_center_improved',primary_phase_center_improved)
+          print('selected_y_blend_alpha',p['target_right_foot_y_blend_alpha'])
+          print('source_right_median_p90',source_right['median_horizontal_speed_mps'],source_right['p90_horizontal_speed_mps'])
+          print('baseline_right_median_p90',baseline_right['median_horizontal_speed_mps'],baseline_right['p90_horizontal_speed_mps'])
+          print('normalized_right_median_p90',right['median_horizontal_speed_mps'],right['p90_horizontal_speed_mps'])
+          print('baseline_primary_center_error_samples',baseline_center_error)
+          print('normalized_primary_center_error_samples',normalized_center_error)
+          print('classification','measured alpha=0.75 Y-blend candidate passes unchanged bilateral manual comparator plus relative phase gates; diagnostic only')
+          PY
+
+      - name: Upload normalized native retarget evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-normalized-native-retarget-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1normalized/evidence/
+          if-no-files-found: error
+          retention-days: 14

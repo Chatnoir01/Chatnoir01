@@ -158,7 +158,6 @@ func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("license", PROXY_LICENSE)
     node.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
     node.set_meta("road_alignment_source_backed", false)
-    node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
     node.set_meta("sidewalk_presence_source_backed", false)
     node.set_meta("visual_dimensions_source_backed", false)
     node.set_meta("vertical_profile_source_backed", false)
@@ -172,6 +171,9 @@ func _apply_proxy_contract(node: Node) -> void:
 func _apply_proxy_material_contract(material: Material) -> void:
     material.set_meta("source", PROXY_SOURCE)
     material.set_meta("license", PROXY_LICENSE)
+    material.set_meta("presentation_recipe", PROXY_RECIPE)
+    material.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
+    material.set_meta("road_alignment_source_backed", false)
     _apply_material_identity_contract(material)
 
 func _bind_scene(scene: Node3D, manual: bool) -> void:

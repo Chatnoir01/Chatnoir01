@@ -1,0 +1,85 @@
+name: Grand Bruxelles Character Roster CI
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/civ1_roster_*.py"
+      - "grand-bruxelles-game/qa/civ1_roster_registry.json"
+      - ".github/workflows/grand-bruxelles-character-roster.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-character-roster-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  roster-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate Character provenance tools
+        run: python3 -m py_compile grand-bruxelles-game/tools/civ1_roster_*.py
+      - name: Character roster registration regression v48
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_registration_truth.py
+      - name: Character Unicode noncharacter policy regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_unicode_noncharacter_policy.py
+      - name: Character NAT64 provenance regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_nat64_provenance.py
+      - name: Character ARPA provenance regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_arpa_provenance.py
+      - name: Character CIV-1 source readiness regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_source_readiness.py
+      - name: Character CIV-1 nonempty source payload regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_nonempty_source_payload.py
+      - name: Character CIV-1 source hardlink integrity regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_source_hardlink_integrity.py
+      - name: Character CIV-1 status hardlink integrity regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_status_hardlink_integrity.py
+      - name: Character CIV-1 status regular-file integrity regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_status_regular_file_integrity.py
+      - name: Character CIV-1 resource-bounds regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_resource_bounds.py
+      - name: Character CIV-1 Win32 console-device regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_readiness_windows_console_devices.py
+      - name: Character CIV-1 source path identity regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_source_path_identity.py
+      - name: Character CIV-1 upstream basename identity regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_upstream_basename_identity.py
+      - name: Character CIV-1 provenance directory portability regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_provenance_directory_portability.py
+      - name: Character CIV-1 strict JSON readiness regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_source_readiness_nonstandard_json.py
+      - name: Character readiness registry strict JSON regression
+        working-directory: grand-bruxelles-game/tools
+        run: python3 test_civ1_roster_readiness_registry_json.py
+      - name: Canonical CIV-1 upstream basename identity gate
+        run: python3 grand-bruxelles-game/tools/civ1_roster_upstream_basename_identity.py grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json
+      - name: Canonical CIV-1 resource-bounds gate
+        run: python3 grand-bruxelles-game/tools/civ1_roster_resource_bounds.py --repo-root .
+      - name: Canonical CIV-1 source readiness gate
+        run: python3 grand-bruxelles-game/tools/civ1_roster_source_readiness.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root .
+      - name: Canonical CIV-1 source hardlink integrity gate
+        working-directory: grand-bruxelles-game/tools
+        run: python3 civ1_roster_source_hardlink_integrity.py --repo-root ../../
+      - name: Canonical Character roster truth
+        run: python3 grand-bruxelles-game/tools/civ1_roster_registration_truth.py grand-bruxelles-game/qa/civ1_roster_registry.json --repo-root .

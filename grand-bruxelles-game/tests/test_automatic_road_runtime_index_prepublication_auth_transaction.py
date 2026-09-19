@@ -56,6 +56,19 @@ def test_staging_never_consults_partially_built_canonical_maps() -> None:
     assert "staged_road_source_path_by_id.has(osm_id)" in staging
 
 
+def test_authenticated_digest_is_staged_before_any_road_authority() -> None:
+    body = _loader_body()
+    source_exists = body.index("FileAccess.file_exists(source_path)")
+    actual_sha = body.index("var actual_sha := FileAccess.get_sha256(source_path).to_lower()")
+    mismatch = body.index("actual_sha != expected_sha")
+    stage_digest = body.index("staged_source_sha_by_path[source_path] = actual_sha")
+    road_loop = body.index("for raw_id: Variant in road_ids:")
+    stage_road = body.index("staged_road_source_path_by_id[osm_id] = source_path")
+    assert source_exists < actual_sha < mismatch < stage_digest < road_loop < stage_road
+    assert body.count("FileAccess.get_sha256(source_path).to_lower()") == 1
+    assert "staged_source_sha_by_path[source_path] = expected_sha" not in body
+
+
 def test_failed_validation_latches_empty_canonical_authority() -> None:
     body = _loader_body()
     attempted_guard = body.index("if _runtime_index_attempted:")

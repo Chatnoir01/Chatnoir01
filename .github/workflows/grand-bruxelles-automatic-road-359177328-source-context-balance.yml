@@ -1,0 +1,57 @@
+name: Grand Bruxelles Automatic Road 359177328 Source Context Balance
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/automatic_road_359177328_source_context_balance_test.gd"
+      - "grand-bruxelles-game/data/qa/corridor/automatic_road_359177328_human_review.json"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_human_review_veto.py"
+      - "grand-bruxelles-game/tests/test_automatic_road_359177328_source_context_workflow_contract.py"
+      - ".github/workflows/grand-bruxelles-automatic-road-359177328-source-context-balance.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-context-balance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main merge base
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Require workflow/source-context marker contract
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tests/test_automatic_road_359177328_source_context_workflow_contract.py
+          python3 -O tests/test_automatic_road_359177328_source_context_workflow_contract.py
+      - name: Require canonical human REJECT before source diagnosis
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tests/test_automatic_road_359177328_human_review_veto.py
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/godot.zip' | sha256sum -c -
+          mkdir -p /tmp/godot && unzip -q /tmp/godot.zip -d /tmp/godot && chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact project
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path . --quit 2>&1 | tee /tmp/import.log
+          if grep -E 'SCRIPT ERROR: Parse Error:|SCRIPT ERROR: Compile Error:|ERROR: Failed to load script' /tmp/import.log; then echo SOURCE_CONTEXT_IMPORT_CONTAMINATION_FAIL; exit 1; fi
+      - name: Measure bilateral source context from production selection
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://game/tests/automatic_road_359177328_source_context_balance_test.gd 2>&1 | tee /tmp/measure.log
+          grep -F 'AUTOMATIC_ROAD_359177328_SOURCE_CONTEXT_DIAGNOSTIC_GREEN:' /tmp/measure.log
+          if grep -E 'SCRIPT ERROR: Parse Error:|SCRIPT ERROR: Compile Error:|ERROR: Failed to load script' /tmp/measure.log; then echo SOURCE_CONTEXT_COMPILE_CONTAMINATION_FAIL; exit 1; fi

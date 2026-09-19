@@ -53,6 +53,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install focused test runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-input pytest==8.4.2
       - name: Run runtime-index source-auth regressions
         shell: bash
         env:

@@ -175,6 +175,7 @@ func _apply_proxy_material_contract(material: Material) -> void:
     material.set_meta("presentation_recipe", PROXY_RECIPE)
     material.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
     material.set_meta("road_alignment_source_backed", false)
+    material.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
     _apply_material_identity_contract(material)
 
 func _bind_scene(scene: Node3D, manual: bool) -> void:

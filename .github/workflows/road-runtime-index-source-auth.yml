@@ -31,12 +31,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact checked-out head
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          echo "checked_out_sha=$(git rev-parse HEAD)"
-          git status --short
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+          echo "checked_out_sha=$actual_sha"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

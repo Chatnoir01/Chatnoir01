@@ -55,6 +55,18 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertIn('pavement.set_meta("alignment_witness_size", road.size)', text)
         self.assertIn('pavement.set_meta("alignment_witness_source_backed", false)', text)
 
+    def test_each_proxy_snapshots_its_derived_placement_recipe(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+
+        # The road witness alone is insufficient to reproduce the authored proxy: the
+        # chosen width, side, lateral vector and offset are also inputs to placement.
+        # Preserve them without upgrading any value to source-backed Brussels truth.
+        self.assertIn('pavement.set_meta("placement_witness_width", width)', text)
+        self.assertIn('pavement.set_meta("placement_witness_side", side)', text)
+        self.assertIn('pavement.set_meta("placement_witness_lateral", lateral)', text)
+        self.assertIn('pavement.set_meta("placement_witness_offset", offset)', text)
+        self.assertIn('pavement.set_meta("placement_witness_source_backed", false)', text)
+
     def test_node_and_resource_share_one_proxy_provenance_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 

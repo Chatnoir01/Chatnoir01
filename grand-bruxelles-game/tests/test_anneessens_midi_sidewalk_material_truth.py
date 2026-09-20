@@ -9,23 +9,16 @@ RUNTIME = ROOT / "game" / "scripts" / "anneessens_midi_sidewalk_runtime.gd"
 class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
     def test_authored_proxy_material_cannot_claim_brussels_identity(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
-        # The current sidewalk is an authored visual proxy aligned to rendered roads.
-        # Until an exact Brussels pavement source/material is registered, its material
-        # must stay explicitly generic and non-source-backed rather than silently
-        # becoming a reusable Brussels material family.
         self.assertIn('const PROXY_SOURCE := "authored_proxy"', text)
         self.assertIn('target.set_meta("material_identity_source_backed", false)', text)
         self.assertIn('target.set_meta("material_identity_status", "generic_authored_proxy")', text)
         self.assertIn('target.set_meta("material_reuse_scope", "anneessens_proxy_only")', text)
         self.assertIn('target.set_meta("brussels_material_family_authorized", false)', text)
-
         self.assertNotIn('material_identity_source_backed", true', text)
         self.assertNotIn('brussels_material_family_authorized", true', text)
 
     def test_node_and_resource_share_one_fail_closed_material_identity_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
         self.assertIn('func _apply_material_identity_contract(target: Object) -> void:', text)
         self.assertEqual(text.count('_apply_material_identity_contract(node)'), 1)
         self.assertEqual(text.count('_apply_material_identity_contract(material)'), 1)
@@ -36,7 +29,6 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
 
     def test_node_and_resource_share_one_fail_closed_alignment_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
         self.assertIn('func _apply_alignment_contract(target: Object) -> void:', text)
         self.assertEqual(text.count('_apply_alignment_contract(node)'), 1)
         self.assertEqual(text.count('_apply_alignment_contract(material)'), 1)
@@ -46,10 +38,6 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
 
     def test_each_proxy_snapshots_the_rendered_road_alignment_witness(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
-        # GeneratedRoads is explicitly an unverified alignment reference. Preserve the
-        # exact rendered-road state consumed by each proxy so later scene mutations can
-        # be audited without pretending the witness is source-backed Brussels truth.
         self.assertIn('pavement.set_meta("alignment_witness_road", road.name)', text)
         self.assertIn('pavement.set_meta("alignment_witness_transform", road.global_transform)', text)
         self.assertIn('pavement.set_meta("alignment_witness_size", road.size)', text)
@@ -57,22 +45,26 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
 
     def test_each_proxy_snapshots_its_derived_placement_recipe(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
-        # The road witness alone is insufficient to reproduce the authored proxy: the
-        # chosen width, side, lateral vector and offset are also inputs to placement.
-        # Preserve them without upgrading any value to source-backed Brussels truth.
         self.assertIn('pavement.set_meta("placement_witness_width", width)', text)
         self.assertIn('pavement.set_meta("placement_witness_side", side)', text)
         self.assertIn('pavement.set_meta("placement_witness_lateral", lateral)', text)
         self.assertIn('pavement.set_meta("placement_witness_offset", offset)', text)
         self.assertIn('pavement.set_meta("placement_witness_source_backed", false)', text)
 
+    def test_each_proxy_snapshots_final_rendered_transform_after_assignment(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+        position_assignment = 'pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)'
+        rotation_assignment = 'pavement.global_rotation = road.global_rotation'
+        final_witness = 'pavement.set_meta("placement_witness_global_transform", pavement.global_transform)'
+        self.assertIn(position_assignment, text)
+        self.assertIn(rotation_assignment, text)
+        self.assertIn(final_witness, text)
+        self.assertLess(text.index(position_assignment), text.index(final_witness))
+        self.assertLess(text.index(rotation_assignment), text.index(final_witness))
+        self.assertIn('pavement.set_meta("placement_witness_global_transform_source_backed", false)', text)
+
     def test_node_and_resource_share_one_proxy_provenance_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
-        # Source/license/recipe describe the same authored proxy on the generated node
-        # and retained material. Keep one implementation so those objects cannot drift
-        # into contradictory provenance after later material or source work.
         self.assertIn('func _apply_proxy_provenance_contract(target: Object) -> void:', text)
         self.assertEqual(text.count('_apply_proxy_provenance_contract(node)'), 1)
         self.assertEqual(text.count('_apply_proxy_provenance_contract(material)'), 1)
@@ -82,10 +74,6 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
 
     def test_material_recipe_metadata_matches_rendered_parameters(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
-        # The recipe label alone cannot prove which generic proxy presentation was
-        # rendered. Bind the retained material resource to the exact authored values
-        # without claiming those values are source-backed Brussels identity.
         self.assertIn('const PROXY_MATERIAL_REVISION := 1', text)
         self.assertIn('const PROXY_ALBEDO := Color(0.40, 0.385, 0.36, 1.0)', text)
         self.assertIn('const PROXY_ROUGHNESS := 0.92', text)
@@ -98,7 +86,6 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
 
     def test_shared_material_resource_carries_fail_closed_provenance(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
-
         self.assertIn('func _apply_proxy_material_contract(material: Material) -> void:', text)
         self.assertIn('_apply_proxy_provenance_contract(material)', text)
         self.assertIn('_apply_alignment_contract(material)', text)

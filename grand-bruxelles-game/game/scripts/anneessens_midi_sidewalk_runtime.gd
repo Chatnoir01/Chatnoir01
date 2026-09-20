@@ -255,6 +255,10 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.material = material
         pavement.use_collision = false
         pavement.set_meta("source_road", road.name)
+        pavement.set_meta("alignment_witness_road", road.name)
+        pavement.set_meta("alignment_witness_transform", road.global_transform)
+        pavement.set_meta("alignment_witness_size", road.size)
+        pavement.set_meta("alignment_witness_source_backed", false)
         _apply_proxy_contract(pavement)
         _root.add_child(pavement)
         pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)

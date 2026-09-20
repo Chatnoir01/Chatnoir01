@@ -44,6 +44,17 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertEqual(text.count('set_meta("road_alignment_source_backed", false)'), 1)
         self.assertEqual(text.count('set_meta("road_alignment_provenance_status", "unverified_rendered_road")'), 1)
 
+    def test_each_proxy_snapshots_the_rendered_road_alignment_witness(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+
+        # GeneratedRoads is explicitly an unverified alignment reference. Preserve the
+        # exact rendered-road state consumed by each proxy so later scene mutations can
+        # be audited without pretending the witness is source-backed Brussels truth.
+        self.assertIn('pavement.set_meta("alignment_witness_road", road.name)', text)
+        self.assertIn('pavement.set_meta("alignment_witness_transform", road.global_transform)', text)
+        self.assertIn('pavement.set_meta("alignment_witness_size", road.size)', text)
+        self.assertIn('pavement.set_meta("alignment_witness_source_backed", false)', text)
+
     def test_node_and_resource_share_one_proxy_provenance_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 

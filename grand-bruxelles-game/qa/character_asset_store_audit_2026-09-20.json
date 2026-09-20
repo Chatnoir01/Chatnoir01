@@ -1,0 +1,58 @@
+{
+  "schema": "grand-bruxelles-character-asset-store-audit-v1",
+  "audited_utc": "2026-09-20T01:15:00Z",
+  "target_engine": "Godot 4.7.1",
+  "policy": "No adoption without acceptable license/provenance, demonstrated 4.7.1 compatibility, isolated A/B proof, Web/GL Compatibility impact measurement, and measured superiority over any working project-specific system.",
+  "candidates": [
+    {
+      "name": "Beehave",
+      "category": "behavior_tree",
+      "official_store_url": "https://store.godotengine.org/asset/bitbrain/beehave/",
+      "version": "2.9.3",
+      "license": "MIT",
+      "last_updated": "2026-08-18",
+      "compatibility_evidence": "Store changelog states v2.9.3 is compatible with latest Godot 4.7.",
+      "maintenance_evidence": "Recent 2026-08-18 release; store description states automated test coverage and built-in performance monitors.",
+      "decision": "HOLD_FOR_AB",
+      "reason": "Promising maintained AI tooling, but no isolated Grand Bruxelles Web/GL performance/export A/B exists and current NPC runtime ownership must not be displaced without measured superiority."
+    },
+    {
+      "name": "Dialogue Manager",
+      "category": "dialogue",
+      "official_store_url": "https://store.godotengine.org/asset/nathanhoad/dialogue-manager/",
+      "version": "4.1.0",
+      "license": "MIT",
+      "last_updated": "2026-09-06",
+      "compatibility_evidence": "Store minimum is Godot 4.6; explicit 4.7.1 qualification was not found in this audit.",
+      "maintenance_evidence": "Updated 2026-09-06 with active-maintainer community evidence on the official store.",
+      "decision": "HOLD_FOR_4_7_1_PROOF",
+      "reason": "Do not integrate until 4.7.1 and Web/GL compatibility are demonstrated in isolation; dialogue is not the current visible CIV-1 blocker."
+    },
+    {
+      "name": "Universal Animation Library",
+      "category": "humanoid_animation_retargeting",
+      "official_store_url": "https://store.godotengine.org/asset/quaternius/universal-animation-library/",
+      "version": "Standard-1.0",
+      "license": "CC0-1.0",
+      "last_updated": "2026-06-10",
+      "compatibility_evidence": "Official store describes a universal humanoid rig and Godot-ready retargeting, but does not establish exact Godot 4.7.1 qualification.",
+      "maintenance_evidence": "Official-store release updated 2026-06-10; 10 reviews are present.",
+      "decision": "HOLD_FOR_RETARGET_AB",
+      "reason": "Potentially useful for idle/walk/run coverage, but the store marks it unstable and a 2026 review reports UpperChest deformation on other characters. Require CIV-1 skeleton/BoneMap retarget A/B, foot-slide/grounding measurements, source hash intake, and player-view proof before adoption."
+    },
+    {
+      "name": "Character State Machine",
+      "category": "state_machine",
+      "official_store_url": "https://store.godotengine.org/asset/crazyfluff/character-state-machine/",
+      "version": "store-current-2026-05-28",
+      "license": "MIT",
+      "last_updated": "2026-05-28",
+      "compatibility_evidence": "Official store declares minimum Godot 4.6 and maximum Godot 4.7.",
+      "maintenance_evidence": "Recent 2026 release but no reviews; publisher marks version unstable.",
+      "decision": "HOLD_FOR_AB",
+      "reason": "Version range is promising but 4.7.1 patch-level and Web/GL behavior are not proven; no reason to replace project-specific state handling without measured superiority."
+    }
+  ],
+  "adopted": [],
+  "next_executable_action": "When CIV-1 source is legally acquired, test Universal Animation Library only in an isolated branch: record exact package/source hashes, inspect Skeleton3D/BoneMap mapping, measure root displacement versus character velocity for idle/walk/run, verify foot contact/grounding at 2-8 m, measure Web/GL frame cost, and capture a real 1280x720 player-view artifact. Do not merge on store metadata alone."
+}

@@ -272,5 +272,10 @@ func diagnostic_root() -> Node3D:
 
 func set_sidewalks_enabled(enabled: bool) -> void:
     _sidewalks_enabled = enabled
-    if is_instance_valid(_root):
-        _root.visible = enabled
+    if not is_instance_valid(_root):
+        return
+    _root.visible = enabled
+    for child: Node in _root.get_children():
+        if child is CSGBox3D:
+            var pavement := child as CSGBox3D
+            pavement.use_collision = false

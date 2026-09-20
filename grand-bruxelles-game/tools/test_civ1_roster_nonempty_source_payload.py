@@ -4,7 +4,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from civ1_roster_source_readiness import _git_blob_sha1, _source_manifest_integrity
+from civ1_roster_source_readiness import _git_blob_sha1, _sha256, _source_manifest_integrity
 
 
 def main() -> None:
@@ -22,6 +22,7 @@ def main() -> None:
                     "license_scope_verified": True,
                     "license": "CC0-1.0",
                     "git_blob_sha1": _git_blob_sha1(b""),
+                    "sha256": _sha256(b""),
                     "size_bytes": 0,
                 }
             },
@@ -31,8 +32,9 @@ def main() -> None:
         payload = b"civ1-source-body"
         source_file.write_bytes(payload)
         status["source_manifest"][source_path]["git_blob_sha1"] = _git_blob_sha1(payload)
+        status["source_manifest"][source_path]["sha256"] = _sha256(payload)
         status["source_manifest"][source_path]["size_bytes"] = len(payload)
-        assert _source_manifest_integrity(status, root) is True, "non-empty hash/size-bound source control must remain accepted"
+        assert _source_manifest_integrity(status, root) is True, "non-empty SHA-1/SHA-256/size-bound source control must remain accepted"
 
     print("CIV1_NONEMPTY_SOURCE_PAYLOAD_REGRESSION_GREEN")
 

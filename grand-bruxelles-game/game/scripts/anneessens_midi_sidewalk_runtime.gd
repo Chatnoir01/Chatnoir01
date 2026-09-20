@@ -147,6 +147,11 @@ func _try_bind() -> void:
 func bind_scene(scene: Node3D) -> void:
     _bind_scene(scene, true)
 
+func _apply_proxy_provenance_contract(target: Object) -> void:
+    target.set_meta("source", PROXY_SOURCE)
+    target.set_meta("license", PROXY_LICENSE)
+    target.set_meta("presentation_recipe", PROXY_RECIPE)
+
 func _apply_material_identity_contract(target: Object) -> void:
     target.set_meta("material_identity_source_backed", false)
     target.set_meta("material_identity_status", "generic_authored_proxy")
@@ -159,8 +164,7 @@ func _apply_alignment_contract(target: Object) -> void:
     target.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
 
 func _apply_proxy_contract(node: Node) -> void:
-    node.set_meta("source", PROXY_SOURCE)
-    node.set_meta("license", PROXY_LICENSE)
+    _apply_proxy_provenance_contract(node)
     _apply_alignment_contract(node)
     node.set_meta("sidewalk_presence_source_backed", false)
     node.set_meta("visual_dimensions_source_backed", false)
@@ -170,12 +174,9 @@ func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("collision_authorized", false)
     node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
     node.set_meta("authored_proxy", true)
-    node.set_meta("presentation_recipe", PROXY_RECIPE)
 
 func _apply_proxy_material_contract(material: Material) -> void:
-    material.set_meta("source", PROXY_SOURCE)
-    material.set_meta("license", PROXY_LICENSE)
-    material.set_meta("presentation_recipe", PROXY_RECIPE)
+    _apply_proxy_provenance_contract(material)
     _apply_alignment_contract(material)
     _apply_material_identity_contract(material)
 
@@ -238,33 +239,37 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
     var offset := road.size.x * 0.5 + width * 0.5 + SIDEWALK_GAP_M
     var lateral := road.global_transform.basis.x.normalized()
     if lateral.length_squared() < 0.5:
-        lateral = Vector3.RIGHT
-
+        return
     for side: float in [-1.0, 1.0]:
-        var pavement := CSGBox3D.new()
-        pavement.name = "AnneessensSidewalk_%s_%s" % [road.name, "L" if side < 0.0 else "R"]
-        pavement.size = Vector3(width, SIDEWALK_HEIGHT_M, road.size.z)
-        pavement.material = material
-        pavement.use_collision = false
-        pavement.set_meta("source_road", road.name)
-        _apply_proxy_contract(pavement)
-        _root.add_child(pavement)
-        pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)
-        pavement.global_rotation = road.global_rotation
+        var sidewalk := CSGBox3D.new()
+        sidewalk.name = "Sidewalk_%s_%s" % [road.name, "L" if side < 0.0 else "R"]
+        sidewalk.size = Vector3(width, SIDEWALK_HEIGHT_M, road.size.z)
+        sidewalk.global_transform = road.global_transform
+        sidewalk.global_position = road.global_position + lateral * offset + Vector3.UP * (SIDEWALK_HEIGHT_M * 0.5)
+        sidewalk.material = material
+        sidewalk.use_collision = false
+        _apply_proxy_contract(sidewalk)
+        _root.add_child(sidewalk)
         _sidewalk_count += 1
-
-func diagnostic_sidewalk_count() -> int:
-    return _sidewalk_count
-
-func diagnostic_collision_count() -> int:
-    return _collision_count
 
 func set_sidewalks_enabled(enabled: bool) -> void:
     _sidewalks_enabled = enabled
-    if not is_instance_valid(_root):
-        return
-    _root.visible = enabled
-    for child: Node in _root.get_children():
-        if child is CSGBox3D:
-            var pavement := child as CSGBox3D
-            pavement.use_collision = false
+    if is_instance_valid(_root):
+        _root.visible = enabled
+
+func get_status() -> Dictionary:
+    return {
+        "bound": is_instance_valid(_scene),
+        "sidewalks_enabled": _sidewalks_enabled,
+        "sidewalk_count": _sidewalk_count,
+        "collision_count": _collision_count,
+        "collision_authorized": false,
+        "sidewalk_presence_source_backed": false,
+        "visual_dimensions_source_backed": false,
+        "vertical_profile_source_backed": false,
+        "material_identity_source_backed": false,
+        "brussels_material_family_authorized": false,
+        "road_alignment_source_backed": false,
+        "road_alignment_provenance_status": "unverified_rendered_road",
+        "authored_proxy": true,
+    }

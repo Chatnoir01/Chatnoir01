@@ -8,8 +8,11 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
     def test_unverified_rendered_roads_do_not_claim_source_backed_alignment(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
         self.assertNotIn('set_meta("road_alignment_source_backed", true)', text)
-        self.assertIn('node.set_meta("road_alignment_source_backed", false)', text)
-        self.assertIn('node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")', text)
+        self.assertIn('func _apply_alignment_contract(target: Object) -> void:', text)
+        self.assertEqual(text.count('set_meta("road_alignment_source_backed", false)'), 1)
+        self.assertEqual(text.count('set_meta("road_alignment_provenance_status", "unverified_rendered_road")'), 1)
+        self.assertIn("_apply_alignment_contract(node)", text)
+        self.assertIn("_apply_alignment_contract(material)", text)
         self.assertIn("_apply_proxy_contract(_root)", text)
         self.assertIn("_apply_proxy_contract(pavement)", text)
 

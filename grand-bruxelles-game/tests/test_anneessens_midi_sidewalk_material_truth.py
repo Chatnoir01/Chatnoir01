@@ -38,6 +38,19 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertEqual(text.count('set_meta("material_reuse_scope", "anneessens_proxy_only")'), 1)
         self.assertEqual(text.count('set_meta("brussels_material_family_authorized", false)'), 1)
 
+    def test_node_and_resource_share_one_fail_closed_alignment_contract(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+
+        # Alignment truth belongs to both the generated node and its retained material.
+        # Keep one implementation so a future provenance correction cannot update one
+        # object while silently leaving the other with contradictory source authority.
+        self.assertIn('func _apply_alignment_contract(target: Object) -> void:', text)
+        self.assertEqual(text.count('_apply_alignment_contract(node)'), 1)
+        self.assertEqual(text.count('_apply_alignment_contract(material)'), 1)
+        self.assertEqual(text.count('set_meta("alignment_reference", ALIGNMENT_REFERENCE)'), 1)
+        self.assertEqual(text.count('set_meta("road_alignment_source_backed", false)'), 1)
+        self.assertEqual(text.count('set_meta("road_alignment_provenance_status", "unverified_rendered_road")'), 1)
+
     def test_shared_material_resource_carries_fail_closed_provenance(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 
@@ -45,9 +58,7 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertIn('material.set_meta("source", PROXY_SOURCE)', text)
         self.assertIn('material.set_meta("license", PROXY_LICENSE)', text)
         self.assertIn('material.set_meta("presentation_recipe", PROXY_RECIPE)', text)
-        self.assertIn('material.set_meta("alignment_reference", ALIGNMENT_REFERENCE)', text)
-        self.assertIn('material.set_meta("road_alignment_source_backed", false)', text)
-        self.assertIn('material.set_meta("road_alignment_provenance_status", "unverified_rendered_road")', text)
+        self.assertIn('_apply_alignment_contract(material)', text)
         self.assertIn('_apply_material_identity_contract(material)', text)
         self.assertIn('_apply_proxy_material_contract(material)', text)
 

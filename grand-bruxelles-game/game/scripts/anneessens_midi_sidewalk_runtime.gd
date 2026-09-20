@@ -153,12 +153,15 @@ func _apply_material_identity_contract(target: Object) -> void:
     target.set_meta("material_reuse_scope", "anneessens_proxy_only")
     target.set_meta("brussels_material_family_authorized", false)
 
+func _apply_alignment_contract(target: Object) -> void:
+    target.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
+    target.set_meta("road_alignment_source_backed", false)
+    target.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
+
 func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("source", PROXY_SOURCE)
     node.set_meta("license", PROXY_LICENSE)
-    node.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
-    node.set_meta("road_alignment_source_backed", false)
-    node.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
+    _apply_alignment_contract(node)
     node.set_meta("sidewalk_presence_source_backed", false)
     node.set_meta("visual_dimensions_source_backed", false)
     node.set_meta("vertical_profile_source_backed", false)
@@ -173,9 +176,7 @@ func _apply_proxy_material_contract(material: Material) -> void:
     material.set_meta("source", PROXY_SOURCE)
     material.set_meta("license", PROXY_LICENSE)
     material.set_meta("presentation_recipe", PROXY_RECIPE)
-    material.set_meta("alignment_reference", ALIGNMENT_REFERENCE)
-    material.set_meta("road_alignment_source_backed", false)
-    material.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
+    _apply_alignment_contract(material)
     _apply_material_identity_contract(material)
 
 func _bind_scene(scene: Node3D, manual: bool) -> void:

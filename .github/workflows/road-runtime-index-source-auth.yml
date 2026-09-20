@@ -22,12 +22,45 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Verify exact head
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Firewall resolver scope outside runtime-index loader
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          resolver='grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+          git cat-file -e "${BASE_SHA}^{commit}"
+          python - "$resolver" "$BASE_SHA" <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          base_sha = sys.argv[2]
+          head = path.read_text(encoding='utf-8')
+          base = subprocess.check_output(
+              ['git', 'show', f'{base_sha}:{path.as_posix()}'], text=True
+          )
+          start = 'func _load_runtime_index() -> bool:'
+          end = '\n\nfunc runtime_index_road_count()'
+
+          def outside_loader(text: str) -> tuple[str, str]:
+              a = text.index(start)
+              b = text.index(end, a)
+              return text[:a], text[b:]
+
+          if outside_loader(head) != outside_loader(base):
+              raise SystemExit('resolver scope violation: bytes outside _load_runtime_index() changed')
+          print('resolver scope firewall: PASS')
+          PY
 
       - name: Set up Python
         uses: actions/setup-python@v5

@@ -268,6 +268,8 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         _root.add_child(pavement)
         pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)
         pavement.global_rotation = road.global_rotation
+        pavement.set_meta("placement_witness_global_transform", pavement.global_transform)
+        pavement.set_meta("placement_witness_global_transform_source_backed", false)
         _sidewalk_count += 1
 
 func diagnostic_sidewalk_count() -> int:

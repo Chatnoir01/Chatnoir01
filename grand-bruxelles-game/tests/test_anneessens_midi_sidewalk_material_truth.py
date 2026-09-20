@@ -67,6 +67,22 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertIn('pavement.set_meta("placement_witness_offset", offset)', text)
         self.assertIn('pavement.set_meta("placement_witness_source_backed", false)', text)
 
+    def test_each_proxy_snapshots_final_rendered_transform_after_assignment(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+
+        # Derived inputs are useful audit evidence, but the exact rendered result also
+        # includes the authored vertical offset and road rotation. Capture the final
+        # transform only after both assignments, still explicitly non-source-backed.
+        position_assignment = 'pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)'
+        rotation_assignment = 'pavement.global_rotation = road.global_rotation'
+        final_witness = 'pavement.set_meta("placement_witness_global_transform", pavement.global_transform)'
+        self.assertIn(position_assignment, text)
+        self.assertIn(rotation_assignment, text)
+        self.assertIn(final_witness, text)
+        self.assertLess(text.index(position_assignment), text.index(final_witness))
+        self.assertLess(text.index(rotation_assignment), text.index(final_witness))
+        self.assertIn('pavement.set_meta("placement_witness_global_transform_source_backed", false)', text)
+
     def test_node_and_resource_share_one_proxy_provenance_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 

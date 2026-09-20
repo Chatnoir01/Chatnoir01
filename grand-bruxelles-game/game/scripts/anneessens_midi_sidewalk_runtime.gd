@@ -10,6 +10,9 @@ const PROXY_SOURCE := "authored_proxy"
 const PROXY_LICENSE := "project-authored"
 const ALIGNMENT_REFERENCE := "rendered GeneratedRoads nodes (unverified source identity)"
 const PROXY_RECIPE := "authored_midi_sidewalk_proxy_from_unverified_rendered_road_alignment"
+const PROXY_MATERIAL_REVISION := 1
+const PROXY_ALBEDO := Color(0.40, 0.385, 0.36, 1.0)
+const PROXY_ROUGHNESS := 0.92
 const CANONICAL_PRODUCTION_SCENE := "res://game/main.tscn"
 
 var _scene: Node3D = null
@@ -179,6 +182,10 @@ func _apply_proxy_material_contract(material: Material) -> void:
     _apply_proxy_provenance_contract(material)
     _apply_alignment_contract(material)
     _apply_material_identity_contract(material)
+    material.set_meta("presentation_revision", PROXY_MATERIAL_REVISION)
+    material.set_meta("presentation_albedo", PROXY_ALBEDO)
+    material.set_meta("presentation_roughness", PROXY_ROUGHNESS)
+    material.set_meta("presentation_parameters_source_backed", false)
 
 func _bind_scene(scene: Node3D, manual: bool) -> void:
     if scene == null or (_tearing_down and not manual):
@@ -218,8 +225,8 @@ func _build_from_existing_osm_roads() -> bool:
         return false
 
     var material := StandardMaterial3D.new()
-    material.albedo_color = Color(0.40, 0.385, 0.36, 1.0)
-    material.roughness = 0.92
+    material.albedo_color = PROXY_ALBEDO
+    material.roughness = PROXY_ROUGHNESS
     _apply_proxy_material_contract(material)
 
     for child: Node in roads.get_children():
@@ -259,6 +266,9 @@ func diagnostic_sidewalk_count() -> int:
 
 func diagnostic_collision_count() -> int:
     return _collision_count
+
+func diagnostic_root() -> Node3D:
+    return _root
 
 func set_sidewalks_enabled(enabled: bool) -> void:
     _sidewalks_enabled = enabled

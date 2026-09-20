@@ -67,6 +67,19 @@ def main() -> int:
         }
         assert not readiness._source_manifest_integrity(too_many_doc, root), "manifest cardinality must be bounded before filesystem traversal or payload reads"
 
+        # JSON permits arrays/objects inside source_paths. They are invalid path
+        # identities and, critically, must fail closed before set()/casefold()
+        # operations can raise TypeError out of the readiness contract.
+        malformed_paths_doc = {
+            "source_paths": [{"not": "a path"}],
+            "source_manifest": {"assets/characters/civilians/civ1/source/civ.glb": oversized_record},
+        }
+        try:
+            malformed_paths_result = readiness._source_manifest_integrity(malformed_paths_doc, root)
+        except TypeError as exc:
+            raise AssertionError("non-string source_paths entry must fail closed instead of raising TypeError") from exc
+        assert not malformed_paths_result, "non-string source_paths entry must be rejected"
+
         # A status can stay far below MAX_STATUS_BYTES while containing an integer
         # literal beyond CPython's int conversion digit limit. Readiness is a
         # fail-closed gate: hostile numeric syntax must return False, never raise.

@@ -147,6 +147,11 @@ func _try_bind() -> void:
 func bind_scene(scene: Node3D) -> void:
     _bind_scene(scene, true)
 
+func _apply_proxy_provenance_contract(target: Object) -> void:
+    target.set_meta("source", PROXY_SOURCE)
+    target.set_meta("license", PROXY_LICENSE)
+    target.set_meta("presentation_recipe", PROXY_RECIPE)
+
 func _apply_material_identity_contract(target: Object) -> void:
     target.set_meta("material_identity_source_backed", false)
     target.set_meta("material_identity_status", "generic_authored_proxy")
@@ -159,8 +164,7 @@ func _apply_alignment_contract(target: Object) -> void:
     target.set_meta("road_alignment_provenance_status", "unverified_rendered_road")
 
 func _apply_proxy_contract(node: Node) -> void:
-    node.set_meta("source", PROXY_SOURCE)
-    node.set_meta("license", PROXY_LICENSE)
+    _apply_proxy_provenance_contract(node)
     _apply_alignment_contract(node)
     node.set_meta("sidewalk_presence_source_backed", false)
     node.set_meta("visual_dimensions_source_backed", false)
@@ -170,12 +174,9 @@ func _apply_proxy_contract(node: Node) -> void:
     node.set_meta("collision_authorized", false)
     node.set_meta("collision_policy", "disabled_until_source_backed_vertical_profile")
     node.set_meta("authored_proxy", true)
-    node.set_meta("presentation_recipe", PROXY_RECIPE)
 
 func _apply_proxy_material_contract(material: Material) -> void:
-    material.set_meta("source", PROXY_SOURCE)
-    material.set_meta("license", PROXY_LICENSE)
-    material.set_meta("presentation_recipe", PROXY_RECIPE)
+    _apply_proxy_provenance_contract(material)
     _apply_alignment_contract(material)
     _apply_material_identity_contract(material)
 

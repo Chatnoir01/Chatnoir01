@@ -1,0 +1,42 @@
+name: Grand Bruxelles Anneessens Material Binding
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_material_binding.py"
+      - ".github/workflows/grand-bruxelles-anneessens-material-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  material-binding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact checked-out head
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            EXPECTED="${{ github.event.pull_request.head.sha }}"
+          else
+            EXPECTED="${{ github.sha }}"
+          fi
+          test "$ACTUAL" = "$EXPECTED"
+          echo "ANNEESSENS_MATERIAL_BINDING_HEAD_OK sha=$ACTUAL"
+
+      - name: Run focused fail-closed regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_material_binding.py

@@ -38,6 +38,7 @@ def write_fixture(root: Path, *, hardlink: bool) -> str:
         "source_manifest": {rel: {
             "upstream_path": "upstream/body.glb",
             "git_blob_sha1": blob_sha1(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
             "size_bytes": len(payload),
             "license_scope_verified": True,
             "license": "CC0-1.0"

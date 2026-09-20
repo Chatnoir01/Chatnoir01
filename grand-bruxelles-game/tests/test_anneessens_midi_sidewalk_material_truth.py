@@ -70,9 +70,6 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
     def test_each_proxy_snapshots_final_rendered_transform_after_assignment(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 
-        # Derived inputs are useful audit evidence, but the exact rendered result also
-        # includes the authored vertical offset and road rotation. Capture the final
-        # transform only after both assignments, still explicitly non-source-backed.
         position_assignment = 'pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)'
         rotation_assignment = 'pavement.global_rotation = road.global_rotation'
         final_witness = 'pavement.set_meta("placement_witness_global_transform", pavement.global_transform)'
@@ -83,12 +80,22 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertLess(text.index(rotation_assignment), text.index(final_witness))
         self.assertIn('pavement.set_meta("placement_witness_global_transform_source_backed", false)', text)
 
+    def test_each_proxy_snapshots_final_rendered_dimensions(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+
+        # Placement evidence is incomplete without the exact box dimensions actually
+        # rendered. Keep that final result auditable without upgrading authored width,
+        # height or road-derived length to source-backed sidewalk truth.
+        size_assignment = 'pavement.size = Vector3(width, SIDEWALK_HEIGHT_M, road.size.z)'
+        size_witness = 'pavement.set_meta("placement_witness_rendered_size", pavement.size)'
+        self.assertIn(size_assignment, text)
+        self.assertIn(size_witness, text)
+        self.assertLess(text.index(size_assignment), text.index(size_witness))
+        self.assertIn('pavement.set_meta("placement_witness_rendered_size_source_backed", false)', text)
+
     def test_node_and_resource_share_one_proxy_provenance_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 
-        # Source/license/recipe describe the same authored proxy on the generated node
-        # and retained material. Keep one implementation so those objects cannot drift
-        # into contradictory provenance after later material or source work.
         self.assertIn('func _apply_proxy_provenance_contract(target: Object) -> void:', text)
         self.assertEqual(text.count('_apply_proxy_provenance_contract(node)'), 1)
         self.assertEqual(text.count('_apply_proxy_provenance_contract(material)'), 1)
@@ -99,9 +106,6 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
     def test_material_recipe_metadata_matches_rendered_parameters(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 
-        # The recipe label alone cannot prove which generic proxy presentation was
-        # rendered. Bind the retained material resource to the exact authored values
-        # without claiming those values are source-backed Brussels identity.
         self.assertIn('const PROXY_MATERIAL_REVISION := 1', text)
         self.assertIn('const PROXY_ALBEDO := Color(0.40, 0.385, 0.36, 1.0)', text)
         self.assertIn('const PROXY_ROUGHNESS := 0.92', text)

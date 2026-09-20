@@ -1,6 +1,6 @@
 {
   "schema": "grand-bruxelles-character-asset-store-audit-v1",
-  "audited_utc": "2026-09-20T01:15:00Z",
+  "audited_utc": "2026-09-20T02:16:00Z",
   "target_engine": "Godot 4.7.1",
   "policy": "No adoption without acceptable license/provenance, demonstrated 4.7.1 compatibility, isolated A/B proof, Web/GL Compatibility impact measurement, and measured superiority over any working project-specific system.",
   "candidates": [
@@ -32,13 +32,21 @@
       "name": "Universal Animation Library",
       "category": "humanoid_animation_retargeting",
       "official_store_url": "https://store.godotengine.org/asset/quaternius/universal-animation-library/",
-      "version": "Standard-1.0",
+      "official_upstream_url": "https://quaternius.itch.io/universal-animation-library",
+      "store_version": "Standard-1.0",
+      "upstream_version": "3.0",
       "license": "CC0-1.0",
-      "last_updated": "2026-06-10",
-      "compatibility_evidence": "Official store describes a universal humanoid rig and Godot-ready retargeting, but does not establish exact Godot 4.7.1 qualification.",
-      "maintenance_evidence": "Official-store release updated 2026-06-10; 10 reviews are present.",
+      "store_last_updated": "2026-06-10",
+      "upstream_last_updated": "2026-06-16",
+      "upstream_standard_archive": "Universal Animation Library[Standard].zip",
+      "upstream_standard_archive_size_mb": 15,
+      "upstream_source_archive": "Universal Animation Library[Source].zip",
+      "upstream_source_archive_size_mb": 46,
+      "upstream_content_ai": "No generative AI was used",
+      "compatibility_evidence": "Official upstream states custom exports work in Godot and that the universal humanoid rig is ready for retargeting; neither upstream nor store establishes exact Godot 4.7.1 qualification.",
+      "maintenance_evidence": "Official upstream v3.0 dated 2026-06-16 adds root motion to locomotion/movement animations and fixes 8-direction step synchronization so all start with the left foot. Both root-motion and root-motion-disabled exports are provided. The Godot store remains on its separately labelled Standard-1.0 listing and marks that store version unstable.",
       "decision": "HOLD_FOR_RETARGET_AB",
-      "reason": "Potentially useful for idle/walk/run coverage, but the store marks it unstable and a 2026 review reports UpperChest deformation on other characters. Require CIV-1 skeleton/BoneMap retarget A/B, foot-slide/grounding measurements, source hash intake, and player-view proof before adoption."
+      "reason": "The upstream v3.0 locomotion fixes directly target foot-slide/transition risk, but store metadata is not sufficient evidence and a 2026 store review reports UpperChest deformation on other characters. Acquire only from the official upstream/store, record archive and extracted-file hashes, then require CIV-1 Skeleton3D/BoneMap retarget A/B, root-motion versus in-place comparison, foot-slide/grounding measurements, Web/GL cost, and real 1280x720 player-view proof before adoption."
     },
     {
       "name": "Character State Machine",
@@ -54,5 +62,5 @@
     }
   ],
   "adopted": [],
-  "next_executable_action": "When CIV-1 source is legally acquired, test Universal Animation Library only in an isolated branch: record exact package/source hashes, inspect Skeleton3D/BoneMap mapping, measure root displacement versus character velocity for idle/walk/run, verify foot contact/grounding at 2-8 m, measure Web/GL frame cost, and capture a real 1280x720 player-view artifact. Do not merge on store metadata alone."
+  "next_executable_action": "Acquire Universal Animation Library v3.0 only from the recorded official upstream/store path. Record SHA-256 for the downloaded archive and every imported source payload before extraction/import. In an isolated Character branch compare root-motion and root-motion-disabled locomotion against CIV-1: inspect Skeleton3D/BoneMap mapping and UpperChest deformation, measure root displacement versus CharacterBody velocity plus planted-foot world drift for idle/walk/run, verify grounding at 2-8 m, measure Web/GL frame cost, and capture a real 1280x720 player-view artifact. Do not merge on store metadata alone."
 }

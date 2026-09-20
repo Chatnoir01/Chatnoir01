@@ -82,9 +82,11 @@ def _read_regular_single_link(path,max_bytes=None):
 def _source_manifest_integrity(status,repo_root):
     source_paths=status.get("source_paths"); manifest=status.get("source_manifest")
     if not isinstance(source_paths,list) or not source_paths or len(source_paths)>MAX_SOURCE_FILES: return False
-    if len({p.casefold() for p in source_paths if isinstance(p,str)})!=len(source_paths): return False
+    if not all(isinstance(p,str) for p in source_paths): return False
+    if len({p.casefold() for p in source_paths})!=len(source_paths): return False
     if not isinstance(manifest,dict) or not manifest or len(manifest)>MAX_SOURCE_FILES or set(source_paths)!=set(manifest): return False
-    if len({p.casefold() for p in manifest if isinstance(p,str)})!=len(manifest): return False
+    if not all(isinstance(p,str) for p in manifest): return False
+    if len({p.casefold() for p in manifest})!=len(manifest): return False
     total_source_bytes=0
     for record in manifest.values():
         if not isinstance(record,dict): return False

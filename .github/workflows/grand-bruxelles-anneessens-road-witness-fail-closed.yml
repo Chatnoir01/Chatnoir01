@@ -1,0 +1,42 @@
+name: Grand Bruxelles Anneessens Road Witness Fail-Closed
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_witness_fail_closed.py"
+      - ".github/workflows/grand-bruxelles-anneessens-road-witness-fail-closed.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  road-witness-fail-closed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact checked-out head
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL="$(git rev-parse HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            EXPECTED="${{ github.event.pull_request.head.sha }}"
+          else
+            EXPECTED="${{ github.sha }}"
+          fi
+          test "$ACTUAL" = "$EXPECTED"
+          echo "ANNEESSENS_ROAD_WITNESS_FAIL_CLOSED_HEAD_OK sha=$ACTUAL"
+
+      - name: Run focused road-witness regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_witness_fail_closed.py

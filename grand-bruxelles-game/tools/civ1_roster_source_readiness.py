@@ -34,6 +34,7 @@ def _loads_strict_json(text): return json.loads(text,object_pairs_hook=_reject_d
 def _load_strict_json(path): return _loads_strict_json(path.read_text(encoding="utf-8"))
 def _git_blob_sha1(data):
     digest=hashlib.sha1(); digest.update(f"blob {len(data)}\0".encode("ascii")); digest.update(data); return digest.hexdigest()
+def _sha256(data): return hashlib.sha256(data).hexdigest()
 def _has_symlink_component(base,parts):
     current=base
     if current.is_symlink(): return True
@@ -108,13 +109,14 @@ def _source_manifest_integrity(status,repo_root):
         upstream_identities.append(upstream_path)
         license_id=record.get("license")
         if not isinstance(license_id,str) or license_id not in ALLOWED_SOURCE_LICENSES: return False
-        expected_sha1=record.get("git_blob_sha1"); expected_size=record.get("size_bytes")
+        expected_sha1=record.get("git_blob_sha1"); expected_sha256=record.get("sha256"); expected_size=record.get("size_bytes")
         if not isinstance(expected_sha1,str) or len(expected_sha1)!=40 or expected_sha1!=expected_sha1.lower() or any(c not in "0123456789abcdef" for c in expected_sha1): return False
+        if not isinstance(expected_sha256,str) or len(expected_sha256)!=64 or expected_sha256!=expected_sha256.lower() or any(c not in "0123456789abcdef" for c in expected_sha256): return False
         candidate=_source_file(repo_root,source_path)
         if candidate is None: return False
         try: data=_read_regular_single_link(candidate,expected_size)
         except OSError: return False
-        if data is None or len(data)!=expected_size or _git_blob_sha1(data)!=expected_sha1: return False
+        if data is None or len(data)!=expected_size or _git_blob_sha1(data)!=expected_sha1 or _sha256(data)!=expected_sha256: return False
     if len({p.casefold() for p in upstream_identities})!=len(upstream_identities): return False
     return True
 def _status_consistent(status,repo_root):

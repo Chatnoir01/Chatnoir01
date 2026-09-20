@@ -33,6 +33,7 @@ def main() -> None:
                     "license_scope_verified": True,
                     "license": "CC0-1.0",
                     "git_blob_sha1": "3914b89458e542b73f0168b0bf80c8e356e78f9c",
+                    "sha256": "097b2c590e51dcb5d4ac5e75f4efed4c494a7ced9007349c3e3dfbf565cab48b",
                     "size_bytes": 16,
                 }
             },

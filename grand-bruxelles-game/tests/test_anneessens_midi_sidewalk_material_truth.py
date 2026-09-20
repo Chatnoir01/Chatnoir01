@@ -57,6 +57,22 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertEqual(text.count('set_meta("license", PROXY_LICENSE)'), 1)
         self.assertEqual(text.count('set_meta("presentation_recipe", PROXY_RECIPE)'), 1)
 
+    def test_material_recipe_metadata_matches_rendered_parameters(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+
+        # The recipe label alone cannot prove which generic proxy presentation was
+        # rendered. Bind the retained material resource to the exact authored values
+        # without claiming those values are source-backed Brussels identity.
+        self.assertIn('const PROXY_MATERIAL_REVISION := 1', text)
+        self.assertIn('const PROXY_ALBEDO := Color(0.40, 0.385, 0.36, 1.0)', text)
+        self.assertIn('const PROXY_ROUGHNESS := 0.92', text)
+        self.assertIn('material.albedo_color = PROXY_ALBEDO', text)
+        self.assertIn('material.roughness = PROXY_ROUGHNESS', text)
+        self.assertIn('material.set_meta("presentation_revision", PROXY_MATERIAL_REVISION)', text)
+        self.assertIn('material.set_meta("presentation_albedo", PROXY_ALBEDO)', text)
+        self.assertIn('material.set_meta("presentation_roughness", PROXY_ROUGHNESS)', text)
+        self.assertIn('material.set_meta("presentation_parameters_source_backed", false)', text)
+
     def test_shared_material_resource_carries_fail_closed_provenance(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 

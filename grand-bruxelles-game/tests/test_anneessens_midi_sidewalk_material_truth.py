@@ -83,6 +83,19 @@ class AnneessensMidiSidewalkMaterialTruthTest(unittest.TestCase):
         self.assertLess(text.index(rotation_assignment), text.index(final_witness))
         self.assertIn('pavement.set_meta("placement_witness_global_transform_source_backed", false)', text)
 
+    def test_each_proxy_snapshots_final_rendered_dimensions(self) -> None:
+        text = RUNTIME.read_text(encoding="utf-8")
+
+        # Placement evidence is incomplete without the exact box dimensions actually
+        # rendered. Keep that final result auditable without upgrading authored width,
+        # height or road-derived length to source-backed sidewalk truth.
+        size_assignment = 'pavement.size = Vector3(width, SIDEWALK_HEIGHT_M, road.size.z)'
+        size_witness = 'pavement.set_meta("placement_witness_rendered_size", pavement.size)'
+        self.assertIn(size_assignment, text)
+        self.assertIn(size_witness, text)
+        self.assertLess(text.index(size_assignment), text.index(size_witness))
+        self.assertIn('pavement.set_meta("placement_witness_rendered_size_source_backed", false)', text)
+
     def test_node_and_resource_share_one_proxy_provenance_contract(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
 

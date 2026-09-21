@@ -77,9 +77,20 @@ func _reset_scene_binding() -> void:
     _scene = null
     _manual_binding = false
 
-func _on_node_added(_node: Node) -> void:
-    if _tearing_down or _manual_binding or is_instance_valid(_scene):
+func _is_generated_road_child(node: Node) -> bool:
+    if node == null or not node is CSGBox3D or not node.name.begins_with("Road_") or not is_instance_valid(_scene):
+        return false
+    var roads := _scene.get_node_or_null("BrusselsOSM/GeneratedRoads")
+    return roads != null and node.get_parent() == roads
+
+func _on_node_added(node: Node) -> void:
+    if _tearing_down or _manual_binding:
         return
+    if is_instance_valid(_scene):
+        if not _is_generated_road_child(node):
+            return
+        _reset_scene_binding()
+        _start_watching()
     _schedule_bind()
 
 func _on_node_removed(node: Node) -> void:

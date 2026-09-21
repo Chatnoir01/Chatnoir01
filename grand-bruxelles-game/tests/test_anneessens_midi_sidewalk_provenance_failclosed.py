@@ -4,6 +4,13 @@ import unittest
 RUNTIME = Path(__file__).resolve().parents[1] / "game" / "scripts" / "anneessens_midi_sidewalk_runtime.gd"
 
 
+def _function_block(text: str, name: str) -> str:
+    marker = f"func {name}"
+    start = text.index(marker)
+    next_func = text.find("\nfunc ", start + len(marker))
+    return text[start:] if next_func == -1 else text[start:next_func]
+
+
 class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
     def test_unverified_rendered_roads_do_not_claim_source_backed_alignment(self) -> None:
         text = RUNTIME.read_text(encoding="utf-8")
@@ -46,8 +53,14 @@ class AnneessensMidiSidewalkProvenanceContract(unittest.TestCase):
         self.assertIn("_manual_binding = false", automatic_failure)
         self.assertIn("_start_watching()", automatic_failure)
         self.assertNotIn("_schedule_bind()", empty_build)
-        node_added = text.split("func _on_node_added(_node: Node) -> void:", 1)[1].split("func ", 1)[0]
+
+        node_added = _function_block(text, "_on_node_added(")
         self.assertIn("_schedule_bind()", node_added)
+        self.assertIn("if _tearing_down or _manual_binding:", node_added)
+        self.assertIn("if is_instance_valid(_scene):", node_added)
+        self.assertIn("if not _is_generated_road_child(node):", node_added)
+        self.assertIn("_reset_scene_binding()", node_added)
+        self.assertIn("_start_watching()", node_added)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ var _manual_binding := false
 var _bind_scheduled := false
 var _watching_tree := false
 var _tearing_down := false
+var _alignment_road_instance_ids: Dictionary = {}
 
 func _ready() -> void:
     _tearing_down = false
@@ -69,6 +70,7 @@ func _release_owned_root() -> void:
     _root = null
     _sidewalk_count = 0
     _collision_count = 0
+    _alignment_road_instance_ids.clear()
 
 func _reset_scene_binding() -> void:
     _release_owned_root()
@@ -81,7 +83,10 @@ func _on_node_added(_node: Node) -> void:
     _schedule_bind()
 
 func _on_node_removed(node: Node) -> void:
-    if _tearing_down or not is_inside_tree() or _manual_binding or not is_instance_valid(_scene) or node != _scene:
+    if _tearing_down or not is_inside_tree() or _manual_binding or not is_instance_valid(_scene):
+        return
+    var invalidates_binding := node == _scene or _alignment_road_instance_ids.has(node.get_instance_id())
+    if not invalidates_binding:
         return
     _reset_scene_binding()
     _start_watching()
@@ -238,6 +243,7 @@ func _build_from_existing_osm_roads() -> bool:
             continue
         if road.size.z < 1.0 or road.size.x < 2.0:
             continue
+        _alignment_road_instance_ids[road.get_instance_id()] = true
         _add_sidewalk_pair(road, material)
     return _sidewalk_count > 0
 

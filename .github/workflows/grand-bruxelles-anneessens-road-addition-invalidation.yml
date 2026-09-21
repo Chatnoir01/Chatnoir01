@@ -1,0 +1,33 @@
+name: Grand Bruxelles Anneessens Road Addition Invalidation
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_source_road_addition_failclosed.py"
+      - ".github/workflows/grand-bruxelles-anneessens-road-addition-invalidation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  road-addition-invalidation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact PR head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Run source-road addition fail-closed regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_source_road_addition_failclosed.py

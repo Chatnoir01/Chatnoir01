@@ -43,6 +43,23 @@ def _feature_ids(document: dict, path: Path) -> list[str]:
     return ids
 
 
+def _bbox(feature: dict, path: Path) -> list[float]:
+    bbox = feature.get("bbox")
+    feature_id = feature.get("id", "<missing-id>")
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        raise AssertionError(f"{path}: {feature_id} bbox must be a 4-number array")
+    if not all(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        for value in bbox
+    ):
+        raise AssertionError(f"{path}: {feature_id} bbox must be finite numeric")
+    if bbox[0] > bbox[2] or bbox[1] > bbox[3]:
+        raise AssertionError(f"{path}: {feature_id} bbox must be ordered")
+    return bbox
+
+
 class MidiUrbisRawGamePairAccounting(unittest.TestCase):
     def test_raw_and_game_layers_have_exact_feature_identity_sets(self) -> None:
         for layer in LAYERS:
@@ -60,20 +77,25 @@ class MidiUrbisRawGamePairAccounting(unittest.TestCase):
                 self.assertEqual(len(raw_ids), len(game_ids))
                 self.assertEqual(set(raw_ids), set(game_ids))
 
-    def test_raw_feature_bboxes_are_finite_and_ordered(self) -> None:
+    def test_raw_and_game_bboxes_are_finite_ordered_and_identical_by_feature(self) -> None:
         for layer in LAYERS:
-            raw_path = MIDI / f"{layer}.geojson"
-            raw = _load(raw_path)
-            for feature in raw["features"]:
-                bbox = feature.get("bbox")
-                self.assertIsInstance(bbox, list, f"{raw_path}: {feature['id']} bbox")
-                self.assertEqual(len(bbox), 4, f"{raw_path}: {feature['id']} bbox")
-                self.assertTrue(
-                    all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in bbox),
-                    f"{raw_path}: {feature['id']} bbox must be finite numeric",
-                )
-                self.assertLessEqual(bbox[0], bbox[2], f"{raw_path}: {feature['id']} bbox x order")
-                self.assertLessEqual(bbox[1], bbox[3], f"{raw_path}: {feature['id']} bbox y order")
+            with self.subTest(layer=layer):
+                raw_path = MIDI / f"{layer}.geojson"
+                game_path = MIDI / f"{layer}.game.json"
+                raw = _load(raw_path)
+                game = _load(game_path)
+                raw_by_id = {feature["id"]: feature for feature in raw["features"]}
+                game_by_id = {feature["id"]: feature for feature in game["features"]}
+
+                self.assertEqual(set(raw_by_id), set(game_by_id))
+                for feature_id in sorted(raw_by_id):
+                    raw_bbox = _bbox(raw_by_id[feature_id], raw_path)
+                    game_bbox = _bbox(game_by_id[feature_id], game_path)
+                    self.assertEqual(
+                        raw_bbox,
+                        game_bbox,
+                        f"{layer}: transformed feature {feature_id} changed source bbox accounting",
+                    )
 
 
 if __name__ == "__main__":

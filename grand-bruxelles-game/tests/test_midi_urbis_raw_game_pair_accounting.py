@@ -35,8 +35,12 @@ def _feature_ids(document: dict, path: Path) -> list[str]:
         feature_id = feature.get("id")
         if not isinstance(feature_id, str) or not feature_id:
             raise AssertionError(f"{path}: every feature must have a non-empty string id")
-        if not isinstance(feature.get("geometry"), dict):
+        geometry = feature.get("geometry")
+        if not isinstance(geometry, dict):
             raise AssertionError(f"{path}: feature {feature_id} has no geometry object")
+        geometry_type = geometry.get("type")
+        if not isinstance(geometry_type, str) or not geometry_type:
+            raise AssertionError(f"{path}: feature {feature_id} has no geometry type")
         ids.append(feature_id)
     if len(ids) != len(set(ids)):
         raise AssertionError(f"{path}: duplicate feature ids")
@@ -76,6 +80,26 @@ class MidiUrbisRawGamePairAccounting(unittest.TestCase):
 
                 self.assertEqual(len(raw_ids), len(game_ids))
                 self.assertEqual(set(raw_ids), set(game_ids))
+
+    def test_raw_and_game_geometry_types_are_identical_by_feature(self) -> None:
+        for layer in LAYERS:
+            with self.subTest(layer=layer):
+                raw_path = MIDI / f"{layer}.geojson"
+                game_path = MIDI / f"{layer}.game.json"
+                raw = _load(raw_path)
+                game = _load(game_path)
+                raw_by_id = {feature["id"]: feature for feature in raw["features"]}
+                game_by_id = {feature["id"]: feature for feature in game["features"]}
+
+                self.assertEqual(set(raw_by_id), set(game_by_id))
+                for feature_id in sorted(raw_by_id):
+                    raw_type = raw_by_id[feature_id]["geometry"]["type"]
+                    game_type = game_by_id[feature_id]["geometry"]["type"]
+                    self.assertEqual(
+                        raw_type,
+                        game_type,
+                        f"{layer}: transformed feature {feature_id} changed geometry type accounting",
+                    )
 
     def test_raw_and_game_bboxes_are_finite_ordered_and_identical_by_feature(self) -> None:
         for layer in LAYERS:

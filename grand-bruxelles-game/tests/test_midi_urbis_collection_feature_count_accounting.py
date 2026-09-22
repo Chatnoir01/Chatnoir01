@@ -14,8 +14,8 @@ LAYERS = (
 
 
 class MidiUrbisCollectionFeatureCountAccounting(unittest.TestCase):
-    def test_collection_feature_counts_are_explicit_and_pair_equal(self) -> None:
-        """Keep a deterministic, human-readable accounting receipt per locked layer pair."""
+    def test_collection_feature_counts_and_order_are_pair_equal(self) -> None:
+        """Keep deterministic accounting and source feature order across raw/game pairs."""
         counts = {}
         for layer in LAYERS:
             raw_path = MIDI / f"{layer}.geojson"
@@ -32,6 +32,18 @@ class MidiUrbisCollectionFeatureCountAccounting(unittest.TestCase):
                     len(raw_features),
                     len(game_features),
                     f"{layer}: raw/game feature-count accounting diverged",
+                )
+
+                # Identity-set checks elsewhere reject additions/deletions. Preserve the
+                # source ordering too: a coordinate-only transform must not reorder the
+                # locked source features, because that would make generated artifacts
+                # non-reproducible even when their identity sets remain equal.
+                raw_ids = [feature.get("id") for feature in raw_features]
+                game_ids = [feature.get("id") for feature in game_features]
+                self.assertEqual(
+                    raw_ids,
+                    game_ids,
+                    f"{layer}: coordinate conversion reordered source features",
                 )
                 counts[layer] = len(raw_features)
 

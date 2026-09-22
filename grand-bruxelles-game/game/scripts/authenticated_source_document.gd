@@ -32,8 +32,9 @@ static func load_document(path: String, expected_sha: String) -> Dictionary:
         return {}
 
     var bytes := file.get_buffer(expected_length)
-    if bytes.size() != expected_length:
+    if bytes.size() != expected_length or file.get_error() != OK:
         return {}
+    file.close()
 
     var hashing := HashingContext.new()
     if hashing.start(HashingContext.HASH_SHA256) != OK:

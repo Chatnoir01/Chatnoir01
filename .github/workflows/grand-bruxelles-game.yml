@@ -56,6 +56,9 @@ jobs:
       - name: Validate Python tools
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
+      - name: Classify Midi spawn UrbIS building overlap
+        run: python3 -m pytest -q grand-bruxelles-game/tests/test_midi_spawn_not_inside_urbis_building.py
+
       - name: Test hero-building runtime selection
         run: |
           python3 -m unittest discover -s grand-bruxelles-game/tests -p 'test_make_runtime_slice.py' -v

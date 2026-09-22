@@ -1,0 +1,261 @@
+name: Grand Bruxelles CIV-1 RightFoot Y Blend Sweep
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd"
+      - "grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd"
+      - "grand-bruxelles-game/tools/build_civ1_right_foot_y_blend_candidate.py"
+      - "grand-bruxelles-game/tests/test_civ1_right_foot_y_blend_sweep_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-right-foot-y-blend-sweep.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  right-foot-y-blend-sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_right_foot_y_blend_sweep_contract.py
+
+      - name: Fetch exact CIV-1 and CC0 Quaternius sources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1blend/source /tmp/civ1blend/quaternius /tmp/civ1blend/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1blend/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1blend/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1blend/source/vitruvian_body.glb /tmp/civ1blend/source/civ1_body.glb --require-animations | tee /tmp/civ1blend/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1blend/source/civ1_body.glb' | sha256sum -c -
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1blend/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1blend/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1blend/quaternius.zip -d /tmp/civ1blend/quaternius
+          LICENSE_FILE="$(find /tmp/civ1blend/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1blend/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1blend/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1blend/engine
+          GODOT_BIN=/tmp/civ1blend/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1blend/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1blend/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Build alpha sweep candidates
+        run: |
+          set -euo pipefail
+          for alpha in 0.00 0.25 0.50 0.75 1.00; do
+            tag="${alpha/./_}"
+            python3 grand-bruxelles-game/tools/build_civ1_right_foot_y_blend_candidate.py \
+              grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd \
+              "/tmp/civ1blend/candidate_${tag}.gd" "$alpha" | tee "/tmp/civ1blend/evidence/build_${tag}.log"
+          done
+
+      - name: Import once and capture baseline plus five candidates
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1blend/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1blend/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1RightFootYBlendSweep"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1blend/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd "$PROJECT_ROOT/gb_baseline.gd"
+          for alpha in 0.00 0.25 0.50 0.75 1.00; do
+            tag="${alpha/./_}"
+            cp "/tmp/civ1blend/candidate_${tag}.gd" "$PROJECT_ROOT/gb_candidate_${tag}.gd"
+          done
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1blend/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_baseline.gd -- /tmp/civ1blend/evidence/baseline.json 2>&1 | tee /tmp/civ1blend/evidence/baseline.log
+          grep -Fq 'CIV1_NATIVE_RETARGET_OK' /tmp/civ1blend/evidence/baseline.log
+          for alpha in 0.00 0.25 0.50 0.75 1.00; do
+            tag="${alpha/./_}"
+            timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script "res://gb_candidate_${tag}.gd" -- "/tmp/civ1blend/evidence/candidate_${tag}.json" 2>&1 | tee "/tmp/civ1blend/evidence/probe_${tag}.log"
+            grep -Fq 'CIV1_RIGHT_FOOT_REFERENCE_AB_OK' "/tmp/civ1blend/evidence/probe_${tag}.log"
+          done
+
+      - name: Classify strict phase-support Pareto sweep
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1blend/evidence/classification.log
+          import json
+          from pathlib import Path
+
+          alphas=[0.00,0.25,0.50,0.75,1.00]
+          baseline=json.loads(Path('/tmp/civ1blend/evidence/baseline.json').read_text())
+          assert baseline['format']=='grand-bruxelles-civ1-native-retarget-v3'
+          assert baseline['sample_count']==121
+          baseline_right=baseline['target_right_support_candidate']
+
+          manual_baseline_left_median_mps = 6.845175
+          manual_baseline_left_p90_mps = 33.326307
+          manual_baseline_right_median_mps = 6.812484
+          manual_baseline_right_p90_mps = 36.403685
+
+          def primary_center(candidate):
+              windows=candidate['low_height_windows']
+              assert windows
+              primary=max(windows,key=lambda w:int(w['sample_count']))
+              if primary['wraps_cycle']:
+                  start=float(primary['start_index'])
+                  end=float(primary['end_index'])+120.0
+                  return ((start+end)/2.0)%120.0
+              return (float(primary['start_index'])+float(primary['end_index']))/2.0
+
+          def indices_for_window(window):
+              start=int(window['start_index']); end=int(window['end_index'])
+              if bool(window['wraps_cycle']):
+                  return list(range(start,120))+list(range(0,end+1))
+              return list(range(start,end+1))
+
+          rows=[]
+          payloads={}
+          for alpha in alphas:
+              tag=f'{alpha:.2f}'.replace('.','_')
+              p=json.loads(Path(f'/tmp/civ1blend/evidence/candidate_{tag}.json').read_text())
+              payloads[alpha]=p
+              assert p['format']=='grand-bruxelles-civ1-right-foot-reference-ab-v4'
+              assert p['sample_count']==121
+              assert abs(float(p['target_right_foot_y_blend_alpha'])-alpha) < 1e-9
+              assert p['target_right_foot_length_preserved'] is True
+              assert len(p['source_right_lower_leg_points'])==121
+              assert len(p['target_right_lower_leg_points'])==121
+              assert len(p['source_right_foot_points'])==121
+              assert len(p['target_right_foot_points'])==121
+              assert p['diagnostic_only'] is True
+              assert p['world_ground_assumed'] is False
+              assert p['runtime_authorized'] is False
+              assert p['visual_approval_claimed'] is False
+              left=p['target_left_support_candidate']
+              right=p['target_right_support_candidate']
+              source=p['source_right_support_candidate']
+              source_low=set(source['low_height_sample_indices'])
+              baseline_low=set(baseline_right['low_height_sample_indices'])
+              candidate_low=set(right['low_height_sample_indices'])
+              strict_bilateral_improvement=(
+                  left['median_horizontal_speed_mps'] < manual_baseline_left_median_mps and
+                  left['p90_horizontal_speed_mps'] < manual_baseline_left_p90_mps and
+                  right['median_horizontal_speed_mps'] < manual_baseline_right_median_mps and
+                  right['p90_horizontal_speed_mps'] < manual_baseline_right_p90_mps
+              )
+              phase_overlap_improved=len(source_low & candidate_low) > len(source_low & baseline_low)
+              source_center=primary_center(source)
+              baseline_center_error=abs(primary_center(baseline_right)-source_center)
+              candidate_center_error=abs(primary_center(right)-source_center)
+              primary_center_improved=candidate_center_error < baseline_center_error
+              plane_error=abs(float(right['low_height_threshold_y'])-float(source['low_height_threshold_y']))
+              rows.append({
+                  'alpha':alpha,
+                  'strict_bilateral_improvement':strict_bilateral_improvement,
+                  'phase_overlap_improved':phase_overlap_improved,
+                  'primary_center_improved':primary_center_improved,
+                  'plane_error_m':plane_error,
+                  'right_median_mps':right['median_horizontal_speed_mps'],
+                  'right_p90_mps':right['p90_horizontal_speed_mps'],
+                  'right_windows':right['low_height_windows'],
+                  'candidate_center_error_samples':candidate_center_error,
+              })
+
+          full=rows[0]
+          eligible_nonzero=[r for r in rows[1:] if r['strict_bilateral_improvement'] and r['phase_overlap_improved'] and r['primary_center_improved']]
+          for r in rows:
+              r['plane_error_improves_over_full']=r['plane_error_m'] < full['plane_error_m']
+          improved_nonzero=[r for r in eligible_nonzero if r['plane_error_improves_over_full']]
+          assert eligible_nonzero, 'no nonzero Y blend retains frozen phase/speed gates'
+          assert improved_nonzero, 'no nonzero Y blend improves support-plane proxy over full normalization'
+          best=min(improved_nonzero,key=lambda r:(r['plane_error_m'],r['alpha']))
+
+          selected=payloads[best['alpha']]
+          source_support=selected['source_right_support_candidate']
+          target_support=selected['target_right_support_candidate']
+          source_low=set(int(i) for i in source_support['low_height_sample_indices'])
+          residual_candidates=[]
+          for window in target_support['low_height_windows']:
+              indices=indices_for_window(window)
+              overlap=len(set(indices)&source_low)
+              if overlap==0:
+                  residual_candidates.append((int(window['sample_count']),window,indices))
+          residual_window=None
+          residual_attribution={'classification':'no_disjoint_secondary_window'}
+          if residual_candidates:
+              _,residual_window,residual_indices=max(residual_candidates,key=lambda item:item[0])
+              source_lower=selected['source_right_lower_leg_points']
+              target_lower=selected['target_right_lower_leg_points']
+              source_foot=selected['source_right_foot_points']
+              target_foot=selected['target_right_foot_points']
+              unchanged_candidate_threshold_y=float(target_support['low_height_threshold_y'])
+              actual_errors=[]; parent_source_errors=[]; relative_source_errors=[]
+              parent_source_remaining=0; relative_source_remaining=0
+              for i in residual_indices:
+                  source_y=float(source_foot[i][1])
+                  actual_y=float(target_foot[i][1])
+                  parent_source_counterfactual=float(source_lower[i][1])+(float(target_foot[i][1])-float(target_lower[i][1]))
+                  relative_source_counterfactual=float(target_lower[i][1])+(float(source_foot[i][1])-float(source_lower[i][1]))
+                  actual_errors.append(abs(actual_y-source_y))
+                  parent_source_errors.append(abs(parent_source_counterfactual-source_y))
+                  relative_source_errors.append(abs(relative_source_counterfactual-source_y))
+                  parent_source_remaining += int(parent_source_counterfactual <= unchanged_candidate_threshold_y)
+                  relative_source_remaining += int(relative_source_counterfactual <= unchanged_candidate_threshold_y)
+              actual_mae=sum(actual_errors)/len(actual_errors)
+              parent_mae=sum(parent_source_errors)/len(parent_source_errors)
+              relative_mae=sum(relative_source_errors)/len(relative_source_errors)
+              if parent_source_remaining < relative_source_remaining and parent_mae < relative_mae:
+                  classification='parent_trajectory_dominant'
+              elif relative_source_remaining < parent_source_remaining and relative_mae < parent_mae:
+                  classification='relative_term_dominant'
+              else:
+                  classification='mixed_or_unresolved'
+              residual_attribution={
+                  'classification':classification,
+                  'sample_indices':residual_indices,
+                  'unchanged_candidate_threshold_y':unchanged_candidate_threshold_y,
+                  'actual_source_y_mae_m':actual_mae,
+                  'parent_source_counterfactual':{'source_y_mae_m':parent_mae,'samples_remaining_low':parent_source_remaining},
+                  'relative_source_counterfactual':{'source_y_mae_m':relative_mae,'samples_remaining_low':relative_source_remaining},
+                  'threshold_was_modified':False,
+              }
+
+          result={
+              'format':'grand-bruxelles-civ1-right-foot-y-blend-sweep-v2',
+              'sample_count':121,
+              'alphas':alphas,
+              'rows':rows,
+              'selected_alpha':best['alpha'],
+              'selection_rule':'minimum source-relative support-plane error among nonzero candidates passing unchanged bilateral speed and relative phase gates',
+              'eligible_nonzero':len(eligible_nonzero),
+              'residual_window':residual_window,
+              'residual_attribution':residual_attribution,
+              'diagnostic_only':True,
+              'world_ground_assumed':False,
+              'runtime_authorized':False,
+              'visual_approval_claimed':False,
+          }
+          Path('/tmp/civ1blend/evidence/y-blend-sweep.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+
+      - name: Upload Y-blend sweep evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-right-foot-y-blend-sweep-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1blend/evidence/
+          if-no-files-found: error
+          retention-days: 14

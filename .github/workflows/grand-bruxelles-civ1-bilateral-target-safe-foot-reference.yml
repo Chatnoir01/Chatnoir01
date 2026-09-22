@@ -1,0 +1,219 @@
+name: Grand Bruxelles CIV-1 Bilateral Target-Safe Foot Reference
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_bilateral_target_safe_foot_reference_probe.gd"
+      - "grand-bruxelles-game/tests/test_civ1_bilateral_target_safe_foot_reference_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-bilateral-target-safe-foot-reference.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bilateral-target-safe-foot-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_bilateral_target_safe_foot_reference_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1bilateral/source /tmp/civ1bilateral/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1bilateral/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1bilateral/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1bilateral/source/vitruvian_body.glb /tmp/civ1bilateral/source/civ1_body.glb --require-animations | tee /tmp/civ1bilateral/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1bilateral/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1bilateral/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1bilateral/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1bilateral/quaternius
+          unzip -q /tmp/civ1bilateral/quaternius.zip -d /tmp/civ1bilateral/quaternius
+          LICENSE_FILE="$(find /tmp/civ1bilateral/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1bilateral/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1bilateral/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1bilateral/engine
+          GODOT_BIN=/tmp/civ1bilateral/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1bilateral/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1bilateral/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact rigs and capture bilateral target-safe counterfactual
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1bilateral/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1bilateral/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1BilateralTargetSafeFootReference"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1bilateral/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_bilateral_target_safe_foot_reference_probe.gd "$PROJECT_ROOT/gb_civ1_bilateral_target_safe_foot_reference_probe.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1bilateral/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_bilateral_target_safe_foot_reference_probe.gd -- /tmp/civ1bilateral/evidence/bilateral-target-safe.json 2>&1 | tee /tmp/civ1bilateral/evidence/probe.log
+          grep -Fq 'CIV1_BILATERAL_TARGET_SAFE_FOOT_REFERENCE_OK' /tmp/civ1bilateral/evidence/probe.log
+
+      - name: Classify full-cycle support and residual-window behavior
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1bilateral/evidence/classification.log
+          import json, math
+          from pathlib import Path
+
+          SAMPLE_COUNT = 121
+          SUPPORT_BAND_FRACTION = 0.10
+          RESIDUAL_INDICES = [84, 85, 86, 87, 88]
+          PRIMARY_SOURCE_WINDOW = range(58, 69)
+          p = json.loads(Path('/tmp/civ1bilateral/evidence/bilateral-target-safe.json').read_text())
+          assert p['format'] == 'grand-bruxelles-civ1-bilateral-target-safe-foot-reference-v1'
+          assert p['sample_count'] == SAMPLE_COUNT and len(p['samples']) == SAMPLE_COUNT
+          assert p['retarget_modifier'] == 'RetargetModifier3D'
+          assert p['use_global_pose'] is False
+          assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          assert p['diagnostic_only'] is True and p['world_ground_assumed'] is False
+          assert p['runtime_authorized'] is False and p['visual_approval_claimed'] is False
+          animation_length = float(p['animation_length_s'])
+          dt = animation_length / float(SAMPLE_COUNT - 1)
+
+          def vec(row, side, key):
+              v = row['sides'][side][key]
+              assert len(v) == 3 and all(math.isfinite(float(x)) for x in v)
+              return tuple(float(x) for x in v)
+
+          def percentile(values, fraction):
+              if not values:
+                  return 0.0
+              ordered = sorted(values)
+              idx = max(0, min(round(fraction * (len(ordered) - 1)), len(ordered) - 1))
+              return ordered[idx]
+
+          def support_metrics(points):
+              usable = points[:-1]
+              ys = [v[1] for v in usable]
+              lo, hi = min(ys), max(ys)
+              threshold = lo + ((hi - lo) * SUPPORT_BAND_FRACTION)
+              low = [i for i, v in enumerate(usable) if v[1] <= threshold]
+              low_set = set(low)
+              speeds = []
+              for i in range(len(usable) - 1):
+                  if i in low_set and i + 1 in low_set:
+                      a, b = usable[i], usable[i + 1]
+                      distance = math.hypot(b[0] - a[0], b[2] - a[2])
+                      speeds.append(distance / dt if dt > 0 else 0.0)
+              windows = []
+              if low:
+                  start = prev = low[0]
+                  for current in low[1:]:
+                      if current != prev + 1:
+                          windows.append([start, prev])
+                          start = current
+                      prev = current
+                  windows.append([start, prev])
+              if len(windows) >= 2 and windows[0][0] == 0 and windows[-1][1] == len(usable) - 1:
+                  merged = [windows[-1][0], windows[0][1]]
+                  windows = [merged] + windows[1:-1]
+              return {
+                  'low_height_threshold_y': threshold,
+                  'low_height_sample_indices': low,
+                  'low_height_windows': windows,
+                  'median_horizontal_speed_mps': percentile(speeds, 0.50),
+                  'p90_horizontal_speed_mps': percentile(speeds, 0.90),
+              }
+
+          sides = {}
+          for side in ('Left', 'Right'):
+              source_points = [vec(row, side, 'source_foot_model_origin') for row in p['samples']]
+              baseline_points = [vec(row, side, 'baseline_foot_model_origin') for row in p['samples']]
+              candidate_points = [vec(row, side, 'target_safe_foot_model_origin') for row in p['samples']]
+              source = support_metrics(source_points)
+              baseline = support_metrics(baseline_points)
+              candidate = support_metrics(candidate_points)
+              source_set = set(source['low_height_sample_indices'])
+              baseline_set = set(baseline['low_height_sample_indices'])
+              candidate_set = set(candidate['low_height_sample_indices'])
+              source_phase_overlap_count = len(candidate_set & source_set)
+              baseline_source_phase_overlap_count = len(baseline_set & source_set)
+              secondary_window_count = sum(1 for i in RESIDUAL_INDICES if i in candidate_set)
+              baseline_secondary_window_count = sum(1 for i in RESIDUAL_INDICES if i in baseline_set)
+              primary_source_window_overlap_count = sum(1 for i in PRIMARY_SOURCE_WINDOW if i in candidate_set)
+              source_plane = source['low_height_threshold_y']
+              baseline_plane_error = abs(baseline['low_height_threshold_y'] - source_plane)
+              candidate_plane_error = abs(candidate['low_height_threshold_y'] - source_plane)
+              sides[side.lower()] = {
+                  'source': source,
+                  'baseline': baseline,
+                  'candidate': candidate,
+                  'support_plane_mae_m': candidate_plane_error,
+                  'baseline_support_plane_error_m': baseline_plane_error,
+                  'source_phase_overlap_count': source_phase_overlap_count,
+                  'baseline_source_phase_overlap_count': baseline_source_phase_overlap_count,
+                  'primary_source_window_overlap_count': primary_source_window_overlap_count,
+                  'secondary_window_count': secondary_window_count,
+                  'baseline_secondary_window_count': baseline_secondary_window_count,
+                  'plane_non_regression': candidate_plane_error <= baseline_plane_error,
+                  'speed_non_regression': candidate['median_horizontal_speed_mps'] <= baseline['median_horizontal_speed_mps'] and candidate['p90_horizontal_speed_mps'] <= baseline['p90_horizontal_speed_mps'],
+                  'phase_non_regression': source_phase_overlap_count >= baseline_source_phase_overlap_count,
+              }
+
+          bilateral_non_regression = all(
+              sides[s]['plane_non_regression'] and sides[s]['speed_non_regression'] and sides[s]['phase_non_regression']
+              for s in ('left', 'right')
+          )
+          right_secondary_reduced = sides['right']['secondary_window_count'] < sides['right']['baseline_secondary_window_count']
+          right_primary_overlap_preserved = sides['right']['primary_source_window_overlap_count'] > 0 and sides['right']['phase_non_regression']
+          candidate_promising = bilateral_non_regression and right_secondary_reduced and right_primary_overlap_preserved
+          classification = 'target_safe_reference_promising' if candidate_promising else 'target_safe_reference_rejected'
+          result = {
+              'format': 'grand-bruxelles-civ1-bilateral-target-safe-foot-reference-classification-v1',
+              'sample_count': SAMPLE_COUNT,
+              'support_band_fraction': SUPPORT_BAND_FRACTION,
+              'residual_indices': RESIDUAL_INDICES,
+              'primary_source_window': [PRIMARY_SOURCE_WINDOW.start, PRIMARY_SOURCE_WINDOW.stop - 1],
+              'sides': sides,
+              'bilateral_non_regression': bilateral_non_regression,
+              'right_secondary_reduced': right_secondary_reduced,
+              'right_primary_overlap_preserved': right_primary_overlap_preserved,
+              'candidate_promising': candidate_promising,
+              'classification': classification,
+              'threshold_was_modified': False,
+              'diagnostic_only': True,
+              'world_ground_assumed': False,
+              'grounding_verified': False,
+              'foot_slide_verified': False,
+              'runtime_authorized': False,
+              'visual_approval_claimed': False,
+          }
+          Path('/tmp/civ1bilateral/evidence/bilateral-target-safe-classification.json').write_text(json.dumps(result, indent=2) + '\n')
+          print(json.dumps(result, indent=2))
+          PY
+
+      - name: Upload bilateral target-safe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-bilateral-target-safe-foot-reference-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1bilateral/evidence
+          if-no-files-found: error
+          retention-days: 14

@@ -395,8 +395,14 @@ func set_sidewalks_enabled(enabled: bool) -> void:
                 var pavement := child as CSGBox3D
                 pavement.use_collision = false
 
+func diagnostic_sidewalk_count() -> int:
+    return _sidewalk_count
+
 func diagnostic_collision_count() -> int:
     return _collision_count
+
+func diagnostic_root() -> Node3D:
+    return _root
 
 func get_runtime_stats() -> Dictionary:
     return {

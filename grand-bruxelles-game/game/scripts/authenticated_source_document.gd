@@ -1,10 +1,26 @@
 extends RefCounted
 
 ## Reads, authenticates, and parses one source document from one immutable byte capture.
-## The caller remains responsible for canonicalizing path and expected SHA-256.
+## The caller remains responsible for canonicalizing path; this primitive still
+## validates the digest boundary itself so malformed descriptors fail closed.
+
+static func _canonical_expected_sha256(raw_sha: String) -> String:
+    if raw_sha.length() != 64:
+        return ""
+    for index: int in range(raw_sha.length()):
+        var code := raw_sha.unicode_at(index)
+        var decimal := code >= 48 and code <= 57
+        var lowercase_hex := code >= 97 and code <= 102
+        if not decimal and not lowercase_hex:
+            return ""
+    return raw_sha
+
 
 static func load_document(path: String, expected_sha: String) -> Dictionary:
-    if path.is_empty() or expected_sha.is_empty():
+    if path.is_empty():
+        return {}
+    var canonical_expected_sha := _canonical_expected_sha256(expected_sha)
+    if canonical_expected_sha.is_empty():
         return {}
 
     var file := FileAccess.open(path, FileAccess.READ)
@@ -25,7 +41,7 @@ static func load_document(path: String, expected_sha: String) -> Dictionary:
     if hashing.update(bytes) != OK:
         return {}
     var actual_sha := hashing.finish().hex_encode().to_lower()
-    if actual_sha.is_empty() or actual_sha != expected_sha:
+    if actual_sha.is_empty() or actual_sha != canonical_expected_sha:
         return {}
 
     var json_text := bytes.get_string_from_utf8()

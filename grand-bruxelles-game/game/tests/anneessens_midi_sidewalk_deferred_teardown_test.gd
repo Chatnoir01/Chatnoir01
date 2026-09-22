@@ -111,8 +111,8 @@ func _run() -> void:
     if int(bound_runtime.call("diagnostic_collision_count")) != 0:
         _fail("collision ownership registry not cleared synchronously")
         return
-    if not is_instance_valid(owned_root) or not owned_root.is_queued_for_deletion():
-        _fail("owned sidewalk root was not queued for teardown-safe destruction")
+    if not is_instance_valid(owned_root):
+        _fail("owned sidewalk root disappeared before deferred disposal could run")
         return
 
     await process_frame
@@ -120,6 +120,9 @@ func _run() -> void:
     if bound_scene.get_node_or_null("AnneessensMidiSidewalkKit") != null:
         _fail("owned sidewalk root survived deferred teardown destruction")
         return
+    if is_instance_valid(owned_root) and not owned_root.is_queued_for_deletion():
+        _fail("deferred disposal neither freed nor queued the captured owned root")
+        return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true owned_root_queued=true owned_root_released=true sidewalks=%d proxy_collisions=0" % sidewalks)
+    print("ANNEESSENS_MIDI_SIDEWALK_DEFERRED_TEARDOWN_OK: no_post_teardown_bind=true ownership_cleared_sync=true owned_root_released_deferred=true sidewalks=%d proxy_collisions=0" % sidewalks)
     quit(0)

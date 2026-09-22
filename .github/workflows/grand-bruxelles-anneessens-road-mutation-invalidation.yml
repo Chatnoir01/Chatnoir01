@@ -1,0 +1,52 @@
+name: Grand Bruxelles Anneessens Road Mutation Invalidation
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_source_road_mutation_failclosed.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_godot47_signal_api.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_visibility_collision_closed.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_mutation_poll_contract.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_all_road_watch_contract.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_visibility_failclosed.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_invisible_road_failclosed.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_diagnostic_contract.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_busy_parent_release.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_zero_visible_recovery.py"
+      - ".github/workflows/grand-bruxelles-anneessens-road-mutation-invalidation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  road-mutation-invalidation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact PR head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Run source-road mutation fail-closed regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_source_road_mutation_failclosed.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_godot47_signal_api.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_visibility_collision_closed.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_mutation_poll_contract.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_all_road_watch_contract.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_visibility_failclosed.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_invisible_road_failclosed.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_diagnostic_contract.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_busy_parent_release.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_zero_visible_recovery.py

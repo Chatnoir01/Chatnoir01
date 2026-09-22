@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
       - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_source_road_addition_failclosed.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_addition_watch_contract.py"
       - ".github/workflows/grand-bruxelles-anneessens-road-addition-invalidation.yml"
   workflow_dispatch:
 
@@ -26,8 +27,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
-      - name: Run source-road addition fail-closed regression
+      - name: Run source-road addition fail-closed regressions
         shell: bash
         run: |
           set -euo pipefail
-          python -m unittest grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_source_road_addition_failclosed.py
+          python -m unittest \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_source_road_addition_failclosed.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_addition_watch_contract.py

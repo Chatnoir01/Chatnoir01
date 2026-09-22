@@ -6,6 +6,7 @@ const SIDEWALK_NARROW_M := 1.85
 const SIDEWALK_WIDE_M := 2.55
 const SIDEWALK_HEIGHT_M := 0.12
 const SIDEWALK_GAP_M := 0.10
+const MUTATION_POLL_SECONDS := 0.25
 const PROXY_SOURCE := "authored_proxy"
 const PROXY_LICENSE := "project-authored"
 const ALIGNMENT_REFERENCE := "rendered GeneratedRoads nodes (unverified source identity)"
@@ -25,6 +26,12 @@ var _bind_scheduled := false
 var _watching_tree := false
 var _tearing_down := false
 var _alignment_road_instance_ids: Dictionary = {}
+var _alignment_road_refs: Dictionary = {}
+var _alignment_road_transforms: Dictionary = {}
+var _alignment_road_sizes: Dictionary = {}
+var _alignment_road_names: Dictionary = {}
+var _alignment_road_visibilities: Dictionary = {}
+var _mutation_poll_timer: Timer = null
 
 func _ready() -> void:
     _tearing_down = false
@@ -61,16 +68,56 @@ func _stop_watching() -> void:
             tree.node_removed.disconnect(_on_node_removed)
     _watching_tree = false
 
+func _ensure_mutation_poll_timer() -> void:
+    if is_instance_valid(_mutation_poll_timer):
+        if _mutation_poll_timer.is_stopped():
+            _mutation_poll_timer.start()
+        return
+    _mutation_poll_timer = Timer.new()
+    _mutation_poll_timer.name = "RoadMutationPoll"
+    _mutation_poll_timer.wait_time = MUTATION_POLL_SECONDS
+    _mutation_poll_timer.one_shot = false
+    _mutation_poll_timer.timeout.connect(_poll_alignment_road_mutations)
+    add_child(_mutation_poll_timer)
+    _mutation_poll_timer.start()
+
+func _stop_mutation_poll_timer() -> void:
+    if is_instance_valid(_mutation_poll_timer):
+        _mutation_poll_timer.stop()
+
+func _poll_alignment_road_mutations() -> void:
+    if _tearing_down or _manual_binding or not is_instance_valid(_scene):
+        return
+    for instance_id in _alignment_road_refs.keys():
+        _on_alignment_road_mutated(instance_id)
+        if not is_instance_valid(_scene):
+            return
+
+func _disconnect_alignment_road_mutation_watches() -> void:
+    _stop_mutation_poll_timer()
+    _alignment_road_refs.clear()
+    _alignment_road_transforms.clear()
+    _alignment_road_sizes.clear()
+    _alignment_road_names.clear()
+    _alignment_road_visibilities.clear()
+
 func _release_owned_root() -> void:
+    _disconnect_alignment_road_mutation_watches()
     if is_instance_valid(_root):
-        var parent := _root.get_parent()
-        if parent != null and not _tearing_down:
-            parent.remove_child(_root)
-        _root.queue_free()
+        var owned_root := _root
+        call_deferred("_detach_and_free_owned_root", owned_root)
     _root = null
     _sidewalk_count = 0
     _collision_count = 0
     _alignment_road_instance_ids.clear()
+
+func _detach_and_free_owned_root(owned_root: Node3D) -> void:
+    if not is_instance_valid(owned_root):
+        return
+    var parent := owned_root.get_parent()
+    if parent != null:
+        parent.remove_child(owned_root)
+    owned_root.queue_free()
 
 func _reset_scene_binding() -> void:
     _release_owned_root()
@@ -89,6 +136,7 @@ func _on_node_added(node: Node) -> void:
     if is_instance_valid(_scene):
         if not _is_generated_road_child(node):
             return
+        _watch_alignment_road_mutations(node as CSGBox3D)
         _reset_scene_binding()
         _start_watching()
     _schedule_bind()
@@ -103,6 +151,60 @@ func _on_node_removed(node: Node) -> void:
     _start_watching()
     _schedule_bind()
 
+func _watch_alignment_road_mutations(road: CSGBox3D) -> void:
+    if road == null:
+        return
+    var instance_id := road.get_instance_id()
+    if _alignment_road_refs.has(instance_id):
+        return
+    _alignment_road_refs[instance_id] = road
+    _alignment_road_transforms[instance_id] = road.global_transform
+    _alignment_road_sizes[instance_id] = road.size
+    _alignment_road_names[instance_id] = road.name
+    _alignment_road_visibilities[instance_id] = road.visible
+
+func _on_alignment_road_mutated(instance_id: Variant) -> void:
+    if _tearing_down or _manual_binding or not is_inside_tree() or not is_instance_valid(_scene):
+        return
+    if not _alignment_road_refs.has(instance_id):
+        return
+    var road_ref: Variant = _alignment_road_refs[instance_id]
+    if not is_instance_valid(road_ref):
+        _reset_scene_binding()
+        _start_watching()
+        _schedule_bind()
+        return
+    var road: CSGBox3D = road_ref as CSGBox3D
+    if road == null:
+        _reset_scene_binding()
+        _start_watching()
+        _schedule_bind()
+        return
+    if not _is_generated_road_child(road):
+        _reset_scene_binding()
+        _start_watching()
+        _schedule_bind()
+        return
+    var name_changed: bool = not _alignment_road_names.has(instance_id) or road.name != _alignment_road_names[instance_id]
+    if name_changed:
+        _reset_scene_binding()
+        _start_watching()
+        _schedule_bind()
+        return
+    var visibility_changed: bool = not _alignment_road_visibilities.has(instance_id) or road.visible != _alignment_road_visibilities[instance_id]
+    if visibility_changed:
+        _reset_scene_binding()
+        _start_watching()
+        _schedule_bind()
+        return
+    var did_transform_change: bool = not _alignment_road_transforms.has(instance_id) or road.global_transform != _alignment_road_transforms[instance_id]
+    var size_changed: bool = not _alignment_road_sizes.has(instance_id) or road.size != _alignment_road_sizes[instance_id]
+    if not did_transform_change and not size_changed:
+        return
+    _reset_scene_binding()
+    _start_watching()
+    _schedule_bind()
+
 func _schedule_bind() -> void:
     if _tearing_down or not is_inside_tree() or _bind_scheduled or _manual_binding or is_instance_valid(_scene):
         return
@@ -110,9 +212,7 @@ func _schedule_bind() -> void:
     call_deferred("_try_bind")
 
 func _has_production_anchors(candidate: Node3D) -> bool:
-    return candidate.get_node_or_null("BrusselsOSM") != null \
-        and candidate.get_node_or_null("UrbISMidiExact") != null \
-        and candidate.get_node_or_null("Player") is Node3D
+    return candidate.get_node_or_null("BrusselsOSM") != null and candidate.get_node_or_null("UrbISMidiExact") != null and candidate.get_node_or_null("Player") is Node3D
 
 func _is_production_scene(candidate: Node3D) -> bool:
     if candidate == null or not _has_production_anchors(candidate):
@@ -230,6 +330,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     if manual:
         _stop_watching()
     else:
+        _ensure_mutation_poll_timer()
         _start_watching()
 
 func _build_from_existing_osm_roads() -> bool:
@@ -239,16 +340,17 @@ func _build_from_existing_osm_roads() -> bool:
     if roads == null:
         push_warning("Anneessens Midi sidewalk kit: GeneratedRoads unavailable")
         return false
-
     var material := StandardMaterial3D.new()
     material.albedo_color = PROXY_ALBEDO
     material.roughness = PROXY_ROUGHNESS
     _apply_proxy_material_contract(material)
-
     for child: Node in roads.get_children():
         if not child is CSGBox3D or not child.name.begins_with("Road_"):
             continue
         var road := child as CSGBox3D
+        _watch_alignment_road_mutations(road)
+        if not road.visible:
+            continue
         var center_2d := Vector2(road.global_position.x, road.global_position.z)
         if center_2d.distance_to(ANNEESSENS) > DETAIL_RADIUS_M:
             continue
@@ -256,7 +358,7 @@ func _build_from_existing_osm_roads() -> bool:
             continue
         _alignment_road_instance_ids[road.get_instance_id()] = true
         _add_sidewalk_pair(road, material)
-    return _sidewalk_count > 0
+    return true
 
 func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
     var width := SIDEWALK_WIDE_M if road.size.x >= 8.5 else SIDEWALK_NARROW_M
@@ -264,7 +366,6 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
     var lateral := road.global_transform.basis.x.normalized()
     if lateral.length_squared() < 0.5:
         lateral = Vector3.RIGHT
-
     for side: float in [-1.0, 1.0]:
         var pavement := CSGBox3D.new()
         pavement.name = "AnneessensSidewalk_%s_%s" % [road.name, "L" if side < 0.0 else "R"]
@@ -291,6 +392,15 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.set_meta("placement_witness_rendered_size_source_backed", false)
         _sidewalk_count += 1
 
+func set_sidewalks_enabled(enabled: bool) -> void:
+    _sidewalks_enabled = enabled
+    if is_instance_valid(_root):
+        _root.visible = enabled
+        for child: Node in _root.get_children():
+            if child is CSGBox3D:
+                var pavement := child as CSGBox3D
+                pavement.use_collision = false
+
 func diagnostic_sidewalk_count() -> int:
     return _sidewalk_count
 
@@ -300,12 +410,21 @@ func diagnostic_collision_count() -> int:
 func diagnostic_root() -> Node3D:
     return _root
 
-func set_sidewalks_enabled(enabled: bool) -> void:
-    _sidewalks_enabled = enabled
-    if not is_instance_valid(_root):
-        return
-    _root.visible = enabled
-    for child: Node in _root.get_children():
-        if child is CSGBox3D:
-            var pavement := child as CSGBox3D
-            pavement.use_collision = false
+func get_runtime_stats() -> Dictionary:
+    return {
+        "sidewalks": _sidewalk_count,
+        "collisions": _collision_count,
+        "enabled": _sidewalks_enabled,
+        "source": PROXY_SOURCE,
+        "license": PROXY_LICENSE,
+        "presentation_recipe": PROXY_RECIPE,
+        "material_identity_source_backed": false,
+        "brussels_material_family_authorized": false,
+        "alignment_reference": ALIGNMENT_REFERENCE,
+        "road_alignment_source_backed": false,
+        "sidewalk_presence_source_backed": false,
+        "visual_dimensions_source_backed": false,
+        "vertical_profile_source_backed": false,
+        "collision_source_backed": false,
+        "collision_authorized": false,
+    }

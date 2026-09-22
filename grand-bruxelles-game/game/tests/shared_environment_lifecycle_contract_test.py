@@ -45,10 +45,7 @@ EXPECTED_DEFERRED_BIND_GUARDS = {
     "game/scripts/brussels_corridor_tree_runtime.gd": ("_start_scene_watch",),
 }
 EXPECTED_EXTERNAL_SIGNAL_CLEANUP = {
-    "game/scripts/brussels_osm_facade_articulation_runtime.gd": (
-        "facade_surface_ready",
-        "_disconnect_base_runtime",
-    ),
+    "game/scripts/brussels_osm_facade_articulation_runtime.gd": ("facade_surface_ready", "_disconnect_base_runtime"),
 }
 EXPECTED_OWNED_ROOTS = {
     "game/scripts/anneessens_midi_sidewalk_runtime.gd": "AnneessensMidiSidewalkKit",
@@ -58,11 +55,7 @@ EXPECTED_OWNED_ROOTS = {
     "game/scripts/brussels_corridor_tree_runtime.gd": "BrusselsCorridorTrees",
 }
 GLOBAL_TREE_SCAN_TOKENS = (
-    "get_tree().root",
-    ".find_child(",
-    ".find_children(",
-    "_find_nested_production_scene(",
-    "_find_production_scene(",
+    "get_tree().root", ".find_child(", ".find_children(", "_find_nested_production_scene(", "_find_production_scene(",
 )
 
 
@@ -95,10 +88,7 @@ def assert_no_per_frame_global_tree_scan(source: str, rel_path: str) -> None:
             continue
         for token in GLOBAL_TREE_SCAN_TOKENS:
             if token in body:
-                fail(
-                    f"per-frame global SceneTree discovery reintroduced: {rel_path} "
-                    f"function={function_name} token={token}"
-                )
+                fail(f"per-frame global SceneTree discovery reintroduced: {rel_path} function={function_name} token={token}")
 
 
 def assert_exit_disconnect(source: str, rel_path: str) -> None:
@@ -130,18 +120,10 @@ def assert_deferred_bind_teardown_guard(source: str, rel_path: str, function_nam
         if not body:
             fail(f"deferred guard function missing: {rel_path} function={function_name}")
         if "_tearing_down" not in body or "not is_inside_tree()" not in body:
-            fail(
-                f"deferred target can run after teardown/off-tree: {rel_path} "
-                f"function={function_name}"
-            )
+            fail(f"deferred target can run after teardown/off-tree: {rel_path} function={function_name}")
 
 
-def assert_external_signal_teardown_cleanup(
-    source: str,
-    rel_path: str,
-    signal_name: str,
-    helper_name: str,
-) -> None:
+def assert_external_signal_teardown_cleanup(source: str, rel_path: str, signal_name: str, helper_name: str) -> None:
     exit_body = top_level_function_body(source, "_exit_tree")
     if not exit_body or f"{helper_name}()" not in exit_body:
         fail(f"external runtime signal cleanup not called from _exit_tree: {rel_path}")
@@ -149,10 +131,7 @@ def assert_external_signal_teardown_cleanup(
     if not helper_body:
         fail(f"external runtime signal cleanup helper missing: {rel_path} helper={helper_name}")
     if signal_name not in helper_body or "disconnect(" not in helper_body:
-        fail(
-            f"external runtime signal cleanup incomplete: {rel_path} "
-            f"signal={signal_name} helper={helper_name}"
-        )
+        fail(f"external runtime signal cleanup incomplete: {rel_path} signal={signal_name} helper={helper_name}")
 
 
 def assert_owned_root_teardown(source: str, rel_path: str, root_name: str) -> None:
@@ -162,8 +141,16 @@ def assert_owned_root_teardown(source: str, rel_path: str, root_name: str) -> No
     if "_release_owned_root()" not in exit_body:
         fail(f"runtime-owned root cleanup not called from _exit_tree: {rel_path}")
     cleanup_body = top_level_function_body(source, "_release_owned_root")
-    if not cleanup_body or "remove_child(" not in cleanup_body or "queue_free()" not in cleanup_body:
-        fail(f"runtime-owned root cleanup is not detach-then-free: {rel_path}")
+    if not cleanup_body:
+        fail(f"runtime-owned root cleanup helper missing: {rel_path}")
+    if "remove_child(" in cleanup_body and "queue_free()" in cleanup_body:
+        return
+    deferred_helper = "_detach_and_free_owned_root"
+    if "call_deferred" not in cleanup_body or deferred_helper not in cleanup_body:
+        fail(f"runtime-owned root cleanup is neither synchronous nor deferred detach-then-free: {rel_path}")
+    helper_body = top_level_function_body(source, deferred_helper)
+    if not helper_body or "is_instance_valid(" not in helper_body or "remove_child(" not in helper_body or "queue_free()" not in helper_body:
+        fail(f"runtime-owned deferred root cleanup is not guarded detach-then-free: {rel_path}")
 
 
 def main() -> None:
@@ -171,7 +158,6 @@ def main() -> None:
         fail("shared Environment lifecycle contract missing")
     if not PROJECT_PATH.is_file():
         fail("project.godot missing; cannot verify production autoload lifecycle coverage")
-
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("schema") != EXPECTED_SCHEMA:
         fail("shared Environment lifecycle contract schema mismatch")
@@ -206,10 +192,7 @@ def main() -> None:
     for expected_name, expected_path in PRODUCTION_AUTOLOAD_PATHS.items():
         actual_path = autoload_map.get(expected_name)
         if actual_path != expected_path:
-            fail(
-                f"shared Environment production autoload identity drifted: "
-                f"{expected_name} expected={expected_path} actual={actual_path}"
-            )
+            fail(f"shared Environment production autoload identity drifted: {expected_name} expected={expected_path} actual={actual_path}")
 
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list):
@@ -253,10 +236,7 @@ def main() -> None:
             entrypoint_source = entrypoint_path.read_text(encoding="utf-8")
             expected_extends = f'extends "res://{rel_path}"'
             if expected_extends not in entrypoint_source:
-                fail(
-                    f"production autoload entrypoint must directly extend lifecycle runtime: "
-                    f"{production_rel_path} expected={expected_extends}"
-                )
+                fail(f"production autoload entrypoint must directly extend lifecycle runtime: {production_rel_path} expected={expected_extends}")
         if entry.get("event_signal") != "SceneTree.node_added":
             fail(f"runtime lost node_added lifecycle contract: {rel_path}")
         if entry.get("nested_mount_recovery") is not True:

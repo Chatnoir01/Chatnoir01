@@ -31,6 +31,12 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _is_unicode_noncharacter(ch: str) -> bool:
+    """True for code points permanently reserved as Unicode noncharacters."""
+    cp = ord(ch)
+    return 0xFDD0 <= cp <= 0xFDEF or (cp & 0xFFFF) in {0xFFFE, 0xFFFF}
+
+
 def _safe_payload_name(name: object) -> bool:
     if not isinstance(name, str) or not name or "\\" in name or "\x00" in name:
         return False
@@ -41,7 +47,9 @@ def _safe_payload_name(name: object) -> bool:
         # Cc/Cs are not portable text. Cf is also rejected: bidi overrides,
         # zero-width joiners and other invisible format controls can make a
         # provenance key render differently from the filename actually hashed.
-        if (any(unicodedata.category(ch) in {"Cc", "Cf", "Cs"} for ch in part)
+        # Unicode noncharacters are permanently reserved for internal use and
+        # must never become cross-platform provenance/file identities.
+        if (any(unicodedata.category(ch) in {"Cc", "Cf", "Cs"} or _is_unicode_noncharacter(ch) for ch in part)
                 or any(ch in WINDOWS_FORBIDDEN_CHARS for ch in part)
                 or part.endswith((" ", "."))):
             return False

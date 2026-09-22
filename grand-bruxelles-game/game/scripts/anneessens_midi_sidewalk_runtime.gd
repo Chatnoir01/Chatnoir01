@@ -358,7 +358,7 @@ func _build_from_existing_osm_roads() -> bool:
             continue
         _alignment_road_instance_ids[road.get_instance_id()] = true
         _add_sidewalk_pair(road, material)
-    return _sidewalk_count > 0
+    return true
 
 func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
     var width := SIDEWALK_WIDE_M if road.size.x >= 8.5 else SIDEWALK_NARROW_M

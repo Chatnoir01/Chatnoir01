@@ -133,7 +133,7 @@ def validate(doc: dict) -> list[str]:
                 errors.append("imported payload paths must be unique under Unicode NFC + casefold")
             if any(not _credible_sha256(v) for v in payloads.values()):
                 errors.append("every imported payload requires a non-placeholder lowercase SHA-256")
-        for flag in ("godot_4_7_1_qualified", "web_gl_qualified", "retarget_ab_qualified", "player_view_1280x720_qualified"):
+        for flag in ("godot_4_7_1_qualified", "web_gl_qualified", "retarget_ab_qualified", "foot_slide_grounding_qualified", "performance_budget_qualified", "player_view_1280x720_qualified"):
             if c.get(flag) is not True:
                 errors.append(f"adoption requires literal true: {flag}")
     else:

@@ -48,6 +48,51 @@ def _containing_buildings(runtime: dict, point: tuple[float, float]) -> list[str
     return containing
 
 
+def _cross(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return a[0] * b[1] - a[1] * b[0]
+
+
+def _segment_edge_t(
+    start: tuple[float, float],
+    end: tuple[float, float],
+    edge_a: tuple[float, float],
+    edge_b: tuple[float, float],
+) -> float | None:
+    ray = (end[0] - start[0], end[1] - start[1])
+    edge = (edge_b[0] - edge_a[0], edge_b[1] - edge_a[1])
+    denominator = _cross(ray, edge)
+    if abs(denominator) <= 1e-12:
+        return None
+    delta = (edge_a[0] - start[0], edge_a[1] - start[1])
+    t = _cross(delta, edge) / denominator
+    u = _cross(delta, ray) / denominator
+    if 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0:
+        return t
+    return None
+
+
+def _spring_arm_crossings(
+    runtime: dict,
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> list[tuple[float, str]]:
+    hits: list[tuple[float, str]] = []
+    for feature in runtime.get("buildings", []):
+        footprint = feature.get("footprint", [])
+        points = [(float(p[0]), float(p[1])) for p in footprint if isinstance(p, list) and len(p) >= 2]
+        if len(points) < 3:
+            continue
+        best_t: float | None = None
+        for index, edge_a in enumerate(points):
+            edge_b = points[(index + 1) % len(points)]
+            t = _segment_edge_t(start, end, edge_a, edge_b)
+            if t is not None and (best_t is None or t < best_t):
+                best_t = t
+        if best_t is not None:
+            hits.append((best_t, str(feature.get("id", "<missing-id>"))))
+    return sorted(hits, key=lambda hit: (hit[0], hit[1]))
+
+
 def test_canonical_midi_player_spawn_is_not_inside_rendered_urbis_building() -> None:
     scene = SCENE.read_text(encoding="utf-8")
     builder = BUILDER.read_text(encoding="utf-8")
@@ -82,11 +127,6 @@ def test_canonical_midi_player_spawn_is_not_inside_rendered_urbis_building() -> 
     assert spring_block, "canonical Player SpringArm3D node missing"
     spring_length = _scalar(spring_block.group(1), r"spring_length\s*=\s*([-0-9.]+)")
 
-    # Godot SpringArm3D places its child camera along local +Z.  Classify the
-    # authored full-length camera endpoint separately from the player capsule:
-    # a source building can contain the camera while leaving the player outside,
-    # which presents as a flat wall filling the first frame when that building
-    # is render-only and therefore cannot shorten the spring arm.
     yaw = math.radians(player_rotation[1])
     camera_world_x = player[0] + math.sin(yaw) * spring_length
     camera_world_z = player[2] + math.cos(yaw) * spring_length
@@ -100,4 +140,13 @@ def test_canonical_midi_player_spawn_is_not_inside_rendered_urbis_building() -> 
         f"player_yaw={player_rotation[1]}, spring_length={spring_length}. "
         "Player containment is already excluded; this is a camera/building overlap classification. "
         "Do not rescue it by changing camera/FOV or rewriting UrbIS geometry."
+    )
+
+    crossings = _spring_arm_crossings(runtime, local_spawn, local_camera)
+    assert not crossings, (
+        "canonical Midi player-to-camera spring-arm segment crosses rendered UrbIS building footprint edge(s): "
+        f"{crossings}; player_local_xz={local_spawn}, camera_local_xz={local_camera}. "
+        "Both endpoints are outside, so this identifies source building mass between Player and camera. "
+        "Do not move camera/FOV or rewrite UrbIS geometry; inspect the first reported building/node and its "
+        "authorized collision/spring-arm integration before any visual correction."
     )

@@ -11,26 +11,36 @@ LAYERS = (
     "train_network",
     "tram_network",
 )
+NON_PAIR_GAME_FILES = {"midi_runtime.game.json"}
 
 
 class MidiUrbisLayerFilenameContract(unittest.TestCase):
     def test_locked_layer_pairs_are_complete_and_unambiguous(self) -> None:
-        """Fail closed if a locked Midi layer loses or gains an ambiguous pair member."""
+        """Fail closed if the locked Midi source-pair inventory changes implicitly."""
         expected = {
             *(f"{layer}.geojson" for layer in LAYERS),
             *(f"{layer}.game.json" for layer in LAYERS),
         }
+
+        # Inspect the complete source-shaped inventory rather than filtering by LAYERS.
+        # Otherwise a newly added/renamed *.geojson or *.game.json would be excluded by
+        # the very allow-list this test is supposed to protect and could escape review.
         present = {
             path.name
             for path in MIDI.iterdir()
             if path.is_file()
-            and (path.name.endswith(".geojson") or path.name.endswith(".game.json"))
-            and path.name.removesuffix(".geojson").removesuffix(".game.json") in LAYERS
+            and (
+                path.name.endswith(".geojson")
+                or (
+                    path.name.endswith(".game.json")
+                    and path.name not in NON_PAIR_GAME_FILES
+                )
+            )
         }
         self.assertEqual(
             present,
             expected,
-            "locked Midi UrbIS layer pair filenames changed; update accounting explicitly",
+            "Midi UrbIS source-pair inventory changed; account for every new/renamed pair explicitly",
         )
 
         for layer in LAYERS:

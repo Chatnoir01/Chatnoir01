@@ -18,8 +18,6 @@ H1 = hashlib.sha256(b"archive-fixture").hexdigest()
 H2 = hashlib.sha256(b"payload-fixture-a").hexdigest()
 H3 = hashlib.sha256(b"payload-fixture-b").hexdigest()
 
-# JSON's default last-key-wins behavior is unsafe for provenance: two textual
-# claims for one payload must never collapse silently before validation.
 for ambiguous in (
     '{"imported_payload_sha256":{"walk.glb":"' + H2 + '","walk.glb":"' + H3 + '"}}',
     '{"decision":"HOLD_FOR_LICENSE_SNAPSHOT_AND_RETARGET_AB","decision":"ADOPT"}',
@@ -52,16 +50,30 @@ def adopt_with_payloads(payloads):
     })
     return doc
 
+# Adoption has two canonical signals. A one-sided flip must fail closed instead
+# of entering a half-adopted state that can bypass either HOLD or proof gates.
 for mutation in ("decision", "adopted"):
     doc = deepcopy(base)
-    if mutation == "decision": candidate(doc)["decision"] = "ADOPT"
-    else: doc["adopted"] = [UAL]
+    if mutation == "decision":
+        candidate(doc)["decision"] = "ADOPT"
+    else:
+        doc["adopted"] = [UAL]
     errors = validate(doc)
-    assert errors, f"unsafe {mutation} flip was accepted"
-    required = ("license_snapshot_sha256", "acquired_archive_sha256", "imported_payload_sha256",
-                "godot_4_7_1_qualified", "web_gl_qualified", "retarget_ab_qualified",
-                "player_view_1280x720_qualified")
-    assert all(any(key in error for error in errors) for key in required), errors
+    assert any("adoption state must agree" in e for e in errors), (mutation, errors)
+
+# The adopted registry itself must be unambiguous and typed.
+doc = deepcopy(base); doc["adopted"] = [UAL, UAL]
+assert any("at most once" in e for e in validate(doc))
+doc = deepcopy(base); doc["adopted"] = [123]
+assert any("entries must all be strings" in e for e in validate(doc))
+
+# Once both signals agree on ADOPT, all evidence gates remain mandatory.
+doc = deepcopy(base); candidate(doc)["decision"] = "ADOPT"; doc["adopted"] = [UAL]
+errors = validate(doc)
+required = ("license_snapshot_sha256", "acquired_archive_sha256", "imported_payload_sha256",
+            "godot_4_7_1_qualified", "web_gl_qualified", "retarget_ab_qualified",
+            "player_view_1280x720_qualified")
+assert all(any(key in error for error in errors) for key in required), errors
 
 doc = deepcopy(base)
 c = candidate(doc); c["decision"] = "ADOPT"; doc["adopted"] = [UAL]
@@ -73,8 +85,6 @@ errors = validate(doc)
 for key in ("godot_4_7_1_qualified","web_gl_qualified","retarget_ab_qualified","player_view_1280x720_qualified"):
     assert any(key in e for e in errors)
 
-# Syntactically valid repeated-nibble values are common placeholder/sentinel
-# digests and must never be accepted as source/provenance evidence.
 for field in ("license_snapshot_sha256", "acquired_archive_sha256"):
     doc = adopt_with_payloads({"walk.glb": H2})
     candidate(doc)[field] = "0" * 64

@@ -28,6 +28,11 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _credible_sha256(value: object) -> bool:
+    """Reject malformed and obvious sentinel/placeholder digests from evidence."""
+    return isinstance(value, str) and bool(SHA256.fullmatch(value)) and len(set(value)) > 1
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
     """Build a JSON object without silently accepting last-key-wins ambiguity."""
     out: dict = {}
@@ -104,10 +109,10 @@ def validate(doc: dict) -> list[str]:
         snapshot = c.get("license_snapshot_sha256")
         archive = c.get("acquired_archive_sha256")
         payloads = c.get("imported_payload_sha256")
-        if not isinstance(snapshot, str) or not SHA256.fullmatch(snapshot):
-            errors.append("adoption requires license_snapshot_sha256")
-        if not isinstance(archive, str) or not SHA256.fullmatch(archive):
-            errors.append("adoption requires acquired_archive_sha256")
+        if not _credible_sha256(snapshot):
+            errors.append("adoption requires a non-placeholder license_snapshot_sha256")
+        if not _credible_sha256(archive):
+            errors.append("adoption requires a non-placeholder acquired_archive_sha256")
         if not isinstance(payloads, dict) or not payloads:
             errors.append("adoption requires non-empty imported_payload_sha256 map")
         else:
@@ -117,8 +122,8 @@ def validate(doc: dict) -> list[str]:
             identities = [_portable_payload_identity(k) for k in safe_names]
             if len(identities) != len(set(identities)):
                 errors.append("imported payload paths must be unique under Unicode NFC + casefold")
-            if any(not isinstance(v, str) or not SHA256.fullmatch(v) for v in payloads.values()):
-                errors.append("every imported payload requires a lowercase SHA-256")
+            if any(not _credible_sha256(v) for v in payloads.values()):
+                errors.append("every imported payload requires a non-placeholder lowercase SHA-256")
         for flag in ("godot_4_7_1_qualified", "web_gl_qualified", "retarget_ab_qualified", "player_view_1280x720_qualified"):
             if c.get(flag) is not True:
                 errors.append(f"adoption requires literal true: {flag}")

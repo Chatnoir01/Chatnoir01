@@ -32,13 +32,10 @@ def adopt_with_payloads(payloads):
     })
     return doc
 
-# A metadata-only decision flip must never authorize adoption.
 for mutation in ("decision", "adopted"):
     doc = deepcopy(base)
-    if mutation == "decision":
-        candidate(doc)["decision"] = "ADOPT"
-    else:
-        doc["adopted"] = [UAL]
+    if mutation == "decision": candidate(doc)["decision"] = "ADOPT"
+    else: doc["adopted"] = [UAL]
     errors = validate(doc)
     assert errors, f"unsafe {mutation} flip was accepted"
     required = ("license_snapshot_sha256", "acquired_archive_sha256", "imported_payload_sha256",
@@ -46,38 +43,31 @@ for mutation in ("decision", "adopted"):
                 "player_view_1280x720_qualified")
     assert all(any(key in error for error in errors) for key in required), errors
 
-# Truthy substitutes are not qualification evidence.
 doc = deepcopy(base)
-c = candidate(doc)
-c["decision"] = "ADOPT"
-doc["adopted"] = [UAL]
-c.update({
-    "license_snapshot_sha256": "0" * 64,
-    "acquired_archive_sha256": "1" * 64,
-    "imported_payload_sha256": {"walk.glb": "2" * 64},
-    "godot_4_7_1_qualified": 1,
-    "web_gl_qualified": "true",
-    "retarget_ab_qualified": [True],
-    "player_view_1280x720_qualified": {"qualified": True},
-})
+c = candidate(doc); c["decision"] = "ADOPT"; doc["adopted"] = [UAL]
+c.update({"license_snapshot_sha256":"0"*64,"acquired_archive_sha256":"1"*64,
+          "imported_payload_sha256":{"walk.glb":"2"*64},"godot_4_7_1_qualified":1,
+          "web_gl_qualified":"true","retarget_ab_qualified":[True],
+          "player_view_1280x720_qualified":{"qualified":True}})
 errors = validate(doc)
-assert any("godot_4_7_1_qualified" in e for e in errors)
-assert any("web_gl_qualified" in e for e in errors)
-assert any("retarget_ab_qualified" in e for e in errors)
-assert any("player_view_1280x720_qualified" in e for e in errors)
+for key in ("godot_4_7_1_qualified","web_gl_qualified","retarget_ab_qualified","player_view_1280x720_qualified"):
+    assert any(key in e for e in errors)
 
-# Payload evidence must be namespace-safe, canonical and portable before any future extractor consumes it.
 for unsafe_name in (".", "../walk.glb", "/tmp/walk.glb", "clips/../../walk.glb", "clips\\walk.glb", "",
                     "CON.glb", "clips/aux.txt", "walk.glb.", "walk.glb ", "C:walk.glb", "clips/wa\nlk.glb",
                     "clips/wa\x7flk.glb", "clips/wa\u0085lk.glb", "clips/wa\ud800lk.glb",
                     "clips/wa<lk.glb", "clips/wa>lk.glb", 'clips/wa"lk.glb', "clips/wa|lk.glb",
                     "clips/wa?lk.glb", "clips/wa*lk.glb", "clips/COM¹.glb", "clips/com².GLB",
                     "clips/LPT³.anim", "clips/CONIN$.glb", "clips/conout$.anim",
-                    "clips//walk.glb", "clips/./walk.glb", "clips/walk.glb/"):
+                    "clips//walk.glb", "clips/./walk.glb", "clips/walk.glb/",
+                    "clips/" + "a" * 256,
+                    "clips/" + "é" * 128):
     errors = validate(adopt_with_payloads({unsafe_name: "2" * 64}))
     assert any("safe canonical portable relative POSIX path" in e for e in errors), (repr(unsafe_name), errors)
 
-# Windows/macOS-style case and Unicode normalization collisions must not be representable.
+# Boundary: exactly 255 ASCII bytes/code units is still a portable component.
+assert validate(adopt_with_payloads({"clips/" + "a" * 255: "2" * 64})) == []
+
 for colliding in (
     {"clips/Walk.glb": "2" * 64, "clips/walk.glb": "3" * 64},
     {"clips/caf\u00e9.glb": "2" * 64, "clips/cafe\u0301.glb": "3" * 64},
@@ -85,14 +75,11 @@ for colliding in (
     errors = validate(adopt_with_payloads(colliding))
     assert any("Unicode NFC + casefold" in e for e in errors), errors
 
-# A normal nested portable payload remains structurally admissible.
 assert validate(adopt_with_payloads({"locomotion/walk.glb": "2" * 64})) == []
 
-# License drift forces re-audit even while held.
 for field, value in (("pack_specific_license_claim", "QAL-1.0"),
                      ("publisher_general_license_current", "QAL-2.0")):
-    doc = deepcopy(base)
-    candidate(doc)[field] = value
+    doc = deepcopy(base); candidate(doc)[field] = value
     assert validate(doc), f"license drift in {field} was accepted"
 
 print("PASS: Character asset intake fail-closed regression")

@@ -213,12 +213,6 @@ use_collision = false
 [node name="VisualUpgrade" type="Node3D" parent="PrototypeCar"]
 script = ExtResource("13_civil_visual")
 
-[node name="ABLabel" type="Label3D" parent="PrototypeCar"]
-position = Vector3(0, 2.0, 0)
-text = "A · CONDUITE ACTUELLE"
-font_size = 30
-outline_size = 8
-
 [node name="CameraPivot" type="Node3D" parent="PrototypeCar"]
 position = Vector3(0, 1.32, 0.15)
 rotation_degrees = Vector3(-8, 0, 0)
@@ -246,12 +240,6 @@ material_override = SubResource("Material_car")
 [node name="VisualUpgrade" type="Node3D" parent="PhysicalCarB"]
 script = ExtResource("13_civil_visual")
 paint_color = Color(0.42, 0.07, 0.055, 1)
-
-[node name="ABLabel" type="Label3D" parent="PhysicalCarB"]
-position = Vector3(0, 2.0, 0)
-text = "B · PHYSIQUE 60 HZ"
-font_size = 30
-outline_size = 8
 
 [node name="CameraPivot" type="Node3D" parent="PhysicalCarB"]
 position = Vector3(0, 1.32, 0.15)

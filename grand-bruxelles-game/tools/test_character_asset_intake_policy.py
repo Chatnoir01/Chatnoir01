@@ -62,17 +62,20 @@ for unsafe_name in (".", "../walk.glb", "/tmp/walk.glb", "clips/../../walk.glb",
                     "clips/wa?lk.glb", "clips/wa*lk.glb", "clips/COM¹.glb", "clips/com².GLB",
                     "clips/LPT³.anim", "clips/CONIN$.glb", "clips/conout$.anim",
                     "clips//walk.glb", "clips/./walk.glb", "clips/walk.glb/",
+                    # A lone decomposed spelling is unsafe even without a second
+                    # colliding key: normalizing filesystems may rewrite it.
+                    "clips/cafe\u0301.glb",
                     "clips/" + "a" * 256,
                     "clips/" + "é" * 128):
     errors = validate(adopt_with_payloads({unsafe_name: "2" * 64}))
     assert any("safe canonical portable relative POSIX path" in e for e in errors), (repr(unsafe_name), errors)
 
-# Boundary: exactly 255 ASCII bytes/code units is still a portable component.
+# Boundaries: NFC precomposed Unicode and exactly 255 ASCII bytes/code units remain valid.
+assert validate(adopt_with_payloads({"clips/caf\u00e9.glb": "2" * 64})) == []
 assert validate(adopt_with_payloads({"clips/" + "a" * 255: "2" * 64})) == []
 
 for colliding in (
     {"clips/Walk.glb": "2" * 64, "clips/walk.glb": "3" * 64},
-    {"clips/caf\u00e9.glb": "2" * 64, "clips/cafe\u0301.glb": "3" * 64},
 ):
     errors = validate(adopt_with_payloads(colliding))
     assert any("Unicode NFC + casefold" in e for e in errors), errors

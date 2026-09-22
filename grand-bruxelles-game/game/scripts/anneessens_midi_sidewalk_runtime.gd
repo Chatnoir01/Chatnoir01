@@ -30,6 +30,7 @@ var _alignment_road_refs: Dictionary = {}
 var _alignment_road_transforms: Dictionary = {}
 var _alignment_road_sizes: Dictionary = {}
 var _alignment_road_names: Dictionary = {}
+var _alignment_road_visibilities: Dictionary = {}
 var _mutation_poll_timer: Timer = null
 
 func _ready() -> void:
@@ -98,6 +99,7 @@ func _disconnect_alignment_road_mutation_watches() -> void:
     _alignment_road_transforms.clear()
     _alignment_road_sizes.clear()
     _alignment_road_names.clear()
+    _alignment_road_visibilities.clear()
 
 func _release_owned_root() -> void:
     _disconnect_alignment_road_mutation_watches()
@@ -153,6 +155,7 @@ func _watch_alignment_road_mutations(road: CSGBox3D) -> void:
     _alignment_road_transforms[instance_id] = road.global_transform
     _alignment_road_sizes[instance_id] = road.size
     _alignment_road_names[instance_id] = road.name
+    _alignment_road_visibilities[instance_id] = road.visible
 
 func _on_alignment_road_mutated(instance_id: Variant) -> void:
     if _tearing_down or _manual_binding or not is_inside_tree() or not is_instance_valid(_scene):
@@ -178,6 +181,12 @@ func _on_alignment_road_mutated(instance_id: Variant) -> void:
         return
     var name_changed: bool = not _alignment_road_names.has(instance_id) or road.name != _alignment_road_names[instance_id]
     if name_changed:
+        _reset_scene_binding()
+        _start_watching()
+        _schedule_bind()
+        return
+    var visibility_changed: bool = not _alignment_road_visibilities.has(instance_id) or road.visible != _alignment_road_visibilities[instance_id]
+    if visibility_changed:
         _reset_scene_binding()
         _start_watching()
         _schedule_bind()

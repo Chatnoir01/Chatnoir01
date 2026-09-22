@@ -16,9 +16,6 @@ WINDOWS_DEVICES = {
     "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³",
 }
 WINDOWS_FORBIDDEN_CHARS = set('<>:"|?*')
-# A portable payload component must fit both common POSIX NAME_MAX (255 bytes)
-# and NTFS' 255 UTF-16-code-unit component limit. Enforce both explicitly so
-# provenance keys cannot describe files that extraction cannot materialize.
 MAX_COMPONENT_UTF8_BYTES = 255
 MAX_COMPONENT_UTF16_UNITS = 255
 
@@ -31,8 +28,25 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+    """Build a JSON object without silently accepting last-key-wins ambiguity."""
+    out: dict = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"duplicate JSON object key: {key!r}")
+        out[key] = value
+    return out
+
+
+def _strict_json_loads(text: str) -> object:
+    return json.loads(
+        text,
+        parse_constant=lambda x: (_ for _ in ()).throw(ValueError(x)),
+        object_pairs_hook=_reject_duplicate_keys,
+    )
+
+
 def _is_unicode_noncharacter(ch: str) -> bool:
-    """True for code points permanently reserved as Unicode noncharacters."""
     cp = ord(ch)
     return 0xFDD0 <= cp <= 0xFDEF or (cp & 0xFFFF) in {0xFFFE, 0xFFFF}
 
@@ -44,16 +58,8 @@ def _safe_payload_name(name: object) -> bool:
     if not p.parts or p.is_absolute() or p.as_posix() != name or any(part in {"", ".", ".."} for part in p.parts):
         return False
     for part in p.parts:
-        # Require a single canonical Unicode spelling, not merely collision
-        # detection. A lone decomposed (NFD) provenance key can otherwise be
-        # rewritten by a normalizing filesystem before the payload is hashed.
         if unicodedata.normalize("NFC", part) != part:
             return False
-        # Cc/Cs are not portable text. Cf is also rejected: bidi overrides,
-        # zero-width joiners and other invisible format controls can make a
-        # provenance key render differently from the filename actually hashed.
-        # Unicode noncharacters are permanently reserved for internal use and
-        # must never become cross-platform provenance/file identities.
         if (any(unicodedata.category(ch) in {"Cc", "Cf", "Cs"} or _is_unicode_noncharacter(ch) for ch in part)
                 or any(ch in WINDOWS_FORBIDDEN_CHARS for ch in part)
                 or part.endswith((" ", "."))):
@@ -71,7 +77,6 @@ def _safe_payload_name(name: object) -> bool:
 
 
 def _portable_payload_identity(name: str) -> str:
-    """Identity on case-insensitive, Unicode-normalizing filesystems."""
     return unicodedata.normalize("NFC", name).casefold()
 
 
@@ -129,9 +134,12 @@ def main() -> int:
         return 2
     path = Path(sys.argv[1])
     try:
-        doc = json.loads(path.read_text(encoding="utf-8"), parse_constant=lambda x: (_ for _ in ()).throw(ValueError(x)))
+        doc = _strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         print(f"FAIL: unreadable strict JSON: {exc}", file=sys.stderr)
+        return 1
+    if not isinstance(doc, dict):
+        print("FAIL: top-level JSON must be an object", file=sys.stderr)
         return 1
     errors = validate(doc)
     if errors:

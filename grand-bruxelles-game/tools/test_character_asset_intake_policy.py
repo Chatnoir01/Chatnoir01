@@ -101,6 +101,15 @@ for sentinel in ("0" * 64, "a" * 64, "f" * 64):
     errors = validate(adopt_with_payloads({"walk.glb": sentinel}))
     assert any("non-placeholder lowercase SHA-256" in e for e in errors), sentinel
 
+# A metadata/license-only payload map must not satisfy ADOPT. At least one
+# materializable Character/animation runtime asset has to be hash-bound.
+for metadata_only in (
+    {"README.txt": H2},
+    {"LICENSE.md": H2, "provenance.json": H3},
+):
+    errors = validate(adopt_with_payloads(metadata_only))
+    assert any("runtime character/animation payload" in e for e in errors), errors
+
 for unsafe_name in (".", "../walk.glb", "/tmp/walk.glb", "clips/../../walk.glb", "clips\\walk.glb", "",
                     "CON.glb", "clips/aux.txt", "walk.glb.", "walk.glb ", "C:walk.glb", "clips/wa\nlk.glb",
                     "clips/wa\x7flk.glb", "clips/wa\u0085lk.glb", "clips/wa\ud800lk.glb",
@@ -117,7 +126,7 @@ for unsafe_name in (".", "../walk.glb", "/tmp/walk.glb", "clips/../../walk.glb",
     assert any("safe canonical portable relative POSIX path" in e for e in errors), (repr(unsafe_name), errors)
 
 assert validate(adopt_with_payloads({"clips/caf\u00e9.glb": H2})) == []
-assert validate(adopt_with_payloads({"clips/" + "a" * 255: H2})) == []
+assert validate(adopt_with_payloads({"clips/" + "a" * 251 + ".glb": H2})) == []
 
 for colliding in (
     {"clips/Walk.glb": H2, "clips/walk.glb": H3},
@@ -126,6 +135,8 @@ for colliding in (
     assert any("Unicode NFC + casefold" in e for e in errors), errors
 
 assert validate(adopt_with_payloads({"locomotion/walk.glb": H2})) == []
+for runtime_name in ("walk.GLB", "walk.gltf", "walk.fbx", "walk.anim", "walk.res", "walk.tres"):
+    assert validate(adopt_with_payloads({runtime_name: H2})) == [], runtime_name
 
 for field, value in (("pack_specific_license_claim", "QAL-1.0"),
                      ("publisher_general_license_current", "QAL-2.0")):

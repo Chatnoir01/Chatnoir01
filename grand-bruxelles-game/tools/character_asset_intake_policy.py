@@ -98,7 +98,16 @@ def validate(doc: dict) -> list[str]:
     if not isinstance(adopted, list):
         errors.append("adopted must be a list")
         adopted = []
-    is_adopted = UAL in adopted or c.get("decision") == "ADOPT"
+    elif any(not isinstance(name, str) for name in adopted):
+        errors.append("adopted entries must all be strings")
+    if adopted.count(UAL) > 1:
+        errors.append(f"adopted must contain {UAL} at most once")
+
+    listed_adopted = UAL in adopted
+    decision_adopted = c.get("decision") == "ADOPT"
+    if listed_adopted != decision_adopted:
+        errors.append(f"{UAL} adoption state must agree between adopted list and candidate decision")
+    is_adopted = listed_adopted and decision_adopted
 
     if c.get("pack_specific_license_claim") != "CC0-1.0":
         errors.append("UAL pack-specific license claim is no longer the audited CC0-1.0")
@@ -128,7 +137,7 @@ def validate(doc: dict) -> list[str]:
             if c.get(flag) is not True:
                 errors.append(f"adoption requires literal true: {flag}")
     else:
-        if c.get("decision") not in {"HOLD_FOR_LICENSE_SNAPSHOT_AND_RETARGET_AB", "REJECT"}:
+        if c.get("decision") not in {"HOLD_FOR_LICENSE_SNAPSHOT_AND_RETARGET_AB", "REJECT", "ADOPT"}:
             errors.append("non-adopted UAL must remain explicitly HOLD or REJECT")
     return errors
 

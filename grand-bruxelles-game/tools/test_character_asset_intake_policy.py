@@ -71,7 +71,8 @@ for unsafe_name in (".", "../walk.glb", "/tmp/walk.glb", "clips/../../walk.glb",
                     "CON.glb", "clips/aux.txt", "walk.glb.", "walk.glb ", "C:walk.glb", "clips/wa\nlk.glb",
                     "clips/wa\x7flk.glb", "clips/wa\u0085lk.glb", "clips/wa\ud800lk.glb",
                     "clips/wa<lk.glb", "clips/wa>lk.glb", 'clips/wa"lk.glb', "clips/wa|lk.glb",
-                    "clips/wa?lk.glb", "clips/wa*lk.glb",
+                    "clips/wa?lk.glb", "clips/wa*lk.glb", "clips/COM¹.glb", "clips/com².GLB",
+                    "clips/LPT³.anim", "clips/CONIN$.glb", "clips/conout$.anim",
                     "clips//walk.glb", "clips/./walk.glb", "clips/walk.glb/"):
     errors = validate(adopt_with_payloads({unsafe_name: "2" * 64}))
     assert any("safe canonical portable relative POSIX path" in e for e in errors), (repr(unsafe_name), errors)

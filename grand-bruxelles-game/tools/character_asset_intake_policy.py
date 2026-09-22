@@ -38,7 +38,10 @@ def _safe_payload_name(name: object) -> bool:
     if not p.parts or p.is_absolute() or p.as_posix() != name or any(part in {"", ".", ".."} for part in p.parts):
         return False
     for part in p.parts:
-        if (any(unicodedata.category(ch) in {"Cc", "Cs"} for ch in part)
+        # Cc/Cs are not portable text. Cf is also rejected: bidi overrides,
+        # zero-width joiners and other invisible format controls can make a
+        # provenance key render differently from the filename actually hashed.
+        if (any(unicodedata.category(ch) in {"Cc", "Cf", "Cs"} for ch in part)
                 or any(ch in WINDOWS_FORBIDDEN_CHARS for ch in part)
                 or part.endswith((" ", "."))):
             return False

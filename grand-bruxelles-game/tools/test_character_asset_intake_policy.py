@@ -5,11 +5,25 @@ import json
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
-from character_asset_intake_policy import UAL, validate
+from character_asset_intake_policy import UAL, _strict_json_loads, validate
 
 AUDIT = Path(__file__).parents[1] / "qa" / "character_asset_store_audit_2026-09-20.json"
-base = json.loads(AUDIT.read_text(encoding="utf-8"))
+base = _strict_json_loads(AUDIT.read_text(encoding="utf-8"))
+assert isinstance(base, dict)
 assert validate(base) == [], validate(base)
+
+# JSON's default last-key-wins behavior is unsafe for provenance: two textual
+# claims for one payload must never collapse silently before validation.
+for ambiguous in (
+    '{"imported_payload_sha256":{"walk.glb":"' + "2" * 64 + '","walk.glb":"' + "3" * 64 + '"}}',
+    '{"decision":"HOLD_FOR_LICENSE_SNAPSHOT_AND_RETARGET_AB","decision":"ADOPT"}',
+):
+    try:
+        _strict_json_loads(ambiguous)
+    except ValueError as exc:
+        assert "duplicate JSON object key" in str(exc), exc
+    else:
+        raise AssertionError("duplicate JSON object key was silently accepted")
 
 
 def candidate(doc):
@@ -62,15 +76,12 @@ for unsafe_name in (".", "../walk.glb", "/tmp/walk.glb", "clips/../../walk.glb",
                     "clips/wa?lk.glb", "clips/wa*lk.glb", "clips/COM¹.glb", "clips/com².GLB",
                     "clips/LPT³.anim", "clips/CONIN$.glb", "clips/conout$.anim",
                     "clips//walk.glb", "clips/./walk.glb", "clips/walk.glb/",
-                    # A lone decomposed spelling is unsafe even without a second
-                    # colliding key: normalizing filesystems may rewrite it.
                     "clips/cafe\u0301.glb",
                     "clips/" + "a" * 256,
                     "clips/" + "é" * 128):
     errors = validate(adopt_with_payloads({unsafe_name: "2" * 64}))
     assert any("safe canonical portable relative POSIX path" in e for e in errors), (repr(unsafe_name), errors)
 
-# Boundaries: NFC precomposed Unicode and exactly 255 ASCII bytes/code units remain valid.
 assert validate(adopt_with_payloads({"clips/caf\u00e9.glb": "2" * 64})) == []
 assert validate(adopt_with_payloads({"clips/" + "a" * 255: "2" * 64})) == []
 

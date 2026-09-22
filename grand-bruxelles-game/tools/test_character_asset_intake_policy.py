@@ -46,6 +46,8 @@ def adopt_with_payloads(payloads):
         "godot_4_7_1_qualified": True,
         "web_gl_qualified": True,
         "retarget_ab_qualified": True,
+        "foot_slide_grounding_qualified": True,
+        "performance_budget_qualified": True,
         "player_view_1280x720_qualified": True,
     })
     return doc
@@ -67,11 +69,13 @@ assert any("at most once" in e for e in validate(doc))
 doc = deepcopy(base); doc["adopted"] = [123]
 assert any("entries must all be strings" in e for e in validate(doc))
 
-# Once both signals agree on ADOPT, all evidence gates remain mandatory.
+# Once both signals agree on ADOPT, every evidence gate is mandatory, including
+# measured locomotion/grounding and performance rather than only compatibility.
 doc = deepcopy(base); candidate(doc)["decision"] = "ADOPT"; doc["adopted"] = [UAL]
 errors = validate(doc)
 required = ("license_snapshot_sha256", "acquired_archive_sha256", "imported_payload_sha256",
             "godot_4_7_1_qualified", "web_gl_qualified", "retarget_ab_qualified",
+            "foot_slide_grounding_qualified", "performance_budget_qualified",
             "player_view_1280x720_qualified")
 assert all(any(key in error for error in errors) for key in required), errors
 
@@ -80,9 +84,13 @@ c = candidate(doc); c["decision"] = "ADOPT"; doc["adopted"] = [UAL]
 c.update({"license_snapshot_sha256":H0,"acquired_archive_sha256":H1,
           "imported_payload_sha256":{"walk.glb":H2},"godot_4_7_1_qualified":1,
           "web_gl_qualified":"true","retarget_ab_qualified":[True],
+          "foot_slide_grounding_qualified":{"qualified":True},
+          "performance_budget_qualified":"true",
           "player_view_1280x720_qualified":{"qualified":True}})
 errors = validate(doc)
-for key in ("godot_4_7_1_qualified","web_gl_qualified","retarget_ab_qualified","player_view_1280x720_qualified"):
+for key in ("godot_4_7_1_qualified","web_gl_qualified","retarget_ab_qualified",
+            "foot_slide_grounding_qualified","performance_budget_qualified",
+            "player_view_1280x720_qualified"):
     assert any(key in e for e in errors)
 
 for field in ("license_snapshot_sha256", "acquired_archive_sha256"):

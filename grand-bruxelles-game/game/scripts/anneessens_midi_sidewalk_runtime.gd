@@ -343,6 +343,8 @@ func _build_from_existing_osm_roads() -> bool:
             continue
         var road := child as CSGBox3D
         _watch_alignment_road_mutations(road)
+        if not road.visible:
+            continue
         var center_2d := Vector2(road.global_position.x, road.global_position.z)
         if center_2d.distance_to(ANNEESSENS) > DETAIL_RADIUS_M:
             continue
@@ -384,21 +386,30 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.set_meta("placement_witness_rendered_size_source_backed", false)
         _sidewalk_count += 1
 
-func diagnostic_sidewalk_count() -> int:
-    return _sidewalk_count
-
-func diagnostic_collision_count() -> int:
-    return _collision_count
-
-func diagnostic_root() -> Node3D:
-    return _root
-
 func set_sidewalks_enabled(enabled: bool) -> void:
     _sidewalks_enabled = enabled
-    if not is_instance_valid(_root):
-        return
-    _root.visible = enabled
-    for child: Node in _root.get_children():
-        if child is CSGBox3D:
-            var pavement := child as CSGBox3D
-            pavement.use_collision = false
+    if is_instance_valid(_root):
+        _root.visible = enabled
+        for child: Node in _root.get_children():
+            if child is CSGBox3D:
+                var pavement := child as CSGBox3D
+                pavement.use_collision = false
+
+func get_runtime_stats() -> Dictionary:
+    return {
+        "sidewalks": _sidewalk_count,
+        "collisions": _collision_count,
+        "enabled": _sidewalks_enabled,
+        "source": PROXY_SOURCE,
+        "license": PROXY_LICENSE,
+        "presentation_recipe": PROXY_RECIPE,
+        "material_identity_source_backed": false,
+        "brussels_material_family_authorized": false,
+        "alignment_reference": ALIGNMENT_REFERENCE,
+        "road_alignment_source_backed": false,
+        "sidewalk_presence_source_backed": false,
+        "visual_dimensions_source_backed": false,
+        "vertical_profile_source_backed": false,
+        "collision_source_backed": false,
+        "collision_authorized": false,
+    }

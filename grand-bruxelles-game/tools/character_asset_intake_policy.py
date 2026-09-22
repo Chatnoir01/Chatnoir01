@@ -16,6 +16,11 @@ WINDOWS_DEVICES = {
     "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³",
 }
 WINDOWS_FORBIDDEN_CHARS = set('<>:"|?*')
+# A portable payload component must fit both common POSIX NAME_MAX (255 bytes)
+# and NTFS' 255 UTF-16-code-unit component limit. Enforce both explicitly so
+# provenance keys cannot describe files that extraction cannot materialize.
+MAX_COMPONENT_UTF8_BYTES = 255
+MAX_COMPONENT_UTF16_UNITS = 255
 
 
 def _sha256_file(path: Path) -> str:
@@ -30,25 +35,20 @@ def _safe_payload_name(name: object) -> bool:
     if not isinstance(name, str) or not name or "\\" in name or "\x00" in name:
         return False
     p = PurePosixPath(name)
-    # Require one canonical spelling. PurePosixPath otherwise silently folds
-    # repeated separators, './' components and trailing separators, allowing
-    # multiple evidence keys to address the same extracted payload. A bare '.'
-    # is a special case: PurePosixPath('.') has no parts and serializes as '.',
-    # so reject paths that do not identify at least one real file component.
     if not p.parts or p.is_absolute() or p.as_posix() != name or any(part in {"", ".", ".."} for part in p.parts):
         return False
     for part in p.parts:
-        # Payload evidence must remain materializable on the Windows target as
-        # well as POSIX. Reject controls/surrogates and every Win32-reserved
-        # filename character; slash is already the component separator and
-        # backslash is rejected before parsing.
         if (any(unicodedata.category(ch) in {"Cc", "Cs"} for ch in part)
                 or any(ch in WINDOWS_FORBIDDEN_CHARS for ch in part)
                 or part.endswith((" ", "."))):
             return False
-        # Win32 also reserves DOS device aliases, including the ISO-8859-1
-        # superscript forms COM¹/²/³ and LPT¹/²/³ plus console input/output.
-        # Extensions do not make these aliases safe (for example COM¹.glb).
+        try:
+            utf8_len = len(part.encode("utf-8", errors="strict"))
+            utf16_units = len(part.encode("utf-16-le", errors="strict")) // 2
+        except UnicodeEncodeError:
+            return False
+        if utf8_len > MAX_COMPONENT_UTF8_BYTES or utf16_units > MAX_COMPONENT_UTF16_UNITS:
+            return False
         if part.split(".", 1)[0].upper() in WINDOWS_DEVICES:
             return False
     return True
@@ -74,7 +74,6 @@ def validate(doc: dict) -> list[str]:
         adopted = []
     is_adopted = UAL in adopted or c.get("decision") == "ADOPT"
 
-    # Metadata alone may describe a candidate, but must never authorize intake.
     if c.get("pack_specific_license_claim") != "CC0-1.0":
         errors.append("UAL pack-specific license claim is no longer the audited CC0-1.0")
     if c.get("publisher_general_license_current") != "QAL-1.0":

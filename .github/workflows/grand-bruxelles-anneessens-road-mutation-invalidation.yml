@@ -10,6 +10,7 @@ on:
       - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_mutation_poll_contract.py"
       - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_all_road_watch_contract.py"
       - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_visibility_failclosed.py"
+      - "grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_invisible_road_failclosed.py"
       - ".github/workflows/grand-bruxelles-anneessens-road-mutation-invalidation.yml"
   workflow_dispatch:
 
@@ -41,4 +42,5 @@ jobs:
             grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_visibility_collision_closed.py \
             grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_mutation_poll_contract.py \
             grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_all_road_watch_contract.py \
-            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_visibility_failclosed.py
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_road_visibility_failclosed.py \
+            grand-bruxelles-game/tests/test_anneessens_midi_sidewalk_invisible_road_failclosed.py

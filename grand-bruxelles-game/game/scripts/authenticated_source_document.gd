@@ -47,8 +47,11 @@ static func load_document(path: String, expected_sha: String) -> Dictionary:
     if actual_sha.is_empty() or actual_sha != canonical_expected_sha:
         return {}
 
+    # JSON sources are canonical UTF-8 text. Reject malformed UTF-8 instead of
+    # allowing decoder replacement characters to create a parsed document that
+    # is not a lossless representation of the authenticated byte capture.
     var json_text := bytes.get_string_from_utf8()
-    if json_text.is_empty():
+    if json_text.is_empty() or json_text.to_utf8_buffer() != bytes:
         return {}
     var parsed: Variant = JSON.parse_string(json_text)
     if not parsed is Dictionary:

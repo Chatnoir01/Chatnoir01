@@ -104,14 +104,20 @@ func _disconnect_alignment_road_mutation_watches() -> void:
 func _release_owned_root() -> void:
     _disconnect_alignment_road_mutation_watches()
     if is_instance_valid(_root):
-        var parent := _root.get_parent()
-        if parent != null and not _tearing_down:
-            parent.remove_child(_root)
-        _root.queue_free()
+        var owned_root := _root
+        call_deferred("_detach_and_free_owned_root", owned_root)
     _root = null
     _sidewalk_count = 0
     _collision_count = 0
     _alignment_road_instance_ids.clear()
+
+func _detach_and_free_owned_root(owned_root: Node3D) -> void:
+    if not is_instance_valid(owned_root):
+        return
+    var parent := owned_root.get_parent()
+    if parent != null:
+        parent.remove_child(owned_root)
+    owned_root.queue_free()
 
 func _reset_scene_binding() -> void:
     _release_owned_root()

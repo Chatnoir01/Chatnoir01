@@ -18,6 +18,7 @@ WINDOWS_DEVICES = {
 WINDOWS_FORBIDDEN_CHARS = set('<>:"|?*')
 MAX_COMPONENT_UTF8_BYTES = 255
 MAX_COMPONENT_UTF16_UNITS = 255
+RUNTIME_CHARACTER_EXTENSIONS = {".glb", ".gltf", ".fbx", ".anim", ".res", ".tres"}
 
 
 def _sha256_file(path: Path) -> str:
@@ -85,6 +86,13 @@ def _portable_payload_identity(name: str) -> str:
     return unicodedata.normalize("NFC", name).casefold()
 
 
+def _has_runtime_character_payload(payloads: dict) -> bool:
+    return any(
+        isinstance(name, str) and PurePosixPath(name).suffix.casefold() in RUNTIME_CHARACTER_EXTENSIONS
+        for name in payloads
+    )
+
+
 def validate(doc: dict) -> list[str]:
     errors: list[str] = []
     candidates = doc.get("candidates")
@@ -133,6 +141,8 @@ def validate(doc: dict) -> list[str]:
                 errors.append("imported payload paths must be unique under Unicode NFC + casefold")
             if any(not _credible_sha256(v) for v in payloads.values()):
                 errors.append("every imported payload requires a non-placeholder lowercase SHA-256")
+            if not _has_runtime_character_payload(payloads):
+                errors.append("adoption requires at least one imported runtime character/animation payload")
         for flag in ("godot_4_7_1_qualified", "web_gl_qualified", "retarget_ab_qualified", "foot_slide_grounding_qualified", "performance_budget_qualified", "player_view_1280x720_qualified"):
             if c.get(flag) is not True:
                 errors.append(f"adoption requires literal true: {flag}")

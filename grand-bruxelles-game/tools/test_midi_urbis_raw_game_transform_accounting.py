@@ -81,6 +81,11 @@ def _assert_transformed_coordinates(
             math.isclose(game[1], expected_y, rel_tol=0.0, abs_tol=ABS_TOL_M),
             f"{layer}: {feature_id} {path}[1] violates locked Lambert72->game Y bridge",
         )
+        case.assertEqual(
+            raw[2:],
+            game[2:],
+            f"{layer}: {feature_id} {path} non-XY ordinates changed during XY bridge",
+        )
         return
 
     case.assertTrue(raw, f"{layer}: {feature_id} {path} must not be empty")

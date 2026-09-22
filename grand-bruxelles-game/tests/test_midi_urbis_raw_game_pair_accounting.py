@@ -22,6 +22,18 @@ def _load(path: Path) -> dict:
     return document
 
 
+def _coordinate_shape(value, path: Path, feature_id: str):
+    if not isinstance(value, list) or not value:
+        raise AssertionError(f"{path}: {feature_id} coordinates must be non-empty arrays")
+    if all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in value):
+        if len(value) < 2 or not all(math.isfinite(item) for item in value):
+            raise AssertionError(f"{path}: {feature_id} coordinate position must have >=2 finite numbers")
+        return ("position", len(value))
+    if any(isinstance(item, (int, float, bool)) for item in value):
+        raise AssertionError(f"{path}: {feature_id} coordinates mix positions and nested arrays")
+    return tuple(_coordinate_shape(item, path, feature_id) for item in value)
+
+
 def _feature_ids(document: dict, path: Path) -> list[str]:
     if document.get("type") != "FeatureCollection":
         raise AssertionError(f"{path}: expected FeatureCollection")
@@ -41,6 +53,7 @@ def _feature_ids(document: dict, path: Path) -> list[str]:
         geometry_type = geometry.get("type")
         if not isinstance(geometry_type, str) or not geometry_type:
             raise AssertionError(f"{path}: feature {feature_id} has no geometry type")
+        _coordinate_shape(geometry.get("coordinates"), path, feature_id)
         ids.append(feature_id)
     if len(ids) != len(set(ids)):
         raise AssertionError(f"{path}: duplicate feature ids")
@@ -81,7 +94,7 @@ class MidiUrbisRawGamePairAccounting(unittest.TestCase):
                 self.assertEqual(len(raw_ids), len(game_ids))
                 self.assertEqual(set(raw_ids), set(game_ids))
 
-    def test_raw_and_game_geometry_types_are_identical_by_feature(self) -> None:
+    def test_raw_and_game_geometry_types_and_topology_are_identical_by_feature(self) -> None:
         for layer in LAYERS:
             with self.subTest(layer=layer):
                 raw_path = MIDI / f"{layer}.geojson"
@@ -93,12 +106,17 @@ class MidiUrbisRawGamePairAccounting(unittest.TestCase):
 
                 self.assertEqual(set(raw_by_id), set(game_by_id))
                 for feature_id in sorted(raw_by_id):
-                    raw_type = raw_by_id[feature_id]["geometry"]["type"]
-                    game_type = game_by_id[feature_id]["geometry"]["type"]
+                    raw_geometry = raw_by_id[feature_id]["geometry"]
+                    game_geometry = game_by_id[feature_id]["geometry"]
                     self.assertEqual(
-                        raw_type,
-                        game_type,
+                        raw_geometry["type"],
+                        game_geometry["type"],
                         f"{layer}: transformed feature {feature_id} changed geometry type accounting",
+                    )
+                    self.assertEqual(
+                        _coordinate_shape(raw_geometry["coordinates"], raw_path, feature_id),
+                        _coordinate_shape(game_geometry["coordinates"], game_path, feature_id),
+                        f"{layer}: transformed feature {feature_id} changed coordinate topology accounting",
                     )
 
     def test_raw_and_game_bboxes_are_finite_ordered_and_identical_by_feature(self) -> None:

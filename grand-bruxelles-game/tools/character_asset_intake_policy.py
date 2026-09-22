@@ -10,7 +10,11 @@ from pathlib import Path, PurePosixPath
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UAL = "Universal Animation Library"
-WINDOWS_DEVICES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+WINDOWS_DEVICES = {
+    "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+    *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10)),
+    "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³",
+}
 WINDOWS_FORBIDDEN_CHARS = set('<>:"|?*')
 
 
@@ -42,6 +46,9 @@ def _safe_payload_name(name: object) -> bool:
                 or any(ch in WINDOWS_FORBIDDEN_CHARS for ch in part)
                 or part.endswith((" ", "."))):
             return False
+        # Win32 also reserves DOS device aliases, including the ISO-8859-1
+        # superscript forms COM¹/²/³ and LPT¹/²/³ plus console input/output.
+        # Extensions do not make these aliases safe (for example COM¹.glb).
         if part.split(".", 1)[0].upper() in WINDOWS_DEVICES:
             return False
     return True

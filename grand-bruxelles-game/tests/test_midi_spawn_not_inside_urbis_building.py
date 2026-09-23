@@ -151,9 +151,6 @@ def test_canonical_midi_player_spawn_is_not_inside_rendered_urbis_building() -> 
         "authorized collision/spring-arm integration before any visual correction."
     )
 
-    # Endpoint and spring-arm containment can all be GREEN while a legitimate source building
-    # still dominates the first screen. Report the ordered source identities on the authored
-    # camera-forward centerline so the visual stage can inspect the exact mesh instead of guessing.
     forward_distance_m = 80.0
     forward_end = (
         local_camera[0] - math.sin(yaw) * forward_distance_m,
@@ -165,6 +162,10 @@ def test_canonical_midi_player_spawn_is_not_inside_rendered_urbis_building() -> 
         for t, building_id in forward_hits[:8]
     ]
     print(
+        "MIDI_CAMERA_FORWARD_BUILDING_HITS="
+        + json.dumps(forward_report, separators=(",", ":"), sort_keys=True)
+    )
+    assert not forward_report, (
         "MIDI_CAMERA_FORWARD_BUILDING_HITS="
         + json.dumps(forward_report, separators=(",", ":"), sort_keys=True)
     )

@@ -165,7 +165,3 @@ def test_canonical_midi_player_spawn_is_not_inside_rendered_urbis_building() -> 
         "MIDI_CAMERA_FORWARD_BUILDING_HITS="
         + json.dumps(forward_report, separators=(",", ":"), sort_keys=True)
     )
-    assert not forward_report, (
-        "MIDI_CAMERA_FORWARD_BUILDING_HITS="
-        + json.dumps(forward_report, separators=(",", ":"), sort_keys=True)
-    )

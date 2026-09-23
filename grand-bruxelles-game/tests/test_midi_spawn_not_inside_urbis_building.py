@@ -71,7 +71,7 @@ def _segment_edge_t(
     return None
 
 
-def _spring_arm_crossings(
+def _building_segment_hits(
     runtime: dict,
     start: tuple[float, float],
     end: tuple[float, float],
@@ -142,11 +142,29 @@ def test_canonical_midi_player_spawn_is_not_inside_rendered_urbis_building() -> 
         "Do not rescue it by changing camera/FOV or rewriting UrbIS geometry."
     )
 
-    crossings = _spring_arm_crossings(runtime, local_spawn, local_camera)
+    crossings = _building_segment_hits(runtime, local_spawn, local_camera)
     assert not crossings, (
         "canonical Midi player-to-camera spring-arm segment crosses rendered UrbIS building footprint edge(s): "
         f"{crossings}; player_local_xz={local_spawn}, camera_local_xz={local_camera}. "
         "Both endpoints are outside, so this identifies source building mass between Player and camera. "
         "Do not move camera/FOV or rewrite UrbIS geometry; inspect the first reported building/node and its "
         "authorized collision/spring-arm integration before any visual correction."
+    )
+
+    # Endpoint and spring-arm containment can all be GREEN while a legitimate source building
+    # still dominates the first screen. Report the ordered source identities on the authored
+    # camera-forward centerline so the visual stage can inspect the exact mesh instead of guessing.
+    forward_distance_m = 80.0
+    forward_end = (
+        local_camera[0] - math.sin(yaw) * forward_distance_m,
+        local_camera[1] - math.cos(yaw) * forward_distance_m,
+    )
+    forward_hits = _building_segment_hits(runtime, local_camera, forward_end)
+    forward_report = [
+        {"id": building_id, "distance_m": round(t * forward_distance_m, 3)}
+        for t, building_id in forward_hits[:8]
+    ]
+    print(
+        "MIDI_CAMERA_FORWARD_BUILDING_HITS="
+        + json.dumps(forward_report, separators=(",", ":"), sort_keys=True)
     )

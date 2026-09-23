@@ -56,6 +56,41 @@ def _world_xz(root: tuple[float, float], angle: float, local_x: float, local_z: 
     )
 
 
+def _authored_office_blocks(hero: str) -> tuple[tuple[str, float, float], ...]:
+    complex_block = re.search(
+        r"func _build_station_complex\(\) -> void:(.*?)(?=\n\nfunc )",
+        hero,
+        re.DOTALL,
+    )
+    assert complex_block, "_build_station_complex() missing"
+    calls = re.findall(
+        r'_add_office_block\(station,\s*"([^"]+)",\s*([-0-9.]+),\s*([-0-9.]+),\s*\d+,\s*(?:true|false)\)',
+        complex_block.group(1),
+    )
+    assert calls, "no authored station office blocks found"
+    names = [name for name, _, _ in calls]
+    assert len(names) == len(set(names)), f"duplicate authored office block names: {names}"
+    return tuple((f"{name}/BlueStoneBase", float(local_z), float(length)) for name, local_z, length in calls)
+
+
+def _blue_stone_local_x_bounds(hero: str) -> tuple[float, float]:
+    office_block = re.search(
+        r"func _add_office_block\(.*?\) -> void:(.*?)(?=\n\nfunc )",
+        hero,
+        re.DOTALL,
+    )
+    assert office_block, "_add_office_block() missing"
+    body = office_block.group(1)
+    block_x = _scalar(body, r"block\.position\s*=\s*Vector3\(([-0-9.]+),")
+    width = _scalar(body, r"var width:\s*float\s*=\s*([-0-9.]+)")
+    assert re.search(
+        r'_add_box\(block,\s*"BlueStoneBase",\s*Vector3\(width,\s*base_height,\s*length\)',
+        body,
+    ), "BlueStoneBase no longer uses authored office-block width/length"
+    half_width = width * 0.5
+    return block_x - half_width, block_x + half_width
+
+
 def test_rank_authored_midi_station_blue_stone_frustum_candidates() -> None:
     scene = SCENE.read_text(encoding="utf-8")
     hero = HERO.read_text(encoding="utf-8")
@@ -71,19 +106,17 @@ def test_rank_authored_midi_station_blue_stone_frustum_candidates() -> None:
     angle = math.atan2(fonsny[0], fonsny[2])
     right = (-forward[1], forward[0])
 
-    # These are the exact three calls in _build_station_complex(). Keep this diagnostic
-    # tied to the authored hero articulation; it is not source geometry authority.
-    blocks = (
-        ("FonsnyWingSouth/BlueStoneBase", -57.0, 48.0),
-        ("FonsnyCentral/BlueStoneBase", 0.0, 61.0),
-        ("FonsnyWingNorth/BlueStoneBase", 60.0, 52.0),
-    )
+    # Derive block positions/lengths and BlueStoneBase width from the production
+    # authoring calls so this diagnostic fails closed if the runtime articulation
+    # changes instead of silently ranking stale hard-coded geometry.
+    blocks = _authored_office_blocks(hero)
+    local_x_bounds = _blue_stone_local_x_bounds(hero)
     half_fov = fov * 0.5
     candidates: list[tuple[float, str, float]] = []
     for name, block_z, length in blocks:
         min_abs_angle = 180.0
         nearest_forward = float("inf")
-        for local_x in (-22.3, 18.7):  # block.position.x=-1.8 plus BlueStoneBase half-width=20.5
+        for local_x in local_x_bounds:
             for local_z in (block_z - length * 0.5, block_z + length * 0.5):
                 point = _world_xz(root, angle, local_x, local_z)
                 delta = (point[0] - camera[0], point[1] - camera[1])

@@ -1,0 +1,39 @@
+name: Midi Hero Frustum Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/tests/test_midi_hero_station_frustum_candidates.py"
+      - ".github/workflows/midi-hero-frustum-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: midi-hero-frustum-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Compile diagnostic
+        run: python3 -m py_compile grand-bruxelles-game/tests/test_midi_hero_station_frustum_candidates.py
+      - name: Classify authored Midi station frustum candidates
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/tests/test_midi_hero_station_frustum_candidates.py')
+          spec = importlib.util.spec_from_file_location('midi_hero_frustum', path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.test_rank_authored_midi_station_blue_stone_frustum_candidates()
+          print('MIDI_HERO_STATION_FRUSTUM_OK')
+          PY

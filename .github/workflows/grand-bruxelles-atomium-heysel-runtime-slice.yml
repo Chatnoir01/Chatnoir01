@@ -1,0 +1,95 @@
+name: Grand Bruxelles Atomium Heysel Runtime Slice
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/build_atomium_heysel_runtime_slice.py'
+      - 'grand-bruxelles-game/data/urbis/laeken_jette/**'
+      - 'grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json'
+      - 'grand-bruxelles-game/game/zones/laeken_jette/atomium_heysel_district_runtime.gd'
+      - 'grand-bruxelles-game/game/zones/laeken_jette/atomium_heysel_direct_spawn_bootstrap.gd'
+      - 'grand-bruxelles-game/project.godot'
+      - '.github/workflows/grand-bruxelles-atomium-heysel-runtime-slice.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-runtime-slice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+
+      - name: Build exact DTM-bounded runtime slice
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/build_atomium_heysel_runtime_slice.py \
+            --output-root "$RUNNER_TEMP/atomium_heysel_runtime"
+
+      - name: Verify compact Web contract
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+
+          root = pathlib.Path(__import__('os').environ['RUNNER_TEMP']) / 'atomium_heysel_runtime'
+          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          layers = manifest['layers']
+          for required in ('buildings', 'street_surfaces', 'street_axes'):
+              count = int(layers[required]['runtime_feature_count'])
+              if count <= 0:
+                  raise SystemExit(f'{required}: compact runtime is empty')
+          total = int(manifest['runtime_total_bytes'])
+          if total >= 8_000_000:
+              raise SystemExit(f'compact runtime budget exceeded: {total} bytes')
+          print(json.dumps({name: row['runtime_feature_count'] for name, row in layers.items()}, sort_keys=True))
+          print(f'compact_bytes={total}')
+          PY
+
+      - name: Verify raw phase-1 remains excluded from Web
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('export_presets.cfg').read_text(encoding='utf-8')
+          for name in ('buildings','street_surfaces','street_axes','tram_network','train_network'):
+              needle = f'data/urbis/laeken_jette/{name}.game.json'
+              if needle not in text:
+                  raise SystemExit(f'raw Web exclusion missing: {needle}')
+          if 'data/urbis/laeken_jette/atomium_heysel_runtime' in text:
+              raise SystemExit('compact Heysel runtime must not be excluded from Web')
+          PY
+
+      - name: Stage verified compact runtime in repository
+        run: |
+          rm -rf grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime
+          mkdir -p grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime
+          cp "$RUNNER_TEMP"/atomium_heysel_runtime/*.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime/
+
+      - name: Commit verified compact runtime to same-repo PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if [ -z "$(git status --porcelain -- grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime)" ]; then
+            echo 'Compact Heysel runtime already deterministic and current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/urbis/laeken_jette/atomium_heysel_runtime
+          git commit -m 'data(atomium): ship bounded Heysel runtime slice'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Upload compact runtime for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-heysel-runtime-slice
+          path: ${{ runner.temp }}/atomium_heysel_runtime
+          if-no-files-found: error
+          retention-days: 7

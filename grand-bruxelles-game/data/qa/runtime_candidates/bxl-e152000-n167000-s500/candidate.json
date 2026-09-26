@@ -1,0 +1,41 @@
+{
+  "candidate_digest": "4de02fc4bd3193c1f8ef23d3f68e9756edc8de4096fbba709a5ba17668a6740c",
+  "cell_id": "bxl-e152000-n167000-s500",
+  "format": "grand-bruxelles-runtime-candidate-bundle-v1",
+  "input_sha256": {
+    "manifest.json": "fba91bb28235cab3e8741893748033d83979b327ef8187dd58d157f826e6935e",
+    "raw/buildings.geojson": "bf4a366f073db4ff79f6ec983f53459aa00854715bc8ec744573beb170898023",
+    "raw/street_axes.geojson": "49d5d0b615a53b3225777b516f15a155180c7dd9835a382ab928db1318db1a5e",
+    "raw/street_surfaces.geojson": "addfc02f1242f28ca7ff2f6dde2a972ff9a97c84608eaf7fd8fa8e150356b169",
+    "raw/train_network.geojson": "942c0267d965fd005e4827338cf6ae31fef7e5a3b7157a75665b53a1bf8f142b",
+    "raw/tram_network.geojson": "e089a12ff065e4fc02e7842ada96e3905f8eb062b41b21f5d1b3335a57671f1a"
+  },
+  "next_gate": "validate_runtime_candidate_then_attach_maturity_evidence_before_promotion",
+  "output_sha256": {
+    "manifest.json": "00b1b86458e393bf000b8d2341954cbdd22a50c9aa5e5b6bb484402f25db444b",
+    "runtime/cell.game.json": "039f1526f268998c263c70a3d53c799042fb630eb4adf9e59235b0db531a68b7",
+    "runtime/network.game.json": "3b03fc6476a03c5d95e9ccc438b499f2dfd7a1cc79bb029a53018ce538cf9567"
+  },
+  "safety": {
+    "building_height_invented": false,
+    "collision_generated": false,
+    "jouable_promotion_authorized": false,
+    "official_plan_geometry_only": true,
+    "runtime_mount_authorized": false
+  },
+  "sealed": {
+    "production_discovery_eligible": false,
+    "production_manifest_format": "grand-bruxelles-urbis-built-cell-v1",
+    "requires_explicit_validated_promotion": true,
+    "root_manifest_format": "grand-bruxelles-urbis-built-cell-candidate-v1"
+  },
+  "source_crs": "EPSG:31370",
+  "stats": {
+    "buildings": 74,
+    "street_segments": 148,
+    "street_surfaces": 78,
+    "train_segments": 529,
+    "tram_segments": 0,
+    "unclassified_rail_segments": 617
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "authority": {
+    "buildings_source_present": true,
+    "geometry": "UrbIS raw EPSG:31370 building footprints",
+    "maturity_manifest_digest": "d190a6402d42b088f63491383f13906eaf117459e05a13f2db282d5df04b8dc4",
+    "source_manifest_digest": "5866d64d6c108a005b63b8f1f87340208805ec507c15ff3240b7b33061e05c34"
+  },
+  "blockers": [
+    "source_requirements",
+    "crs",
+    "runtime_geometry",
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "materials",
+    "facade",
+    "clutter",
+    "mobility",
+    "verification",
+    "license",
+    "region_scalable",
+    "photo_match",
+    "performance"
+  ],
+  "buildings": [
+    {
+      "area_m2": 110,
+      "bbox_31370": [
+        141788.705,
+        168017.634,
+        141803.735,
+        168033.991
+      ],
+      "block_id": "https://databrussels.be/id/block/30914",
+      "building_id": "https://databrussels.be/id/building/1666382",
+      "cell_id": "bxl-e141500-n168000-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          141788.705,
+          168022.582
+        ],
+        [
+          141794.069,
+          168017.634
+        ],
+        [
+          141803.735,
+          168028.444
+        ],
+        [
+          141802.407,
+          168029.653
+        ],
+        [
+          141803.164,
+          168030.538
+        ],
+        [
+          141799.273,
+          168033.991
+        ],
+        [
+          141798.431,
+          168033.083
+        ],
+        [
+          141788.705,
+          168022.582
+        ]
+      ],
+      "footprint_digest": "eafc13b1dfcdc5b9b6a47015e89b2d139bbe24a8d681bdf4d99129dd00271b8b",
+      "height_m": null,
+      "record_digest": "e84f90a671fc9adb0c38a5a22a9df603713820585debe44ee76d6de1b28975d3",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 8
+    },
+    {
+      "area_m2": 2,
+      "bbox_31370": [
+        141700.231,
+        168216.487,
+        141702.389,
+        168218.557
+      ],
+      "block_id": null,
+      "building_id": "https://databrussels.be/id/building/1667",
+      "cell_id": "bxl-e141500-n168000-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          141701.076,
+          168218.557
+        ],
+        [
+          141700.231,
+          168217.563
+        ],
+        [
+          141701.579,
+          168216.487
+        ],
+        [
+          141702.389,
+          168217.464
+        ],
+        [
+          141701.076,
+          168218.557
+        ]
+      ],
+      "footprint_digest": "aa12ca7497a7da4ad6fe67999d15d1447831a217700481ea06dece16ce9b1fea",
+      "height_m": null,
+      "record_digest": "34e6e54e5e1dfd620340522a43e350de4e6638fb9b05ec7acdab0d01d2a86152",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 5
+    },
+    {
+      "area_m2": 12,
+      "bbox_31370": [
+        141779.6,
+        168009.943,
+        141784.484,
+        168014.915
+      ],
+      "block_id": "https://databrussels.be/id/block/30914",
+      "building_id": "https://databrussels.be/id/building/1783586",
+      "cell_id": "bxl-e141500-n168000-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          141782.233,
+          168014.915
+        ],
+        [
+          141779.6,
+          168011.926
+        ],
+        [
+          141781.851,
+          168009.943
+        ],
+        [
+          141784.484,
+          168012.932
+        ],
+        [
+          141782.233,
+          168014.915
+        ]
+      ],
+      "footprint_digest": "1c7e2cc5ea5a3c2a0686a16ae74fad9642282bde944a50690acbc48aef4f7f04",
+      "height_m": null,
+      "record_digest": "81c59b29c4b472ce01e77ab9ab135567e191a3c2ae498f5b7d6884154faffbb9",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 5
+    }
+  ],
+  "cell_id": "bxl-e141500-n168000-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-candidate-package-v1",
+  "package_digest": "edadd6087872b8f7c444dc43a568f5fdbc8729467b7a69233c9d352517326937",
+  "promotion_policy": "no_runtime_mutation_until_full_regional_maturity_contract_passes",
+  "state": "EVIDENCE_PENDING",
+  "summary": {
+    "invalid_features": 0,
+    "runtime_approved_buildings": 0,
+    "total_vertices": 18,
+    "valid_buildings": 3
+  }
+}

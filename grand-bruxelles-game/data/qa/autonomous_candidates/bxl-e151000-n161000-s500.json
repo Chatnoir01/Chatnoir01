@@ -1,0 +1,77 @@
+{
+  "authority": {
+    "buildings_source_present": true,
+    "geometry": "UrbIS raw EPSG:31370 building footprints",
+    "maturity_manifest_digest": "0652613aac01bb04629e2b68ae2fca665c7a0062832949ec8cc75dc4181576ac",
+    "source_manifest_digest": "00dd2f2902ed2edf4fc31126e2b9fd800bbd0b72e7d18f55e41b486e39d5165d"
+  },
+  "blockers": [
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "materials",
+    "facade",
+    "clutter",
+    "mobility",
+    "license",
+    "region_scalable",
+    "photo_match",
+    "performance"
+  ],
+  "buildings": [
+    {
+      "area_m2": 7,
+      "bbox_31370": [
+        151012.19,
+        161461.19,
+        151015.27,
+        161464.61
+      ],
+      "block_id": null,
+      "building_id": "https://databrussels.be/id/building/223549",
+      "cell_id": "bxl-e151000-n161000-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          151012.19,
+          161464.0
+        ],
+        [
+          151012.9,
+          161461.19
+        ],
+        [
+          151015.27,
+          161461.79
+        ],
+        [
+          151014.61,
+          161464.61
+        ],
+        [
+          151012.19,
+          161464.0
+        ]
+      ],
+      "footprint_digest": "456f13296c82b667cd1dfc592fa726136586cd0d8255e8e6a2bf550e2a4dec9f",
+      "height_m": null,
+      "record_digest": "8aa3d8705e8d0d9292944f9e34bed4d16c9b8cbd87944322b8e159f2f3a62e9d",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 5
+    }
+  ],
+  "cell_id": "bxl-e151000-n161000-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-candidate-package-v1",
+  "package_digest": "829fb6be96e61030f9a052c9e6aa0839a47c1867bcb101d841e469a88ef1ae71",
+  "promotion_policy": "no_runtime_mutation_until_full_regional_maturity_contract_passes",
+  "state": "EVIDENCE_PENDING",
+  "summary": {
+    "invalid_features": 0,
+    "runtime_approved_buildings": 0,
+    "total_vertices": 5,
+    "valid_buildings": 1
+  }
+}

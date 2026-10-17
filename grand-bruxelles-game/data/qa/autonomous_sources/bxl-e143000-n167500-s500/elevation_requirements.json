@@ -1,0 +1,46 @@
+{
+  "bbox": [
+    143000.0,
+    167500.0,
+    143500.0,
+    168000.0
+  ],
+  "cell_id": "bxl-e143000-n167500-s500",
+  "crs": "EPSG:31370",
+  "expected_1km_tile_codes": [
+    "143167"
+  ],
+  "format": "grand-bruxelles-cell-elevation-requirements-v1",
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "requirements_only_no_raster_evidence_yet",
+    "terrain_gate": false
+  },
+  "official_sources": {
+    "dsm": {
+      "atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/8c2d921e-6a53-11ed-bfb5-010101010000-en.xml",
+      "dataset_id": "8c2d921e-6a53-11ed-bfb5-010101010000",
+      "name": "Paradigm UrbIS Digital Surface Model 2021"
+    },
+    "dtm": {
+      "atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-en.xml",
+      "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+      "name": "Paradigm UrbIS Digital Terrain Model 2021"
+    }
+  },
+  "required_validation": [
+    "resolve_exact_official_archive_per_tile_and_kind",
+    "download_from_official_https_host",
+    "sha256_each_archive",
+    "safe_extract_exactly_one_raster_per_tile",
+    "validate_epsg31370_bounds_resolution_and_transform",
+    "validate_dsm_dtm_pair_alignment",
+    "derive_terrain_and_building_height_evidence"
+  ],
+  "requirements_digest": "07c529032f87bfd105ec488b40feb4b7c4873342b7d7b09f870510afef6a3e16",
+  "source_basis": {
+    "authoritative_manifest_present": true,
+    "maturity_crosscheck_applied": true,
+    "maturity_sidecar_present": true
+  }
+}

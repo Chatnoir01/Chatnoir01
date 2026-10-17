@@ -1,0 +1,78 @@
+{
+  "authority": {
+    "buildings_source_present": true,
+    "geometry": "UrbIS raw EPSG:31370 building footprints",
+    "maturity_manifest_digest": "1461309ddb1d55f3c405664a6510b41c557f060bf867623e5dc48ba3bbcce97f",
+    "source_manifest_digest": "588fe50003546e2c033560ab670902d9e6c576a7a234f02f6b63d5dfb33f2e77"
+  },
+  "blockers": [
+    "runtime_geometry",
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "materials",
+    "facade",
+    "clutter",
+    "mobility",
+    "license",
+    "region_scalable",
+    "photo_match",
+    "performance"
+  ],
+  "buildings": [
+    {
+      "area_m2": 8,
+      "bbox_31370": [
+        144715.194,
+        174013.301,
+        144719.135,
+        174017.291
+      ],
+      "block_id": null,
+      "building_id": "https://databrussels.be/id/building/244037",
+      "cell_id": "bxl-e144500-n174000-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          144719.135,
+          174015.703
+        ],
+        [
+          144717.427,
+          174017.291
+        ],
+        [
+          144715.194,
+          174014.889
+        ],
+        [
+          144716.902,
+          174013.301
+        ],
+        [
+          144719.135,
+          174015.703
+        ]
+      ],
+      "footprint_digest": "2ec3febb124af0f3295810d8e34aa609beb22ca85a9edbadffd9ba9343343703",
+      "height_m": null,
+      "record_digest": "f26039979719d3f4f6d5f71066b589820db112b4d28b4a571f2fc8fea0500019",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 5
+    }
+  ],
+  "cell_id": "bxl-e144500-n174000-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-candidate-package-v1",
+  "package_digest": "514294838581036f9648fdc6121eaf4419aa72306c31adf1ad1f0a50eb1f260b",
+  "promotion_policy": "no_runtime_mutation_until_full_regional_maturity_contract_passes",
+  "state": "EVIDENCE_PENDING",
+  "summary": {
+    "invalid_features": 0,
+    "runtime_approved_buildings": 0,
+    "total_vertices": 5,
+    "valid_buildings": 1
+  }
+}

@@ -1,0 +1,31 @@
+name: Grand Bruxelles Character Asset Intake CI
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/qa/character_asset_store_audit_*.json"
+      - "grand-bruxelles-game/tools/character_asset_intake_policy.py"
+      - "grand-bruxelles-game/tools/test_character_asset_intake_policy.py"
+      - ".github/workflows/grand-bruxelles-character-asset-intake.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-character-asset-intake-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fail-closed-intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Compile intake policy
+        run: python3 -m py_compile grand-bruxelles-game/tools/character_asset_intake_policy.py grand-bruxelles-game/tools/test_character_asset_intake_policy.py
+      - name: Asset intake fail-closed regression
+        run: python3 grand-bruxelles-game/tools/test_character_asset_intake_policy.py
+      - name: Canonical asset intake policy
+        run: python3 grand-bruxelles-game/tools/character_asset_intake_policy.py grand-bruxelles-game/qa/character_asset_store_audit_2026-09-20.json

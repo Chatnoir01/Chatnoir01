@@ -1,0 +1,193 @@
+name: Materialize Ixelles contiguous seed clean
+
+on:
+  push:
+    branches: [zone-reste-bruxelles-clean]
+    paths:
+      - '.github/workflows/remaining-brussels-ixelles-seed-clean.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-ixelles-seed-clean
+  cancel-in-progress: false
+
+jobs:
+  materialize-ixelles-seed:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate reconstruction pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_bootstrap_remaining_brussels \
+            tests.test_fetch_urbis_municipality \
+            tests.test_make_zone_cells \
+            tests.test_select_zone_seed_cell \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+
+      - name: Record current cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('data/urbis/remaining_brussels/cells')
+          ids = sorted(path.parent.name for path in root.glob('*/manifest.json'))
+          Path('/tmp/preexisting-ixelles.json').write_text(json.dumps(ids), encoding='utf-8')
+          print('Existing global cells:', len(ids))
+          PY
+
+      - name: Refresh official Ixelles boundary and grid
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/bootstrap_remaining_brussels.py \
+            --zone ixelles \
+            --output-root data/processed/remaining_brussels
+
+      - name: Select nearest genuinely new Ixelles cell
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/select_zone_seed_cell.py \
+            --manifest data/processed/remaining_brussels/cells/ixelles.json \
+            --anchor-e 147868.29422791934 \
+            --anchor-n 169538.62414926197 \
+            --exclude-existing-root data/urbis/remaining_brussels/cells \
+            --output /tmp/ixelles-seed.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before = set(json.loads(Path('/tmp/preexisting-ixelles.json').read_text()))
+          seed = json.loads(Path('/tmp/ixelles-seed.json').read_text())
+          selected = seed['seed_selection']['selected_cell_id']
+          assert seed['cell_count'] == 1
+          assert selected not in before
+          assert selected.startswith('bxl-e')
+          print('Selected Ixelles seed:', selected)
+          print('Distance to project anchor:', seed['seed_selection']['distance_m'])
+          PY
+
+      - name: Materialize official Ixelles cell
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py \
+            --manifest /tmp/ixelles-seed.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --force
+
+      - name: Rebuild runtime index and coverage report
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official Ixelles orthophoto reference
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/processed/remaining_brussels/references /tmp/ixelles-ortho
+          BBOX=$(python - <<'PY'
+          import json
+          seed = json.load(open('/tmp/ixelles-seed.json', encoding='utf-8'))
+          print(','.join(str(v) for v in seed['cells'][0]['bbox']))
+          PY
+          )
+          python tools/capture_urbis_orthophoto.py \
+            --bbox "$BBOX" \
+            --width 1024 \
+            --height 1024 \
+            --output /tmp/ixelles-ortho/seed.png \
+            --metadata data/processed/remaining_brussels/references/ixelles_seed_orthophoto.json
+
+      - name: Verify exact new Ixelles cell
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('data/urbis/remaining_brussels/cells')
+          before = set(json.loads(Path('/tmp/preexisting-ixelles.json').read_text()))
+          seed = json.loads(Path('/tmp/ixelles-seed.json').read_text())
+          selected = seed['seed_selection']['selected_cell_id']
+          after = {path.parent.name for path in root.glob('*/manifest.json')}
+          assert selected not in before
+          assert selected in after
+          assert before.issubset(after)
+          manifest = json.loads((root / selected / 'manifest.json').read_text())
+          geometry = json.loads((root / selected / manifest['runtime']['geometry_file']).read_text())
+          network = json.loads((root / selected / manifest['runtime']['network_file']).read_text())
+          index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          report = json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          ortho = json.loads(Path('data/processed/remaining_brussels/references/ixelles_seed_orthophoto.json').read_text())
+          assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
+          assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
+          assert geometry['stats']['buildings'] > 0
+          assert geometry['stats']['street_surfaces'] > 0
+          assert network['stats']['street_segments'] > 0
+          assert all(item['type'].startswith('TW') for item in network['tram_network'])
+          assert all(item['type'].startswith('RW') for item in network['train_network'])
+          assert {item['source_id'] for item in network['tram_network']}.isdisjoint({item['source_id'] for item in network['train_network']})
+          indexed = {item['cell_id'] for item in index['cells']}
+          assert selected in indexed
+          ixelles = next(item for item in report['zones'] if item['zone_id'] == 'ixelles')
+          assert ixelles['grid_ready'] is True
+          assert ixelles['materialized_cells'] >= 1
+          assert selected in ixelles['materialized_cell_ids']
+          assert ortho['provider'] == 'Paradigm / UrbIS'
+          assert ortho['layer'] == 'inspire:Ortho'
+          assert ortho['bbox'] == seed['cells'][0]['bbox']
+          assert ortho['download']['bytes'] > 1000
+          print('Ixelles cell:', selected)
+          print('Geometry:', geometry['stats'])
+          print('Network:', network['stats'])
+          print('Ixelles coverage:', ixelles['coverage_percent'], '%')
+          PY
+
+      - name: Upload Ixelles orthophoto validation preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-seed-official-orthophoto-clean
+          path: /tmp/ixelles-ortho/seed.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit Ixelles snapshot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries/ixelles.geojson \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells/ixelles.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_seed_orthophoto.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No Ixelles changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: add first official Ixelles UrbIS seed on clean branch'
+          git pull --rebase origin zone-reste-bruxelles-clean
+          git push origin HEAD:zone-reste-bruxelles-clean

@@ -1,0 +1,139 @@
+name: Remaining Brussels Etterbeek east expansion resume
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - ".github/workflows/remaining-brussels-etterbeek-east-expansion-resume.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-etterbeek-east-expansion
+  cancel-in-progress: true
+
+jobs:
+  expand:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate committed official Etterbeek grid and tooling
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_make_zone_cells \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          grid=json.loads(Path('data/processed/remaining_brussels/cells/etterbeek.json').read_text())
+          boundary=json.loads(Path('data/processed/remaining_brussels/boundaries/etterbeek.geojson').read_text())
+          assert grid['format']=='grand-bruxelles-zone-cells-v2'
+          assert grid['zone_id']=='etterbeek' and grid['crs']=='EPSG:31370'
+          assert grid['cell_count']==21 and len(grid['cells'])==21
+          assert boundary['source']['layer']=='urbisvector:Municipalities'
+          assert boundary['crs']['properties']['name']=='EPSG:31370'
+          print('ETTERBEEK_COMMITTED_GRID_VALID', grid['cell_count'])
+          PY
+
+      - name: Select two eastward edge-contiguous cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          grid=json.loads(Path('data/processed/remaining_brussels/cells/etterbeek.json').read_text())
+          cells={c['id']:c for c in grid['cells']}
+          root=Path('data/urbis/remaining_brussels/cells')
+          seed_id='bxl-e150500-n169000-s500'
+          assert seed_id in cells and (root/seed_id/'manifest.json').exists()
+          def edge(a,b):
+              ae,an,ae2,an2=a; be,bn,be2,bn2=b
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+          existing={p.parent.name for p in root.glob('*/manifest.json')}
+          firsts=[c for c in cells.values() if c['id'] not in existing and edge(cells[seed_id]['bbox'],c['bbox'])]
+          assert firsts
+          first=max(firsts,key=lambda c:(c['bbox'][0],-abs(c['bbox'][1]-cells[seed_id]['bbox'][1])))
+          seconds=[c for c in cells.values() if c['id'] not in existing and c['id']!=first['id'] and edge(first['bbox'],c['bbox'])]
+          assert seconds
+          second=max(seconds,key=lambda c:(c['bbox'][0],-abs(c['bbox'][1]-first['bbox'][1])))
+          payload={'format':'grand-bruxelles-zone-cells-v2','zone_id':'etterbeek-east-expansion','crs':'EPSG:31370','cell_size_m':500.0,'cell_count':2,'cells':[first,second],'continuity':{'seed':seed_id,'ordered_ids':[first['id'],second['id']]}}
+          Path('/tmp/etterbeek-east.json').write_text(json.dumps(payload,indent=2)+'\n')
+          Path('/tmp/etterbeek-east.tsv').write_text('\n'.join(f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in [first,second])+'\n')
+          print('ETTERBEEK_EAST_SELECTION', payload['continuity']['ordered_ids'])
+          PY
+
+      - name: Materialize authoritative UrbIS cell geometry and network
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py --manifest /tmp/etterbeek-east.json --output-root data/urbis/remaining_brussels/cells --force
+          python tools/build_urbis_runtime_index.py --source-root data/urbis/remaining_brussels/cells --resource-prefix res://data/urbis/remaining_brussels/cells --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official orthophotos
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/etterbeek-east-ortho data/processed/remaining_brussels/references
+          while IFS=$'\t' read -r CELL BBOX; do
+            python tools/capture_urbis_orthophoto.py --bbox "$BBOX" --width 1024 --height 1024 --output "/tmp/etterbeek-east-ortho/${CELL}.png" --metadata "data/processed/remaining_brussels/references/etterbeek_${CELL}_orthophoto.json"
+          done < /tmp/etterbeek-east.tsv
+
+      - name: Validate realism evidence and continuity
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          selection=json.loads(Path('/tmp/etterbeek-east.json').read_text()); root=Path('data/urbis/remaining_brussels/cells')
+          def edge(a,b):
+              ae,an,ae2,an2=a; be,bn,be2,bn2=b
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+          prev=json.loads((root/selection['continuity']['seed']/'manifest.json').read_text())['bbox']
+          ids=[]
+          for cell in selection['cells']:
+              cid=cell['id']; ids.append(cid)
+              m=json.loads((root/cid/'manifest.json').read_text()); assert m['crs']=='EPSG:31370' and edge(prev,m['bbox'])
+              g=json.loads((root/cid/m['runtime']['geometry_file']).read_text()); n=json.loads((root/cid/m['runtime']['network_file']).read_text())
+              assert g['stats']['buildings']>0 and g['stats']['street_surfaces']>0 and n['stats']['street_segments']>0
+              o=json.loads(Path(f'data/processed/remaining_brussels/references/etterbeek_{cid}_orthophoto.json').read_text())
+              assert o['provider']=='Paradigm / UrbIS' and o['bbox']==m['bbox'] and o['download']['bytes']>1000
+              prev=m['bbox']
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text()); et=next(z for z in coverage['zones'] if z['zone_id']=='etterbeek')
+          assert set(ids)<=set(et['materialized_cell_ids']) and et['materialized_cells']>=3
+          runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text()); assert set(ids)<={c['cell_id'] for c in runtime['cells']}
+          print('ETTERBEEK_EAST_VALIDATED', ids, et['materialized_cells'], et['coverage_percent'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: etterbeek-east-official-orthophotos-resume
+          path: /tmp/etterbeek-east-ortho/*.png
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Commit validated Etterbeek expansion
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: expand Etterbeek east with authoritative UrbIS cells'
+          git push origin HEAD:zone-reste-bruxelles-clean

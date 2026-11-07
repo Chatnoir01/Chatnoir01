@@ -4,6 +4,12 @@
 The script requests official UrbIS vector layers directly from Paradigm's WFS,
 using Belgian Lambert 72 (EPSG:31370). It is intentionally bbox-based so each
 city zone can be refreshed independently and kept small enough for CI/game use.
+
+Large/temporarily slow WFS responses are handled conservatively: after bounded
+retries on the exact requested bbox, the fetcher subdivides that same Lambert 72
+bbox into four exact quadrants, requests each quadrant independently, and merges
+the FeatureCollections with deterministic feature de-duplication. This changes
+only transport strategy, never the geographic area or authoritative source.
 """
 
 from __future__ import annotations
@@ -14,6 +20,7 @@ import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 WFS_URL = "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
 DEFAULT_BBOX = (147250.0, 168900.0, 148500.0, 170250.0)
@@ -24,6 +31,9 @@ DEFAULT_LAYERS = {
     "tram_network": "urbisvector:TramNetwork",
     "train_network": "urbisvector:TrainNetwork",
 }
+REQUEST_TIMEOUT_SECONDS = 90
+DIRECT_RETRIES_BEFORE_SUBDIVISION = 2
+MIN_SUBDIVISION_SPAN_METERS = 125.0
 
 
 def parse_bbox(raw: str) -> tuple[float, float, float, float]:
@@ -36,7 +46,7 @@ def parse_bbox(raw: str) -> tuple[float, float, float, float]:
     return min_e, min_n, max_e, max_n
 
 
-def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict:
+def _build_request(layer_name: str, bbox: tuple[float, float, float, float]) -> urllib.request.Request:
     min_e, min_n, max_e, max_n = bbox
     params = {
         "service": "WFS",
@@ -48,7 +58,7 @@ def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retr
         "bbox": f"{min_e},{min_n},{max_e},{max_n},EPSG:31370",
     }
     url = WFS_URL + "?" + urllib.parse.urlencode(params)
-    request = urllib.request.Request(
+    return urllib.request.Request(
         url,
         headers={
             "User-Agent": "Grand-Bruxelles-Game/1.0 (+https://github.com/Chatnoir01/Chatnoir01)",
@@ -56,10 +66,18 @@ def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retr
         },
     )
 
+
+def _request_with_retries(
+    layer_name: str,
+    bbox: tuple[float, float, float, float],
+    retries: int,
+) -> dict[str, Any]:
+    request = _build_request(layer_name, bbox)
     last_error: Exception | None = None
-    for attempt in range(1, retries + 1):
+    attempts = max(1, retries)
+    for attempt in range(1, attempts + 1):
         try:
-            with urllib.request.urlopen(request, timeout=90) as response:
+            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
                 payload = response.read()
             data = json.loads(payload.decode("utf-8"))
             if data.get("type") != "FeatureCollection":
@@ -67,10 +85,104 @@ def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retr
             return data
         except Exception as exc:  # network/service failures are retriable in CI
             last_error = exc
-            if attempt >= retries:
+            if attempt >= attempts:
                 break
             time.sleep(min(12, 2 ** attempt))
-    raise RuntimeError(f"failed to fetch {layer_name} after {retries} attempts: {last_error}")
+    raise RuntimeError(f"failed to fetch {layer_name} after {attempts} attempts: {last_error}")
+
+
+def _subdivide_bbox(
+    bbox: tuple[float, float, float, float],
+) -> tuple[tuple[float, float, float, float], ...]:
+    min_e, min_n, max_e, max_n = bbox
+    mid_e = (min_e + max_e) / 2.0
+    mid_n = (min_n + max_n) / 2.0
+    return (
+        (min_e, min_n, mid_e, mid_n),
+        (mid_e, min_n, max_e, mid_n),
+        (min_e, mid_n, mid_e, max_n),
+        (mid_e, mid_n, max_e, max_n),
+    )
+
+
+def _feature_key(feature: dict[str, Any]) -> str:
+    feature_id = feature.get("id")
+    if feature_id not in (None, ""):
+        return f"id:{feature_id}"
+    stable_payload = {
+        "geometry": feature.get("geometry"),
+        "properties": feature.get("properties"),
+    }
+    return "content:" + json.dumps(stable_payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _merge_feature_collections(
+    layer_name: str,
+    bbox: tuple[float, float, float, float],
+    documents: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not documents:
+        raise RuntimeError(f"cannot merge empty WFS subdivision for {layer_name}")
+
+    merged = {key: value for key, value in documents[0].items() if key != "features"}
+    features: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    duplicate_count = 0
+    for document in documents:
+        if document.get("type") != "FeatureCollection":
+            raise RuntimeError(f"unexpected subdivided WFS payload for {layer_name}: {document.get('type')!r}")
+        for feature in document.get("features", []):
+            key = _feature_key(feature)
+            if key in seen:
+                duplicate_count += 1
+                continue
+            seen.add(key)
+            features.append(feature)
+
+    merged["type"] = "FeatureCollection"
+    merged["features"] = features
+    merged["numberReturned"] = len(features)
+    merged["grand_bruxelles_fetch"] = {
+        "strategy": "adaptive_quadrant_subdivision",
+        "layer": layer_name,
+        "bbox": list(bbox),
+        "parts": len(documents),
+        "deduplicated_features": duplicate_count,
+    }
+    return merged
+
+
+def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict:
+    attempts = max(1, retries)
+    direct_attempts = min(attempts, DIRECT_RETRIES_BEFORE_SUBDIVISION)
+    try:
+        data = _request_with_retries(layer_name, bbox, direct_attempts)
+        data["grand_bruxelles_fetch"] = {
+            "strategy": "direct_bbox",
+            "layer": layer_name,
+            "bbox": list(bbox),
+            "attempt_budget": direct_attempts,
+        }
+        return data
+    except RuntimeError as direct_error:
+        min_e, min_n, max_e, max_n = bbox
+        if min(max_e - min_e, max_n - min_n) < MIN_SUBDIVISION_SPAN_METERS:
+            raise direct_error
+
+        quadrant_documents: list[dict[str, Any]] = []
+        quadrant_errors: list[str] = []
+        for quadrant in _subdivide_bbox(bbox):
+            try:
+                quadrant_documents.append(_request_with_retries(layer_name, quadrant, attempts))
+            except RuntimeError as exc:
+                quadrant_errors.append(str(exc))
+                break
+        if quadrant_errors:
+            raise RuntimeError(
+                f"failed to fetch {layer_name} directly and via exact quadrant subdivision: "
+                f"direct={direct_error}; subdivision={quadrant_errors[-1]}"
+            ) from direct_error
+        return _merge_feature_collections(layer_name, bbox, quadrant_documents)
 
 
 def main() -> int:
@@ -98,6 +210,7 @@ def main() -> int:
             "wfs_name": layer_name,
             "features": count,
             "file": path.name,
+            "fetch": data.get("grand_bruxelles_fetch"),
         }
         print(f"{short_name}: {count} features -> {path}")
 

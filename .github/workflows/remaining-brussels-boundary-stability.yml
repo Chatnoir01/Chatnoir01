@@ -1,0 +1,86 @@
+name: Validate deterministic UrbIS municipality boundaries
+
+on:
+  push:
+    branches: [zone-reste-bruxelles-clean]
+    paths:
+      - '.github/workflows/remaining-brussels-boundary-stability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-boundary-stability
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run municipality fetch regression tests
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests.test_fetch_urbis_municipality -v
+
+      - name: Fetch Ixelles twice and require byte-identical stable output
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/fetch_urbis_municipality.py --name Ixelles --output /tmp/ixelles-a.geojson
+          sleep 2
+          python tools/fetch_urbis_municipality.py --name Ixelles --output /tmp/ixelles-b.geojson
+          cmp /tmp/ixelles-a.geojson /tmp/ixelles-b.geojson
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path('/tmp/ixelles-a.geojson').read_text())
+          feature=a['features'][0]
+          assert 'id' not in feature
+          assert a['crs']['properties']['name']=='EPSG:31370'
+          assert feature['geometry']['type'] in {'Polygon','MultiPolygon'}
+          assert feature['properties']
+          print('IXELLES_BOUNDARY_STABLE', feature['geometry']['type'], len(feature['properties']))
+          PY
+
+      - name: Replace tracked Ixelles boundary with stable official serialization
+        working-directory: grand-bruxelles-game
+        run: |
+          cp /tmp/ixelles-a.geojson data/processed/remaining_brussels/boundaries/ixelles.geojson
+          python tools/make_zone_cells.py \
+            --boundary data/processed/remaining_brussels/boundaries/ixelles.geojson \
+            --zone-id ixelles \
+            --output data/processed/remaining_brussels/cells/ixelles.json
+          python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          cells=json.loads(Path('data/processed/remaining_brussels/cells/ixelles.json').read_text())
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          zone=next(z for z in coverage['zones'] if z['zone_id']=='ixelles')
+          assert cells['crs']=='EPSG:31370'
+          assert zone['planned_cells']==47
+          assert zone['materialized_cells']>=5
+          print('IXELLES_STABLE_GRID_VALIDATED', zone['planned_cells'], zone['materialized_cells'], zone['coverage_percent'])
+          PY
+
+      - name: Commit stable boundary serialization if changed
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries/ixelles.geojson \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells/ixelles.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json
+          git diff --cached --name-only
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: stabilize official Ixelles municipality boundary'
+          git push origin HEAD:zone-reste-bruxelles-clean

@@ -1,0 +1,24 @@
+{
+  "format": "grand-bruxelles-orthophoto-reference-v1",
+  "provider": "Paradigm / UrbIS",
+  "service": "WMS 1.1.0",
+  "endpoint": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms",
+  "layer": "inspire:Ortho",
+  "crs": "EPSG:31370",
+  "bbox": [
+    151000.0,
+    172500.0,
+    151500.0,
+    173000.0
+  ],
+  "width": 1024,
+  "height": 1024,
+  "url": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms?service=WMS&version=1.1.0&request=GetMap&layers=inspire%3AOrtho&styles=&srs=EPSG%3A31370&bbox=151000%2C172500%2C151500%2C173000&width=1024&height=1024&format=image%2Fpng&transparent=false",
+  "purpose": "visual validation/reference only",
+  "download": {
+    "path": "/tmp/schaerbeek-pass3-ortho/bxl-e151000-n172500-s500.png",
+    "bytes": 2380635,
+    "sha256": "c5cce49a1821b34fa7f3f2debbcdeb1fa756ef26eaf6da5608476cdb818b7e83",
+    "content_type": "image/png"
+  }
+}

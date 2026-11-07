@@ -1,0 +1,85 @@
+import json
+import math
+import re
+import subprocess
+import sys
+from contextlib import contextmanager
+from pathlib import Path
+
+REVIEW_PATH = Path(__file__).resolve().parents[1] / "data" / "qa" / "corridor" / "automatic_road_359177328_human_review.json"
+GIT_SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+EXPECTED_REVIEW_KEYS = {"schema","reviewed_head_sha","workflow_run_id","artifact_id","artifact_name","artifact_digest","repository_id","head_repository_id","png_name","png_sha256","destination","osm_id","source_name","width","height","full_frame_inspected","verdict","rejection_reasons","rejection_reason_codes","camera_changed","source_geometry_changed","resolver_thresholds_lowered","destination_advertisable","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","visual_acceptance","jouable_authorized"}
+EXPECTED_IDENTITY = {"reviewed_head_sha":"0d51b1bc8bb471a5dab3b78b0eaab3258c61b76b","workflow_run_id":34862748645,"artifact_id":10355542176,"artifact_name":"automatic-road-359177328-player-witness","artifact_digest":"sha256:6b016361f3397c17fc53108c7c2e4e0a6561d116505906c838033a706299aa0e","repository_id":793866273,"head_repository_id":793866273,"png_name":"automatic_road_359177328_player.png","png_sha256":"d27b7de31e8a4b866ab8d257af1be8e66198b35f3f10f3b3e53084e7e6b452c7"}
+EXPECTED_REASONS = ["large continuous open urban void dominates the left side of the player frame","built urban mass remains sparse and distant ahead, so the automatic destination is not yet a convincing dense corridor arrival"]
+
+def _require(condition, message):
+    if not condition: raise ValueError(message)
+@contextmanager
+def _raises_value_error(match=None):
+    try: yield
+    except ValueError as exc:
+        if match is not None and re.search(match,str(exc)) is None: raise RuntimeError(f"ValueError did not match {match!r}: {exc}") from exc
+    else: raise RuntimeError("expected ValueError")
+def _replace_once(raw, needle, replacement, witness):
+    count=raw.count(needle)
+    _require(count==1,f"mutation witness {witness} expected exactly one canonical target, found {count}")
+    mutated=raw.replace(needle,replacement,1)
+    _require(mutated!=raw,f"mutation witness {witness} did not alter canonical receipt")
+    return mutated
+def _reject_duplicate_keys(pairs):
+    result={}
+    for key,value in pairs:
+        if key in result: raise ValueError(f"duplicate JSON key: {key}")
+        result[key]=value
+    return result
+def _reject_constant(value): raise ValueError(f"non-standard JSON constant: {value}")
+def _finite_float(value):
+    parsed=float(value)
+    if not math.isfinite(parsed): raise ValueError(f"non-finite JSON number: {value}")
+    return parsed
+def _load_review_bytes(raw):
+    review=json.loads(raw.decode("utf-8"),object_pairs_hook=_reject_duplicate_keys,parse_constant=_reject_constant,parse_float=_finite_float)
+    if not isinstance(review,dict): raise ValueError("human review root must be an object")
+    return review
+def _positive_int(review,field):
+    value=review.get(field)
+    if type(value) is not int or value<=0: raise ValueError(f"{field} must be a positive JSON integer")
+    return value
+def _nonzero_hex(value,pattern,field):
+    if not isinstance(value,str) or pattern.fullmatch(value) is None: raise ValueError(f"{field} must have the canonical digest form")
+    payload=value.removeprefix("sha256:")
+    if set(payload)=={"0"}: raise ValueError(f"{field} cannot be an all-zero sentinel")
+    return value
+
+def main():
+    canonical=REVIEW_PATH.read_bytes(); review=_load_review_bytes(canonical)
+    _require(set(review)==EXPECTED_REVIEW_KEYS,"human review schema drift")
+    duplicate=_replace_once(canonical,b'"verdict": "REJECT",',b'"verdict": "REJECT",\n  "verdict": "KEEP",',"duplicate-verdict")
+    with _raises_value_error("duplicate JSON key: verdict"): _load_review_bytes(duplicate)
+    for bad in (b"NaN",b"Infinity",b"-Infinity",b"1e309",b"-1e309"):
+        mutated=_replace_once(canonical,b'"width": 1280',b'"width": '+bad,"width-"+bad.decode())
+        with _raises_value_error(): _load_review_bytes(mutated)
+    for field,raw in (("osm_id",b"359177328"),("width",b"1280"),("height",b"720"),("workflow_run_id",b"34862748645"),("artifact_id",b"10355542176"),("repository_id",b"793866273"),("head_repository_id",b"793866273")):
+        needle=b'"'+field.encode()+b'": '+raw
+        for replacement in (b"true",raw+b".0"):
+            mutated=_load_review_bytes(_replace_once(canonical,needle,b'"'+field.encode()+b'": '+replacement,field+"-"+replacement.decode()))
+            with _raises_value_error(field): _positive_int(mutated,field)
+    _require(review["schema"]=="grand-bruxelles-automatic-road-359177328-human-review-v1","unexpected review schema")
+    _require(review["destination"]=="road-359177328" and _positive_int(review,"osm_id")==359177328,"destination identity drift")
+    _require(review["source_name"]=="Boulevard Maurice Lemonnier - Maurice Lemonnierlaan","source name drift")
+    _require(_positive_int(review,"width")==1280 and _positive_int(review,"height")==720,"review frame dimensions drift")
+    for field in ("repository_id","head_repository_id","workflow_run_id","artifact_id"): _positive_int(review,field)
+    _nonzero_hex(review["reviewed_head_sha"],GIT_SHA1_RE,"reviewed_head_sha"); _nonzero_hex(review["png_sha256"],SHA256_RE,"png_sha256"); _nonzero_hex(review["artifact_digest"],DIGEST_RE,"artifact_digest")
+    for field,expected in EXPECTED_IDENTITY.items(): _require(review[field]==expected,f"immutable evidence identity drift: {field}")
+    _require(review["full_frame_inspected"] is True and review["verdict"]=="REJECT","human REJECT no longer binding")
+    _require(review["rejection_reasons"]==EXPECTED_REASONS,"human rejection prose drift")
+    _require(review["rejection_reason_codes"]==["foreground_open_area_dominance","urban_mass_sparse_or_distant"],"human rejection codes drift")
+    for field in ("camera_changed","source_geometry_changed","resolver_thresholds_lowered","destination_advertisable","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","visual_acceptance","jouable_authorized"): _require(review[field] is False,f"authorization/change rail opened: {field}")
+    if __debug__:
+        optimized=subprocess.run([sys.executable,"-O",str(Path(__file__).resolve())],capture_output=True,text=True,check=False)
+        _require(optimized.returncode==0,"optimized Python veto execution failed: "+optimized.stdout+optimized.stderr)
+        _require("optimization_mode=true" in optimized.stdout,"optimized Python veto proof marker missing")
+    print("AUTOMATIC_ROAD_359177328_HUMAN_REVIEW_VETO_GREEN immutable_evidence_identity=true optimization_safe=true mutation_witnesses_exact=true optimization_mode="+("false" if __debug__ else "true")); return 0
+if __name__=="__main__": raise SystemExit(main())

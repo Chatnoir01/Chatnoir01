@@ -1,0 +1,102 @@
+{
+  "schema": "grand-bruxelles-infrabel-track-segments-locked-measurement-v2",
+  "production_base_sha": "edbda650e88979131753279343bebf2e5c1d35c5",
+  "publisher": "Infrabel",
+  "dataset_id": "geografische-positie-van-alle-spoorsegmenten",
+  "dataset_title": "Geographical position of all track segments",
+  "dataset_page": "https://opendata.infrabel.be/explore/dataset/geografische-positie-van-alle-spoorsegmenten/",
+  "metadata_api": "https://opendata.infrabel.be/api/explore/v2.1/catalog/datasets/geografische-positie-van-alle-spoorsegmenten",
+  "license": "CC0-1.0",
+  "publisher_master_crs": "EPSG:31370",
+  "publisher_accuracy_note": "10 cm to 1 m depending on location",
+  "source": {
+    "url": "https://opendata.infrabel.be/api/explore/v2.1/catalog/datasets/geografische-positie-van-alle-spoorsegmenten/alternative_exports/data_infrabel_tra_section_20250430_geojson_geojson",
+    "title": "Data_INFRABEL_TRA_SECTION_20250430.geojson.geojson",
+    "snapshot_date": "2025-04-30",
+    "format": "GeoJSON",
+    "crs": "EPSG:31370",
+    "bytes": 50861422,
+    "feature_count": 25068,
+    "geometry_type_counts": {"LineString": 25068},
+    "unique_segment_id_count": 25068,
+    "segment_id_min": 7435821,
+    "segment_id_max": 7461053,
+    "coordinate_count": 1224335,
+    "bbox_epsg31370": [25132.54, 26599.96, 274868.26, 241881.87],
+    "sha256": "0ae90345fb602d393143cd11680c1610c148c8cb948ba7d9a641ba11539dbc10",
+    "segment_id_sequence_sha256": "add778a76b0810b305efca88829f235075b22a9ba8636b84680092dc889301a6",
+    "segment_id_set_sha256": "88628b09b1aac78f5315e2ec0eba49e0c16077bed5a451490646b76d19134034",
+    "coordinate_sample_count": 20000,
+    "lambert72_range_ratio": 1.0,
+    "wgs84_range_ratio": 0.0
+  },
+  "publisher_metadata": {
+    "sha256": "3755a41a90a96dd7ac7174b7ccbca454e28fed08b3ca28609ead60f1578a52df",
+    "records_count": 25148,
+    "data_processed": "2026-06-15T12:42:30+00:00",
+    "metadata_processed_at_measurement": "2026-08-22T01:17:35.984000+00:00",
+    "declared_update_frequency": "Half-yearly",
+    "alternative_export_count": 1,
+    "geojson_candidate_count": 1
+  },
+  "revision_alignment": {
+    "source_snapshot_date": "2025-04-30",
+    "publisher_data_processed_date": "2026-06-15",
+    "snapshot_precedes_publisher_data_by_days": 411,
+    "publisher_current_record_count": 25148,
+    "snapshot_feature_count": 25068,
+    "record_minus_snapshot_feature_delta": 80,
+    "publisher_current_id_count": 25148,
+    "publisher_current_unique_id_count": 25148,
+    "publisher_current_id_min": 8119281,
+    "publisher_current_id_max": 8144428,
+    "publisher_current_id_set_sha256": "bcf56557380b9f21ac2bbab0ff2bf3658a7041ab46015b10a7a8ffb63742e2bb",
+    "publisher_current_id_export_sha256": "b87c49285778237af3d3d67af4fad20003879ebfa45b3dda9c324f15a5b74d7f",
+    "publisher_current_id_export_bytes": 226336,
+    "snapshot_id_set_overlap_count": 0,
+    "snapshot_id_set_overlap_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "currentness_proven": false,
+    "interpretation": "The official Lambert72 alternative export is a publisher snapshot dated 2025-04-30, while current catalog data was processed on 2026-06-15. The current record IDs and snapshot IDs are disjoint revision namespaces; the 80-record delta must not be interpreted as 80 missing geometries."
+  },
+  "source_proof_evidence": {
+    "pr": 1111,
+    "run_id": 32551479434,
+    "artifact_id": 9470174956,
+    "artifact_sha256": "177552b2984e3e38da9e5683b3336744fff1df3aff5bae6d17e16e7060d47842",
+    "head_sha": "79341bb4f0c6609f73679914597464d6962014db"
+  },
+  "revision_alignment_evidence": {
+    "pr": 1111,
+    "run_id": 32551479397,
+    "artifact_id": 9470178078,
+    "artifact_sha256": "22a6e46c7f2ae1e7a52be61986ccd2b44e05e865bc8899680f004af57dc3dfc2",
+    "accounting_export_sha256": "3a74e0935afd7e7ea2609fead978ca92bdbdca4182243c28c30e663f3676ddbb",
+    "head_sha": "79341bb4f0c6609f73679914597464d6962014db"
+  },
+  "latest_reproduction_evidence": {
+    "pr": 1129,
+    "head_sha": "8bf0b4a41a113e673f833c705e857090979dbd97",
+    "source_verification": {
+      "run_id": 32574936131,
+      "artifact_id": 9476296463,
+      "artifact_sha256": "c35d349078a147908dac6a7ce943097a6b353222ba318e6a2625f198d6c8a61a"
+    },
+    "revision_alignment": {
+      "run_id": 32574936119,
+      "artifact_id": 9476295361,
+      "artifact_sha256": "b9e15a8276feaeb6fa54dc47a0d525c2cab778716b93e702b5ea29401d321c5d",
+      "publisher_current_id_export_sha256": "b87c49285778237af3d3d67af4fad20003879ebfa45b3dda9c324f15a5b74d7f",
+      "publisher_current_id_export_bytes": 226336
+    }
+  },
+  "status": "MEASURED_HOLD_PUBLISHER_LAMBERT72_SNAPSHOT_STALE",
+  "source_registration_authorized": false,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "materialization_authorized": false,
+  "geometry_modified": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false
+}

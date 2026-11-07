@@ -1,0 +1,78 @@
+name: Grand Bruxelles CIV-1 External Resource Path UID Consistency
+on:
+  push:
+    branches: ['character/**']
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_header_schema.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_uid_path_consistency.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_path_uid_consistency.py'
+      - 'grand-bruxelles-game/tools/test_civ1_external_resource_path_uid_consistency.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-external-resource-path-uid-consistency.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/civ1_authored_skin_integrity.py'
+      - 'grand-bruxelles-game/tools/civ1_resource_table_uniqueness.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_header_schema.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_uid_path_consistency.py'
+      - 'grand-bruxelles-game/tools/civ1_external_resource_path_uid_consistency.py'
+      - 'grand-bruxelles-game/tools/test_civ1_external_resource_path_uid_consistency.py'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - '.github/workflows/grand-bruxelles-civ1-external-resource-path-uid-consistency.yml'
+permissions:
+  contents: read
+jobs:
+  civ1-external-resource-path-uid-consistency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require current live main ancestry and Character QA-only scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --quiet origin/main...HEAD -- grand-bruxelles-game/game/main.tscn grand-bruxelles-game/game/scripts grand-bruxelles-game/game/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproduce canonical-path multi-UID false positive
+        working-directory: grand-bruxelles-game/tools
+        run: |
+          set -euo pipefail
+          python test_civ1_external_resource_path_uid_consistency.py
+          python civ1_external_resource_path_uid_consistency.py --self-test
+      - name: Measure reachable path UID consistency
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1-external-resource-path-uid-consistency
+          python grand-bruxelles-game/tools/civ1_external_resource_path_uid_consistency.py \
+            grand-bruxelles-game/game/main.tscn \
+            /tmp/civ1-external-resource-path-uid-consistency/civ1-external-resource-path-uid-consistency.json
+      - name: Assert fail-closed receipt
+        run: |
+          python - <<'PY'
+          import json
+          p='/tmp/civ1-external-resource-path-uid-consistency/civ1-external-resource-path-uid-consistency.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-civ1-external-resource-path-uid-consistency-v1'
+          assert d['reachable_scene_count'] >= 1
+          assert d['external_resource_path_uid_conflicts'] == []
+          assert d['external_resource_paths_have_single_uid'] is True
+          assert d['external_resource_path_uid_collision_evidence_accepted'] is False
+          assert d['runtime_authorized'] is False
+          assert d['visual_approval_claimed'] is False
+          assert d['contact_verified'] is False
+          assert d['foot_slide_verified'] is False
+          print(json.dumps(d, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civ1-external-resource-path-uid-consistency
+          path: /tmp/civ1-external-resource-path-uid-consistency/civ1-external-resource-path-uid-consistency.json
+          if-no-files-found: error
+          retention-days: 14

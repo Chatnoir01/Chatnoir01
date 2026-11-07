@@ -8,15 +8,24 @@ receipt_path = ROOT / "data" / "qa" / "anneessens_automatic_road_player_review.j
 assert receipt_path.exists(), "missing persisted Anneessens player-review receipt"
 receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
 
+
+def require_nonzero_hex(value: object, length: int, label: str) -> str:
+    assert isinstance(value, str) and re.fullmatch(rf"[0-9a-f]{{{length}}}", value), f"invalid {label}"
+    assert any(ch != "0" for ch in value), f"zeroed {label} sentinel is not evidence"
+    return value
+
+
 assert receipt.get("format") == "grand-bruxelles-anneessens-automatic-road-player-review-v1"
-assert re.fullmatch(r"[0-9a-f]{40}", receipt.get("reviewed_head_sha", "")), "invalid reviewed head"
+require_nonzero_hex(receipt.get("reviewed_head_sha"), 40, "reviewed head")
 assert isinstance(receipt.get("workflow_run_id"), int) and receipt["workflow_run_id"] > 0
 assert isinstance(receipt.get("artifact_id"), int) and receipt["artifact_id"] > 0
-assert re.fullmatch(r"sha256:[0-9a-f]{64}", receipt.get("artifact_digest", "")), "invalid artifact digest"
+artifact_digest = receipt.get("artifact_digest", "")
+assert isinstance(artifact_digest, str) and artifact_digest.startswith("sha256:"), "invalid artifact digest"
+require_nonzero_hex(artifact_digest.removeprefix("sha256:"), 64, "artifact digest")
 
 frame = receipt.get("frame", {})
 assert frame.get("path") == "automatic_road_1382734012_player.png"
-assert re.fullmatch(r"[0-9a-f]{64}", frame.get("sha256", "")), "invalid frame sha256"
+require_nonzero_hex(frame.get("sha256"), 64, "frame sha256")
 assert (frame.get("width"), frame.get("height")) == (1280, 720)
 assert frame.get("full_frame_inspected") is True
 
@@ -24,7 +33,7 @@ source = receipt.get("source", {})
 assert source.get("osm_id") == 1382734012
 assert source.get("name") == "Place Anneessens - Anneessensplein"
 assert source.get("path") == "data/osm/vertical_slice_01.game.json"
-assert re.fullmatch(r"[0-9a-f]{64}", source.get("sha256", "")), "invalid source sha256"
+require_nonzero_hex(source.get("sha256"), 64, "source sha256")
 
 runtime = receipt.get("measured_runtime", {})
 assert runtime.get("camera_unchanged") is True

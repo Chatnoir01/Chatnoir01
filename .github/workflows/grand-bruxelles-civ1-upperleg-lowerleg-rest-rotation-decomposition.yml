@@ -1,0 +1,236 @@
+name: Grand Bruxelles CIV-1 UpperLeg LowerLeg Rest Rotation Decomposition
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_upperleg_lowerleg_rest_rotation_probe.gd"
+      - "grand-bruxelles-game/tests/test_civ1_upperleg_lowerleg_rest_rotation_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-decomposition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upperleg-lowerleg-rest-rotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_upperleg_lowerleg_rest_rotation_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1ulll/source /tmp/civ1ulll/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1ulll/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1ulll/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1ulll/source/vitruvian_body.glb /tmp/civ1ulll/source/civ1_body.glb --require-animations | tee /tmp/civ1ulll/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1ulll/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1ulll/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1ulll/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1ulll/quaternius
+          unzip -q /tmp/civ1ulll/quaternius.zip -d /tmp/civ1ulll/quaternius
+          LICENSE_FILE="$(find /tmp/civ1ulll/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1ulll/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1ulll/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1ulll/engine
+          GODOT_BIN=/tmp/civ1ulll/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1ulll/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1ulll/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact rigs and capture upperleg lowerleg decomposition
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1ulll/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1ulll/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1UpperLegLowerLegRestRotation"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1ulll/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_upperleg_lowerleg_rest_rotation_probe.gd "$PROJECT_ROOT/gb_civ1_upperleg_lowerleg_rest_rotation_probe.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1ulll/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_upperleg_lowerleg_rest_rotation_probe.gd -- /tmp/civ1ulll/evidence/upperleg-lowerleg-rest-rotation.json 2>&1 | tee /tmp/civ1ulll/evidence/probe.log
+          grep -Fq 'CIV1_UPPERLEG_LOWERLEG_REST_ROTATION_OK' /tmp/civ1ulll/evidence/probe.log
+
+      - name: Classify residual, parent rotation, rest-basis axes and full-cycle phase behavior
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1ulll/evidence/classification.log
+          import json
+          from pathlib import Path
+
+          SAMPLE_COUNT = 121
+          RESIDUAL_INDICES = [84, 85, 86, 87, 88]
+          PRIMARY_SOURCE_WINDOW = range(58, 69)
+          SUPPORT_BAND_FRACTION = 0.10
+          AXES = ('x', 'y', 'z')
+          p = json.loads(Path('/tmp/civ1ulll/evidence/upperleg-lowerleg-rest-rotation.json').read_text())
+          assert p['format'] == 'grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-v4'
+          assert p['sample_count'] == SAMPLE_COUNT and len(p['samples']) == SAMPLE_COUNT
+          assert p['retarget_modifier'] == 'RetargetModifier3D'
+          assert p['use_global_pose'] is False
+          assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          assert p['diagnostic_only'] is True and p['world_ground_assumed'] is False
+          assert p['runtime_authorized'] is False and p['visual_approval_claimed'] is False
+
+          def mae(vals):
+              return sum(abs(x) for x in vals) / len(vals)
+
+          def low_window(values):
+              lo, hi = min(values), max(values)
+              threshold = lo + (hi - lo) * SUPPORT_BAND_FRACTION
+              indices = [i for i, v in enumerate(values[:-1]) if v <= threshold]
+              windows=[]
+              for i in indices:
+                  if not windows or i != windows[-1][-1] + 1:
+                      windows.append([i])
+                  else:
+                      windows[-1].append(i)
+              return {'threshold': threshold, 'indices': indices, 'windows': [[w[0], w[-1]] for w in windows]}
+
+          def circular_phase(source, candidate):
+              n = len(source) - 1
+              sa = source[:n]; ca = candidate[:n]
+              sm = sum(sa)/n; cm = sum(ca)/n
+              s0=[x-sm for x in sa]; c0=[x-cm for x in ca]
+              denom=(sum(x*x for x in s0)*sum(x*x for x in c0))**0.5
+              if denom <= 1e-12:
+                  return {'shift_samples': None, 'correlation': 0.0}
+              best=(-2.0, 0)
+              for shift in range(n):
+                  corr=sum(s0[i]*c0[(i+shift)%n] for i in range(n))/denom
+                  if corr > best[0]: best=(corr, shift)
+              signed = best[1] if best[1] <= n//2 else best[1]-n
+              return {'shift_samples': signed, 'correlation': best[0]}
+
+          out = {
+              'format': 'grand-bruxelles-civ1-upperleg-lowerleg-rest-rotation-classification-v4',
+              'sample_count': SAMPLE_COUNT,
+              'residual_indices': RESIDUAL_INDICES,
+              'primary_source_window': [PRIMARY_SOURCE_WINDOW.start, PRIMARY_SOURCE_WINDOW.stop - 1],
+              'support_band_fraction': SUPPORT_BAND_FRACTION,
+              'sides': {},
+              'diagnostic_only': True,
+              'runtime_authorized': False,
+              'visual_approval_claimed': False,
+          }
+          for side in ('Left', 'Right'):
+              actual_err=[]; rest_err=[]; source_rest_cf_err=[]; source_rot_cf_err=[]; common_cf_err=[]; local_res=[]
+              parent_rot_angle=[]; parent_rot_euler=[[], [], []]
+              axis_err={axis: [] for axis in AXES}
+              source_cycle=[]; actual_cycle=[]; common_cycle=[]; source_rot_cycle=[]
+              axis_cycle={axis: [] for axis in AXES}
+              rv=p['rest_vectors'][side]
+              target_len=sum(float(v)*float(v) for v in rv['target'])**0.5
+              source_in_target_len=sum(float(v)*float(v) for v in rv['source_rest_in_target_parent_basis'])**0.5
+              assert abs(target_len-source_in_target_len) <= 1e-6
+              for axis in AXES:
+                  cf_len=sum(float(v)*float(v) for v in rv[f'axis_counterfactual_{axis}'])**0.5
+                  assert abs(target_len-cf_len) <= 1e-6
+              for i, sample in enumerate(p['samples']):
+                  row=sample['sides'][side]
+                  sy=row['source_actual_relative_vector'][1]
+                  source_cycle.append(sy)
+                  actual_cycle.append(row['target_actual_relative_vector'][1])
+                  common_cycle.append(row['common_mirrored_target_rest_counterfactual'][1])
+                  source_rot_cycle.append(row['source_parent_rotation_counterfactual'][1])
+                  for axis in AXES:
+                      axis_cycle[axis].append(row[f'axis_counterfactual_{axis}'][1])
+                  if i in RESIDUAL_INDICES:
+                      actual_err.append(row['target_actual_relative_vector'][1]-sy)
+                      rest_err.append(row['rotated_target_rest_vector'][1]-sy)
+                      source_rest_cf_err.append(row['source_rest_direction_counterfactual'][1]-sy)
+                      source_rot_cf_err.append(row['source_parent_rotation_counterfactual'][1]-sy)
+                      common_cf_err.append(row['common_mirrored_target_rest_counterfactual'][1]-sy)
+                      for axis in AXES:
+                          axis_err[axis].append(row[f'axis_counterfactual_{axis}'][1]-sy)
+                      local_res.append(row['local_translation_residual'][1])
+                      parent_rot_angle.append(row['parent_rotation_delta_angle_rad'])
+                      for axis_index in range(3):
+                          parent_rot_euler[axis_index].append(row['parent_rotation_delta_euler_rad'][axis_index])
+              axis_mae={axis: mae(vals) for axis, vals in axis_err.items()}
+              out['sides'][side.lower()]={
+                  'actual_y_mae_m': mae(actual_err),
+                  'rotated_target_rest_y_mae_m': mae(rest_err),
+                  'source_rest_direction_cf_y_mae_m': mae(source_rest_cf_err),
+                  'source_parent_rotation_cf_y_mae_m': mae(source_rot_cf_err),
+                  'common_mirrored_target_rest_cf_y_mae_m': mae(common_cf_err),
+                  'axis_counterfactual_y_mae_m': axis_mae,
+                  'local_translation_residual_y_mae_m': mae(local_res),
+                  'parent_rotation_delta_angle_mae_rad': mae(parent_rot_angle),
+                  'parent_rotation_delta_euler_abs_mae_rad': [mae(axis_vals) for axis_vals in parent_rot_euler],
+                  'full_cycle_phase': {
+                      'actual_vs_source': circular_phase(source_cycle, actual_cycle),
+                      'common_mirrored_vs_source': circular_phase(source_cycle, common_cycle),
+                      'source_parent_rotation_vs_source': circular_phase(source_cycle, source_rot_cycle),
+                      'axis_counterfactual_vs_source': {axis: circular_phase(source_cycle, axis_cycle[axis]) for axis in AXES},
+                  },
+                  'support_window': {
+                      'source': low_window(source_cycle),
+                      'actual': low_window(actual_cycle),
+                      'common_mirrored': low_window(common_cycle),
+                      'source_parent_rotation': low_window(source_rot_cycle),
+                      'axis_counterfactual': {axis: low_window(axis_cycle[axis]) for axis in AXES},
+                  },
+              }
+          l=out['sides']['left']; r=out['sides']['right']
+          out['bilateral_actual_delta_m']=abs(r['actual_y_mae_m']-l['actual_y_mae_m'])
+          out['bilateral_common_mirrored_delta_m']=abs(r['common_mirrored_target_rest_cf_y_mae_m']-l['common_mirrored_target_rest_cf_y_mae_m'])
+          out['bilateral_source_parent_rotation_delta_m']=abs(r['source_parent_rotation_cf_y_mae_m']-l['source_parent_rotation_cf_y_mae_m'])
+          out['bilateral_parent_rotation_delta_angle_mismatch_rad']=abs(r['parent_rotation_delta_angle_mae_rad']-l['parent_rotation_delta_angle_mae_rad'])
+          out['bilateral_axis_delta_m']={axis: abs(r['axis_counterfactual_y_mae_m'][axis]-l['axis_counterfactual_y_mae_m'][axis]) for axis in AXES}
+          out['axis_candidate_promising']={axis: (
+              r['axis_counterfactual_y_mae_m'][axis] < r['actual_y_mae_m']
+              and out['bilateral_axis_delta_m'][axis] < out['bilateral_actual_delta_m']
+              and l['axis_counterfactual_y_mae_m'][axis] <= l['actual_y_mae_m'] + 1e-9
+              and r['full_cycle_phase']['axis_counterfactual_vs_source'][axis]['shift_samples'] == r['full_cycle_phase']['actual_vs_source']['shift_samples']
+              and l['full_cycle_phase']['axis_counterfactual_vs_source'][axis]['shift_samples'] == l['full_cycle_phase']['actual_vs_source']['shift_samples']
+          ) for axis in AXES}
+          out['candidate_promising']=(
+              r['common_mirrored_target_rest_cf_y_mae_m'] < r['actual_y_mae_m']
+              and out['bilateral_common_mirrored_delta_m'] < out['bilateral_actual_delta_m']
+              and l['common_mirrored_target_rest_cf_y_mae_m'] <= l['actual_y_mae_m']
+          )
+          promising_axes=[axis for axis, ok in out['axis_candidate_promising'].items() if ok]
+          if promising_axes:
+              classification='axis_rest_basis_candidate_' + '_'.join(promising_axes)
+          elif max(l['local_translation_residual_y_mae_m'], r['local_translation_residual_y_mae_m']) < 1e-5:
+              classification='rest_reference_no_safe_axis'
+          elif out['bilateral_common_mirrored_delta_m'] < out['bilateral_actual_delta_m']:
+              classification='common_mirrored_rest_improves_bilateral_no_safe_axis'
+          else:
+              classification='mixed_rest_rotation_no_safe_axis'
+          out['classification']=classification
+          Path('/tmp/civ1ulll/evidence/upperleg_lowerleg_rest_rotation_classification.json').write_text(json.dumps(out, indent=2))
+          print(json.dumps(out, indent=2))
+          PY
+
+      - name: Upload upperleg lowerleg evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-upperleg-lowerleg-rest-rotation-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1ulll/evidence
+          if-no-files-found: error

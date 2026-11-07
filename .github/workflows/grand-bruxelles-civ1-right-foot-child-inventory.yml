@@ -1,0 +1,134 @@
+name: Grand Bruxelles CIV-1 RightFoot Child Inventory
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_right_foot_child_inventory_probe.gd"
+      - "grand-bruxelles-game/tests/test_civ1_right_foot_child_inventory_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-right-foot-child-inventory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  right-foot-child-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_right_foot_child_inventory_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1child/source /tmp/civ1child/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1child/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1child/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1child/source/vitruvian_body.glb /tmp/civ1child/source/civ1_body.glb --require-animations | tee /tmp/civ1child/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1child/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1child/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1child/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1child/quaternius
+          unzip -q /tmp/civ1child/quaternius.zip -d /tmp/civ1child/quaternius
+          LICENSE_FILE="$(find /tmp/civ1child/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1child/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1child/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1child/engine
+          GODOT_BIN=/tmp/civ1child/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1child/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1child/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact rigs and inventory RightFoot descendants
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1child/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1child/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1RightFootChildInventory"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1child/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_right_foot_child_inventory_probe.gd "$PROJECT_ROOT/gb_civ1_right_foot_child_inventory.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1child/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_right_foot_child_inventory.gd -- /tmp/civ1child/evidence/right-foot-child-inventory.json 2>&1 | tee /tmp/civ1child/evidence/probe.log
+          grep -Fq 'CIV1_RIGHT_FOOT_CHILD_INVENTORY_OK' /tmp/civ1child/evidence/probe.log
+
+      - name: Validate fail-closed child inventory evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1child/evidence/classification.log
+          import json, math
+          from pathlib import Path
+          p=json.loads(Path('/tmp/civ1child/evidence/right-foot-child-inventory.json').read_text())
+          v=p['godot_version']
+          assert p['format']=='grand-bruxelles-civ1-right-foot-child-inventory-v2'
+          assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
+          assert p['source_skeleton_bone_count'] > 0
+          assert p['target_skeleton_bone_count'] > 0
+          for side in ('source','target'):
+              for foot_name in ('right_foot','left_foot'):
+                  foot=p[f'{side}_{foot_name}']
+                  expected='rightfoot' if foot_name=='right_foot' else 'leftfoot'
+                  alias='rfoot' if foot_name=='right_foot' else 'lfoot'
+                  assert expected in foot['normalized_name'] or foot['normalized_name']==alias
+                  for key,size in (('local_rest_origin',3),('global_rest_origin',3),('local_rest_basis_quat_xyzw',4),('global_rest_basis_quat_xyzw',4)):
+                      value=foot[key]
+                      assert len(value)==size and all(math.isfinite(float(x)) for x in value)
+              for group in ('direct_children','descendants'):
+                  for r in p[f'{side}_right_foot_{group}']:
+                      assert int(r['index']) >= 0
+                      assert isinstance(r['name'],str) and r['name']
+                      for key,size in (('local_rest_origin',3),('global_rest_origin',3),('local_rest_basis_quat_xyzw',4),('global_rest_basis_quat_xyzw',4)):
+                          value=r[key]
+                          assert len(value)==size and all(math.isfinite(float(x)) for x in value), (side,r['name'],key,value)
+              for r in p[f'{side}_toe_like_descendants']:
+                  assert 'toe' in r['normalized_name'] or 'ball' in r['normalized_name']
+          basis=p['bilateral_rest_basis']
+          for key in (
+              'right_source_target_local_delta_deg','left_source_target_local_delta_deg','right_minus_left_local_delta_deg',
+              'right_source_target_global_delta_deg','left_source_target_global_delta_deg','right_minus_left_global_delta_deg'):
+              assert math.isfinite(float(basis[key])), (key,basis[key])
+          assert p['diagnostic_only'] is True
+          assert p['runtime_authorized'] is False
+          assert p['visual_approval_claimed'] is False
+          print('source_right_foot_direct_children',[(r['name'],r['normalized_name']) for r in p['source_right_foot_direct_children']])
+          print('target_right_foot_direct_children',[(r['name'],r['normalized_name']) for r in p['target_right_foot_direct_children']])
+          print('source_right_foot_descendants',[(r['name'],r['normalized_name']) for r in p['source_right_foot_descendants']])
+          print('target_right_foot_descendants',[(r['name'],r['normalized_name']) for r in p['target_right_foot_descendants']])
+          print('source_toe_like_descendants',[(r['name'],r['normalized_name']) for r in p['source_toe_like_descendants']])
+          print('target_toe_like_descendants',[(r['name'],r['normalized_name']) for r in p['target_toe_like_descendants']])
+          print('bilateral_rest_basis',basis)
+          print('right_minus_left_global_delta_deg',basis['right_minus_left_global_delta_deg'])
+          print('classification','diagnostic-only bilateral Foot rest-basis evidence; no promotion threshold invented')
+          PY
+
+      - name: Upload RightFoot child inventory evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-right-foot-child-inventory-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1child/evidence/
+          if-no-files-found: error
+          retention-days: 14

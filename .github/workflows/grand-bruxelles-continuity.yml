@@ -19,11 +19,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Validate seven canonical zones plus visible review aliases
+      - name: Validate additive canonical zones plus visible review aliases
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py validate | tee /tmp/continuity-validate.log
-          grep -F "CONTINUITY_REGISTRY_OK zones=7 visible=8 review_aliases=1 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5 review=POST_INTEGRATION" /tmp/continuity-validate.log
+          grep -F "CONTINUITY_REGISTRY_OK zones=8 visible=9 review_aliases=1 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5 review=POST_INTEGRATION" /tmp/continuity-validate.log
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -38,7 +38,10 @@ jobs:
               'grand-bruxelles-player-report-v1',
               'grand-bruxelles-player-report-v2',
           }
-          print('CONTINUITY_POST_INTEGRATION_POLICY_OK human_only=false visual=soft hard=blocking schemas=v1,v2')
+          by_id = {row['zone_id']: row for row in registry['zones']}
+          assert by_id['central']['maturity'] == 'M1_LABO_BRUT'
+          assert by_id['central']['target_maturity'] == 'M5_JOUABLE_READY'
+          print('CONTINUITY_POST_INTEGRATION_POLICY_OK human_only=false visual=soft hard=blocking schemas=v1,v2 central=M1')
           PY
       - name: Prove deterministic next lots before report sync
         run: |
@@ -49,6 +52,9 @@ jobs:
           grep -F '"review_mode": "post_integration"' /tmp/anneessens-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone jette | tee /tmp/jette-next.log
           grep -F '"next_lot": "midi_material_kit"' /tmp/jette-next.log
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone central | tee /tmp/central-next.log
+          grep -F '"maturity": "M1_LABO_BRUT"' /tmp/central-next.log
+          grep -F '"next_lot": "central_official_urbis_regional_context"' /tmp/central-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone midi | tee /tmp/midi-next.log
           grep -F '"decision": "protect_jouable_baseline"' /tmp/midi-next.log
       - name: Prove M5 stays active without mandatory human wait

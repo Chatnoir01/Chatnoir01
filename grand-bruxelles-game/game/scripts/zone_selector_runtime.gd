@@ -171,10 +171,10 @@ func _infer_active_zone_id(main: Node) -> String:
 func _build_ui() -> void:
     _toggle = Button.new()
     _toggle.name = "ZoneSelectorToggle"
-    _toggle.text = "ZONES"
+    _toggle.text = "CHANGER DE ZONE"
     _toggle.set_anchors_preset(Control.PRESET_TOP_RIGHT)
     _toggle.position = Vector2(-500.0, 18.0)
-    _toggle.size = Vector2(108.0, 42.0)
+    _toggle.size = Vector2(190.0, 42.0)
     _toggle.pressed.connect(func() -> void: set_menu_open(not _panel.visible))
     add_child(_toggle)
 
@@ -193,7 +193,7 @@ func _build_ui() -> void:
     title.add_theme_font_size_override("font_size", 20)
     box.add_child(title)
     var hint := Label.new()
-    hint.text = "JOUABLE = validé · LABO = à tester en jouant"
+    hint.text = "JOUABLE = validé · LABO = à tester · LABO_BRUT = brut/non promu"
     hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     box.add_child(hint)
 
@@ -371,7 +371,10 @@ func _mount_script_zone(main: Node, player: CharacterBody3D, zone: Dictionary) -
         player.call("_restore_runtime_hud")
     var location := main.get_node_or_null("LocationLabel")
     if location != null and location.has_method("set_forced_label"):
-        location.call("set_forced_label", "%s · LABO" % str(zone.get("label", "ZONE")))
+        location.call(
+            "set_forced_label",
+            "%s · %s" % [str(zone.get("label", "ZONE")), str(zone.get("quality", "LABO"))]
+        )
     return true
 
 func _travel_failed(message: String) -> void:

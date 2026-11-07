@@ -2,15 +2,8 @@
   "schema": "grand-bruxelles-playable-zone-catalog-v2",
   "policy": "LABO v2 is a truth contract, not a promise of finish. Stored qualities are JOUABLE, LABO, or LABO_BRUT. Player visual reports are post-integration feedback and never block playable advancement by themselves. JOUABLE may advance after the hard listing/runtime gates are satisfied; only genuine hard blockers stop advancement. A zone is listable only after its minimum listing gates are satisfied; runtime eligibility enforcement is owned by the selector.",
   "quality_model": {
-    "stored": [
-      "JOUABLE",
-      "LABO",
-      "LABO_BRUT"
-    ],
-    "derived": [
-      "LABO_REPORT",
-      "NON_LISTE"
-    ],
+    "stored": ["JOUABLE", "LABO", "LABO_BRUT"],
+    "derived": ["LABO_REPORT", "NON_LISTE"],
     "jouable_requires_human_promotion": false,
     "open_player_report_blocks_jouable": false,
     "hard_blocker_blocks_jouable": true,
@@ -27,128 +20,45 @@
   },
   "zones": [
     {
-      "id": "midi",
-      "label": "Midi",
-      "quality": "JOUABLE",
-      "mode": "fast_travel",
-      "destination": "midi",
-      "requires": [
-        "res://game/main.tscn",
-        "res://game/scripts/player_controller.gd"
-      ]
+      "id": "midi", "label": "Midi", "quality": "JOUABLE", "mode": "fast_travel", "destination": "midi",
+      "requires": ["res://game/main.tscn", "res://game/scripts/player_controller.gd"]
     },
     {
-      "id": "midi_machine_labo",
-      "label": "Midi — City Machine LABO",
-      "quality": "LABO",
-      "review_alias_of": "midi",
-      "mode": "script_zone",
-      "script": "res://game/zones/midi/midi_city_machine_zone.gd",
-      "spawn": [
-        -600.0,
-        1.05,
-        600.0
-      ],
-      "requires": [
-        "res://game/zones/midi/midi_city_machine_zone.gd",
-        "res://data/urbis/midi/buildings.game.json",
-        "res://data/urbis/midi/street_surfaces.game.json",
-        "res://data/osm/zones/midi/environment.game.json"
-      ]
+      "id": "midi_machine_labo", "label": "Midi — City Machine LABO", "quality": "LABO", "review_alias_of": "midi", "mode": "script_zone",
+      "script": "res://game/zones/midi/midi_city_machine_zone.gd", "spawn": [-600.0, 1.05, 600.0],
+      "requires": ["res://game/zones/midi/midi_city_machine_zone.gd", "res://data/urbis/midi/buildings.game.json", "res://data/urbis/midi/street_surfaces.game.json", "res://data/osm/zones/midi/environment.game.json"]
     },
     {
-      "id": "anneessens",
-      "label": "Anneessens",
-      "quality": "LABO",
-      "mode": "position",
-      "spawn": [
-        -272.04,
-        1.05,
-        -217.07
-      ],
-      "life_script": "res://game/scripts/anneessens_lab_life.gd",
-      "life_minimum": {
-        "civilians": 1,
-        "moving_vehicles": 1
-      },
-      "requires": [
-        "res://game/main.tscn",
-        "res://data/osm/vertical_slice_01.game.json",
-        "res://game/scripts/anneessens_lab_life.gd"
-      ]
+      "id": "anneessens", "label": "Anneessens", "quality": "LABO", "mode": "position", "spawn": [-272.04, 1.05, -217.07],
+      "life_script": "res://game/scripts/anneessens_lab_life.gd", "life_minimum": {"civilians": 1, "moving_vehicles": 1},
+      "requires": ["res://game/main.tscn", "res://data/osm/vertical_slice_01.game.json", "res://game/scripts/anneessens_lab_life.gd"]
     },
     {
-      "id": "bourse",
-      "label": "Bourse",
-      "quality": "LABO",
-      "mode": "fast_travel",
-      "destination": "bourse",
-      "requires": [
-        "res://game/main.tscn",
-        "res://game/scripts/player_controller.gd",
-        "res://game/scripts/bourse_portico_articulation.gd"
-      ]
+      "id": "bourse", "label": "Bourse", "quality": "LABO", "mode": "fast_travel", "destination": "bourse",
+      "requires": ["res://game/main.tscn", "res://game/scripts/player_controller.gd", "res://game/scripts/bourse_portico_articulation.gd"]
     },
     {
-      "id": "grand_place",
-      "label": "Grand-Place",
-      "quality": "LABO",
-      "mode": "position",
-      "spawn": [
-        319.01,
-        1.05,
-        -535.2
-      ],
-      "requires": [
-        "res://game/main.tscn",
-        "res://game/scripts/grand_place_official_lod2_1655673.gd",
-        "res://game/scripts/grand_place_official_lod2_1786758.gd"
-      ]
+      "id": "grand_place", "label": "Grand-Place", "quality": "LABO", "mode": "position", "spawn": [319.01, 1.05, -535.2],
+      "requires": ["res://game/main.tscn", "res://game/scripts/grand_place_official_lod2_1655673.gd", "res://game/scripts/grand_place_official_lod2_1786758.gd"]
     },
     {
-      "id": "ixelles",
-      "label": "Ixelles",
-      "quality": "LABO",
-      "mode": "player_method",
-      "method": "_activate_ixelles_direct_spawn",
-      "life_script": "res://game/scripts/ixelles_lab_life.gd",
-      "life_minimum": {
-        "civilians": 1,
-        "moving_vehicles": 1
-      },
-      "requires": [
-        "res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd",
-        "res://game/scripts/ixelles_lab_life.gd"
-      ]
+      "id": "central", "label": "Bruxelles-Central / Brussel-Centraal", "quality": "LABO_BRUT", "mode": "script_zone",
+      "script": "res://game/zones/central/central_station_context_labo.gd", "spawn": [647.68, 1.05, -374.0],
+      "requires": ["res://game/zones/central/central_station_context_labo.gd", "res://game/zones/central/central_station_labo.gd", "res://data/visual/central_station_identity.json"]
     },
     {
-      "id": "atomium",
-      "label": "Atomium / Heysel",
-      "quality": "LABO",
-      "mode": "player_method",
-      "method": "_activate_atomium_direct_spawn",
-      "requires": [
-        "res://game/zones/laeken_jette/atomium_dtm_terrain.gd",
-        "res://game/zones/laeken_jette/atomium_hero_core.gd",
-        "res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd"
-      ]
+      "id": "ixelles", "label": "Ixelles", "quality": "LABO", "mode": "player_method", "method": "_activate_ixelles_direct_spawn",
+      "life_script": "res://game/scripts/ixelles_lab_life.gd", "life_minimum": {"civilians": 1, "moving_vehicles": 1},
+      "requires": ["res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd", "res://game/scripts/ixelles_lab_life.gd"]
     },
     {
-      "id": "jette",
-      "label": "Jette",
-      "quality": "LABO",
-      "mode": "script_zone",
-      "script": "res://game/zones/laeken_jette/jette_phase2_zone.gd",
-      "spawn": [
-        -687.700268506218,
-        1.05,
-        -4952.774160383269
-      ],
-      "requires": [
-        "res://game/zones/laeken_jette/jette_phase2_zone.gd",
-        "res://data/urbis/laeken_jette/jette_phase2/buildings.game.json",
-        "res://data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json"
-      ]
+      "id": "atomium", "label": "Atomium / Heysel", "quality": "LABO", "mode": "player_method", "method": "_activate_atomium_direct_spawn",
+      "requires": ["res://game/zones/laeken_jette/atomium_dtm_terrain.gd", "res://game/zones/laeken_jette/atomium_hero_core.gd", "res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd"]
+    },
+    {
+      "id": "jette", "label": "Jette", "quality": "LABO", "mode": "script_zone", "script": "res://game/zones/laeken_jette/jette_phase2_zone.gd",
+      "spawn": [-687.700268506218, 1.05, -4952.774160383269],
+      "requires": ["res://game/zones/laeken_jette/jette_phase2_zone.gd", "res://data/urbis/laeken_jette/jette_phase2/buildings.game.json", "res://data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json"]
     }
   ]
 }

@@ -1,0 +1,72 @@
+{
+  "schema": "grand-bruxelles-character-asset-store-audit-v1",
+  "audited_utc": "2026-09-22T01:15:00Z",
+  "target_engine": "Godot 4.7.1",
+  "policy": "No adoption without acceptable license/provenance, demonstrated 4.7.1 compatibility, isolated A/B proof, Web/GL Compatibility impact measurement, and measured superiority over any working project-specific system.",
+  "candidates": [
+    {
+      "name": "Beehave",
+      "category": "behavior_tree",
+      "official_store_url": "https://store.godotengine.org/asset/bitbrain/beehave/",
+      "version": "2.9.3",
+      "license": "MIT",
+      "last_updated": "2026-08-18",
+      "compatibility_evidence": "Store changelog states v2.9.3 is compatible with latest Godot 4.7.",
+      "maintenance_evidence": "Recent 2026-08-18 release; store description states automated test coverage and built-in performance monitors.",
+      "decision": "HOLD_FOR_AB",
+      "reason": "Promising maintained AI tooling, but no isolated Grand Bruxelles Web/GL performance/export A/B exists and current NPC runtime ownership must not be displaced without measured superiority."
+    },
+    {
+      "name": "Dialogue Manager",
+      "category": "dialogue",
+      "official_store_url": "https://store.godotengine.org/asset/nathanhoad/dialogue-manager/",
+      "version": "4.1.0",
+      "license": "MIT",
+      "last_updated": "2026-09-06",
+      "compatibility_evidence": "Store minimum is Godot 4.6; explicit 4.7.1 qualification was not found in this audit.",
+      "maintenance_evidence": "Updated 2026-09-06 with active-maintainer community evidence on the official store.",
+      "decision": "HOLD_FOR_4_7_1_PROOF",
+      "reason": "Do not integrate until 4.7.1 and Web/GL compatibility are demonstrated in isolation; dialogue is not the current visible CIV-1 blocker."
+    },
+    {
+      "name": "Universal Animation Library",
+      "category": "humanoid_animation_retargeting",
+      "official_store_url": "https://store.godotengine.org/asset/quaternius/universal-animation-library/",
+      "official_upstream_url": "https://quaternius.itch.io/universal-animation-library",
+      "official_pack_page_url": "https://quaternius.com/packs/universalanimationlibrary.html",
+      "official_root_motion_devlog_url": "https://quaternius.itch.io/universal-animation-library/devlog/1555893/added-root-motion-and-other-fixes",
+      "publisher_general_license_url": "https://quaternius.com/license.html",
+      "store_version": "Standard-1.0",
+      "upstream_version": "3.0",
+      "pack_specific_license_claim": "CC0-1.0",
+      "publisher_general_license_current": "QAL-1.0",
+      "publisher_general_license_last_updated": "2026-08-28",
+      "license_provenance_warning": "The official Universal Animation Library pack page still labels this pack CC0, while the publisher's general license page now presents QAL v1.0 for assets under that license. Do not infer this pack's license from the general page. At acquisition, preserve dated pack-specific CC0 evidence together with archive hashes and source URL; if the pack-specific claim changes or becomes ambiguous, stop intake for owner review.",
+      "store_last_updated": "2026-06-10",
+      "upstream_last_updated": "2026-06-16",
+      "upstream_standard_archive": "Universal Animation Library[Standard].zip",
+      "upstream_standard_archive_size_mb": 15,
+      "upstream_source_archive": "Universal Animation Library[Source].zip",
+      "upstream_source_archive_size_mb": 46,
+      "upstream_content_ai": "No generative AI was used",
+      "compatibility_evidence": "Official pack page states custom exports were tested in Godot and the universal humanoid rig is ready for retargeting; neither upstream nor store establishes exact Godot 4.7.1 qualification.",
+      "maintenance_evidence": "Official 2026-06-16 devlog says root motion was added to all locomotion/movement animations, the Source version includes a root-motion enable/disable Blender addon, 8-direction steps were resynchronized to start with the left foot, and separate root-motion and root-motion-disabled exports are provided.",
+      "decision": "HOLD_FOR_LICENSE_SNAPSHOT_AND_RETARGET_AB",
+      "reason": "The v3.0 locomotion fixes directly target foot-slide/transition risk, but exact 4.7.1/Web proof is absent and publisher licensing metadata changed after the pack release. Acquire only from the recorded official upstream/store path, preserve pack-specific license evidence and hashes, then require CIV-1 Skeleton3D/BoneMap retarget A/B, root-motion versus in-place comparison, foot-slide/grounding measurements, Web/GL cost, and real 1280x720 player-view proof before adoption."
+    },
+    {
+      "name": "Character State Machine",
+      "category": "state_machine",
+      "official_store_url": "https://store.godotengine.org/asset/crazyfluff/character-state-machine/",
+      "version": "store-current-2026-05-28",
+      "license": "MIT",
+      "last_updated": "2026-05-28",
+      "compatibility_evidence": "Official store declares minimum Godot 4.6 and maximum Godot 4.7.",
+      "maintenance_evidence": "Recent 2026 release but no reviews; publisher marks version unstable.",
+      "decision": "HOLD_FOR_AB",
+      "reason": "Version range is promising but 4.7.1 patch-level and Web/GL behavior are not proven; no reason to replace project-specific state handling without measured superiority."
+    }
+  ],
+  "adopted": [],
+  "next_executable_action": "Acquire Universal Animation Library v3.0 only from the recorded official upstream/store path. Before extraction, preserve dated pack-specific CC0 evidence because the publisher general license page now serves QAL v1.0, and record SHA-256 for the archive and every imported source payload. If pack-specific licensing is no longer explicitly CC0, stop. Otherwise compare root-motion and root-motion-disabled locomotion against CIV-1 in isolation: inspect Skeleton3D/BoneMap mapping and UpperChest deformation, measure root displacement versus CharacterBody velocity plus planted-foot world drift for idle/walk/run, verify grounding at 2-8 m, measure Web/GL frame cost, and capture a real 1280x720 player-view artifact. Do not merge on metadata alone."
+}

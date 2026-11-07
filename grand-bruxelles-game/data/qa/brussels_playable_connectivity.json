@@ -1,0 +1,65 @@
+{
+  "schema": "grand-bruxelles-playable-connectivity-v1",
+  "root_zone": "midi",
+  "policy": "Every canonical listable zone must belong to one connected gameplay graph. Physical-continuity claims require source-backed ground coverage. Planned nodes remain NON_LISTE until their source, collision, stable-spawn and load gates are proven; source_required edges never count as playable connectivity.",
+  "source_frame": {
+    "crs": "EPSG:31370",
+    "origin_easting_m": 147868.29422791934,
+    "origin_northing_m": 169538.62414926197,
+    "formula": "E=origin_easting_m+x;N=origin_northing_m-z"
+  },
+  "current_central_road_source": {
+    "path": "res://data/osm/vertical_slice_01.game.json",
+    "lambert72_bbox": [147023.79522791933, 168637.98314926197, 148125.81622791933, 170433.92214926198],
+    "status": "SOURCE_BACKED_CURRENT_MAIN"
+  },
+  "nodes": [
+    {"id": "midi", "catalog_required": true, "status": "LISTABLE", "ground": "source_backed", "anchor_lambert72": [147199.79422791934, 168910.78414926198]},
+    {"id": "anneessens", "catalog_required": true, "status": "LISTABLE", "ground": "source_backed", "anchor_lambert72": [147596.25422791933, 169755.69414926198]},
+    {"id": "bourse", "catalog_required": true, "status": "LISTABLE", "ground": "source_backed", "anchor_lambert72": [147949.83422791935, 170203.20414926196]},
+    {"id": "grand_place", "catalog_required": true, "status": "LISTABLE", "ground": "source_backed", "anchor_lambert72": [148187.30422791935, 170073.82414926199]},
+    {"id": "ixelles", "catalog_required": true, "status": "LISTABLE", "ground": "dedicated_source_backed"},
+    {"id": "atomium", "catalog_required": true, "status": "LISTABLE", "ground": "dedicated_runtime_with_explicit_network_gaps"},
+    {"id": "jette", "catalog_required": true, "status": "LISTABLE", "ground": "dedicated_source_backed"},
+    {
+      "id": "rogier",
+      "catalog_required": false,
+      "status": "NON_LISTE",
+      "ground": "source_required",
+      "anchor_wgs84": [4.358330555555555, 50.855561111111115],
+      "anchor_lambert72": [149266.17358633137, 171685.3237036988],
+      "game_anchor_xz": [1397.8793584120285, -2146.69955443684],
+      "source": "Wikidata Q3087261 coordinate location",
+      "blockers": ["road_source_coverage", "collision", "stable_spawn", "load_without_crash", "visual_runtime_evidence"]
+    },
+    {
+      "id": "gare_du_nord",
+      "catalog_required": false,
+      "status": "NON_LISTE",
+      "ground": "source_required",
+      "anchor_wgs84": [4.36, 50.86],
+      "anchor_lambert72": [149383.77705952473, 172179.0964423297],
+      "game_anchor_xz": [1515.48283160539, -2640.4722930677235],
+      "source": "Wikidata Q3246590 coordinate location",
+      "blockers": ["road_source_coverage", "collision", "stable_spawn", "load_without_crash", "visual_runtime_evidence"]
+    }
+  ],
+  "edges": [
+    {"a": "midi", "b": "anneessens", "kind": "continuous_ground", "status": "playable"},
+    {"a": "anneessens", "b": "bourse", "kind": "continuous_ground", "status": "playable"},
+    {"a": "bourse", "b": "grand_place", "kind": "continuous_ground", "status": "playable"},
+    {"a": "bourse", "b": "ixelles", "kind": "gameplay_transport", "status": "playable"},
+    {"a": "bourse", "b": "atomium", "kind": "gameplay_transport", "status": "playable"},
+    {"a": "atomium", "b": "jette", "kind": "gameplay_transport", "status": "playable"},
+    {"a": "bourse", "b": "rogier", "kind": "continuous_ground", "status": "source_required"},
+    {"a": "rogier", "b": "gare_du_nord", "kind": "continuous_ground", "status": "source_required"}
+  ],
+  "center_north_expansion": {
+    "ordered_nodes": ["bourse", "rogier", "gare_du_nord"],
+    "first_missing_northing_m": 170433.92214926198,
+    "rogier_northing_m": 171685.3237036988,
+    "gare_du_nord_northing_m": 172179.0964423297,
+    "required_source_extension_north_m": 1745.1742930677136,
+    "promotion_allowed": false
+  }
+}

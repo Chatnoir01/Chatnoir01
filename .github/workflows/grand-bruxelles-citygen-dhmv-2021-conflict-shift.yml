@@ -1,0 +1,278 @@
+name: Grand Bruxelles CityGen DHMV 2021 Conflict Shift
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/diagnose_dhmv_2021_conflict_shift.py"
+      - "grand-bruxelles-game/tools/citygen/test_diagnose_dhmv_2021_conflict_shift.py"
+      - ".github/workflows/grand-bruxelles-citygen-dhmv-2021-conflict-shift.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  dhmv-2021-conflict-shift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install read-only raster tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-rasterio python3-numpy unzip jq
+
+      - name: Regression-test temporal surface-shift contract
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_diagnose_dhmv_2021_conflict_shift.py
+
+      - name: Fetch latest successful production secondary witness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gh run list \
+            --workflow grand-bruxelles-citygen-anderlecht-secondary-height.yml \
+            --branch main --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId')"
+          test -n "$RUN_ID"
+          rm -rf /tmp/secondary-witness
+          mkdir -p /tmp/secondary-witness
+          gh run download "$RUN_ID" \
+            -n grand-bruxelles-citygen-anderlecht-secondary-height \
+            -D /tmp/secondary-witness
+          test -s /tmp/secondary-witness/validation.json
+          test -s /tmp/secondary-witness/secondary-target.json
+          echo "SECONDARY_WITNESS_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          validation=json.load(open('/tmp/secondary-witness/validation.json',encoding='utf-8'))
+          target=json.load(open('/tmp/secondary-witness/secondary-target.json',encoding='utf-8'))
+          conflicts=[r for r in validation['candidates'] if r.get('secondary_status')=='blocked_conflict']
+          assert len(conflicts)==3
+          assert all(r.get('runtime_approved') is False for r in conflicts)
+          bbox=target['bbox_epsg31370']
+          assert len(bbox)==4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]
+          with Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as h:
+              h.write(f"CELL={target['cell_id']}\n")
+              h.write(f"MIN_E={bbox[0]}\nMIN_N={bbox[1]}\nMAX_E={bbox[2]}\nMAX_N={bbox[3]}\n")
+          print('DHMV_2021_SHIFT_WITNESS_OK',target['cell_id'],'conflicts=3','runtime_approved=false')
+          PY
+
+      - name: Fetch exact durable 2021 source cell
+        run: |
+          set -euo pipefail
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          SOURCES="grand-bruxelles-game/data/qa/autonomous_sources"
+          rm -rf /tmp/citygen-state
+          mkdir -p /tmp/citygen-state
+          git archive origin/citygen-autonomous-state "${SOURCES}/${CELL}" | tar -x -C /tmp/citygen-state
+          SRC="/tmp/citygen-state/${SOURCES}/${CELL}"
+          test -s "$SRC/raw/buildings.geojson"
+          test -s "$SRC/elevation_dsm_resolution.json"
+          test -s "$SRC/elevation_dtm_resolution.json"
+          test -s "$SRC/elevation_dsm_archive_validation.json"
+          test -s "$SRC/elevation_dtm_archive_validation.json"
+          test -s "$SRC/elevation_raster_validation.json"
+          echo "SRC=$SRC" >> "$GITHUB_ENV"
+
+      - name: Resolve exact validated official 2021 archives
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          src=Path(os.environ['SRC'])
+          rv=json.load((src/'elevation_raster_validation.json').open(encoding='utf-8'))
+          assert rv['format']=='grand-bruxelles-cell-elevation-raster-validation-v1'
+          assert rv['cell_id']==os.environ['CELL'] and rv['crs']=='EPSG:31370'
+          assert rv['dsm']['rasters'][0]['raster']['resolution']==[0.5,0.5]
+          assert rv['dtm']['rasters'][0]['raster']['resolution']==[0.5,0.5]
+          assert rv['dsm']['rasters'][0]['raster']['transform']==rv['dtm']['rasters'][0]['raster']['transform']
+          rows={}
+          for kind in ('dsm','dtm'):
+              res=json.load((src/f'elevation_{kind}_resolution.json').open(encoding='utf-8'))
+              val=json.load((src/f'elevation_{kind}_archive_validation.json').open(encoding='utf-8'))
+              assert res['cell_id']==val['cell_id']==os.environ['CELL']
+              assert res['crs']==val['crs']=='EPSG:31370'
+              assert len(res['resolved_archives'])==len(val['archives'])==1
+              rr=res['resolved_archives'][0]; vv=val['archives'][0]
+              assert rr['tile']==vv['tile'] and rr['url']==vv['url']
+              assert vv['sha256'] and vv['zip']['tiff_member']
+              rows[kind]=(vv['url'],vv['sha256'],vv['zip']['tiff_member'])
+          with Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as h:
+              for kind,(url,sha,member) in rows.items():
+                  p=kind.upper(); h.write(f'{p}_URL={url}\n{p}_SHA={sha}\n{p}_MEMBER={member}\n')
+          print('DHMV_2021_SHIFT_CURRENT_ARCHIVES_OK', {k:v[2] for k,v in rows.items()})
+          PY
+
+      - name: Download and safely extract official Brussels DSM-DTM 2021
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dhmv-2021/current
+          for KIND in DSM DTM; do
+            eval URL="\${${KIND}_URL}"
+            eval SHA="\${${KIND}_SHA}"
+            eval MEMBER="\${${KIND}_MEMBER}"
+            ZIP="/tmp/dhmv-2021/${KIND,,}-2021.zip"
+            curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+              --user-agent 'GrandBruxellesGame/dhmv-2021-conflict-shift (+github.com/Chatnoir01/Chatnoir01)' \
+              "$URL" -o "$ZIP"
+            echo "$SHA  $ZIP" | sha256sum -c -
+            python3 - "$ZIP" "$MEMBER" "/tmp/dhmv-2021/current/${KIND,,}.tif" <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          zpath=Path(sys.argv[1]); member=sys.argv[2]; out=Path(sys.argv[3])
+          with zipfile.ZipFile(zpath) as z:
+              assert member in z.namelist()
+              data=z.read(member)
+          assert data[:4] in (b'II*\x00', b'MM\x00*')
+          out.write_bytes(data)
+          print('DHMV_2021_SHIFT_CURRENT_EXTRACT_OK',member,len(data))
+          PY
+          done
+
+      - name: Apply only persisted validated metric georeference to temporary 2021 copies
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, os
+          from pathlib import Path
+          import numpy as np
+          import rasterio
+          from affine import Affine
+          src=Path(os.environ['SRC'])
+          expected=json.load((src/'elevation_raster_validation.json').open(encoding='utf-8'))
+          for kind in ('dsm','dtm'):
+              row=expected[kind]['rasters'][0]['raster']
+              path=Path('/tmp/dhmv-2021/current')/f'{kind}.tif'
+              tmp=path.with_suffix('.georef.tif')
+              transform=Affine(*[float(v) for v in row['transform']])
+              with rasterio.open(path) as r:
+                  assert r.width==row['width'] and r.height==row['height'] and r.dtypes[0]==row['dtype']
+                  payload=r.read(); profile=r.profile.copy()
+              profile.update(crs='EPSG:31370', transform=transform)
+              with rasterio.open(tmp,'w',**profile) as w: w.write(payload)
+              with rasterio.open(tmp) as r:
+                  reread=r.read()
+                  assert r.crs and r.crs.to_epsg()==31370
+                  assert all(math.isclose(a,b,abs_tol=1e-9) for a,b in zip(tuple(r.transform)[:6],row['transform']))
+                  assert [abs(r.res[0]),abs(r.res[1])]==[0.5,0.5]
+                  assert np.array_equal(payload,reread,equal_nan=True)
+              tmp.replace(path)
+          print('DHMV_2021_SHIFT_CURRENT_GEOREF_OK payload_unchanged=true resolution=0.5m')
+          PY
+
+      - name: Download historical DHMV II DSM-DTM 2013-2015 via documented WCS 1.0
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dhmv-2021/historical
+          BASE='https://geo.api.vlaanderen.be/DHMV/wcs'
+          BBOX="${MIN_E},${MIN_N},${MAX_E},${MAX_N}"
+          for KIND in DSM DTM; do
+            COVERAGE="DHMVII_${KIND}_1m"
+            OUT="/tmp/dhmv-2021/historical/${KIND,,}.tif"
+            curl --fail --location --retry 3 --retry-all-errors --max-time 600 \
+              --user-agent 'GrandBruxellesGame/dhmv-2021-conflict-shift (+github.com/Chatnoir01/Chatnoir01)' \
+              --get "$BASE" \
+              --data-urlencode 'SERVICE=WCS' \
+              --data-urlencode 'VERSION=1.0.0' \
+              --data-urlencode 'REQUEST=GetCoverage' \
+              --data-urlencode "COVERAGE=${COVERAGE}" \
+              --data-urlencode 'CRS=EPSG:31370' \
+              --data-urlencode "BBOX=${BBOX}" \
+              --data-urlencode 'RESX=1' \
+              --data-urlencode 'RESY=1' \
+              --data-urlencode 'FORMAT=geoTIFF' \
+              --data-urlencode 'RESPONSE_CRS=EPSG:31370' \
+              -o "$OUT"
+            python3 - "$OUT" "$KIND" <<'PY'
+          import sys
+          from pathlib import Path
+          p=Path(sys.argv[1]); kind=sys.argv[2]
+          assert p.is_file() and p.stat().st_size>0
+          assert p.read_bytes()[:4] in (b'II*\x00',b'MM\x00*')
+          print('DHMV_2021_SHIFT_HISTORICAL_TIFF_OK',kind,p.stat().st_size)
+          PY
+            sha256sum "$OUT" | tee "/tmp/dhmv-2021/historical/${KIND,,}.sha256"
+          done
+
+      - name: Validate historical 1m pair fail-closed
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import math
+          from pathlib import Path
+          import rasterio
+          rows={}
+          for kind in ('dsm','dtm'):
+              p=Path('/tmp/dhmv-2021/historical')/f'{kind}.tif'
+              with rasterio.open(p) as r:
+                  assert r.crs and r.crs.to_epsg()==31370
+                  assert r.count==1 and r.width>0 and r.height>0
+                  assert math.isclose(abs(r.res[0]),1.0,abs_tol=1e-6)
+                  assert math.isclose(abs(r.res[1]),1.0,abs_tol=1e-6)
+                  rows[kind]=(r.width,r.height,tuple(r.transform))
+          assert rows['dsm']==rows['dtm']
+          print('DHMV_2021_SHIFT_HISTORICAL_PAIR_OK',rows['dsm'][0],rows['dsm'][1],'resolution=1m')
+          PY
+
+      - name: Compare the same three blocked conflict footprints across epochs
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/diagnose_dhmv_2021_conflict_shift.py \
+            --buildings "$SRC/raw/buildings.geojson" \
+            --validation /tmp/secondary-witness/validation.json \
+            --current-dsm /tmp/dhmv-2021/current/dsm.tif \
+            --current-dtm /tmp/dhmv-2021/current/dtm.tif \
+            --historical-dsm /tmp/dhmv-2021/historical/dsm.tif \
+            --historical-dtm /tmp/dhmv-2021/historical/dtm.tif \
+            --output /tmp/dhmv-2021/report.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/dhmv-2021/report.json',encoding='utf-8'))
+          assert r['counts']['blocked_conflicts']==3
+          assert r['policy']['read_only'] is True
+          assert r['policy']['physical_change_inference_allowed'] is False
+          assert r['policy']['source_winner_inference_allowed'] is False
+          assert r['policy']['automatic_resolution_allowed'] is False
+          assert r['policy']['runtime_promotion_allowed'] is False
+          assert r['policy']['thresholds_changed'] is False
+          assert r['runtime_approved_count']==0
+          for row in r['records']:
+              assert row['runtime_approved'] is False and row['automatic_resolution_allowed'] is False
+              d=row['comparison']['differences']
+              print('DHMV_2021_SHIFT_RECORD',row['building_id'],json.dumps({
+                  'p50_shift_m':d['p50_shift_2021_minus_historical_m'],
+                  'primary_band_fraction_shift':d['primary_band_fraction_shift'],
+                  'semantic_band_fraction_shift':d['semantic_band_fraction_shift'],
+                  'current_p50':row['comparison']['current_2021']['grid']['distribution_m']['p50'],
+                  'historical_p50':row['comparison']['historical_2013_2015']['grid']['distribution_m']['p50'],
+                  'current_interior_primary':row['comparison']['current_2021']['grid']['zones']['interior']['primary_band_fraction'],
+                  'historical_interior_primary':row['comparison']['historical_2013_2015']['grid']['zones']['interior']['primary_band_fraction'],
+                  'current_interior_semantic':row['comparison']['current_2021']['grid']['zones']['interior']['semantic_band_fraction'],
+                  'historical_interior_semantic':row['comparison']['historical_2013_2015']['grid']['zones']['interior']['semantic_band_fraction'],
+              },sort_keys=True))
+          PY
+
+      - name: Package compact read-only evidence
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/dhmv-2021/current /tmp/dhmv-2021/historical
+          rm -f /tmp/dhmv-2021/dsm-2021.zip /tmp/dhmv-2021/dtm-2021.zip
+          test -s /tmp/dhmv-2021/report.json
+          cp "$SRC/elevation_raster_validation.json" /tmp/dhmv-2021/elevation_raster_validation.json
+          sha256sum /tmp/dhmv-2021/report.json /tmp/dhmv-2021/elevation_raster_validation.json > /tmp/dhmv-2021/evidence.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-citygen-dhmv-2021-conflict-shift
+          path: /tmp/dhmv-2021/
+          if-no-files-found: error

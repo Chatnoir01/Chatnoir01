@@ -1,0 +1,14 @@
+REALISM ASSET CANDIDATE REGISTRY INVARIANTS
+
+This file is intentionally plain text so CI/tests can consume the policy without importing third-party assets.
+
+1. No record in data/qa/realism_asset_candidates.json grants production authorization.
+2. Preferred public-repo licenses are CC0 and CC-BY.
+3. CC-BY-NC, CC-BY-ND, unknown and ripped/third-party-game-source assets are rejected for the public production path.
+4. Store/proprietary assets require manual review and raw files must not be committed publicly unless redistribution is explicitly allowed.
+5. Each imported third-party asset must later record source URL, author/publisher, declared license, local path and SHA-256 in the production license/provenance registry.
+6. Character candidates must not own NPC navigation, AI, spawn density or combat.
+7. Vehicle candidates must not own traffic routing, movement or collision logic.
+8. Existing procedural character/vehicle visuals remain fail-safe fallbacks until authored replacement validation succeeds.
+9. Close-camera acceptance requires source -> runtime -> fixed-view 2m/5m/8m evidence plus performance and owner GARDER verdict.
+10. NoAI-tagged assets may be used for ordinary game integration only when their declared content license permits it; they must not be used to train/test/improve AI/ML systems.

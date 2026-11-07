@@ -1,0 +1,259 @@
+{
+  "authority": {
+    "buildings_source_present": true,
+    "geometry": "UrbIS raw EPSG:31370 building footprints",
+    "maturity_manifest_digest": "a134119080c4289adec83156bccac155f73f859c7d8597a22b117c54152ff72d",
+    "source_manifest_digest": "d016524aa9d52bfc88e37b94c9f9f89826415bd06725f4fb0bd5639b07289772"
+  },
+  "blockers": [
+    "runtime_geometry",
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "materials",
+    "facade",
+    "clutter",
+    "mobility",
+    "license",
+    "region_scalable",
+    "photo_match",
+    "performance"
+  ],
+  "buildings": [
+    {
+      "area_m2": 287,
+      "bbox_31370": [
+        149363.24,
+        162468.07,
+        149391.32,
+        162485.54
+      ],
+      "block_id": null,
+      "building_id": "https://databrussels.be/id/building/1720296",
+      "cell_id": "bxl-e149000-n162000-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          149363.24,
+          162475.47
+        ],
+        [
+          149365.23,
+          162470.99
+        ],
+        [
+          149367.63,
+          162470.32
+        ],
+        [
+          149367.67,
+          162470.31
+        ],
+        [
+          149368.66,
+          162468.07
+        ],
+        [
+          149373.22,
+          162470.1
+        ],
+        [
+          149373.66,
+          162469.11
+        ],
+        [
+          149373.71,
+          162469.01
+        ],
+        [
+          149374.11,
+          162468.09
+        ],
+        [
+          149378.84,
+          162470.19
+        ],
+        [
+          149378.42,
+          162471.14
+        ],
+        [
+          149378.46,
+          162471.16
+        ],
+        [
+          149381.89,
+          162472.68
+        ],
+        [
+          149381.97,
+          162472.72
+        ],
+        [
+          149382.13,
+          162472.34
+        ],
+        [
+          149386.09,
+          162474.1
+        ],
+        [
+          149386.32,
+          162473.6
+        ],
+        [
+          149391.32,
+          162475.82
+        ],
+        [
+          149390.21,
+          162478.18
+        ],
+        [
+          149390.89,
+          162479.51
+        ],
+        [
+          149389.93,
+          162481.5
+        ],
+        [
+          149388.5,
+          162482.06
+        ],
+        [
+          149386.92,
+          162485.54
+        ],
+        [
+          149382.28,
+          162483.57
+        ],
+        [
+          149382.01,
+          162484.07
+        ],
+        [
+          149374.16,
+          162480.67
+        ],
+        [
+          149373.76,
+          162481.77
+        ],
+        [
+          149369.42,
+          162479.97
+        ],
+        [
+          149369.01,
+          162481.05
+        ],
+        [
+          149363.95,
+          162478.86
+        ],
+        [
+          149364.37,
+          162477.91
+        ],
+        [
+          149364.35,
+          162477.87
+        ],
+        [
+          149363.24,
+          162475.47
+        ]
+      ],
+      "footprint_digest": "cd0149eaf08cdd6160b5c5ff20aa7d3edaf8ffed5e0313a3727dc222b0c90b15",
+      "height_m": null,
+      "record_digest": "e28daa9325ca61ef9130d985cc76ba25d03a31f8dcdbbae90c75d1723ba6da5f",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 33
+    },
+    {
+      "area_m2": 33,
+      "bbox_31370": [
+        149401.912,
+        162479.028,
+        149408.953,
+        162487.608
+      ],
+      "block_id": null,
+      "building_id": "https://databrussels.be/id/building/1775253",
+      "cell_id": "bxl-e149000-n162000-s500",
+      "facade_recipe_digest": null,
+      "footprint_31370": [
+        [
+          149408.953,
+          162480.749
+        ],
+        [
+          149405.872,
+          162487.569
+        ],
+        [
+          149404.505,
+          162486.952
+        ],
+        [
+          149404.392,
+          162486.901
+        ],
+        [
+          149404.073,
+          162487.608
+        ],
+        [
+          149401.912,
+          162486.632
+        ],
+        [
+          149402.231,
+          162485.925
+        ],
+        [
+          149402.062,
+          162485.848
+        ],
+        [
+          149405.142,
+          162479.028
+        ],
+        [
+          149406.656,
+          162479.712
+        ],
+        [
+          149407.633,
+          162480.153
+        ],
+        [
+          149408.953,
+          162480.749
+        ]
+      ],
+      "footprint_digest": "e45aae173c169dcd696b4610b4748f5c95765aa14fdb2e0ec516dfaf665cd8c5",
+      "height_m": null,
+      "record_digest": "aa0a2dfb9a3523e54bb5b04c41364d3bbacf6bf7570b650b799b4476df108525",
+      "runtime_approved": false,
+      "street_facing_edge": null,
+      "vertex_count": 12
+    }
+  ],
+  "cell_id": "bxl-e149000-n162000-s500",
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-candidate-package-v1",
+  "package_digest": "6c25eb8de0a739d6166c49bf69ff63ec45e9452e26bf2293f4ec77a4974d4b1b",
+  "promotion_policy": "no_runtime_mutation_until_full_regional_maturity_contract_passes",
+  "state": "EVIDENCE_PENDING",
+  "summary": {
+    "invalid_features": 0,
+    "runtime_approved_buildings": 0,
+    "total_vertices": 45,
+    "valid_buildings": 2
+  }
+}

@@ -1,0 +1,189 @@
+name: Grand Bruxelles Gate-8 Godot Runtime Witness
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/gate8_visual_loader.gd"
+      - "grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd"
+      - "grand-bruxelles-game/game/tests/gate8_visual_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_runtime_witness.gd"
+      - "grand-bruxelles-game/game/tests/gate8_runtime_witness.tscn"
+      - "grand-bruxelles-game/project.godot"
+      - ".github/workflows/grand-bruxelles-gate8-godot-runtime-witness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  gate8-godot-runtime-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GATE8_ARTIFACT_ID: "9470539830"
+      GATE8_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static truth gates
+        run: |
+          set -euo pipefail
+          grep -q '^npc/gate8_visuals_enabled=false$' grand-bruxelles-game/project.godot
+          grep -q 'movement_owner_changed\": false' grand-bruxelles-game/game/scripts/gate8_visual_loader.gd
+          grep -q 'animation_retargeted\": false' grand-bruxelles-game/game/scripts/gate8_visual_loader.gd
+          grep -q 'grounding_measurement\": \"rest_vertices\"' grand-bruxelles-game/game/scripts/gate8_visual_loader.gd
+          grep -q 'GATE8_VISUAL_LOADER.instantiate_for_seed' grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd
+          grep -q 'GATE8_VISUAL_LOADER.ground_external_visual' grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd
+          grep -q 'isolated_subviewport=true' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const MODEL_VISUAL_FRONT_YAW_DEGREES := 0\.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const REVIEW_THREE_QUARTER_YAW_DEGREES := 30\.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const REVIEW_DETAIL_DISTANCE_M := 2\.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const REVIEW_LABEL_PIXEL_SIZE := 0\.004$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const SCALE_LABEL_PIXEL_SIZE := 0\.003$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const MAX_ANNOTATION_PIXEL_SIZE := 0\.004$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+      - name: Download immutable Gate-8 GLB witness artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${GATE8_ARTIFACT_ID}/zip" > /tmp/gate8-artifact.zip
+          test "$(sha256sum /tmp/gate8-artifact.zip | awk '{print $1}')" = "$GATE8_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-artifact.zip -d /tmp/gate8-artifact
+          test "$(find /tmp/gate8-artifact -type f -name 'npc_gate_*.glb' | wc -l)" = "8"
+          MANIFEST="$(find /tmp/gate8-artifact -type f -name 'gate8_glb_manifest.json' -print -quit)"
+          test -s "$MANIFEST"
+          mkdir -p grand-bruxelles-game/game/assets/characters/civilians/gate8
+          find /tmp/gate8-artifact -type f -name 'npc_gate_*.glb' -exec cp {} grand-bruxelles-game/game/assets/characters/civilians/gate8/ \;
+          cp "$MANIFEST" /tmp/gate8-source-manifest.json
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+      - name: Import Gate-8 GLBs in the real project
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path grand-bruxelles-game --quit-after 1200 2>&1 | tee /tmp/gate8-godot-import.log
+          test -d grand-bruxelles-game/.godot/imported
+          ! grep -E 'SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-godot-import.log
+      - name: Run Godot Gate-8 import contract
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT" --headless --path grand-bruxelles-game --script res://game/tests/gate8_visual_contract_test.gd 2>&1 | tee /tmp/gate8-contract.log
+          grep -q '^GATE8_GODOT_CONTRACT_OK count=8 unique_variants=8 movement_owner_changed=false navigation_changed=false animation_retargeted=false dynamic_grounding=true grounding_measurement=rest_vertices$' /tmp/gate8-contract.log
+      - name: Render isolated 1280x720 variant witnesses at 2m 5m 8m plus 2m three-quarter
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb >/dev/null
+          mkdir -p /tmp/gate8-witness
+          export GATE8_WITNESS_DIR=/tmp/gate8-witness
+          timeout 240s xvfb-run -a "$GODOT" --path grand-bruxelles-game --rendering-method gl_compatibility --audio-driver Dummy res://game/tests/gate8_runtime_witness.tscn 2>&1 | tee /tmp/gate8-witness.log
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lines = [
+              line for line in Path('/tmp/gate8-witness.log').read_text().splitlines()
+              if line.startswith('GATE8_RUNTIME_WITNESS_OK ')
+          ]
+          assert len(lines) == 1, f'expected exactly one witness summary, got {lines!r}'
+          fields = {}
+          for token in lines[0].split()[1:]:
+              if '=' not in token:
+                  continue
+              key, value = token.split('=', 1)
+              fields[key] = value
+          required = {
+              'captures': '32',
+              'models': '8',
+              'distances': '2m,5m,8m',
+              'views': 'front,three_quarter',
+              'detail_distance_m': '2.0',
+              'detail_yaw_deg': '30.0',
+              'dynamic_grounding': 'true',
+              'isolated_subviewport': 'true',
+              'front_facing': 'true',
+              'front_yaw_deg': '0.0',
+              'full_body_framing': 'true',
+              'camera_fov_deg': '68.0',
+              'annotation_max_pixel_size': '0.004',
+          }
+          mismatches = {
+              key: (fields.get(key), expected)
+              for key, expected in required.items()
+              if fields.get(key) != expected
+          }
+          assert not mismatches, f'Gate-8 witness summary mismatch: {mismatches}; fields={fields}'
+          PY
+          test "$(grep -c '^GATE8_RUNTIME_FRAME_OK .* view=front yaw_deg=0\.0 ' /tmp/gate8-witness.log)" = "24"
+          test "$(grep -c '^GATE8_RUNTIME_FRAME_OK .* view=three_quarter yaw_deg=30\.0 ' /tmp/gate8-witness.log)" = "8"
+          test "$(find /tmp/gate8-witness -maxdepth 1 -type f -name 'gate8-*.png' | wc -l)" = "32"
+          test "$(find /tmp/gate8-witness -maxdepth 1 -type f -name 'gate8-*-2m-3q.png' | wc -l)" = "8"
+          python3 - <<'PY'
+          import hashlib
+          import struct
+          from pathlib import Path
+          files = sorted(Path('/tmp/gate8-witness').glob('gate8-*.png'))
+          assert len(files) == 32, len(files)
+          digests = set()
+          for path in files:
+              data = path.read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', path
+              assert struct.unpack('>II', data[16:24]) == (1280, 720), path
+              digests.add(hashlib.sha256(data).hexdigest())
+          assert len(digests) == 32, f'non-unique witness frames: {32-len(digests)} duplicates'
+          PY
+      - name: Prove production remains clean and binary-free
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf grand-bruxelles-game/game/assets/characters/civilians/gate8
+          rm -rf grand-bruxelles-game/.godot
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-post-cleanup-status.txt
+          : > /tmp/gate8-generated-sidecars.txt
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            code="${line:0:2}"
+            path="${line:3}"
+            if [ "$code" != "??" ]; then
+              echo "Unexpected tracked drift after Gate-8 witness: $line" >&2
+              exit 1
+            fi
+            case "$path" in
+              *.uid|*.import|grand-bruxelles-game/assets/characters/player_character_rogue_texture.png)
+                printf '%s\n' "$path" >> /tmp/gate8-generated-sidecars.txt
+                rm -f -- "$path"
+                ;;
+              *)
+                echo "Unexpected untracked drift after Gate-8 witness: $line" >&2
+                exit 1
+                ;;
+            esac
+          done < /tmp/gate8-post-cleanup-status.txt
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-final-status.txt
+          test ! -s /tmp/gate8-final-status.txt
+      - name: Upload Godot runtime witness
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-godot-runtime-witness
+          path: |
+            /tmp/gate8-witness/*.png
+            /tmp/gate8-contract.log
+            /tmp/gate8-witness.log
+            /tmp/gate8-godot-import.log
+            /tmp/godot-version.txt
+            /tmp/gate8-source-manifest.json
+            /tmp/gate8-post-cleanup-status.txt
+            /tmp/gate8-generated-sidecars.txt
+            /tmp/gate8-final-status.txt
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0

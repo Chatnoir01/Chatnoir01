@@ -55,6 +55,14 @@ jobs:
           test -s "$WEB_DIR/index.js"
           du -h "$WEB_DIR"/*
 
+      - name: Upload owner review Web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-owner-review-web
+          path: ${{ runner.temp }}/grand-bruxelles-web-export/
+          if-no-files-found: error
+          compression-level: 6
+
       - name: Confirm validation did not modify production preview
         run: |
           if ! git diff --quiet -- grand-bruxelles-game/web-preview; then

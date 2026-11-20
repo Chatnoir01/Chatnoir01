@@ -1,0 +1,95 @@
+name: Remaining Brussels Ixelles Height Archives
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - "grand-bruxelles-game/tools/verify_urbis_height_archives.py"
+      - "grand-bruxelles-game/tests/test_verify_urbis_height_archives.py"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dsm_sources.json"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_sources.json"
+      - ".github/workflows/remaining-brussels-ixelles-height-archives.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-ixelles-height-archives
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout clean mapping branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+
+      - name: Run archive validator unit tests
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_verify_urbis_height_archives
+
+      - name: Install raster validator
+        run: |
+          python3 -m pip install --disable-pip-version-check "rasterio>=1.3,<2"
+          python3 -c "import rasterio; print('RASTERIO_VERSION', rasterio.__version__)"
+
+      - name: Download, hash and validate official DSM-DTM rasters
+        working-directory: grand-bruxelles-game
+        run: |
+          rm -rf /tmp/ixelles-height-work
+          python3 tools/verify_urbis_height_archives.py \
+            --dsm-resolution data/processed/remaining_brussels/references/ixelles_dsm_sources.json \
+            --dtm-resolution data/processed/remaining_brussels/references/ixelles_dtm_sources.json \
+            --work-dir /tmp/ixelles-height-work \
+            --dsm-output /tmp/ixelles_dsm_archive_validation.json \
+            --dtm-output /tmp/ixelles_dtm_archive_validation.json
+
+      - name: Enforce authoritative raster gate
+        run: |
+          python3 - <<'PY'
+          import json
+          for kind in ('dsm', 'dtm'):
+              p=json.load(open(f'/tmp/ixelles_{kind}_archive_validation.json',encoding='utf-8'))
+              assert p['source_crs']=='EPSG:31370'
+              assert p['expected_1km_tile_codes']==['149168','149169']
+              assert p['status']=='official_archives_hashed_and_rasters_validated'
+              assert len(p['archives'])==2
+              for item in p['archives']:
+                  assert len(item['sha256'])==64
+                  assert item['archive_bytes']>0
+                  g=item['raster']
+                  assert g['crs_epsg']==31370
+                  assert g['crs_basis'] in ('embedded_raster','authoritative_source_manifest')
+                  assert g['width']>0 and g['height']>0 and g['count']>0
+                  assert g['resolution'][0]>0 and g['resolution'][1]>0
+              print('IXELLES_HEIGHT_ARCHIVE_GATE_VALID',kind)
+          PY
+
+      - name: Upload validation manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-official-height-archive-validation
+          path: |
+            /tmp/ixelles_dsm_archive_validation.json
+            /tmp/ixelles_dtm_archive_validation.json
+          if-no-files-found: error
+
+      - name: Publish hashes and raster metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-reste-bruxelles-clean
+          git reset --hard origin/zone-reste-bruxelles-clean
+          mkdir -p grand-bruxelles-game/data/processed/remaining_brussels/references
+          cp /tmp/ixelles_dsm_archive_validation.json grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dsm_archive_validation.json
+          cp /tmp/ixelles_dtm_archive_validation.json grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_archive_validation.json
+          git add grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dsm_archive_validation.json \
+                  grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dtm_archive_validation.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: validate Ixelles official DSM-DTM rasters [skip ci]"
+          git push origin HEAD:zone-reste-bruxelles-clean

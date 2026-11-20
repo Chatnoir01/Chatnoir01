@@ -1,0 +1,59 @@
+name: Remaining Brussels Ixelles Height Plan
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - "grand-bruxelles-game/tools/plan_remaining_brussels_height_tiles.py"
+      - "grand-bruxelles-game/tests/test_plan_remaining_brussels_height_tiles.py"
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_height_tile_plan.json"
+      - ".github/workflows/remaining-brussels-ixelles-height-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remaining-brussels-ixelles-height-plan
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout clean mapping branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+
+      - name: Run height tile planner tests
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_plan_remaining_brussels_height_tiles
+
+      - name: Rebuild deterministic Ixelles tile plan
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/plan_remaining_brussels_height_tiles.py \
+            --cells \
+              bxl-e149000-n169000-s500 \
+              bxl-e149000-n169500-s500 \
+              bxl-e149500-n168500-s500 \
+              bxl-e149500-n169000-s500 \
+              bxl-e149500-n169500-s500 \
+            --output /tmp/ixelles_height_tile_plan.json
+
+      - name: Validate authoritative tile scope
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          expected=json.load(open('data/processed/remaining_brussels/references/ixelles_height_tile_plan.json',encoding='utf-8'))
+          rebuilt=json.load(open('/tmp/ixelles_height_tile_plan.json',encoding='utf-8'))
+          for key in ('source_crs','materialized_cells','bbox_epsg31370','expected_1km_tile_codes','official_sources','height_method_target'):
+              assert expected[key] == rebuilt[key], (key, expected[key], rebuilt[key])
+          assert expected['expected_1km_tile_codes'] == ['149168','149169']
+          assert expected['bbox_epsg31370'] == [149000,168500,150000,170000]
+          assert expected['status'] == 'tile_plan_ready_source_archives_not_yet_resolved'
+          print('IXELLES_HEIGHT_TILE_PLAN_VALID', expected['expected_1km_tile_codes'])
+          PY

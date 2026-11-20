@@ -1,0 +1,24 @@
+{
+  "format": "grand-bruxelles-orthophoto-reference-v1",
+  "provider": "Paradigm / UrbIS",
+  "service": "WMS 1.1.0",
+  "endpoint": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms",
+  "layer": "inspire:Ortho",
+  "crs": "EPSG:31370",
+  "bbox": [
+    151000.0,
+    169000.0,
+    151500.0,
+    169500.0
+  ],
+  "width": 1024,
+  "height": 1024,
+  "url": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms?service=WMS&version=1.1.0&request=GetMap&layers=inspire%3AOrtho&styles=&srs=EPSG%3A31370&bbox=151000%2C169000%2C151500%2C169500&width=1024&height=1024&format=image%2Fpng&transparent=false",
+  "purpose": "visual validation/reference only",
+  "download": {
+    "path": "/tmp/etterbeek-east-ortho/bxl-e151000-n169000-s500.png",
+    "bytes": 2486465,
+    "sha256": "4cab9bc7f994c2715e1e6bdac4912fd5a9e1da01e9167bdd04db2dcaaf30a24a",
+    "content_type": "image/png"
+  }
+}

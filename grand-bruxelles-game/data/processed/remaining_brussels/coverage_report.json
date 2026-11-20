@@ -1,0 +1,430 @@
+{
+  "format": "grand-bruxelles-remaining-coverage-v1",
+  "crs": "EPSG:31370",
+  "cell_size_m": 500,
+  "municipalities_total": 17,
+  "municipality_grids_ready": 7,
+  "unique_planned_cells_known": 256,
+  "materialized_cells_total": 50,
+  "materialized_cells_in_known_grids": 50,
+  "known_grid_coverage_percent": 19.53,
+  "shared_cross_municipality_cell_count": 38,
+  "shared_cross_municipality_cells": {
+    "bxl-e146500-n168500-s500": [
+      "anderlecht",
+      "saint-gilles"
+    ],
+    "bxl-e147000-n168500-s500": [
+      "anderlecht",
+      "saint-gilles"
+    ],
+    "bxl-e147000-n169000-s500": [
+      "anderlecht",
+      "saint-gilles"
+    ],
+    "bxl-e147000-n169500-s500": [
+      "anderlecht",
+      "saint-gilles"
+    ],
+    "bxl-e147500-n169500-s500": [
+      "anderlecht",
+      "saint-gilles"
+    ],
+    "bxl-e147000-n170000-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e144000-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e144500-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e145000-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e145500-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e146000-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e146500-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e147000-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e147500-n170500-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e144500-n171000-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e145500-n171000-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e146000-n171000-s500": [
+      "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e148500-n167500-s500": [
+      "ixelles",
+      "saint-gilles"
+    ],
+    "bxl-e148500-n168000-s500": [
+      "ixelles",
+      "saint-gilles"
+    ],
+    "bxl-e149000-n168000-s500": [
+      "ixelles",
+      "saint-gilles"
+    ],
+    "bxl-e149000-n168500-s500": [
+      "ixelles",
+      "saint-gilles"
+    ],
+    "bxl-e149000-n169000-s500": [
+      "ixelles",
+      "saint-gilles"
+    ],
+    "bxl-e151000-n168000-s500": [
+      "etterbeek",
+      "ixelles"
+    ],
+    "bxl-e151500-n168000-s500": [
+      "etterbeek",
+      "ixelles"
+    ],
+    "bxl-e152000-n168000-s500": [
+      "etterbeek",
+      "ixelles"
+    ],
+    "bxl-e150500-n168500-s500": [
+      "etterbeek",
+      "ixelles"
+    ],
+    "bxl-e151000-n168500-s500": [
+      "etterbeek",
+      "ixelles"
+    ],
+    "bxl-e150500-n169000-s500": [
+      "etterbeek",
+      "ixelles"
+    ],
+    "bxl-e150500-n169500-s500": [
+      "etterbeek",
+      "ixelles"
+    ],
+    "bxl-e150500-n171000-s500": [
+      "saint-josse",
+      "schaerbeek"
+    ],
+    "bxl-e151000-n171000-s500": [
+      "saint-josse",
+      "schaerbeek"
+    ],
+    "bxl-e149500-n171500-s500": [
+      "saint-josse",
+      "schaerbeek"
+    ],
+    "bxl-e150000-n171500-s500": [
+      "saint-josse",
+      "schaerbeek"
+    ],
+    "bxl-e150500-n171500-s500": [
+      "saint-josse",
+      "schaerbeek"
+    ],
+    "bxl-e149000-n172000-s500": [
+      "saint-josse",
+      "schaerbeek"
+    ],
+    "bxl-e149500-n172000-s500": [
+      "saint-josse",
+      "schaerbeek"
+    ],
+    "bxl-e151500-n170000-s500": [
+      "etterbeek",
+      "schaerbeek"
+    ],
+    "bxl-e152000-n170000-s500": [
+      "etterbeek",
+      "schaerbeek"
+    ]
+  },
+  "zones": [
+    {
+      "zone_id": "anderlecht",
+      "name": "Anderlecht",
+      "wave": "R1",
+      "priority": 1,
+      "grid_ready": true,
+      "planned_cells": 99,
+      "materialized_cells": 3,
+      "coverage_percent": 3.03,
+      "materialized_cell_ids": [
+        "bxl-e145500-n169000-s500",
+        "bxl-e147000-n169500-s500",
+        "bxl-e147000-n170000-s500"
+      ]
+    },
+    {
+      "zone_id": "molenbeek",
+      "name": "Molenbeek-Saint-Jean",
+      "wave": "R1",
+      "priority": 2,
+      "grid_ready": true,
+      "planned_cells": 46,
+      "materialized_cells": 2,
+      "coverage_percent": 4.35,
+      "materialized_cell_ids": [
+        "bxl-e147000-n170000-s500",
+        "bxl-e147500-n171500-s500"
+      ]
+    },
+    {
+      "zone_id": "saint-gilles",
+      "name": "Saint-Gilles",
+      "wave": "R1",
+      "priority": 3,
+      "grid_ready": true,
+      "planned_cells": 20,
+      "materialized_cells": 2,
+      "coverage_percent": 10.0,
+      "materialized_cell_ids": [
+        "bxl-e147000-n169500-s500",
+        "bxl-e149000-n169000-s500"
+      ]
+    },
+    {
+      "zone_id": "ixelles",
+      "name": "Ixelles",
+      "wave": "R1",
+      "priority": 4,
+      "grid_ready": true,
+      "planned_cells": 47,
+      "materialized_cells": 7,
+      "coverage_percent": 14.89,
+      "materialized_cell_ids": [
+        "bxl-e149000-n169000-s500",
+        "bxl-e149000-n169500-s500",
+        "bxl-e149500-n168500-s500",
+        "bxl-e149500-n169000-s500",
+        "bxl-e149500-n169500-s500",
+        "bxl-e150000-n169000-s500",
+        "bxl-e150500-n169000-s500"
+      ]
+    },
+    {
+      "zone_id": "saint-josse",
+      "name": "Saint-Josse-ten-Noode",
+      "wave": "R1",
+      "priority": 5,
+      "grid_ready": true,
+      "planned_cells": 12,
+      "materialized_cells": 12,
+      "coverage_percent": 100.0,
+      "materialized_cell_ids": [
+        "bxl-e149000-n171500-s500",
+        "bxl-e149000-n172000-s500",
+        "bxl-e149500-n171000-s500",
+        "bxl-e149500-n171500-s500",
+        "bxl-e149500-n172000-s500",
+        "bxl-e150000-n170500-s500",
+        "bxl-e150000-n171000-s500",
+        "bxl-e150000-n171500-s500",
+        "bxl-e150500-n170500-s500",
+        "bxl-e150500-n171000-s500",
+        "bxl-e150500-n171500-s500",
+        "bxl-e151000-n171000-s500"
+      ]
+    },
+    {
+      "zone_id": "schaerbeek",
+      "name": "Schaerbeek",
+      "wave": "R1",
+      "priority": 6,
+      "grid_ready": true,
+      "planned_cells": 49,
+      "materialized_cells": 31,
+      "coverage_percent": 63.27,
+      "materialized_cell_ids": [
+        "bxl-e149000-n172000-s500",
+        "bxl-e149000-n172500-s500",
+        "bxl-e149500-n171500-s500",
+        "bxl-e149500-n172000-s500",
+        "bxl-e149500-n172500-s500",
+        "bxl-e150000-n171500-s500",
+        "bxl-e150000-n172000-s500",
+        "bxl-e150000-n172500-s500",
+        "bxl-e150500-n171000-s500",
+        "bxl-e150500-n171500-s500",
+        "bxl-e150500-n172000-s500",
+        "bxl-e150500-n172500-s500",
+        "bxl-e150500-n173000-s500",
+        "bxl-e151000-n170500-s500",
+        "bxl-e151000-n171000-s500",
+        "bxl-e151000-n171500-s500",
+        "bxl-e151000-n172000-s500",
+        "bxl-e151000-n172500-s500",
+        "bxl-e151000-n173000-s500",
+        "bxl-e151500-n170000-s500",
+        "bxl-e151500-n170500-s500",
+        "bxl-e151500-n171000-s500",
+        "bxl-e151500-n171500-s500",
+        "bxl-e151500-n172000-s500",
+        "bxl-e151500-n172500-s500",
+        "bxl-e152000-n170000-s500",
+        "bxl-e152000-n170500-s500",
+        "bxl-e152000-n171000-s500",
+        "bxl-e152000-n171500-s500",
+        "bxl-e152000-n172000-s500",
+        "bxl-e152000-n172500-s500"
+      ]
+    },
+    {
+      "zone_id": "etterbeek",
+      "name": "Etterbeek",
+      "wave": "R1",
+      "priority": 7,
+      "grid_ready": true,
+      "planned_cells": 21,
+      "materialized_cells": 6,
+      "coverage_percent": 28.57,
+      "materialized_cell_ids": [
+        "bxl-e150500-n169000-s500",
+        "bxl-e151000-n169000-s500",
+        "bxl-e151500-n169000-s500",
+        "bxl-e151500-n169500-s500",
+        "bxl-e151500-n170000-s500",
+        "bxl-e152000-n170000-s500"
+      ]
+    },
+    {
+      "zone_id": "koekelberg",
+      "name": "Koekelberg",
+      "wave": "R2",
+      "priority": 8,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "ganshoren",
+      "name": "Ganshoren",
+      "wave": "R2",
+      "priority": 9,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "berchem",
+      "name": "Berchem-Sainte-Agathe",
+      "wave": "R2",
+      "priority": 10,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "evere",
+      "name": "Evere",
+      "wave": "R2",
+      "priority": 11,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "forest",
+      "name": "Forest",
+      "wave": "R3",
+      "priority": 12,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "uccle",
+      "name": "Uccle",
+      "wave": "R3",
+      "priority": 13,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "auderghem",
+      "name": "Auderghem",
+      "wave": "R3",
+      "priority": 14,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "watermael-boitsfort",
+      "name": "Watermael-Boitsfort",
+      "wave": "R3",
+      "priority": 15,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "woluwe-saint-lambert",
+      "name": "Woluwe-Saint-Lambert",
+      "wave": "R3",
+      "priority": 16,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    },
+    {
+      "zone_id": "woluwe-saint-pierre",
+      "name": "Woluwe-Saint-Pierre",
+      "wave": "R3",
+      "priority": 17,
+      "grid_ready": false,
+      "planned_cells": 0,
+      "materialized_cells": 0,
+      "coverage_percent": 0.0,
+      "materialized_cell_ids": []
+    }
+  ],
+  "runtime": {
+    "format": "grand-bruxelles-urbis-runtime-index-v2",
+    "streamable_cells": 50,
+    "excluded_cells": 0
+  }
+}

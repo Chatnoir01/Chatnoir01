@@ -1,0 +1,138 @@
+name: Remaining Brussels Etterbeek to Schaerbeek bridge
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - ".github/workflows/remaining-brussels-etterbeek-schaerbeek-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-etterbeek-schaerbeek-bridge
+  cancel-in-progress: false
+
+jobs:
+  bridge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate committed official grids and mapping tooling
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_make_zone_cells \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for zone, expected in [('etterbeek',21),('schaerbeek',49)]:
+              grid=json.loads(Path(f'data/processed/remaining_brussels/cells/{zone}.json').read_text())
+              boundary=json.loads(Path(f'data/processed/remaining_brussels/boundaries/{zone}.geojson').read_text())
+              assert grid['format']=='grand-bruxelles-zone-cells-v2'
+              assert grid['zone_id']==zone and grid['crs']=='EPSG:31370'
+              assert grid['cell_count']==expected and len(grid['cells'])==expected
+              assert boundary['source']['layer']=='urbisvector:Municipalities'
+              assert boundary['crs']['properties']['name']=='EPSG:31370'
+          print('ETTERBEEK_SCHAERBEEK_GRIDS_VALID')
+          PY
+
+      - name: Select deterministic northbound bridge cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('data/processed/remaining_brussels/cells')
+          et=json.loads((root/'etterbeek.json').read_text()); sc=json.loads((root/'schaerbeek.json').read_text())
+          et_cells={c['id']:c for c in et['cells']}; sc_cells={c['id']:c for c in sc['cells']}
+          ids=['bxl-e151500-n169500-s500','bxl-e151500-n170000-s500']
+          assert ids[0] in et_cells, ids[0]
+          assert ids[1] in et_cells and ids[1] in sc_cells, ids[1]
+          assert et_cells[ids[0]]['bbox']==[151500.0,169500.0,152000.0,170000.0]
+          assert et_cells[ids[1]]['bbox']==[151500.0,170000.0,152000.0,170500.0]
+          source=Path('data/urbis/remaining_brussels/cells')
+          seed_id='bxl-e151500-n169000-s500'
+          seed=json.loads((source/seed_id/'manifest.json').read_text())
+          assert seed['bbox']==[151500.0,169000.0,152000.0,169500.0]
+          payload={'format':'grand-bruxelles-zone-cells-v2','zone_id':'etterbeek-schaerbeek-bridge','crs':'EPSG:31370','cell_size_m':500.0,'cell_count':2,'cells':[et_cells[i] for i in ids],'continuity':{'seed':seed_id,'ordered_ids':ids,'target_zone':'schaerbeek'}}
+          Path('/tmp/et-sc-bridge.json').write_text(json.dumps(payload,indent=2)+'\n')
+          Path('/tmp/et-sc-bridge.tsv').write_text('\n'.join(f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in payload['cells'])+'\n')
+          print('ETTERBEEK_SCHAERBEEK_SELECTION', ids)
+          PY
+
+      - name: Materialize authoritative UrbIS geometry and networks
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py --manifest /tmp/et-sc-bridge.json --output-root data/urbis/remaining_brussels/cells --force
+          python tools/build_urbis_runtime_index.py --source-root data/urbis/remaining_brussels/cells --resource-prefix res://data/urbis/remaining_brussels/cells --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official orthophoto evidence
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/et-sc-ortho data/processed/remaining_brussels/references
+          while IFS=$'\t' read -r CELL BBOX; do
+            python tools/capture_urbis_orthophoto.py --bbox "$BBOX" --width 1024 --height 1024 --output "/tmp/et-sc-ortho/${CELL}.png" --metadata "data/processed/remaining_brussels/references/etterbeek_schaerbeek_${CELL}_orthophoto.json"
+          done < /tmp/et-sc-bridge.tsv
+
+      - name: Validate fidelity continuity and cross-municipality coverage
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          selection=json.loads(Path('/tmp/et-sc-bridge.json').read_text()); root=Path('data/urbis/remaining_brussels/cells')
+          def edge(a,b):
+              ae,an,ae2,an2=a; be,bn,be2,bn2=b
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+          prev=json.loads((root/selection['continuity']['seed']/'manifest.json').read_text())['bbox']; ids=[]
+          for cell in selection['cells']:
+              cid=cell['id']; ids.append(cid); m=json.loads((root/cid/'manifest.json').read_text())
+              assert m['crs']=='EPSG:31370' and edge(prev,m['bbox'])
+              g=json.loads((root/cid/m['runtime']['geometry_file']).read_text()); n=json.loads((root/cid/m['runtime']['network_file']).read_text())
+              assert g['stats']['buildings']>0 and g['stats']['street_surfaces']>0 and n['stats']['street_segments']>0
+              o=json.loads(Path(f'data/processed/remaining_brussels/references/etterbeek_schaerbeek_{cid}_orthophoto.json').read_text())
+              assert o['provider']=='Paradigm / UrbIS' and o['bbox']==m['bbox'] and o['download']['bytes']>1000
+              prev=m['bbox']
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text()); zones={z['zone_id']:z for z in coverage['zones']}
+          assert set(ids)<=set(zones['etterbeek']['materialized_cell_ids'])
+          assert ids[-1] in zones['schaerbeek']['materialized_cell_ids']
+          assert zones['etterbeek']['materialized_cells']>=5 and zones['schaerbeek']['materialized_cells']>=1
+          runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text()); assert set(ids)<={c['cell_id'] for c in runtime['cells']}
+          print('ETTERBEEK_SCHAERBEEK_BRIDGE_VALIDATED', zones['etterbeek']['coverage_percent'], zones['schaerbeek']['coverage_percent'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: etterbeek-schaerbeek-bridge-official-orthophotos
+          path: /tmp/et-sc-ortho/*.png
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Commit validated bridge
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: bridge Etterbeek to Schaerbeek with authoritative UrbIS cells'
+          git push origin HEAD:zone-reste-bruxelles-clean

@@ -1,0 +1,58 @@
+{
+  "format": "grand-bruxelles-urbis-built-cell-v1",
+  "cell_id": "bxl-e152000-n171000-s500",
+  "crs": "EPSG:31370",
+  "bbox": [
+    152000.0,
+    171000.0,
+    152500.0,
+    171500.0
+  ],
+  "layers": {
+    "buildings": {
+      "wfs_name": "urbisvector:Buildings",
+      "features": 407,
+      "feature_filter": null,
+      "file": "raw/buildings.geojson"
+    },
+    "street_surfaces": {
+      "wfs_name": "urbisvector:StreetSurfaces",
+      "features": 243,
+      "feature_filter": null,
+      "file": "raw/street_surfaces.geojson"
+    },
+    "street_axes": {
+      "wfs_name": "urbisvector:StreetAxes",
+      "features": 87,
+      "feature_filter": null,
+      "file": "raw/street_axes.geojson"
+    },
+    "tram_network": {
+      "wfs_name": "urbisvector:TramNetwork",
+      "features": 8,
+      "feature_filter": null,
+      "file": "raw/tram_network.geojson"
+    },
+    "train_network": {
+      "wfs_name": "urbisvector:TrainNetwork",
+      "features": 8,
+      "feature_filter": null,
+      "file": "raw/train_network.geojson"
+    }
+  },
+  "runtime": {
+    "geometry_file": "runtime/cell.game.json",
+    "geometry_stats": {
+      "buildings": 371,
+      "street_surfaces": 175
+    },
+    "geometry_format": "grand-bruxelles-urbis-cell-runtime-v1",
+    "network_file": "runtime/network.game.json",
+    "network_stats": {
+      "street_segments": 239,
+      "tram_segments": 8,
+      "train_segments": 0
+    },
+    "network_format": "grand-bruxelles-urbis-network-cell-runtime-v2"
+  }
+}

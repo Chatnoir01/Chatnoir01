@@ -1,0 +1,655 @@
+{
+  "format": "grand-bruxelles-zone-cells-v2",
+  "zone_id": "schaerbeek",
+  "crs": "EPSG:31370",
+  "boundary_source": "data/processed/remaining_brussels/boundaries/schaerbeek.geojson",
+  "source_bbox": [
+    149185.64872556,
+    170333.60061324,
+    153117.56426439,
+    174522.19353529
+  ],
+  "cell_size_m": 500.0,
+  "cell_id_scheme": "global Lambert72 minE/minN + cell size",
+  "envelope_cell_count": 90,
+  "cell_count": 49,
+  "cells": [
+    {
+      "id": "bxl-e151500-n170000-s500",
+      "zone_id": "schaerbeek",
+      "row": 0,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        170000.0,
+        152000.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n170000-s500 --bbox 151500.0,170000.0,152000.0,170500.0"
+    },
+    {
+      "id": "bxl-e152000-n170000-s500",
+      "zone_id": "schaerbeek",
+      "row": 0,
+      "col": 6,
+      "bbox": [
+        152000.0,
+        170000.0,
+        152500.0,
+        170500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152000-n170000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152000-n170000-s500 --bbox 152000.0,170000.0,152500.0,170500.0"
+    },
+    {
+      "id": "bxl-e151000-n170500-s500",
+      "zone_id": "schaerbeek",
+      "row": 1,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        170500.0,
+        151500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n170500-s500 --bbox 151000.0,170500.0,151500.0,171000.0"
+    },
+    {
+      "id": "bxl-e151500-n170500-s500",
+      "zone_id": "schaerbeek",
+      "row": 1,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        170500.0,
+        152000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n170500-s500 --bbox 151500.0,170500.0,152000.0,171000.0"
+    },
+    {
+      "id": "bxl-e152000-n170500-s500",
+      "zone_id": "schaerbeek",
+      "row": 1,
+      "col": 6,
+      "bbox": [
+        152000.0,
+        170500.0,
+        152500.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152000-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152000-n170500-s500 --bbox 152000.0,170500.0,152500.0,171000.0"
+    },
+    {
+      "id": "bxl-e152500-n170500-s500",
+      "zone_id": "schaerbeek",
+      "row": 1,
+      "col": 7,
+      "bbox": [
+        152500.0,
+        170500.0,
+        153000.0,
+        171000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152500-n170500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152500-n170500-s500 --bbox 152500.0,170500.0,153000.0,171000.0"
+    },
+    {
+      "id": "bxl-e150500-n171000-s500",
+      "zone_id": "schaerbeek",
+      "row": 2,
+      "col": 3,
+      "bbox": [
+        150500.0,
+        171000.0,
+        151000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150500-n171000-s500 --bbox 150500.0,171000.0,151000.0,171500.0"
+    },
+    {
+      "id": "bxl-e151000-n171000-s500",
+      "zone_id": "schaerbeek",
+      "row": 2,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        171000.0,
+        151500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n171000-s500 --bbox 151000.0,171000.0,151500.0,171500.0"
+    },
+    {
+      "id": "bxl-e151500-n171000-s500",
+      "zone_id": "schaerbeek",
+      "row": 2,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        171000.0,
+        152000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n171000-s500 --bbox 151500.0,171000.0,152000.0,171500.0"
+    },
+    {
+      "id": "bxl-e152000-n171000-s500",
+      "zone_id": "schaerbeek",
+      "row": 2,
+      "col": 6,
+      "bbox": [
+        152000.0,
+        171000.0,
+        152500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152000-n171000-s500 --bbox 152000.0,171000.0,152500.0,171500.0"
+    },
+    {
+      "id": "bxl-e152500-n171000-s500",
+      "zone_id": "schaerbeek",
+      "row": 2,
+      "col": 7,
+      "bbox": [
+        152500.0,
+        171000.0,
+        153000.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152500-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152500-n171000-s500 --bbox 152500.0,171000.0,153000.0,171500.0"
+    },
+    {
+      "id": "bxl-e153000-n171000-s500",
+      "zone_id": "schaerbeek",
+      "row": 2,
+      "col": 8,
+      "bbox": [
+        153000.0,
+        171000.0,
+        153500.0,
+        171500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e153000-n171000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e153000-n171000-s500 --bbox 153000.0,171000.0,153500.0,171500.0"
+    },
+    {
+      "id": "bxl-e149500-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 1,
+      "bbox": [
+        149500.0,
+        171500.0,
+        150000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149500-n171500-s500 --bbox 149500.0,171500.0,150000.0,172000.0"
+    },
+    {
+      "id": "bxl-e150000-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 2,
+      "bbox": [
+        150000.0,
+        171500.0,
+        150500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150000-n171500-s500 --bbox 150000.0,171500.0,150500.0,172000.0"
+    },
+    {
+      "id": "bxl-e150500-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 3,
+      "bbox": [
+        150500.0,
+        171500.0,
+        151000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150500-n171500-s500 --bbox 150500.0,171500.0,151000.0,172000.0"
+    },
+    {
+      "id": "bxl-e151000-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        171500.0,
+        151500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n171500-s500 --bbox 151000.0,171500.0,151500.0,172000.0"
+    },
+    {
+      "id": "bxl-e151500-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        171500.0,
+        152000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n171500-s500 --bbox 151500.0,171500.0,152000.0,172000.0"
+    },
+    {
+      "id": "bxl-e152000-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 6,
+      "bbox": [
+        152000.0,
+        171500.0,
+        152500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152000-n171500-s500 --bbox 152000.0,171500.0,152500.0,172000.0"
+    },
+    {
+      "id": "bxl-e152500-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 7,
+      "bbox": [
+        152500.0,
+        171500.0,
+        153000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152500-n171500-s500 --bbox 152500.0,171500.0,153000.0,172000.0"
+    },
+    {
+      "id": "bxl-e153000-n171500-s500",
+      "zone_id": "schaerbeek",
+      "row": 3,
+      "col": 8,
+      "bbox": [
+        153000.0,
+        171500.0,
+        153500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e153000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e153000-n171500-s500 --bbox 153000.0,171500.0,153500.0,172000.0"
+    },
+    {
+      "id": "bxl-e149000-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 0,
+      "bbox": [
+        149000.0,
+        172000.0,
+        149500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149000-n172000-s500 --bbox 149000.0,172000.0,149500.0,172500.0"
+    },
+    {
+      "id": "bxl-e149500-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 1,
+      "bbox": [
+        149500.0,
+        172000.0,
+        150000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149500-n172000-s500 --bbox 149500.0,172000.0,150000.0,172500.0"
+    },
+    {
+      "id": "bxl-e150000-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 2,
+      "bbox": [
+        150000.0,
+        172000.0,
+        150500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150000-n172000-s500 --bbox 150000.0,172000.0,150500.0,172500.0"
+    },
+    {
+      "id": "bxl-e150500-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 3,
+      "bbox": [
+        150500.0,
+        172000.0,
+        151000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150500-n172000-s500 --bbox 150500.0,172000.0,151000.0,172500.0"
+    },
+    {
+      "id": "bxl-e151000-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        172000.0,
+        151500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n172000-s500 --bbox 151000.0,172000.0,151500.0,172500.0"
+    },
+    {
+      "id": "bxl-e151500-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        172000.0,
+        152000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n172000-s500 --bbox 151500.0,172000.0,152000.0,172500.0"
+    },
+    {
+      "id": "bxl-e152000-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 6,
+      "bbox": [
+        152000.0,
+        172000.0,
+        152500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152000-n172000-s500 --bbox 152000.0,172000.0,152500.0,172500.0"
+    },
+    {
+      "id": "bxl-e152500-n172000-s500",
+      "zone_id": "schaerbeek",
+      "row": 4,
+      "col": 7,
+      "bbox": [
+        152500.0,
+        172000.0,
+        153000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152500-n172000-s500 --bbox 152500.0,172000.0,153000.0,172500.0"
+    },
+    {
+      "id": "bxl-e149000-n172500-s500",
+      "zone_id": "schaerbeek",
+      "row": 5,
+      "col": 0,
+      "bbox": [
+        149000.0,
+        172500.0,
+        149500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149000-n172500-s500 --bbox 149000.0,172500.0,149500.0,173000.0"
+    },
+    {
+      "id": "bxl-e149500-n172500-s500",
+      "zone_id": "schaerbeek",
+      "row": 5,
+      "col": 1,
+      "bbox": [
+        149500.0,
+        172500.0,
+        150000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149500-n172500-s500 --bbox 149500.0,172500.0,150000.0,173000.0"
+    },
+    {
+      "id": "bxl-e150000-n172500-s500",
+      "zone_id": "schaerbeek",
+      "row": 5,
+      "col": 2,
+      "bbox": [
+        150000.0,
+        172500.0,
+        150500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150000-n172500-s500 --bbox 150000.0,172500.0,150500.0,173000.0"
+    },
+    {
+      "id": "bxl-e150500-n172500-s500",
+      "zone_id": "schaerbeek",
+      "row": 5,
+      "col": 3,
+      "bbox": [
+        150500.0,
+        172500.0,
+        151000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150500-n172500-s500 --bbox 150500.0,172500.0,151000.0,173000.0"
+    },
+    {
+      "id": "bxl-e151000-n172500-s500",
+      "zone_id": "schaerbeek",
+      "row": 5,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        172500.0,
+        151500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n172500-s500 --bbox 151000.0,172500.0,151500.0,173000.0"
+    },
+    {
+      "id": "bxl-e151500-n172500-s500",
+      "zone_id": "schaerbeek",
+      "row": 5,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        172500.0,
+        152000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n172500-s500 --bbox 151500.0,172500.0,152000.0,173000.0"
+    },
+    {
+      "id": "bxl-e152000-n172500-s500",
+      "zone_id": "schaerbeek",
+      "row": 5,
+      "col": 6,
+      "bbox": [
+        152000.0,
+        172500.0,
+        152500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e152000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e152000-n172500-s500 --bbox 152000.0,172500.0,152500.0,173000.0"
+    },
+    {
+      "id": "bxl-e149000-n173000-s500",
+      "zone_id": "schaerbeek",
+      "row": 6,
+      "col": 0,
+      "bbox": [
+        149000.0,
+        173000.0,
+        149500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149000-n173000-s500 --bbox 149000.0,173000.0,149500.0,173500.0"
+    },
+    {
+      "id": "bxl-e149500-n173000-s500",
+      "zone_id": "schaerbeek",
+      "row": 6,
+      "col": 1,
+      "bbox": [
+        149500.0,
+        173000.0,
+        150000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e149500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e149500-n173000-s500 --bbox 149500.0,173000.0,150000.0,173500.0"
+    },
+    {
+      "id": "bxl-e150000-n173000-s500",
+      "zone_id": "schaerbeek",
+      "row": 6,
+      "col": 2,
+      "bbox": [
+        150000.0,
+        173000.0,
+        150500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150000-n173000-s500 --bbox 150000.0,173000.0,150500.0,173500.0"
+    },
+    {
+      "id": "bxl-e150500-n173000-s500",
+      "zone_id": "schaerbeek",
+      "row": 6,
+      "col": 3,
+      "bbox": [
+        150500.0,
+        173000.0,
+        151000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150500-n173000-s500 --bbox 150500.0,173000.0,151000.0,173500.0"
+    },
+    {
+      "id": "bxl-e151000-n173000-s500",
+      "zone_id": "schaerbeek",
+      "row": 6,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        173000.0,
+        151500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n173000-s500 --bbox 151000.0,173000.0,151500.0,173500.0"
+    },
+    {
+      "id": "bxl-e151500-n173000-s500",
+      "zone_id": "schaerbeek",
+      "row": 6,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        173000.0,
+        152000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n173000-s500 --bbox 151500.0,173000.0,152000.0,173500.0"
+    },
+    {
+      "id": "bxl-e150000-n173500-s500",
+      "zone_id": "schaerbeek",
+      "row": 7,
+      "col": 2,
+      "bbox": [
+        150000.0,
+        173500.0,
+        150500.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150000-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150000-n173500-s500 --bbox 150000.0,173500.0,150500.0,174000.0"
+    },
+    {
+      "id": "bxl-e150500-n173500-s500",
+      "zone_id": "schaerbeek",
+      "row": 7,
+      "col": 3,
+      "bbox": [
+        150500.0,
+        173500.0,
+        151000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150500-n173500-s500 --bbox 150500.0,173500.0,151000.0,174000.0"
+    },
+    {
+      "id": "bxl-e151000-n173500-s500",
+      "zone_id": "schaerbeek",
+      "row": 7,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        173500.0,
+        151500.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n173500-s500 --bbox 151000.0,173500.0,151500.0,174000.0"
+    },
+    {
+      "id": "bxl-e151500-n173500-s500",
+      "zone_id": "schaerbeek",
+      "row": 7,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        173500.0,
+        152000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n173500-s500 --bbox 151500.0,173500.0,152000.0,174000.0"
+    },
+    {
+      "id": "bxl-e150500-n174000-s500",
+      "zone_id": "schaerbeek",
+      "row": 8,
+      "col": 3,
+      "bbox": [
+        150500.0,
+        174000.0,
+        151000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e150500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e150500-n174000-s500 --bbox 150500.0,174000.0,151000.0,174500.0"
+    },
+    {
+      "id": "bxl-e151000-n174000-s500",
+      "zone_id": "schaerbeek",
+      "row": 8,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        174000.0,
+        151500.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n174000-s500 --bbox 151000.0,174000.0,151500.0,174500.0"
+    },
+    {
+      "id": "bxl-e151500-n174000-s500",
+      "zone_id": "schaerbeek",
+      "row": 8,
+      "col": 5,
+      "bbox": [
+        151500.0,
+        174000.0,
+        152000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151500-n174000-s500 --bbox 151500.0,174000.0,152000.0,174500.0"
+    },
+    {
+      "id": "bxl-e151000-n174500-s500",
+      "zone_id": "schaerbeek",
+      "row": 9,
+      "col": 4,
+      "bbox": [
+        151000.0,
+        174500.0,
+        151500.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e151000-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e151000-n174500-s500 --bbox 151000.0,174500.0,151500.0,175000.0"
+    }
+  ]
+}

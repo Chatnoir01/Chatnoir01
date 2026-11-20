@@ -1,0 +1,156 @@
+name: Materialize next edge-contiguous Ixelles cell
+
+on:
+  push:
+    branches: [zone-reste-bruxelles-clean]
+    paths:
+      - '.github/workflows/remaining-brussels-ixelles-edge-cell-2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-ixelles-contiguous-cell
+  cancel-in-progress: false
+
+jobs:
+  expand:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate mapping pipeline before data writes
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_make_zone_cells \
+            tests.test_select_zone_seed_cell \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+
+      - name: Refresh official Ixelles grid and select candidate
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/bootstrap_remaining_brussels.py --zone ixelles --output-root data/processed/remaining_brussels
+          python tools/select_zone_seed_cell.py \
+            --manifest data/processed/remaining_brussels/cells/ixelles.json \
+            --anchor-e 149750 --anchor-n 169250 \
+            --exclude-existing-root data/urbis/remaining_brussels/cells \
+            --output /tmp/ixelles-next.json
+
+      - name: Require edge-sharing continuity and EPSG 31370 cell geometry
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          selection=json.loads(Path('/tmp/ixelles-next.json').read_text())
+          assert selection['cell_count']==1, selection
+          c=selection['cells'][0]
+          e,n,e2,n2=c['bbox']
+          assert e2-e==500 and n2-n==500, c
+
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          zone=next(z for z in coverage['zones'] if z['zone_id']=='ixelles')
+          root=Path('data/urbis/remaining_brussels/cells')
+          neighbours=[]
+          for cid in zone['materialized_cell_ids']:
+              m=json.loads((root/cid/'manifest.json').read_text())
+              pe,pn,pe2,pn2=m['bbox']
+              horizontal=(e==pe2 or e2==pe) and max(n,pn)<min(n2,pn2)
+              vertical=(n==pn2 or n2==pn) and max(e,pe)<min(e2,pe2)
+              if horizontal or vertical:
+                  neighbours.append(cid)
+          assert neighbours, (c['id'], c['bbox'], zone['materialized_cell_ids'])
+          assert c['id'] not in set(zone['materialized_cell_ids'])
+          Path('/tmp/cell-id').write_text(c['id'])
+          Path('/tmp/neighbours').write_text('\n'.join(neighbours))
+          print('IXELLES_EDGE_CANDIDATE', c['id'], c['bbox'], neighbours)
+          PY
+
+      - name: Materialize authoritative UrbIS geometry and runtime data
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py --manifest /tmp/ixelles-next.json \
+            --output-root data/urbis/remaining_brussels/cells --force
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official orthophoto and validate source-backed runtime
+        working-directory: grand-bruxelles-game
+        run: |
+          CELL=$(cat /tmp/cell-id)
+          BBOX=$(python - <<'PY'
+          import json
+          s=json.load(open('/tmp/ixelles-next.json'))
+          print(','.join(str(v) for v in s['cells'][0]['bbox']))
+          PY
+          )
+          mkdir -p data/processed/remaining_brussels/references /tmp/ixelles-edge-ortho
+          python tools/capture_urbis_orthophoto.py --bbox "$BBOX" --width 1024 --height 1024 \
+            --output /tmp/ixelles-edge-ortho/${CELL}.png \
+            --metadata data/processed/remaining_brussels/references/ixelles_${CELL}_orthophoto.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          s=json.loads(Path('/tmp/ixelles-next.json').read_text()); c=s['cells'][0]; cid=c['id']
+          root=Path('data/urbis/remaining_brussels/cells')
+          m=json.loads((root/cid/'manifest.json').read_text())
+          g=json.loads((root/cid/m['runtime']['geometry_file']).read_text())
+          network=json.loads((root/cid/m['runtime']['network_file']).read_text())
+          index=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          ortho=json.loads(Path(f'data/processed/remaining_brussels/references/ixelles_{cid}_orthophoto.json').read_text())
+          zone=next(z for z in coverage['zones'] if z['zone_id']=='ixelles')
+          assert m['crs']=='EPSG:31370'
+          assert g['stats']['buildings']>0
+          assert g['stats']['street_surfaces']>0
+          assert network['stats']['street_segments']>0
+          assert cid in {x['cell_id'] for x in index['cells']}
+          assert cid in zone['materialized_cell_ids'] and zone['materialized_cells']>=4
+          assert ortho['bbox']==c['bbox']
+          assert ortho['provider']=='Paradigm / UrbIS'
+          assert ortho['download']['bytes']>1000
+          assert Path('/tmp/neighbours').read_text().strip()
+          print('IXELLES_EDGE_CELL_VALIDATED', cid, g['stats'], network['stats'], zone['coverage_percent'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-edge-cell-2-official-orthophoto
+          path: /tmp/ixelles-edge-ortho/*.png
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Commit only validated mapping data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          git diff --cached --name-only
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: add next edge-contiguous Ixelles UrbIS cell'
+          git reset --hard HEAD
+          git clean -fd
+          git push origin HEAD:zone-reste-bruxelles-clean

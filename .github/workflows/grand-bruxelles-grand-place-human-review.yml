@@ -1,0 +1,38 @@
+name: Grand Bruxelles Grand-Place Human Review Provenance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-human-review.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"
+      - "grand-bruxelles-game/tools/qa/validate_grand_place_human_review.py"
+      - "grand-bruxelles-game/tests/test_grand_place_human_review_provenance.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-human-review.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"
+      - "grand-bruxelles-game/tools/qa/validate_grand_place_human_review.py"
+      - "grand-bruxelles-game/tests/test_grand_place_human_review_provenance.py"
+
+permissions:
+  contents: read
+
+jobs:
+  human-review-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install isolated test dependency
+        run: python -m pip install --disable-pip-version-check --no-cache-dir pytest
+      - name: Run fail-closed human-review provenance regressions
+        run: python -m pytest -q tests/test_grand_place_human_review_provenance.py
+      - name: Validate persisted full-frame review receipt
+        run: python tools/qa/validate_grand_place_human_review.py data/qa/grand_place_facade_visual_gate.json

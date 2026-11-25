@@ -1,0 +1,205 @@
+name: Grand Bruxelles CIV-1 Y Z Interaction A-B
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd"
+      - "grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd"
+      - "grand-bruxelles-game/tools/build_civ1_right_foot_grounded_candidate.py"
+      - "grand-bruxelles-game/tools/build_civ1_upperleg_lowerleg_z_candidate.py"
+      - "grand-bruxelles-game/tests/test_civ1_y_z_interaction_ab_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-y-z-interaction-ab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interaction-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_y_z_interaction_ab_contract.py
+
+      - name: Fetch exact pinned sources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1yz/source /tmp/civ1yz/quaternius /tmp/civ1yz/evidence
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb \
+            --output /tmp/civ1yz/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1yz/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py \
+            /tmp/civ1yz/source/vitruvian_body.glb /tmp/civ1yz/source/civ1_body.glb --require-animations \
+            | tee /tmp/civ1yz/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1yz/source/civ1_body.glb' | sha256sum -c -
+          curl --fail --location --retry 3 \
+            https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip \
+            --output /tmp/civ1yz/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1yz/quaternius.zip' | sha256sum -c -
+          unzip -q /tmp/civ1yz/quaternius.zip -d /tmp/civ1yz/quaternius
+          LICENSE_FILE="$(find /tmp/civ1yz/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1yz/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip \
+            --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1yz/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1yz/engine
+          GODOT_BIN=/tmp/civ1yz/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1yz/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1yz/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Build isolated Y, Z, and Y+Z candidates
+        run: |
+          set -euo pipefail
+          BASE=grand-bruxelles-game/tools/godot_civ1_right_foot_reference_ab_probe.gd
+          python3 grand-bruxelles-game/tools/build_civ1_right_foot_grounded_candidate.py \
+            "$BASE" /tmp/civ1yz/y-only.gd | tee /tmp/civ1yz/evidence/y-build.log
+          python3 grand-bruxelles-game/tools/build_civ1_upperleg_lowerleg_z_candidate.py \
+            "$BASE" /tmp/civ1yz/z-only.gd | tee /tmp/civ1yz/evidence/z-build.log
+          python3 grand-bruxelles-game/tools/build_civ1_upperleg_lowerleg_z_candidate.py \
+            /tmp/civ1yz/y-only.gd /tmp/civ1yz/y-plus-z.gd | tee /tmp/civ1yz/evidence/yz-build.log
+          grep -Fq 'alpha=0.75' /tmp/civ1yz/evidence/y-build.log
+          grep -Fq 'input_format="grand-bruxelles-civ1-right-foot-reference-ab-v2"' /tmp/civ1yz/evidence/z-build.log
+          grep -Fq 'input_format="grand-bruxelles-civ1-right-foot-reference-ab-v4"' /tmp/civ1yz/evidence/yz-build.log
+
+      - name: Import once and capture four arms
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1yz/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1yz/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1YZInteraction"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1yz/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_native_retarget_probe.gd "$PROJECT_ROOT/native.gd"
+          cp /tmp/civ1yz/y-only.gd "$PROJECT_ROOT/y-only.gd"
+          cp /tmp/civ1yz/z-only.gd "$PROJECT_ROOT/z-only.gd"
+          cp /tmp/civ1yz/y-plus-z.gd "$PROJECT_ROOT/y-plus-z.gd"
+          timeout 300 "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1yz/evidence/import.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://native.gd -- /tmp/civ1yz/evidence/baseline-native.json 2>&1 | tee /tmp/civ1yz/evidence/native.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://y-only.gd -- /tmp/civ1yz/evidence/y-only.json 2>&1 | tee /tmp/civ1yz/evidence/y.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://z-only.gd -- /tmp/civ1yz/evidence/z-only.json 2>&1 | tee /tmp/civ1yz/evidence/z.log
+          timeout 120 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://y-plus-z.gd -- /tmp/civ1yz/evidence/y-plus-z.json 2>&1 | tee /tmp/civ1yz/evidence/yz.log
+          grep -Fq 'CIV1_NATIVE_RETARGET_OK' /tmp/civ1yz/evidence/native.log
+          grep -Fq 'CIV1_RIGHT_FOOT_REFERENCE_AB_OK' /tmp/civ1yz/evidence/y.log
+          grep -Fq 'CIV1_RIGHT_FOOT_REFERENCE_AB_OK' /tmp/civ1yz/evidence/z.log
+          grep -Fq 'CIV1_RIGHT_FOOT_REFERENCE_AB_OK' /tmp/civ1yz/evidence/yz.log
+
+      - name: Attribute Y/Z interaction under frozen support contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1yz/evidence/classification.log
+          import json
+          from pathlib import Path
+
+          root=Path('/tmp/civ1yz/evidence')
+          native=json.loads((root/'baseline-native.json').read_text())
+          arms={name:json.loads((root/f'{name}.json').read_text()) for name in ('y-only','z-only','y-plus-z')}
+          assert native['format']=='grand-bruxelles-civ1-native-retarget-v3'
+          assert native['source_animation']=='UAL1_Standard/Sprint'
+          for name,p in arms.items():
+              v=p['godot_version']
+              assert (v['major'],v['minor'],v['patch'],v['status'])==(4,7,1,'stable')
+              assert p['sample_count']==121
+              assert p['support_band_fraction']==0.10
+              assert p['source_animation']=='UAL1_Standard/Sprint'
+              assert p['target_right_foot_length_preserved'] is True
+              if name in ('z-only','y-plus-z'):
+                  assert p['upperleg_lowerleg_z_candidate_applied'] is True
+                  assert p['upperleg_lowerleg_z_lengths_preserved'] is True
+                  assert p['upperleg_lowerleg_rest_axis']=='z'
+              if name in ('y-only','y-plus-z'):
+                  assert abs(float(p['target_right_foot_y_blend_alpha'])-0.75)<1e-9
+
+          source=arms['y-only']['source_right_support_candidate']
+          source_plane=float(source['low_height_threshold_y'])
+          source_windows=source['low_height_windows']
+          def metrics(p):
+              r=p['target_right_support_candidate']
+              return {
+                  'plane_y':float(r['low_height_threshold_y']),
+                  'plane_error_m':abs(float(r['low_height_threshold_y'])-source_plane),
+                  'median_mps':float(r['median_horizontal_speed_mps']),
+                  'p90_mps':float(r['p90_horizontal_speed_mps']),
+                  'windows':r['low_height_windows'],
+                  'window_count':len(r['low_height_windows']),
+              }
+          def overlaps(a,b):
+              return int(a['start_index']) <= int(b['end_index']) and int(b['start_index']) <= int(a['end_index'])
+          m={'native':metrics(native)}
+          m.update({name:metrics(p) for name,p in arms.items()})
+          native_windows=m['native']['windows']
+          window_attribution={}
+          for name,arm in m.items():
+              inherited=[w for w in arm['windows'] if any(overlaps(w,nw) for nw in native_windows)]
+              source_like=[w for w in arm['windows'] if any(overlaps(w,sw) for sw in source_windows)]
+              novel=[w for w in arm['windows'] if not any(overlaps(w,nw) for nw in native_windows) and not any(overlaps(w,sw) for sw in source_windows)]
+              window_attribution[name]={
+                  'native_inherited_windows':inherited,
+                  'source_like_windows':source_like,
+                  'novel_windows':novel,
+                  'native_false_window_inherited':bool(inherited),
+              }
+          candidate_names=('y-only','z-only','y-plus-z')
+          inherited_by_all=all(window_attribution[name]['native_false_window_inherited'] for name in candidate_names)
+          best=min(m, key=lambda k:(m[k]['plane_error_m'],m[k]['window_count'],m[k]['median_mps'],m[k]['p90_mps']))
+          z_increment_on_y=m['y-plus-z']['plane_error_m']-m['y-only']['plane_error_m']
+          z_increment_alone=m['z-only']['plane_error_m']-m['native']['plane_error_m']
+          interaction=z_increment_on_y-z_increment_alone
+          if m['z-only']['plane_error_m'] > m['native']['plane_error_m'] and m['y-plus-z']['plane_error_m'] > m['y-only']['plane_error_m']:
+              verdict='z_global_grounding_regression'
+          elif interaction > 0.001:
+              verdict='positive_y_z_interaction_regression'
+          elif m['z-only']['plane_error_m'] <= m['native']['plane_error_m']:
+              verdict='z_isolated_nonregressive'
+          else:
+              verdict='mixed_needs_followup'
+          result={
+              'format':'grand-bruxelles-civ1-y-z-interaction-ab-v2',
+              'sample_count':121,
+              'support_band_fraction':0.10,
+              'source_animation':'UAL1_Standard/Sprint',
+              'source_plane_y':source_plane,
+              'source_windows':source_windows,
+              'arms':m,
+              'window_attribution':window_attribution,
+              'native_false_window_inherited_by_all_candidates':inherited_by_all,
+              'best_arm_by_frozen_metrics':best,
+              'z_increment_on_y_plane_error_m':z_increment_on_y,
+              'z_increment_alone_plane_error_m':z_increment_alone,
+              'interaction_plane_error_m':interaction,
+              'verdict':verdict,
+              'diagnostic_only':True,
+              'runtime_authorized':False,
+              'visual_approval_claimed':False,
+          }
+          assert inherited_by_all, 'expected all Y/Z candidates to retain the native false support window'
+          (root/'interaction-classification.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+
+      - name: Upload interaction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-y-z-interaction-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1yz/evidence/
+          if-no-files-found: error
+          retention-days: 14

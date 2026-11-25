@@ -1,0 +1,171 @@
+name: Grand Bruxelles CIV-1 RightLowerLeg Residual Attribution
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd"
+      - "grand-bruxelles-game/tests/test_civ1_right_lower_leg_residual_attribution_contract.py"
+      - ".github/workflows/grand-bruxelles-civ1-right-lower-leg-residual-attribution.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  right-lower-leg-residual-attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Contract regression
+        run: python3 grand-bruxelles-game/tests/test_civ1_right_lower_leg_residual_attribution_contract.py
+
+      - name: Fetch and sanitize exact CIV-1 body source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/civ1residual/source /tmp/civ1residual/evidence
+          BODY_URL='https://raw.githubusercontent.com/ibrews/VitruvianGodot/bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_body.glb'
+          curl --fail --location --retry 3 "$BODY_URL" --output /tmp/civ1residual/source/vitruvian_body.glb
+          test "$(stat -c '%s' /tmp/civ1residual/source/vitruvian_body.glb)" = "6879364"
+          python3 grand-bruxelles-game/tools/strip_glb_animations.py /tmp/civ1residual/source/vitruvian_body.glb /tmp/civ1residual/source/civ1_body.glb --require-animations | tee /tmp/civ1residual/evidence/sanitize.log
+          echo '8601f55e7c54b104b5c67de27faa1415e060e16c6b22a32b1cc24e525fa88888  /tmp/civ1residual/source/civ1_body.glb' | sha256sum -c -
+
+      - name: Fetch exact CC0 Quaternius source archive
+        run: |
+          set -euo pipefail
+          URL='https://codeberg.org/jamesonBradfield/Quaternius_IK_Rigged_with_animations/archive/5c4dae72e49ad4e5959571e00a25d3d872cacba5.zip'
+          curl --fail --location --retry 3 "$URL" --output /tmp/civ1residual/quaternius.zip
+          echo 'f868b316facd04d7686784b254f6f1bbcd7e14bc06f3ec70f92a3144dc462767  /tmp/civ1residual/quaternius.zip' | sha256sum -c -
+          mkdir -p /tmp/civ1residual/quaternius
+          unzip -q /tmp/civ1residual/quaternius.zip -d /tmp/civ1residual/quaternius
+          LICENSE_FILE="$(find /tmp/civ1residual/quaternius -iname 'LICENSE*' -type f -print -quit)"
+          test -n "$LICENSE_FILE"
+          grep -Eqi 'cc0|creative commons zero' "$LICENSE_FILE"
+
+      - name: Install exact official Godot 4.7.1
+        run: |
+          set -euo pipefail
+          GODOT_ZIP=/tmp/civ1residual/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl --fail --location --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip --output "$GODOT_ZIP"
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/civ1residual/Godot_v4.7.1-stable_linux.x86_64.zip' | sha256sum -c -
+          unzip -q "$GODOT_ZIP" -d /tmp/civ1residual/engine
+          GODOT_BIN=/tmp/civ1residual/engine/Godot_v4.7.1-stable_linux.x86_64
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/civ1residual/evidence/godot-version.log
+          grep -Eq '^4\.7\.1\.stable\.official\.' /tmp/civ1residual/evidence/godot-version.log
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import exact rigs and capture 121-sample global chain
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="$(find /tmp/civ1residual/quaternius -name project.godot -type f -print -quit)"
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJECT_ROOT="$(dirname "$PROJECT_FILE")"
+          else
+            PROJECT_ROOT="$(find /tmp/civ1residual/quaternius -mindepth 1 -maxdepth 1 -type d -print -quit)"
+            test -n "$PROJECT_ROOT"
+            printf '[application]\nconfig/name="CIV1RightLowerLegResidual"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\nrenderer/rendering_method.mobile="gl_compatibility"\n' > "$PROJECT_ROOT/project.godot"
+          fi
+          cp /tmp/civ1residual/source/civ1_body.glb "$PROJECT_ROOT/civ1_body.glb"
+          cp grand-bruxelles-game/tools/godot_civ1_global_chain_diagnostic.gd "$PROJECT_ROOT/gb_civ1_global_chain_diagnostic.gd"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_ROOT" --quit 2>&1 | tee /tmp/civ1residual/evidence/import.log
+          "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --script res://gb_civ1_global_chain_diagnostic.gd -- /tmp/civ1residual/evidence/global-chain.json 2>&1 | tee /tmp/civ1residual/evidence/probe.log
+          grep -Fq 'CIV1_GLOBAL_CHAIN_DIAGNOSTIC_OK' /tmp/civ1residual/evidence/probe.log
+
+      - name: Attribute residual RightLowerLeg parent term
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/civ1residual/evidence/classification.log
+          import json, math
+          from pathlib import Path
+
+          RESIDUAL_INDICES = [84, 85, 86, 87, 88]
+          p=json.loads(Path('/tmp/civ1residual/evidence/global-chain.json').read_text())
+          assert p['format']=='grand-bruxelles-civ1-global-chain-diagnostic-v3'
+          assert p['sample_count']==121
+          assert p['retarget_modifier']=='RetargetModifier3D'
+          assert p['use_global_pose'] is False
+          assert p['position_enabled'] is False and p['rotation_enabled'] is True and p['scale_enabled'] is False
+          samples=p['model_space_samples']
+          assert len(samples)==121
+
+          def hips_y(sample, bone, side):
+              record=sample['bones'][bone][side]
+              key='source_hips_relative_origin' if side=='source' else 'target_hips_relative_origin'
+              value=record[key]
+              assert len(value)==3 and all(math.isfinite(float(x)) for x in value)
+              return float(value[1])
+
+          actual=[]
+          parent_cf=[]
+          relative_cf=[]
+          upper_offsets=[]
+          per_sample=[]
+          for i in RESIDUAL_INDICES:
+              s=samples[i]
+              source_upper=hips_y(s,'RightUpperLeg','source')
+              target_upper=hips_y(s,'RightUpperLeg','target')
+              source_lower=hips_y(s,'RightLowerLeg','source')
+              target_lower=hips_y(s,'RightLowerLeg','target')
+              right_upper_leg_parent_counterfactual=source_upper + (target_lower-target_upper)
+              right_lower_leg_relative_counterfactual=target_upper + (source_lower-source_upper)
+              actual_error=abs(target_lower-source_lower)
+              parent_error=abs(right_upper_leg_parent_counterfactual-source_lower)
+              relative_error=abs(right_lower_leg_relative_counterfactual-source_lower)
+              actual.append(actual_error)
+              parent_cf.append(parent_error)
+              relative_cf.append(relative_error)
+              upper_offsets.append(target_upper-source_upper)
+              per_sample.append({
+                  'sample_index':i,
+                  'actual_lower_leg_source_y_error_m':actual_error,
+                  'right_upper_leg_parent_counterfactual':{'source_y_error_m':parent_error},
+                  'right_lower_leg_relative_counterfactual':{'source_y_error_m':relative_error},
+                  'right_upper_leg_hips_relative_offset_m':target_upper-source_upper,
+              })
+
+          mae=lambda xs: sum(xs)/len(xs)
+          actual_mae=mae(actual)
+          parent_mae=mae(parent_cf)
+          relative_mae=mae(relative_cf)
+          offset_span=max(upper_offsets)-min(upper_offsets)
+          offset_mae=mae([abs(v) for v in upper_offsets])
+          classification='right_upper_leg_trajectory_dominant' if parent_mae < actual_mae and parent_mae < relative_mae else 'mixed_or_lower_relative_dominant'
+          assert classification=='right_upper_leg_trajectory_dominant', (actual_mae,parent_mae,relative_mae)
+          assert parent_mae < actual_mae * 0.20, (actual_mae,parent_mae)
+          assert relative_mae > actual_mae * 0.75, (actual_mae,relative_mae)
+          assert offset_mae > 0.05, offset_mae
+          assert offset_span < 0.001, offset_span
+
+          result={
+              'format':'grand-bruxelles-civ1-right-lower-leg-residual-attribution-v1',
+              'sample_count':121,
+              'residual_indices':RESIDUAL_INDICES,
+              'classification':classification,
+              'actual_lower_leg_source_y_mae_m':actual_mae,
+              'right_upper_leg_parent_counterfactual':{'source_y_mae_m':parent_mae},
+              'right_lower_leg_relative_counterfactual':{'source_y_mae_m':relative_mae},
+              'right_upper_leg_offset_mae_m':offset_mae,
+              'right_upper_leg_offset_span_m':offset_span,
+              'threshold_was_modified':False,
+              'diagnostic_only':True,
+              'world_ground_assumed':False,
+              'runtime_authorized':False,
+              'visual_approval_claimed':False,
+              'per_sample':per_sample,
+          }
+          Path('/tmp/civ1residual/evidence/right-lower-leg-residual-attribution.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+
+      - name: Upload residual attribution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-right-lower-leg-residual-attribution-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/civ1residual/evidence/
+          if-no-files-found: error
+          retention-days: 14

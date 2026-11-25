@@ -1,0 +1,71 @@
+name: Grand Bruxelles Road Generator Pilot
+
+on:
+  push:
+    branches:
+      - "tooling/road-generator-pilot-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-road-generator-pilot.yml"
+      - "grand-bruxelles-game/data/qa/road_generator_pilot_contract.json"
+      - "grand-bruxelles-game/data/qa/road_generator_osm_adapter_contract.json"
+      - "grand-bruxelles-game/tools/qa/run_road_generator_pilot.sh"
+      - "grand-bruxelles-game/tools/qa/run_road_generator_osm_adapter_pilot.sh"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-road-generator-pilot.yml"
+      - "grand-bruxelles-game/data/qa/road_generator_pilot_contract.json"
+      - "grand-bruxelles-game/data/qa/road_generator_osm_adapter_contract.json"
+      - "grand-bruxelles-game/tools/qa/run_road_generator_pilot.sh"
+      - "grand-bruxelles-game/tools/qa/run_road_generator_osm_adapter_pilot.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: road-generator-pilot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-lane-smoke:
+    name: Godot 4.7.1 RoadLane isolated smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Run isolated Road Generator pilot
+        shell: bash
+        run: bash grand-bruxelles-game/tools/qa/run_road_generator_pilot.sh
+
+      - name: Upload pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-generator-pilot-evidence
+          path: ${{ runner.temp }}/grand-bruxelles-road-generator-pilot/evidence
+          if-no-files-found: warn
+          retention-days: 7
+
+  osm-source-adapter:
+    name: Godot 4.7.1 source-backed OSM RoadLane adapter
+    needs: isolated-lane-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Run source-backed OSM RoadLane adapter pilot
+        shell: bash
+        run: bash grand-bruxelles-game/tools/qa/run_road_generator_osm_adapter_pilot.sh
+
+      - name: Upload adapter evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-generator-osm-adapter-evidence
+          path: ${{ runner.temp }}/grand-bruxelles-road-generator-osm-adapter-pilot/evidence
+          if-no-files-found: warn
+          retention-days: 7

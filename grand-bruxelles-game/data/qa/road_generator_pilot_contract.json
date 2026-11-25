@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "base_main_sha": "292ce27314dae6362a0b3845b4adde4dac0ff468",
+  "purpose": "Evaluate Godot Road Generator as a development candidate for AI lane/intersection tooling without replacing Grand Bruxelles OSM/UrbIS road geometry or the existing traffic runtime.",
+  "upstream": {
+    "repository": "https://github.com/TheDuckCow/godot-road-generator.git",
+    "tag": "0.9.3",
+    "commit": "980bc04c9f95a5c49b787f0a7a64a458156d5b9b",
+    "license": "MIT",
+    "addon_source_path": "addons/road-generator"
+  },
+  "engine": {
+    "version": "4.7.1-stable",
+    "renderer": "gl_compatibility",
+    "project_name": "Grand Bruxelles Game"
+  },
+  "policy": {
+    "canonical_addon_install_authorized": false,
+    "runtime_authorized": false,
+    "export_authorized": false,
+    "replace_osm_urbis_geometry_authorized": false,
+    "replace_existing_traffic_manager_authorized": false,
+    "ci_temp_copy_only": true
+  },
+  "required_global_classes": [
+    "RoadManager",
+    "RoadContainer",
+    "RoadPoint",
+    "RoadLane",
+    "RoadLaneAgent"
+  ],
+  "required_road_lane_properties": [
+    "reverse_direction",
+    "lane_left",
+    "lane_right",
+    "lane_next",
+    "lane_prior"
+  ],
+  "success_criteria": {
+    "godot_4_7_1_imports_addon": true,
+    "real_project_copy_keeps_gl_compatibility": true,
+    "road_lane_is_path3d": true,
+    "road_lane_curve_can_be_constructed": true,
+    "canonical_project_remains_clean": true
+  }
+}

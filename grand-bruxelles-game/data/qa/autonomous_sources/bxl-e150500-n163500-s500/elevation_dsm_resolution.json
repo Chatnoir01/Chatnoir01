@@ -1,0 +1,50 @@
+{
+  "bbox": [
+    150500.0,
+    163500.0,
+    151000.0,
+    164000.0
+  ],
+  "cell_id": "bxl-e150500-n163500-s500",
+  "crs": "EPSG:31370",
+  "dataset_atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/8c2d921e-6a53-11ed-bfb5-010101010000-en.xml",
+  "dataset_id": "8c2d921e-6a53-11ed-bfb5-010101010000",
+  "expected_1km_tile_codes": [
+    "150163"
+  ],
+  "feeds_crawled": [
+    {
+      "bytes": 54355,
+      "depth": 0,
+      "links": 222,
+      "url": "https://urbisdownload.datastore.brussels/atomfeed/8c2d921e-6a53-11ed-bfb5-010101010000-en.xml"
+    },
+    {
+      "bytes": 54463,
+      "depth": 1,
+      "links": 222,
+      "url": "https://urbisdownload.datastore.brussels/atomfeed/8c2d921e-6a53-11ed-bfb5-010101010000-fr.xml"
+    },
+    {
+      "bytes": 54379,
+      "depth": 1,
+      "links": 222,
+      "url": "https://urbisdownload.datastore.brussels/atomfeed/8c2d921e-6a53-11ed-bfb5-010101010000-nl.xml"
+    }
+  ],
+  "format": "grand-bruxelles-cell-elevation-source-resolution-v1",
+  "kind": "dsm",
+  "maturity_effect": {
+    "heights_gate": false,
+    "reason": "urls_only_no_raster_validation",
+    "terrain_gate": false
+  },
+  "resolution_digest": "79a3f8de42fc05d09bfbdf38025e070ddb1f6a5978d7da758efd71ee3a99d348",
+  "resolved_archives": [
+    {
+      "tile": "150163",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_150163_20211009_50.zip"
+    }
+  ],
+  "status": "official_archives_resolved_not_downloaded_or_validated"
+}
